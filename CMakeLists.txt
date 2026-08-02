@@ -67,7 +67,6 @@ option(BUILD_REALMD         "Build the login server"                        ON)
 option(BUILD_TOOLS          "Build the client-data extractor"               ON)
 option(WITH_TESTS           "Build the unit tests"                          OFF)
 option(WITH_NET_TESTS       "Build the socket tests (slow; never in CI)"    OFF)
-option(USE_STORMLIB         "Use StormLib for reading MPQs"                 ON)
 option(SCRIPT_LIB_ELUNA     "Compile with support for Eluna scripts"        ON)
 option(SCRIPT_LIB_SD3       "Compile with support for ScriptDev3 scripts"   ON)
 option(PLAYERBOTS           "Enable Player Bots"                            OFF)
@@ -86,7 +85,6 @@ message(
     BUILD_MANGOSD           Build the main server
     BUILD_REALMD            Build the login server
     BUILD_TOOLS             Build the client-data extractor
-    USE_STORMLIB            Use StormLib for reading MPQs
     SOAP                    Enable remote access via SOAP
     PCH                     Enable use of precompiled headers
     WITH_TESTS              Build the unit tests (target: mangos_tests)
