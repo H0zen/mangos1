@@ -81,8 +81,9 @@ class Master
         /// region. A no-op when that console is not running.
         ///
         /// @param diff How long the last world update took, in milliseconds.
+        /// @param diffMax The longest update in the reporting window.
         /// @param tick Mean interval between updates over the reporting window.
-        void PublishConsoleStatus(uint32 diff, uint32 tick);
+        void PublishConsoleStatus(uint32 diff, uint32 diffMax, uint32 tick);
 
         /// Everything that must happen after the final world tick.
         void ShutdownWorld();
