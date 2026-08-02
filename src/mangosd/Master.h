@@ -79,7 +79,10 @@ class Master
 
         /// Push the once-a-second figures into the full-screen console's status
         /// region. A no-op when that console is not running.
-        void PublishConsoleStatus(uint32 diff);
+        ///
+        /// @param diff How long the last world update took, in milliseconds.
+        /// @param tick Mean interval between updates over the reporting window.
+        void PublishConsoleStatus(uint32 diff, uint32 tick);
 
         /// Everything that must happen after the final world tick.
         void ShutdownWorld();

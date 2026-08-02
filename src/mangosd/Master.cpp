@@ -64,6 +64,11 @@ extern int m_ServiceStatus;
 #define WORLD_SLEEP_CONST 50
 #endif
 
+/// How far the measured tick may sit above the target before the status bar calls it out.
+/// Wide enough to absorb ordinary scheduling noise, narrow enough that a sleep rounded up
+/// to a coarse platform timer (15.625ms on Windows, so ~62ms for a 50ms target) shows red.
+#define TICK_SLACK 5
+
 extern uint32 realmID;
 
 namespace
@@ -272,7 +277,7 @@ void Master::StopServices()
     m_services.clear();
 }
 
-void Master::PublishConsoleStatus(uint32 diff)
+void Master::PublishConsoleStatus(uint32 diff, uint32 tick)
 {
 #ifdef _WIN32
     // Before the early-out below: the window title is owned by the OS rather
@@ -303,9 +308,19 @@ void Master::PublishConsoleStatus(uint32 diff)
     ui.SetStatus(2, "Diff", buf, diff > WORLD_SLEEP_CONST ? MaNGOS::Console::STYLE_WARN
                                                           : MaNGOS::Console::STYLE_SUCCESS);
 
+    // Not the same number as Diff, and the difference is the point: Diff is how long one
+    // update took, Tick is how far apart they actually land. A loop that finishes its work
+    // in 4ms can still tick every 65 if the platform rounds the sleep up to its timer
+    // granularity -- invisible in Diff, and it is the cadence every relayed movement
+    // packet inherits.
+    snprintf(buf, sizeof(buf), "%u ms", tick);
+    ui.SetStatus(3, "Tick", buf, tick > WORLD_SLEEP_CONST + TICK_SLACK
+                                     ? MaNGOS::Console::STYLE_WARN
+                                     : MaNGOS::Console::STYLE_SUCCESS);
+
     snprintf(buf, sizeof(buf), "%ud %02u:%02u:%02u", uptime / 86400,
              (uptime / 3600) % 24, (uptime / 60) % 60, uptime % 60);
-    ui.SetStatus(3, "Uptime", buf);
+    ui.SetStatus(4, "Uptime", buf);
 }
 
 void Master::WorldLoop()
@@ -314,7 +329,8 @@ void Master::WorldLoop()
                    WORLD_SLEEP_CONST);
 
     uint32 previous = getMSTime();
-    uint32 lastStatus = 0;
+    uint32 lastStatus = previous;
+    uint32 ticksSinceStatus = 0;
 
     while (!World::IsStopped())
     {
@@ -326,11 +342,16 @@ void Master::WorldLoop()
         previous = current;
 
         const uint32 spent = getMSTimeDiff(current, getMSTime());
+        ++ticksSinceStatus;
 
-        if (getMSTimeDiff(lastStatus, current) >= 1000)
+        const uint32 sinceStatus = getMSTimeDiff(lastStatus, current);
+        if (sinceStatus >= 1000)
         {
+            // Averaged over the reporting window: a single sample is one sleep's rounding
+            // error and says nothing about the cadence.
+            PublishConsoleStatus(spent, sinceStatus / ticksSinceStatus);
             lastStatus = current;
-            PublishConsoleStatus(spent);
+            ticksSinceStatus = 0;
         }
 
         if (spent < WORLD_SLEEP_CONST)
