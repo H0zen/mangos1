@@ -47,6 +47,7 @@
 #endif
 
 #ifdef _WIN32
+#include <windows.h>
 #include "ServiceWin32.h"
 extern int m_ServiceStatus;
 #else

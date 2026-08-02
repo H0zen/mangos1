@@ -165,7 +165,7 @@ WorldSession::WorldSession(uint32 id, std::shared_ptr<proto::IClientLink> link,
     _security(sec), _accountId(id), m_expansion(expansion), _warden(NULL), _build(0), _logoutTime(0),
     m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
-    m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_clientTimeDelay(0), m_npcWatchLastGuid(),
+    m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_npcWatchLastGuid(),
     m_pingTracker()
 {
     if (m_link)
@@ -800,7 +800,6 @@ void WorldSession::HandlePingOpcode(WorldPacket& recv_data)
     }
 
     SetLatency(latency);
-    SetClientTimeDelay(0); // recalculated on next movement packet
 
     WorldPacket packet(SMSG_PONG, 4);
     packet << ping;

@@ -14,6 +14,7 @@ class WorldNetwork : public MaNGOS::Singleton<WorldNetwork>
 public:
     bool Start(uint16 port, const std::string& bindIp);
     void Stop();
+    uint32 GetOpenConnectionCount() const;
 
     /// Sockets currently open, for the mangosd console/window title.
     uint32 GetOpenConnectionCount() const;
