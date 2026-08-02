@@ -382,7 +382,7 @@ void Master::StopServices()
     m_services.clear();
 }
 
-void Master::PublishConsoleStatus(uint32 diff, uint32 tick)
+void Master::PublishConsoleStatus(uint32 diff, uint32 diffMax, uint32 tick)
 {
 #ifdef _WIN32
     // Before the early-out below: the window title is owned by the OS rather
@@ -409,9 +409,14 @@ void Master::PublishConsoleStatus(uint32 diff, uint32 tick)
                  sWorld.GetQueuedSessionCount() ? MaNGOS::Console::STYLE_WARN
                                                 : MaNGOS::Console::STYLE_NORMAL);
 
-    snprintf(buf, sizeof(buf), "%u ms", diff);
-    ui.SetStatus(2, "Diff", buf, diff > WORLD_SLEEP_CONST ? MaNGOS::Console::STYLE_WARN
-                                                          : MaNGOS::Console::STYLE_SUCCESS);
+    // Last sample AND the worst one in the window. One number cannot tell a loop that sleeps
+    // badly from a loop that works slowly: the sleep is WORLD_SLEEP_CONST minus the work, so
+    // a tick whose work overruns skips its sleep entirely and drags the mean up while the
+    // instantaneous sample stays near zero. Reading only the sample sent me after the timer
+    // three times over.
+    snprintf(buf, sizeof(buf), "%u/%u ms", diff, diffMax);
+    ui.SetStatus(2, "Diff", buf, diffMax > WORLD_SLEEP_CONST ? MaNGOS::Console::STYLE_WARN
+                                                             : MaNGOS::Console::STYLE_SUCCESS);
 
     // Not the same number as Diff, and the difference is the point: Diff is how long one
     // update took, Tick is how far apart they actually land. A loop that finishes its work
@@ -444,6 +449,7 @@ void Master::WorldLoop()
     uint32 previous = getMSTime();
     uint32 lastStatus = previous;
     uint32 ticksSinceStatus = 0;
+    uint32 spentMax = 0;
 
     while (!World::IsStopped())
     {
@@ -456,15 +462,20 @@ void Master::WorldLoop()
 
         const uint32 spent = getMSTimeDiff(current, getMSTime());
         ++ticksSinceStatus;
+        if (spent > spentMax)
+        {
+            spentMax = spent;
+        }
 
         const uint32 sinceStatus = getMSTimeDiff(lastStatus, current);
         if (sinceStatus >= 1000)
         {
             // Averaged over the reporting window: a single sample is one sleep's rounding
             // error and says nothing about the cadence.
-            PublishConsoleStatus(spent, sinceStatus / ticksSinceStatus);
+            PublishConsoleStatus(spent, spentMax, sinceStatus / ticksSinceStatus);
             lastStatus = current;
             ticksSinceStatus = 0;
+            spentMax = 0;
         }
 
         if (spent < WORLD_SLEEP_CONST)

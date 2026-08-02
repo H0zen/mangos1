@@ -55,6 +55,7 @@
 
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
+#include "Timer.h"
 #include <ctime>
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -399,6 +400,8 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     movementInfo.Read(recv_data);
     /*----------------*/
 
+    const uint32 rawClientTime = movementInfo.GetTime();
+
     // Latch the mover's clock against ours once, then carry every later packet across on
     // that same offset: the relay leaves in one time base rather than in whichever base the
     // sending client happens to boot with. No forward bias -- that was half a second of
@@ -429,6 +432,17 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     {
         plMover->UpdateFallInformationIfNeed(movementInfo, opcode);
     }
+
+    // Set LogFilter_PlayerMoves = 0 to see it. Three columns settle every argument we have
+    // had about this path: `srv` deltas are the real relay cadence, `wire` must never go
+    // backwards for one mover or the observer repositions it, and `cli`->`wire` shows what
+    // the session offset actually did.
+    DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES,
+                     "MOVE %-26s %s cli=%u wire=%u srv=%u xyz=%.2f %.2f %.2f",
+                     LookupOpcodeName(opcode), mover->GetName(),
+                     rawClientTime, movementInfo.GetTime(), getMSTime(),
+                     movementInfo.GetPos()->x, movementInfo.GetPos()->y,
+                     movementInfo.GetPos()->z);
 
     WorldPacket data(opcode, recv_data.size());
     data << mover->GetPackGUID();             // write guid
