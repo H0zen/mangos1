@@ -64,6 +64,49 @@ extern int m_ServiceStatus;
 #define WORLD_SLEEP_CONST 50
 #endif
 
+#ifdef _WIN32
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
+#endif
+
+namespace
+{
+    /// Asks the platform for a finer timer while the world loop runs, and gives it back.
+    /// Everywhere but Windows the sleep is already accurate and this is inert.
+    class ScopedTimerResolution
+    {
+        public:
+            explicit ScopedTimerResolution(unsigned ms) : m_ms(ms), m_held(false)
+            {
+#ifdef _WIN32
+                m_held = (timeBeginPeriod(m_ms) == TIMERR_NOERROR);
+                if (!m_held)
+                {
+                    sLog.outError("timeBeginPeriod(%u) refused; world ticks will be quantised "
+                                  "to the default timer granularity", m_ms);
+                }
+#endif
+            }
+
+            ~ScopedTimerResolution()
+            {
+#ifdef _WIN32
+                if (m_held)
+                {
+                    timeEndPeriod(m_ms);
+                }
+#endif
+            }
+
+            ScopedTimerResolution(const ScopedTimerResolution&) = delete;
+            ScopedTimerResolution& operator=(const ScopedTimerResolution&) = delete;
+
+        private:
+            unsigned m_ms;
+            bool     m_held;
+    };
+}
+
 /// How far the measured tick may sit above the target before the status bar calls it out.
 /// Wide enough to absorb ordinary scheduling noise, narrow enough that a sleep rounded up
 /// to a coarse platform timer (15.625ms on Windows, so ~62ms for a 50ms target) shows red.
@@ -327,6 +370,13 @@ void Master::WorldLoop()
 {
     sLog.outString("World updater started (%dms minimum update interval)",
                    WORLD_SLEEP_CONST);
+
+    // sleep_for() cannot wake sooner than the platform's timer granularity, 15.625ms by
+    // default on Windows -- so a 50ms target lands on the next boundary at 62.5, and the
+    // status bar reads Tick 64 while Diff reads 0. Movement opcodes are drained in
+    // Map::Update, so that rounding IS the cadence at which every relayed movement packet
+    // leaves the server, and the client extrapolates across the whole of it.
+    ScopedTimerResolution timerRes(1);
 
     uint32 previous = getMSTime();
     uint32 lastStatus = previous;

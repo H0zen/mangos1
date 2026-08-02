@@ -399,32 +399,17 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     movementInfo.Read(recv_data);
     /*----------------*/
 
-    // Calculate timestamp
-    int32 move_time, mstime;
-    mstime = mTimeStamp();
+    // Latch the mover's clock against ours once, then carry every later packet across on
+    // that same offset: the relay leaves in one time base rather than in whichever base the
+    // sending client happens to boot with. No forward bias -- that was half a second of
+    // apparent lag paid on every remote unit to hide a cadence problem that is now fixed
+    // where it lives, in the world loop's timer resolution.
     if (m_clientTimeDelay == 0)
     {
-        m_clientTimeDelay = mstime - movementInfo.GetTime();
+        m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
     }
 
-    /* if (movementInfo.GetTime() - (mstime + m_clientTimeDelay) < 0)
-    {
-        move_time = mstime + 500;
-        move_time -= (movementInfo.GetTime() - (mstime + m_clientTimeDelay));
-        movementInfo.UpdateTime(move_time);
-    }
-    else
-    {
-    int calc_var = (movementInfo.GetTime() - (mstime + m_clientTimeDelay));
-    if (calc_var < 0)
-    {
-        calc_var *= -1;
-    }
-    calc_var += 500 + mstime;
-    move_time = calc_var; */
-
-    move_time = (movementInfo.GetTime() - (mstime - m_clientTimeDelay)) + 500 + mstime;
-    movementInfo.UpdateTime(move_time);
+    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay);
 
     if (!VerifyMovementInfo(movementInfo))
     {
@@ -619,19 +604,12 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recv_data)
     recv_data >> Unused<uint32>();                          // knockback packets counter
     movementInfo.Read(recv_data);
 
-    // Calculate timestamp (should probably move this into its own function?
-    int32 move_time, mstime;
-    mstime = mTimeStamp();
     if (m_clientTimeDelay == 0)
     {
-        m_clientTimeDelay = mstime - movementInfo.GetTime();
+        m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
     }
 
-    /* The 500 delay lets the client sync the movement correctly.
-     * Yes it slows things a bit, but removing it causes stutter.
-     * Fixes itself after a short while */
-    move_time = (movementInfo.GetTime() - (mstime - m_clientTimeDelay)) + 500 + mstime;
-    movementInfo.UpdateTime(move_time);
+    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay);
 
     /* Make sure input is valid */
     if (!VerifyMovementInfo(movementInfo, guid))
