@@ -767,12 +767,13 @@ bool WorldSession::VerifyMovementInfo(MovementInfo const& movementInfo) const
  */
 void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
 {
-    //uint32 mstime = GameTime::GetGameTimeMS();
-    //if (m_clientTimeDelay == 0)
-    //    m_clientTimeDelay = mstime - movementInfo.GetTime();
-
-    //movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay + MOVEMENT_PACKET_TIME_DELAY);
-    movementInfo.UpdateTime(movementInfo.GetTime() + GetLatency());
+    // No latency term here. HandleMovementOpcodes has already carried this packet onto the
+    // session's fixed offset; adding GetLatency() on top makes the mover's timeline shift by
+    // the difference every time a PING revises it, so a packet can land EARLIER in that
+    // timeline than the one before it and the observer repositions the unit backwards.
+    // Nobody else adds a varying quantity: VMaNGOS forwards the client time untouched
+    // ("required for proper movement extrapolation"), SkyFire adds a constant, TrinityCore a
+    // synchronised delta from an opcode pair 2.4.3 does not have.
 
     Unit* mover = _player->GetMover();
 

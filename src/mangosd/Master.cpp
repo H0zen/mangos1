@@ -105,6 +105,68 @@ namespace
             unsigned m_ms;
             bool     m_held;
     };
+
+#ifdef _WIN32
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+#endif
+
+    /// Waits out the rest of a tick without depending on the process timer resolution --
+    /// a high-resolution waitable timer runs off its own ~1ms source (Win10 1803+) rather
+    /// than the scheduler tick that quantises Sleep(). Falls back to the plain sleep where
+    /// the flag is refused, and is the plain sleep everywhere but Windows.
+    class PreciseSleep
+    {
+        public:
+#ifdef _WIN32
+            PreciseSleep()
+                : m_timer(CreateWaitableTimerExW(
+                              nullptr, nullptr,
+                              CREATE_WAITABLE_TIMER_MANUAL_RESET |
+                              CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                              TIMER_ALL_ACCESS))
+            {
+                if (!m_timer)
+                {
+                    sLog.outError("No high-resolution waitable timer; world ticks stay quantised "
+                                  "to the platform timer granularity");
+                }
+            }
+
+            ~PreciseSleep()
+            {
+                if (m_timer)
+                {
+                    CloseHandle(m_timer);
+                }
+            }
+
+            void Wait(uint32 ms)
+            {
+                LARGE_INTEGER due;
+                due.QuadPart = -static_cast<LONGLONG>(ms) * 10000;  // negative == relative, 100ns
+                if (m_timer && SetWaitableTimerEx(m_timer, &due, 0, nullptr, nullptr, nullptr, 0))
+                {
+                    WaitForSingleObject(m_timer, INFINITE);
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+            }
+
+        private:
+            HANDLE m_timer;
+#else
+            void Wait(uint32 ms)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+            }
+#endif
+
+        public:
+            PreciseSleep(const PreciseSleep&) = delete;
+            PreciseSleep& operator=(const PreciseSleep&) = delete;
+    };
 }
 
 /// How far the measured tick may sit above the target before the status bar calls it out.
@@ -377,6 +439,7 @@ void Master::WorldLoop()
     // Map::Update, so that rounding IS the cadence at which every relayed movement packet
     // leaves the server, and the client extrapolates across the whole of it.
     ScopedTimerResolution timerRes(1);
+    PreciseSleep sleeper;
 
     uint32 previous = getMSTime();
     uint32 lastStatus = previous;
@@ -406,8 +469,7 @@ void Master::WorldLoop()
 
         if (spent < WORLD_SLEEP_CONST)
         {
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(WORLD_SLEEP_CONST - spent));
+            sleeper.Wait(WORLD_SLEEP_CONST - spent);
         }
 
 #ifdef _WIN32
