@@ -124,8 +124,14 @@ BindIP                       = "0.0.0.0"
 #        Default: 300000 (5 min)
 #
 #    MapUpdateInterval
-#        Map update interval (in milliseconds)
-#        Default: 100
+#        How often the simulation runs, in milliseconds: maps, creatures, and the session
+#        mailboxes that feed them. Movement packets are drained and relayed inside a map
+#        update, so this is directly the granularity at which other players' positions
+#        arrive on a client -- raise it and they will look steppy, whatever the ping says.
+#        Independent of the world heartbeat, which keeps auctions, mail and events on its
+#        own 50ms beat. Floored at 10; there is nothing to gain below that, since a 2.4.3
+#        client emits movement about every 15ms.
+#        Default: 10
 #
 #    MapUpdateThreads
 #        Number of map update threads to run
@@ -211,7 +217,7 @@ MaxOverspeedPings                 = 2
 GridUnload                        = 1
 LoadAllGridsOnMaps                = ""
 GridCleanUpDelay                  = 300000
-MapUpdateInterval                 = 100
+MapUpdateInterval                 = 10
 MapUpdateThreads                  = 2
 ChangeWeatherInterval             = 600000
 PlayerSave.Interval               = 900000

@@ -393,7 +393,10 @@ void MapManager::Update(uint32 diff)
         }
     }
 
-    i_timer.SetCurrent(0);
+    // Reset(), not SetCurrent(0): Reset keeps the remainder (`_current %= _interval`) so the
+    // beat stays phase-locked to the interval. Dropping it re-quantised every cycle to the
+    // caller's own tick, which is where the alternating 100/101ms grid in the trace came from.
+    i_timer.Reset();
 }
 
 /**

@@ -661,6 +661,15 @@ class World
             return (m_shutdownState.load(std::memory_order_acquire) & STOP_BIT) != 0;
         }
 
+        /// The simulation beat: maps, and the session mailboxes that feed them. Runs on its
+        /// own cadence, MapUpdateInterval, because this is the only part of the tick a player
+        /// can feel -- a movement packet is drained here and relayed from here, so this
+        /// interval IS the granularity of every other player's position on their screen.
+        void UpdateSimulation(uint32 diff);
+
+        /// The housekeeping beat: auctions, mail, uptime, corpses, events, battlegrounds.
+        /// None of it is latency-sensitive, all of it is either timer-gated already or cheap
+        /// to run at the world heartbeat. Deliberately NOT the same rate as UpdateSimulation.
         void Update(uint32 diff);
 
         void UpdateSessions(uint32 diff);

@@ -300,7 +300,10 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_UINT32_NUMTHREADS, "MapUpdateThreads", 2);
 
-    setConfigMin(CONFIG_UINT32_INTERVAL_MAPUPDATE, "MapUpdateInterval", 100, MIN_MAP_UPDATE_DELAY);
+    // `if (reload)` is not an oversight: at startup MapManager's constructor reads this same
+    // config value, so calling the setter here too would only construct the singleton early.
+    setConfigMin(CONFIG_UINT32_INTERVAL_MAPUPDATE, "MapUpdateInterval", MIN_MAP_UPDATE_DELAY,
+                 MIN_MAP_UPDATE_DELAY);
     if (reload)
     {
         sMapMgr.SetMapUpdateInterval(getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
