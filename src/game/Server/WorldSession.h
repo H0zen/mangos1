@@ -42,9 +42,11 @@
 #include "Item.h"
 
 struct ItemPrototype;
+#include <deque>
 #include <memory>
 #include <ctime>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct AuctionEntry;
@@ -509,7 +511,9 @@ class WorldSession
         }
         void SetClientTimeDelay(int64 delay) { m_clientTimeDelay = delay; }
         int64 GetClientTimeDelay() const { return m_clientTimeDelay; }
-        void AdjustMovementInfoTime(MovementInfo& mi) const;
+        void ResetClientTimeDelay();
+        void PushTimeSyncSample(int64 clockDelta, uint32 roundTrip);
+        void AdjustMovementInfoTime(MovementInfo& mi);
         uint32 getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus);
 
         // Misc
@@ -1002,6 +1006,8 @@ class WorldSession
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
         int64 m_clientTimeDelay;
+        bool m_clientTimeDelayKnown;
+        std::deque<std::pair<int64, uint32>> m_timeSyncSamples; ///< (clock delta, round trip)
         ObjectGuid m_npcWatchLastGuid;
 
         // Ping flood tracking now lives exclusively on the world thread and is
