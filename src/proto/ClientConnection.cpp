@@ -2,6 +2,7 @@
 #include <mutex>
 #include "ClientConnection.h"
 #include "Log/Log.h"
+#include "Utilities/Timer.h"
 
 #include "Auth/Sha1.h"
 #include "Opcodes.h"
@@ -67,6 +68,14 @@ std::vector<uint8_t> ClientConnection::onData(const uint8_t* data, std::size_t l
 
         for (size_t i = 0; i < packets.size() && !m_closed.load(); ++i)
         {
+            // Second clock, on the network thread. Paired with the MOVE line in
+            // HandleMovementOpcodes this says where a packet waits: if RECV is smooth and
+            // MOVE is bursty the wait is in the session queue, if RECV is bursty too the
+            // wait is below us in the transport. No opcode names down here -- the table
+            // lives in the game layer -- so correlate on the hex.
+            DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "RECV op=0x%04X net=%u chunk=%zu of %zu",
+                             packets[i].GetOpcode(), getMSTime(), i + 1, packets.size());
+
             m_gateway.TracePacket(packets[i], true);
             if (!HandlePacket(packets[i]))
             {
