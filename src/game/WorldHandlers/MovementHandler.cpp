@@ -62,6 +62,7 @@
 #include "OpcodeTable.h"
 #include "Log.h"
 #include "Player.h"
+#include "World.h"
 #include "MapManager.h"
 #include "Transports.h"
 #include "TransportMap.h"
