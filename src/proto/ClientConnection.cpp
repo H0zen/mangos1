@@ -121,6 +121,17 @@ void ClientConnection::SendPacket(const WorldPacket& packet)
         if (m_closed.load() || !m_sender)
             return;
 
+        // The missing half of the trace. RECV and MOVE both describe the MOVER's session; this
+        // is the only place that says what an OBSERVER was actually handed, and when. A halt
+        // in the follower's own movement means nothing until you can see whether the leader's
+        // stream to him kept flowing through it.
+        // conn= because the peer address is the IP only: two clients on one machine share it.
+        // Not the session id -- that needs m_sessionLock, and taking it under m_cryptSendLock
+        // would invert the order HandleAuthSession uses.
+        DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "SEND op=0x%04X net=%u conn=%p to=%s",
+                         packet.GetOpcode(), getMSTime(),
+                         static_cast<const void*>(this), m_address.c_str());
+
         m_gateway.TracePacket(packet, false);
         std::vector<uint8> const frame = PacketCodec::Encode(packet,
             [this](uint8* header, std::size_t len) { m_crypt.EncryptSend(header, len); });
