@@ -137,6 +137,17 @@ BindIP                       = "0.0.0.0"
 #        Number of map update threads to run
 #        Default: 2
 #
+#    MovementPacketDelay
+#        Playout buffer for relayed movement, in milliseconds. A movement packet is
+#        rebroadcast with its timestamp moved into the near future by this much, so the
+#        observing client interpolates towards a position it already holds instead of
+#        dead-reckoning past the last one it got. Set it to 0 and remote players overshoot
+#        every stop and every hard turn, then snap back.
+#        Raising it costs a visible delay on remote units; lowering it costs smoothness.
+#        TrinityCore uses the same 500 and documents it as inferred, not measured, so this
+#        is the one value here genuinely worth A/B testing on your own players.
+#        Default: 500
+#
 #    ChangeWeatherInterval
 #        Weather update interval (in milliseconds)
 #        Default: 600000 (10 min)
@@ -219,6 +230,7 @@ LoadAllGridsOnMaps                = ""
 GridCleanUpDelay                  = 300000
 MapUpdateInterval                 = 10
 MapUpdateThreads                  = 2
+MovementPacketDelay               = 500
 ChangeWeatherInterval             = 600000
 PlayerSave.Interval               = 900000
 PlayerSave.Stats.MinLevel         = 0
