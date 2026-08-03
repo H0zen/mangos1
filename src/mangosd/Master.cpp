@@ -54,12 +54,14 @@ extern int m_ServiceStatus;
 #include "PosixDaemon.h"
 #endif
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
 
-/// Shortest interval between two world ticks, in milliseconds.
+/// Shortest interval between two housekeeping ticks, in milliseconds. The simulation runs on
+/// its own, finer beat -- see MapUpdateInterval and World::UpdateSimulation.
 #ifndef WORLD_SLEEP_CONST
 #define WORLD_SLEEP_CONST 50
 #endif
@@ -71,6 +73,16 @@ extern int m_ServiceStatus;
 
 namespace
 {
+    /// How often the simulation runs, in milliseconds. MapUpdateInterval is the authority --
+    /// bounded below by 1 so the loop cannot spin, and above by the housekeeping beat, since
+    /// running the maps rarer than the auction timer would be a pointless configuration.
+    uint32 SimulationInterval()
+    {
+        return std::max<uint32>(1u,
+                   std::min<uint32>(WORLD_SLEEP_CONST,
+                                    sWorld.getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE)));
+    }
+
     /// Asks the platform for a finer timer while the world loop runs, and gives it back.
     /// Everywhere but Windows the sleep is already accurate and this is inert.
     class ScopedTimerResolution
@@ -409,14 +421,18 @@ void Master::PublishConsoleStatus(uint32 diff, uint32 diffMax, uint32 tick)
                  sWorld.GetQueuedSessionCount() ? MaNGOS::Console::STYLE_WARN
                                                 : MaNGOS::Console::STYLE_NORMAL);
 
+    // Both figures are about the simulation beat, not the housekeeping one -- that is the
+    // beat a player feels, so it is the beat worth watching.
+    const uint32 target = SimulationInterval();
+
     // Last sample AND the worst one in the window. One number cannot tell a loop that sleeps
-    // badly from a loop that works slowly: the sleep is WORLD_SLEEP_CONST minus the work, so
-    // a tick whose work overruns skips its sleep entirely and drags the mean up while the
+    // badly from a loop that works slowly: the sleep is the beat minus the work, so a tick
+    // whose work overruns skips its sleep entirely and drags the mean up while the
     // instantaneous sample stays near zero. Reading only the sample sent me after the timer
     // three times over.
     snprintf(buf, sizeof(buf), "%u/%u ms", diff, diffMax);
-    ui.SetStatus(2, "Diff", buf, diffMax > WORLD_SLEEP_CONST ? MaNGOS::Console::STYLE_WARN
-                                                             : MaNGOS::Console::STYLE_SUCCESS);
+    ui.SetStatus(2, "Diff", buf, diffMax > target ? MaNGOS::Console::STYLE_WARN
+                                                  : MaNGOS::Console::STYLE_SUCCESS);
 
     // Not the same number as Diff, and the difference is the point: Diff is how long one
     // update took, Tick is how far apart they actually land. A loop that finishes its work
@@ -424,7 +440,7 @@ void Master::PublishConsoleStatus(uint32 diff, uint32 diffMax, uint32 tick)
     // granularity -- invisible in Diff, and it is the cadence every relayed movement
     // packet inherits.
     snprintf(buf, sizeof(buf), "%u ms", tick);
-    ui.SetStatus(3, "Tick", buf, tick > WORLD_SLEEP_CONST + TICK_SLACK
+    ui.SetStatus(3, "Tick", buf, tick > target + TICK_SLACK
                                      ? MaNGOS::Console::STYLE_WARN
                                      : MaNGOS::Console::STYLE_SUCCESS);
 
@@ -435,18 +451,19 @@ void Master::PublishConsoleStatus(uint32 diff, uint32 diffMax, uint32 tick)
 
 void Master::WorldLoop()
 {
-    sLog.outString("World updater started (%dms minimum update interval)",
-                   WORLD_SLEEP_CONST);
+    const uint32 simInterval = SimulationInterval();
 
-    // sleep_for() cannot wake sooner than the platform's timer granularity, 15.625ms by
-    // default on Windows -- so a 50ms target lands on the next boundary at 62.5, and the
-    // status bar reads Tick 64 while Diff reads 0. Movement opcodes are drained in
-    // Map::Update, so that rounding IS the cadence at which every relayed movement packet
-    // leaves the server, and the client extrapolates across the whole of it.
+    sLog.outString("World updater started (simulation every %ums, housekeeping every %ums)",
+                   simInterval, WORLD_SLEEP_CONST);
+
+    // Both are load-bearing now, not tuning: sleep_for() cannot wake sooner than the platform
+    // timer granularity, 15.625ms by default on Windows, which would round a 10ms simulation
+    // beat up past the 50ms it was meant to replace.
     ScopedTimerResolution timerRes(1);
     PreciseSleep sleeper;
 
     uint32 previous = getMSTime();
+    uint32 lastHousekeeping = previous;
     uint32 lastStatus = previous;
     uint32 ticksSinceStatus = 0;
     uint32 spentMax = 0;
@@ -457,8 +474,17 @@ void Master::WorldLoop()
         ++World::m_worldLoopCounter;
 
         const uint32 current = getMSTime();
-        sWorld.Update(getMSTimeDiff(previous, current));
+        sWorld.UpdateSimulation(getMSTimeDiff(previous, current));
         previous = current;
+
+        // An accumulator, not a tick counter: the simulation beat need not divide
+        // WORLD_SLEEP_CONST, and a slow map update must not drag the auction timers with it.
+        const uint32 sinceHousekeeping = getMSTimeDiff(lastHousekeeping, current);
+        if (sinceHousekeeping >= WORLD_SLEEP_CONST)
+        {
+            sWorld.Update(sinceHousekeeping);
+            lastHousekeeping = current;
+        }
 
         const uint32 spent = getMSTimeDiff(current, getMSTime());
         ++ticksSinceStatus;
@@ -478,9 +504,9 @@ void Master::WorldLoop()
             spentMax = 0;
         }
 
-        if (spent < WORLD_SLEEP_CONST)
+        if (spent < simInterval)
         {
-            sleeper.Wait(WORLD_SLEEP_CONST - spent);
+            sleeper.Wait(simInterval - spent);
         }
 
 #ifdef _WIN32
