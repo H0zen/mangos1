@@ -402,17 +402,22 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
 
     const uint32 rawClientTime = movementInfo.GetTime();
 
-    // Latch the mover's clock against ours once, then carry every later packet across on
-    // that same offset: the relay leaves in one time base rather than in whichever base the
-    // sending client happens to boot with. No forward bias -- that was half a second of
-    // apparent lag paid on every remote unit to hide a cadence problem that is now fixed
-    // where it lives, in the world loop's timer resolution.
+    // Two halves of ONE scheme, and taking only the first is worse than taking neither.
+    // m_clientTimeDelay carries the packet onto the server's time base; the delay then dates
+    // it slightly in the FUTURE so the observer has something to interpolate towards instead
+    // of dead-reckoning past the last position it holds. Drop the delay and the observer
+    // overshoots on every stop and every hard turn, then snaps back -- which is exactly what
+    // players reported when this was removed as a "latency fudge". It is not: TrinityCore
+    // calls it MOVEMENT_PACKET_TIME_DELAY and its Movement wiki describes the same 500ms
+    // playout buffer. CMaNGOS and VMaNGOS forward the raw client time untouched instead --
+    // a different, self-consistent design. Half of either one is the broken configuration.
     if (m_clientTimeDelay == 0)
     {
         m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
     }
 
-    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay);
+    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay +
+                            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
 
     if (!VerifyMovementInfo(movementInfo))
     {
@@ -623,7 +628,9 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recv_data)
         m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
     }
 
-    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay);
+    // Same scheme as HandleMovementOpcodes -- this packet is rebroadcast to observers too.
+    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay +
+                            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
 
     /* Make sure input is valid */
     if (!VerifyMovementInfo(movementInfo, guid))
@@ -781,13 +788,13 @@ bool WorldSession::VerifyMovementInfo(MovementInfo const& movementInfo) const
  */
 void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
 {
-    // No latency term here. HandleMovementOpcodes has already carried this packet onto the
-    // session's fixed offset; adding GetLatency() on top makes the mover's timeline shift by
-    // the difference every time a PING revises it, so a packet can land EARLIER in that
-    // timeline than the one before it and the observer repositions the unit backwards.
-    // Nobody else adds a varying quantity: VMaNGOS forwards the client time untouched
-    // ("required for proper movement extrapolation"), SkyFire adds a constant, TrinityCore a
-    // synchronised delta from an opcode pair 2.4.3 does not have.
+    // No latency term here -- and note that is a rejection of a VARYING term, not of the
+    // constant playout buffer HandleMovementOpcodes adds. GetLatency() shifts the mover's
+    // timeline by a different amount every time a PING revises it, so a packet can land
+    // EARLIER in that timeline than the one before it and the observer repositions the unit
+    // backwards. Nobody else adds a varying quantity: VMaNGOS forwards the client time
+    // untouched, SkyFire adds a constant, TrinityCore a synchronised delta from an opcode
+    // pair 2.4.3 does not have.
 
     Unit* mover = _player->GetMover();
 
