@@ -57,6 +57,7 @@
 #include "Opcodes.h"
 #include "Log.h"
 #include "Player.h"
+#include "Timer.h"
 #include "World.h"
 #include "CinematicFlyover.h"
 #include "GuildMgr.h"
@@ -977,29 +978,29 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
 
+    // Guid is NOT packed here: 2.4.3 sends it whole, and only the reply packs it. Confirmed
+    // against CMaNGOS-tbc; the packed read belongs to 3.3.5 and later, so do not "align" it.
     ObjectGuid guid;
     uint32 time_dif;
     recv_data >> guid;
     recv_data >> time_dif;
 
-    if (!_player || guid != _player->GetObjectGuid())
+    // The client names its MOVER, which is not the player while he drives something else.
+    Unit* mover = _player ? _player->GetMover() : NULL;
+    if (!mover || guid != mover->GetObjectGuid())
     {
         return;
     }
 
     // Advance last move time by the skipped duration (same units on client/server clocks).
     // Keeps server m_movementInfo timeline aligned when the client pauses/lags without MOVE packets.
-    Unit* mover = _player->GetMover();
-    if (mover)
-    {
-        mover->m_movementInfo.UpdateTime(mover->m_movementInfo.GetTime() + time_dif);
-    }
+    mover->m_movementInfo.UpdateTime(mover->m_movementInfo.GetTime() + time_dif);
 
     // Observers apply the same skip to remote interpolation (MSG_MOVE_TIME_SKIPPED is SMSG-only).
     WorldPacket data(MSG_MOVE_TIME_SKIPPED, 16);
-    data << _player->GetPackGUID();
+    data << mover->GetPackGUID();
     data << time_dif;
-    _player->SendMessageToSet(&data, false);
+    mover->SendMessageToSetExcept(&data, _player);
 }
 
 /**
@@ -1477,24 +1478,25 @@ void WorldSession::HandleTimeSyncResp(WorldPacket& recv_data)
     uint32 counter, clientTicks;
     recv_data >> counter >> clientTicks;
 
-    DEBUG_LOG("WORLD: Received opcode CMSG_TIME_SYNC_RESP: counter %u, client ticks %u, time since last sync %u",
-              counter, clientTicks, clientTicks - _player->m_timeSyncClient);
-
-    if (counter != _player->m_timeSyncCounter - 1)
+    if (!_player->m_timeSyncCounter || counter != _player->m_timeSyncCounter - 1)
     {
+        // Not merely suspicious: m_timeSyncServer already holds a LATER request's send time,
+        // so this pair cannot be dated at all. Dropping the sample is the only honest answer.
         DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- Wrong time sync counter from %s (cheater?)",
                   _player->GetGuidStr().c_str());
+        return;
     }
 
-    // REQ send time (server MS) vs client tick at RESP: full int64 offset, no int32 wrap.
-    // serverAlignedMoveTime = clientMoveTime + m_clientTimeDelay
-    m_clientTimeDelay = int64(_player->m_timeSyncServer) - int64(clientTicks);
+    // The client stamped clientTicks when the REQ reached it -- half a round trip after we sent
+    // it, which is the term that keeps the delta from eating into the playout buffer.
+    const uint32 roundTrip = getMSTime() - _player->m_timeSyncServer;
+    const int64 clockDelta = int64(_player->m_timeSyncServer) + int64(roundTrip / 2) - int64(clientTicks);
+    PushTimeSyncSample(clockDelta, roundTrip);
 
-    const uint32 now = GameTime::GetGameTimeMS();
-    const uint32 rttish = now - _player->m_timeSyncServer;
-    DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- delay=%lld server=%u client=%u rttish=%u latency=%u",
-              static_cast<long long>(m_clientTimeDelay), _player->m_timeSyncServer, clientTicks,
-              rttish, GetLatency());
+    DEBUG_LOG("WORLD: CMSG_TIME_SYNC_RESP counter %u client %u since=%u sample=%lld delay=%lld rtt=%u latency=%u",
+              counter, clientTicks, clientTicks - _player->m_timeSyncClient,
+              static_cast<long long>(clockDelta), static_cast<long long>(GetClientTimeDelay()),
+              roundTrip, GetLatency());
 
     _player->m_timeSyncClient = clientTicks;
 }

@@ -877,7 +877,7 @@ void InitializeOpcodes()
     OPCODE(CMSG_DEBUG_ACTIONS_STOP,                        STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_NULL);
     OPCODE(CMSG_SET_FACTION_INACTIVE,                      STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSetFactionInactiveOpcode);
     OPCODE(CMSG_SET_WATCHED_FACTION,                       STATUS_LOGGEDIN, PROCESS_THREADUNSAFE, &WorldSession::HandleSetWatchedFactionOpcode);
-    OPCODE(MSG_MOVE_TIME_SKIPPED,                          STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_NULL);
+    OPCODE(MSG_MOVE_TIME_SKIPPED,                          STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide);
     OPCODE(SMSG_SPLINE_MOVE_ROOT,                          STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide);
     OPCODE(CMSG_SET_EXPLORATION_ALL,                       STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_NULL);
     OPCODE(SMSG_INVALIDATE_PLAYER,                         STATUS_NEVER,    PROCESS_INPLACE,      &WorldSession::Handle_ServerSide);

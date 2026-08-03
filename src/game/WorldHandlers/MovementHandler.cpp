@@ -771,9 +771,11 @@ void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
     // constant playout buffer HandleMovementOpcodes adds. GetLatency() shifts the mover's
     // timeline by a different amount every time a PING revises it, so a packet can land
     // EARLIER in that timeline than the one before it and the observer repositions the unit
-    // backwards. Nobody else adds a varying quantity: VMaNGOS forwards the client time
-    // untouched, SkyFire adds a constant, TrinityCore a synchronised delta from an opcode
-    // pair 2.4.3 does not have.
+    // backwards. VMaNGOS forwards the client time untouched, SkyFire adds a constant,
+    // TrinityCore a delta synchronised over SMSG_TIME_SYNC_REQ/CMSG_TIME_SYNC_RESP -- which
+    // 2.4.3 does have (0x390/0x391) and AdjustMovementInfoTime now uses. That delta is not
+    // the varying term rejected above: PushTimeSyncSample filters and dead-bands it so it
+    // cannot step backwards either.
 
     Unit* mover = _player->GetMover();
 

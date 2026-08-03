@@ -32,6 +32,7 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "SpellMgr.h"
+#include "Timer.h"
 #include "World.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -618,6 +619,8 @@ Player::Player(WorldSession* session): Unit(), m_petMgr(this), m_honorMgr(this),
     m_playerbotMgr = NULL;
 #endif
 
+    // Player::Update reads m_timeSyncTimer, so it cannot wait for the login path to set it.
+    ResetTimeSync();
 }
 
 /**
@@ -6256,7 +6259,7 @@ void Player::ResetTimeSync()
     m_timeSyncCounter = 0;
     m_timeSyncTimer = 0;
     m_timeSyncClient = 0;
-    m_timeSyncServer = GameTime::GetGameTimeMS();
+    m_timeSyncServer = getMSTime();
 }
 
 void Player::SendTimeSync()
@@ -6267,7 +6270,10 @@ void Player::SendTimeSync()
 
     // Schedule next sync in 10 sec
     m_timeSyncTimer = 10000;
-    m_timeSyncServer = GameTime::GetGameTimeMS();
+    // Live clock, not GameTime::GetGameTimeMS(): that one is resampled once per world tick, so
+    // the round trip this stamp anchors would quantise to the tick and the sample filter in
+    // WorldSession::PushTimeSyncSample would see every sample as equally good.
+    m_timeSyncServer = getMSTime();
 }
 
 /**
