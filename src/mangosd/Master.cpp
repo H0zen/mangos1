@@ -169,6 +169,8 @@ namespace
         private:
             HANDLE m_timer;
 #else
+            PreciseSleep() = default;
+
             void Wait(uint32 ms)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(ms));

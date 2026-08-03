@@ -401,24 +401,9 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     movementInfo.Read(recv_data);
     /*----------------*/
 
+    // TIME_SYNC offset (m_clientTimeDelay) + MovementPacketDelay playout.
     const uint32 rawClientTime = movementInfo.GetTime();
-
-    // Two halves of ONE scheme, and taking only the first is worse than taking neither.
-    // m_clientTimeDelay carries the packet onto the server's time base; the delay then dates
-    // it slightly in the FUTURE so the observer has something to interpolate towards instead
-    // of dead-reckoning past the last position it holds. Drop the delay and the observer
-    // overshoots on every stop and every hard turn, then snaps back -- which is exactly what
-    // players reported when this was removed as a "latency fudge". It is not: TrinityCore
-    // calls it MOVEMENT_PACKET_TIME_DELAY and its Movement wiki describes the same 500ms
-    // playout buffer. CMaNGOS and VMaNGOS forward the raw client time untouched instead --
-    // a different, self-consistent design. Half of either one is the broken configuration.
-    if (m_clientTimeDelay == 0)
-    {
-        m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
-    }
-
-    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay +
-                            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
+    AdjustMovementInfoTime(movementInfo);
 
     if (!VerifyMovementInfo(movementInfo))
     {
@@ -624,14 +609,7 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recv_data)
     recv_data >> Unused<uint32>();                          // knockback packets counter
     movementInfo.Read(recv_data);
 
-    if (m_clientTimeDelay == 0)
-    {
-        m_clientTimeDelay = mTimeStamp() - movementInfo.GetTime();
-    }
-
-    // Same scheme as HandleMovementOpcodes -- this packet is rebroadcast to observers too.
-    movementInfo.UpdateTime(movementInfo.GetTime() + m_clientTimeDelay +
-                            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
+    AdjustMovementInfoTime(movementInfo);
 
     /* Make sure input is valid */
     if (!VerifyMovementInfo(movementInfo, guid))

@@ -975,43 +975,31 @@ void WorldSession::HandleNextCinematicCamera(WorldPacket& /*recv_data*/)
 
 void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
 {
-    /*  WorldSession::Update( WorldTimer::getMSTime() );*/
     DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
 
-    uint64 guid;
+    ObjectGuid guid;
     uint32 time_dif;
-    //uint8 buf[16];
-    WorldPacket data(MSG_MOVE_TIME_SKIPPED, 16);
-
     recv_data >> guid;
     recv_data >> time_dif;
 
-    // ignore updates not for us
-    if (_player == NULL || guid != _player->GetGUID())
+    if (!_player || guid != _player->GetObjectGuid())
     {
         return;
     }
 
-    // send to other players
+    // Advance last move time by the skipped duration (same units on client/server clocks).
+    // Keeps server m_movementInfo timeline aligned when the client pauses/lags without MOVE packets.
+    Unit* mover = _player->GetMover();
+    if (mover)
+    {
+        mover->m_movementInfo.UpdateTime(mover->m_movementInfo.GetTime() + time_dif);
+    }
+
+    // Observers apply the same skip to remote interpolation (MSG_MOVE_TIME_SKIPPED is SMSG-only).
+    WorldPacket data(MSG_MOVE_TIME_SKIPPED, 16);
     data << _player->GetPackGUID();
     data << time_dif;
     _player->SendMessageToSet(&data, false);
-
-    /*
-    ObjectGuid guid;
-    uint32 time_skipped;
-    recv_data >> guid;
-    recv_data >> time_skipped;
-    DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_TIME_SKIPPED");
-
-    /// TODO
-    must be need use in mangos
-    We substract server Lags to move time ( AntiLags )
-    for exmaple
-    {
-        GetPlayer()->ModifyLastMoveTime( -int32(time_skipped) );
-    }
-    */
 }
 
 /**
@@ -1489,17 +1477,24 @@ void WorldSession::HandleTimeSyncResp(WorldPacket& recv_data)
     uint32 counter, clientTicks;
     recv_data >> counter >> clientTicks;
 
-    DEBUG_LOG("WORLD: Received opcode CMSG_TIME_SYNC_RESP: counter %u, client ticks %u, time since last sync %u", counter, clientTicks, clientTicks - _player->m_timeSyncClient);
+    DEBUG_LOG("WORLD: Received opcode CMSG_TIME_SYNC_RESP: counter %u, client ticks %u, time since last sync %u",
+              counter, clientTicks, clientTicks - _player->m_timeSyncClient);
 
     if (counter != _player->m_timeSyncCounter - 1)
     {
-        DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- Wrong time sync counter from %s (cheater?)", _player->GetGuidStr().c_str());
+        DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- Wrong time sync counter from %s (cheater?)",
+                  _player->GetGuidStr().c_str());
     }
 
-    uint32 ourTicks = clientTicks + (GameTime::GetGameTimeMS() - _player->m_timeSyncServer);
+    // REQ send time (server MS) vs client tick at RESP: full int64 offset, no int32 wrap.
+    // serverAlignedMoveTime = clientMoveTime + m_clientTimeDelay
+    m_clientTimeDelay = int64(_player->m_timeSyncServer) - int64(clientTicks);
 
-    // diff should be small
-    DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- Our ticks: %u, diff %u, latency %u", ourTicks, ourTicks - clientTicks, GetLatency());
+    const uint32 now = GameTime::GetGameTimeMS();
+    const uint32 rttish = now - _player->m_timeSyncServer;
+    DEBUG_LOG(" WORLD: Opcode CMSG_TIME_SYNC_RESP -- delay=%lld server=%u client=%u rttish=%u latency=%u",
+              static_cast<long long>(m_clientTimeDelay), _player->m_timeSyncServer, clientTicks,
+              rttish, GetLatency());
 
     _player->m_timeSyncClient = clientTicks;
 }
