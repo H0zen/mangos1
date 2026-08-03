@@ -800,7 +800,7 @@ void WorldSession::HandlePingOpcode(WorldPacket& recv_data)
     }
 
     SetLatency(latency);
-    SetClientTimeDelay(0); // recalculated on next movement packet
+    // m_clientTimeDelay comes from CMSG_TIME_SYNC_RESP; do not clear on ping.
 
     WorldPacket packet(SMSG_PONG, 4);
     packet << ping;
@@ -1164,3 +1164,13 @@ void WorldSession::InitWarden(uint16 build, BigNumber* k, std::string const& os)
         _warden->Init(this, k);
     }
 }
+
+void WorldSession::AdjustMovementInfoTime(MovementInfo& mi) const
+{
+    // Explicit 64-bit map: serverAligned = clientMoveTime + (timeSyncServer - clientTicksAtSync)
+    // then add constant playout; low 32 bits are what the client movement clock uses on the wire.
+    const int64 wire = int64(mi.GetTime()) + m_clientTimeDelay
+                     + int64(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
+    mi.UpdateTime(uint32(wire));
+}
+

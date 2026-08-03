@@ -507,7 +507,9 @@ class WorldSession
         {
             m_latency = latency;
         }
-        void SetClientTimeDelay(uint32 delay) { m_clientTimeDelay = delay; }
+        void SetClientTimeDelay(int64 delay) { m_clientTimeDelay = delay; }
+        int64 GetClientTimeDelay() const { return m_clientTimeDelay; }
+        void AdjustMovementInfoTime(MovementInfo& mi) const;
         uint32 getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus);
 
         // Misc
@@ -999,7 +1001,7 @@ class WorldSession
         uint32 m_latency;
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
-        int32 m_clientTimeDelay;
+        int64 m_clientTimeDelay;
         ObjectGuid m_npcWatchLastGuid;
 
         // Ping flood tracking now lives exclusively on the world thread and is
