@@ -3933,6 +3933,7 @@ class Unit : public WorldObject
 
         void CleanupDeletedAuras();
         void UpdateSplineMovement(uint32 t_diff);
+        void RelocateToSplinePosition();
 
         Unit* _GetTotem(TotemSlot slot) const;              // for templated function without include need
         Pet* _GetPet(ObjectGuid guid) const;                // for templated function without include need

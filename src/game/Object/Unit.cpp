@@ -4239,6 +4239,17 @@ void Unit::SetDeathState(DeathState s)
         RemoveGuardians();
         UnsummonAllTotems();
 
+        // Land the server copy where the client has been drawing this unit BEFORE the stop
+        // goes out. UpdateSplineMovement only relocates every 400ms, so a mob killed mid-run
+        // is up to a full stride -- ~3 yards at run speed -- behind the spline. Leave it
+        // there and the corpse, its loot range and every later create block sit on the stale
+        // spot while the client snaps the body to the position the stop packet names: the
+        // corpse that slides away and cannot be looted, and the one that pops back.
+        if (!movespline->Finalized() && IsInWorld())
+        {
+            RelocateToSplinePosition();
+        }
+
         StopMoving(true);
         i_motionMaster.Clear(false, true);
         i_motionMaster.MoveIdle();
@@ -6359,21 +6370,33 @@ void Unit::UpdateSplineMovement(uint32 t_diff)
     if (m_movesplineTimer.Passed() || arrived)
     {
         m_movesplineTimer.Reset(POSITION_UPDATE_DELAY);
-        Movement::Location loc = movespline->ComputePosition();
-
-        // No frame question here any more. A boarded unit is ON THE VESSEL'S MAP, so the
-        // spline ran in that map's coordinates and what ComputePosition hands back is a
-        // position on it -- the same kind of number an ordinary relocate expects, on
-        // whichever map the unit happens to be.
-        if (GetTypeId() == TYPEID_PLAYER)
-        {
-            ((Player*)this)->SetPosition(loc.x, loc.y, loc.z, loc.orientation);
-        }
-        else
-        {
-            GetMap()->CreatureRelocation((Creature*)this, loc.x, loc.y, loc.z, loc.orientation);
-        }
+        RelocateToSplinePosition();
     }
+}
+
+/**
+ * @brief Lands the server copy on the position the spline has actually reached.
+ */
+void Unit::RelocateToSplinePosition()
+{
+    Movement::Location loc = movespline->ComputePosition();
+
+    // No frame question here any more. A boarded unit is ON THE VESSEL'S MAP, so the
+    // spline ran in that map's coordinates and what ComputePosition hands back is a
+    // position on it -- the same kind of number an ordinary relocate expects, on
+    // whichever map the unit happens to be.
+    if (GetTypeId() == TYPEID_PLAYER)
+    {
+        ((Player*)this)->SetPosition(loc.x, loc.y, loc.z, loc.orientation);
+    }
+    else
+    {
+        GetMap()->CreatureRelocation((Creature*)this, loc.x, loc.y, loc.z, loc.orientation);
+    }
+
+    // Create blocks and the stop packet are written from the movement state, so it follows
+    // the placement whenever the server is the one that moved the unit.
+    m_movementInfo.ChangePosition(loc.x, loc.y, loc.z, loc.orientation);
 }
 
 /**

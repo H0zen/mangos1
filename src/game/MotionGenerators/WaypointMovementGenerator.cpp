@@ -28,10 +28,15 @@
 #include "WaypointMovementGenerator.h"
 #include "Creature.h"
 #include "CreatureAI.h"
+#include "DBCStores.h"
+#include "Map.h"
 #include "MotionFrame.h"
 #include "ObjectMgr.h"
+#include "Opcodes.h"
 #include "Player.h"
 #include "ScriptMgr.h"
+#include "WorldPacket.h"
+#include "WorldSession.h"
 #include "WaypointManager.h"
 #include "WaypointSmoothing.h"
 #include "movement/MoveSpline.h"
@@ -786,7 +791,13 @@ void FlightPathMovementGenerator::Finalize(Unit& owner)
     player.Unmount();
     player.RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_DISABLE_MOVE | UNIT_FLAG_TAXI_FLIGHT);
 
-    if (!player.m_taxi.empty())
+    // "Is a leg still to come", not "is anything booked". The last leg is only struck off
+    // in HandleMoveSplineDoneOpcode, half a round trip after the spline ends here, so
+    // `!empty()` was true at EVERY landing and the arrival below never ran once: no ground
+    // snap, no landing, and hostile references left switched off after the flight.
+    // A cross-map leg does not reach this at all -- its spline stops at the map edge with
+    // nodes still ahead, so Update() keeps the generator alive for the teleport handshake.
+    if (player.m_taxi.GetDestinationCount() > 2)
     {
         return;
     }
@@ -802,6 +813,39 @@ void FlightPathMovementGenerator::Finalize(Unit& owner)
     player.StopMoving(true);
 }
 
+void FlightPathMovementGenerator::PassJunction(Player& player)
+{
+    // Something cleared the booking mid-flight; there is no leg left to retire and
+    // NextTaxiDestination() would pop an empty deque.
+    if (player.m_taxi.GetDestinationCount() < 2)
+    {
+        return;
+    }
+
+    // The spline flies straight through the hub, but the booking must not: a relog resumes
+    // from m_taxi, and GetCurrentTaxiPath() is what names the leg currently being flown.
+    // Retire it here, exactly as HandleMoveSplineDoneOpcode does for the last leg.
+    if (uint32 pathid = player.m_taxi.GetCurrentTaxiPath())
+    {
+        TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
+        if (uint32 eventid = nlist[nlist.size() - 1].ArrivalEventID)
+        {
+            if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, false))
+            {
+                player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
+            }
+        }
+    }
+
+    player.m_taxi.NextTaxiDestination();
+
+    if (player.IsTaxiCheater() && player.m_taxi.SetTaximaskNode(player.m_taxi.GetTaxiSource()))
+    {
+        WorldPacket data(SMSG_NEW_TAXI_PATH, 0);
+        player.GetSession()->SendPacket(&data);
+    }
+}
+
 bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
 {
     const uint32 pointId = uint32(owner.movespline->currentPathIdx());
@@ -815,6 +859,12 @@ bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
         {
             m_currentNode += uint32(departure);
             departure = !departure;
+        }
+
+        while (m_nextJunction < m_junctions.size() && m_currentNode >= m_junctions[m_nextJunction])
+        {
+            PassJunction(static_cast<Player&>(owner));
+            ++m_nextJunction;
         }
     }
 

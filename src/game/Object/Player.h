@@ -1033,6 +1033,18 @@ class PlayerTaxi
             return m_TaxiDestinations.size() < 2 ? 0 : m_TaxiDestinations[1];
         }
 
+        // Number of nodes still booked, source node included
+        size_t GetDestinationCount() const
+        {
+            return m_TaxiDestinations.size();
+        }
+
+        // Booked node by position, 0 being the source node
+        uint32 GetDestination(size_t idx) const
+        {
+            return idx < m_TaxiDestinations.size() ? m_TaxiDestinations[idx] : 0;
+        }
+
         // Get the current taxi path
         uint32 GetCurrentTaxiPath() const;
 
@@ -1309,6 +1321,11 @@ class Player : public Unit
 
         // Continue the taxi flight
         void ContinueTaxiFlight();
+
+        // Weld the booked legs sharing one mount model into a single flyable route.
+        // Leaves both outputs empty when nothing merges, meaning "fly the single leg".
+        void BuildTaxiRoute(uint32 firstPath, uint32 startNode, uint32 mount,
+                            TaxiPathNodeList& route, std::vector<uint32>& junctions) const;
 
         // Check if the player accepts tickets
         bool isAcceptTickets() const { return GetSession()->GetSecurity() >= SEC_GAMEMASTER && (m_ExtraFlags & PLAYER_EXTRA_GM_ACCEPT_TICKETS); }
