@@ -5384,7 +5384,7 @@ void Unit::StopMoving(bool forceSendStop /*=false*/)
     }
 
     Movement::MoveSplineInit init(*this);
-    init.Stop();
+    init.Stop(forceSendStop);
 }
 
 /**
