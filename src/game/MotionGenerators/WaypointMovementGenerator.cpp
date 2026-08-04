@@ -35,6 +35,7 @@
 #include "Opcodes.h"
 #include "Player.h"
 #include "ScriptMgr.h"
+#include "Timer.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "WaypointManager.h"
@@ -750,7 +751,17 @@ void FlightPathMovementGenerator::Reset(Unit& owner)
     init.SetFirstPointId(m_currentNode);
     init.SetFly();
     init.SetVelocity(PLAYER_FLIGHT_SPEED);
-    init.Launch();
+
+    // Launch() returns the very number written into SMSG_MONSTER_MOVE, so the client is
+    // flying to this same clock. Anything other than 100% at Finalize is the server's own
+    // simulation clock running off, and the ratio says by how much.
+    m_splineDuration = uint32(init.Launch());
+    m_launchedAt = getMSTime();
+
+    DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
+                     "TAXI launch %s: nodes %u..%u (%u pts), duration sent %ums",
+                     player.GetGuidStr().c_str(), m_currentNode, end,
+                     end - m_currentNode, m_splineDuration);
 }
 
 void FlightPathMovementGenerator::Interrupt(Unit& owner)
@@ -761,6 +772,13 @@ void FlightPathMovementGenerator::Interrupt(Unit& owner)
 void FlightPathMovementGenerator::Finalize(Unit& owner)
 {
     Player& player = static_cast<Player&>(owner);
+
+    const uint32 flown = getMSTime() - m_launchedAt;
+    DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
+                     "TAXI end %s: node %u of %u, duration sent %ums, server flew it in %ums (%u%%)",
+                     player.GetGuidStr().c_str(), m_currentNode, uint32(m_path->size()),
+                     m_splineDuration, flown,
+                     m_splineDuration ? flown * 100 / m_splineDuration : 0);
 
     // Clear the flag first, so no create-block for the flight state is built while the
     // generator is already off the top of the stack.
