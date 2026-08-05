@@ -646,6 +646,14 @@ class WorldSession
         void HandleMoveNotActiveMoverOpcode(WorldPacket& recv_data);
         void HandleMoveTimeSkippedOpcode(WorldPacket& recv_data);
 
+        /// Shared tail of the forced-state ACKs (root, water walk, hover, feather fall):
+        /// time-adjust, verify and relocate from the pose the client applied the state at.
+        void ApplyStateAck(MovementInfo& movementInfo);
+
+        /// Snap the mover's client back onto the last pose the server accepted, after a
+        /// movement packet was rejected. Rate limited, and a no-op for a boarded mover.
+        void ResyncMover();
+
         void HandleRequestRaidInfoOpcode(WorldPacket& recv_data);
 
         void HandleGroupInviteOpcode(WorldPacket& recvPacket);
@@ -1008,6 +1016,7 @@ class WorldSession
         int64 m_clientTimeDelay;
         bool m_clientTimeDelayKnown;
         std::deque<std::pair<int64, uint32>> m_timeSyncSamples; ///< (clock delta, round trip)
+        uint32 m_lastMoverResync;                           ///< rate limit on ResyncMover()
         ObjectGuid m_npcWatchLastGuid;
 
         // Ping flood tracking now lives exclusively on the world thread and is
