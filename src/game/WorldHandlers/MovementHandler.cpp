@@ -1018,6 +1018,10 @@ void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
                                ? movementInfo.GetTransportPos() : movementInfo.GetPos();
 
             mover->GetMap()->CreatureRelocation((Creature*)mover, at->x, at->y, at->z, at->o);
+
+            // And record it. Without this the driven creature's create block and heartbeat
+            // are written from whatever m_movementInfo held before the charm began.
+            mover->m_movementInfo = movementInfo;
         }
     }
 }
