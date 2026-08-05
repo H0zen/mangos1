@@ -758,6 +758,10 @@ void FlightPathMovementGenerator::Reset(Unit& owner)
     m_splineDuration = uint32(init.Launch());
     m_launchedAt = getMSTime();
 
+    // Same reason as the landing reset in Finalize: nothing else refreshes this while the
+    // client is a passenger, and a leg handover must not carry the old boarding altitude.
+    player.SetFallInformation(0, player.Where().Z());
+
     DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
                      "TAXI launch %s: nodes %u..%u (%u pts), duration sent %ums",
                      player.GetGuidStr().c_str(), m_currentNode, end,
@@ -807,6 +811,14 @@ void FlightPathMovementGenerator::Finalize(Unit& owner)
     // Snap Z to the ground at the landing point. Without this a laggy client, whose
     // flight ended early, can be left hanging in the air.
     player.StopMoving(true);
+
+    // The client sends no movement packet for the whole flight, so m_lastFallZ still holds
+    // the altitude of the node you BOARDED at. Land anywhere lower -- Undercity is ~113
+    // below Hammerfall, ~174 below the Sepulcher -- and the first MSG_MOVE_FALL_LAND is
+    // charged the entire descent as a fall, which is well past the 100%-of-health cap.
+    // The IsTaxiFlying() guard on HandleFall cannot catch it: UNIT_STAT_TAXI_FLIGHT is
+    // cleared at the top of this function, packets arrive after.
+    player.SetFallInformation(0, player.Where().Z());
 }
 
 void FlightPathMovementGenerator::PassJunction(Player& player)
