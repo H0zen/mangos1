@@ -19,6 +19,22 @@ namespace world::terrain
         constexpr uint32_t MAX_MODELS = 1u << 20;
         constexpr uint32_t MAX_INSTANCES = 1u << 22;
 
+        // Triangle indices come from a FILE, and Raycast reads verts[t[k]] with no bounds
+        // test in its hot loop. One index past the end is an out-of-bounds read on every
+        // ray that reaches this model, so the soup is proved once, here.
+        bool SoupIndicesInRange(const TriSoup& soup)
+        {
+            const uint32_t n = uint32_t(soup.verts.size());
+            for (const auto& t : soup.tris)
+            {
+                if (t[0] >= n || t[1] >= n || t[2] >= n)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         // A count is only believable if the file still holds that many elements. A fixed
         // ceiling is not enough: it still lets a corrupt header reserve hundreds of
         // megabytes before the short read is noticed, and on an overcommitting kernel
@@ -286,13 +302,13 @@ namespace world::terrain
                 }
 
                 std::vector<uint16_t> triGroup;
+                Bvh bvh;
                 ok = ok && RVec(f, soup.verts) && RVec(f, soup.tris) &&
                      RVec(f, triGroup) && RVec(f, nodes) &&
-                     triGroup.size() == soup.tris.size();
+                     triGroup.size() == soup.tris.size() && SoupIndicesInRange(soup) &&
+                     bvh.Adopt(std::move(nodes), soup.tris.size());
                 if (ok)
                 {
-                    Bvh bvh;
-                    bvh.Adopt(std::move(nodes));
                     models[i] = std::make_shared<WmoModel>(std::move(soup),
                                                            std::move(triGroup),
                                                            std::move(groups), rootId,
@@ -301,11 +317,12 @@ namespace world::terrain
             }
             else if (kind == uint8_t(ModelKind::Mesh))
             {
-                ok = RVec(f, soup.verts) && RVec(f, soup.tris) && RVec(f, nodes);
+                Bvh bvh;
+                ok = RVec(f, soup.verts) && RVec(f, soup.tris) && RVec(f, nodes) &&
+                     SoupIndicesInRange(soup) &&
+                     bvh.Adopt(std::move(nodes), soup.tris.size());
                 if (ok)
                 {
-                    Bvh bvh;
-                    bvh.Adopt(std::move(nodes));
                     models[i] = std::make_shared<CollisionModel>(std::move(soup),
                                                                  std::move(bvh));
                 }

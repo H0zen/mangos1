@@ -126,7 +126,10 @@ namespace world::terrain
         std::atomic<uint32_t> m_clockMs{0};
         uint32_t m_sweepAccumMs = 0;
 
-        std::array<std::array<int16_t, GRID_COUNT>, GRID_COUNT> m_cellRef{};
+        /// Unsigned and 32 bits wide: as int16_t this wrapped negative at 32,768 pins,
+        /// after which UnpinCell's `> 0` never decremented again and the cell was both
+        /// permanently unpinnable and evictable while still referenced.
+        std::array<std::array<uint32_t, GRID_COUNT>, GRID_COUNT> m_cellRef{};
         mutable std::mutex m_cellRefMutex;
     };
 }
