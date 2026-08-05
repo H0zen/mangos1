@@ -1012,7 +1012,11 @@ void WorldSession::HandleFeatherFallAck(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Received opcode CMSG_MOVE_FEATHER_FALL_ACK");
 
-    // no used
+    // Still drained, unlike the hover and water-walk ACKs, which now relocate through
+    // ApplyStateAck. Those two have a body this tree actually parses; this one and the two
+    // root ACKs have only the commented-out guess below them, identical in all four cores
+    // and verified by nobody. Reading a MovementInfo off a layout that is wrong throws
+    // ByteBufferException and drops the session, which is worse than ignoring the packet.
     recv_data.rpos(recv_data.wpos());                       // prevent warnings spam
 }
 

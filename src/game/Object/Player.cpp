@@ -1933,16 +1933,10 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
 
             Position const* transportPosition = m_movementInfo.GetTransportPos();
 
-            if (m_transport)
-            {
-                final_x += transportPosition->x;
-                final_y += transportPosition->y;
-                final_z += transportPosition->z;
-                final_o += transportPosition->o;
-            }
-
+            // Never composed with the deck offset: BoardingMap()->Add restores him from that
+            // offset on the ack anyway, so the sum's only lasting effect was the fall height.
             m_teleport_dest = WorldLocation(mapid, final_x, final_y, final_z, final_o);
-            SetFallInformation(0, final_z);
+            SetFallInformation(0, m_transport ? transportPosition->z : final_z);
             // if the player is saved before worldport ack (at logout for example)
             // this will be used instead of the current location in SaveToDB
 

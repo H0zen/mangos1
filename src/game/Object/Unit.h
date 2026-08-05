@@ -749,6 +749,13 @@ MovementFlags const movementOrTurningFlagsMask = MovementFlags(
             movementFlagsMask | MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT
         );
 
+/// THE timestamp for anything the server writes into a movement block -- create blocks and
+/// heartbeats -- and the only place that policy lives. It has to name the same instant as
+/// WorldSession::AdjustMovementInfoTime gives a relayed client packet, playout buffer and
+/// all, or a unit entering visibility arrives on a timeline half a second behind the stream
+/// that follows it and the observer interpolates backwards to meet it.
+uint32 MovementStreamTime();
+
 class MovementInfo
 {
     public:
