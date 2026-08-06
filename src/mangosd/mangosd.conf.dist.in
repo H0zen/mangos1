@@ -771,11 +771,7 @@ SD3ErrorLogFile              = "scriptdev3-errors.log"
 #                 1 (true)
 #
 #    Console.BeepAtStart
-<<<<<<< HEAD
 #        Beep once mangosd has finished starting and the console is ready.
-=======
-#        Beep at mangosd start finished (mostly work only at Unix/Linux systems)
->>>>>>> acfc6bc (Fix Naggle on IOCP)
 #        Default: 1 (true)
 #                 0 (false)
 #

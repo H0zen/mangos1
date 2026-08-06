@@ -34,10 +34,7 @@ public:
     const std::string& GetRemoteAddress() const override { return m_address; }
     bool IsClosed() const override { return m_closed.load(); }
 
-<<<<<<< HEAD
     /// Sockets currently open, for the mangosd console/window title.
-=======
->>>>>>> acfc6bc (Fix Naggle on IOCP)
     static uint32 GetOpenConnectionCount()
     {
         return s_openConnections.load(std::memory_order_relaxed);
