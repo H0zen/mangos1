@@ -1853,6 +1853,9 @@ const char* Map::GetMapName() const
 /**
  * @brief Updates visibility changes for players around the specified object.
  *
+ * The object-side mirror of Camera::UpdateVisibilityForOwner's relay: a deck and its shore
+ * are two maps, and a cell visit of one reaches no camera on the other.
+ *
  * @param obj The object whose visibility changed.
  * @param cell The cell used as the visit origin.
  * @param cellpair The cell coordinates corresponding to the object.
@@ -1863,6 +1866,28 @@ void Map::UpdateObjectVisibility(WorldObject* obj, Cell cell, CellPair cellpair)
     MaNGOS::VisibleChangesNotifier notifier(*obj);
     TypeContainerVisitor<MaNGOS::VisibleChangesNotifier, WorldTypeMapContainer > player_notifier(notifier);
     cell.Visit(cellpair, player_notifier, *this, *obj, GetVisibilityDistance());
+
+    // PASSENGERS ONLY: creating through this path stamps m_clientGUIDs, and the crew are
+    // deliberately kept out of it -- that would hand them to the distance-based elimination
+    // and empty the deck the first time her waypoint estimate flickered out of reach.
+    TransportMap const* hull = AsTransport();
+    if (!hull || obj->GetTypeId() != TYPEID_PLAYER)
+    {
+        return;
+    }
+
+    // Not mid-seam, as TransportMap::Add also refuses: she still names the map she is
+    // leaving, whose watchers are about to lose her outright.
+    Transport* vessel = hull->Vessel();
+    Map* const sailed = (vessel && !vessel->IsCrossing()) ? vessel->GetMap() : NULL;
+    if (!sailed)
+    {
+        return;
+    }
+
+    Cell::VisitWorldObjects(vessel->Where().X(), vessel->Where().Y(), sailed, notifier,
+                            sailed->GetVisibilityDistance() + hull->HullRadius() +
+                            vessel->NodeSlack());
 }
 
 /**
