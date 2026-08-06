@@ -1699,6 +1699,17 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
         return false;
     }
 
+    // A VESSEL'S DECK IS NOT A DESTINATION. Its id is ours, never the client's: it has no
+    // terrain for one and dies in CMap::LoadWdt() looking for it, and this is the last place
+    // before SMSG_TRANSFER_PENDING and SMSG_NEW_WORLD put the number on the wire. A deck is
+    // reached by boarding, through TransportMap::Embark, and by nothing else.
+    if (Transport::IsVesselMapId(mapid))
+    {
+        sLog.outError("TeleportTo: %s asked for vessel map %u as a destination; refused. "
+                      "A deck is boarded, not teleported to.", GetGuidStr().c_str(), mapid);
+        return false;
+    }
+
     MapEntry const* mEntry = sMapStore.LookupEntry(mapid);  // Validity checked in IsValidMapCoord
 
     if (!isGameMaster() && DisableMgr::IsDisabledFor(DISABLE_TYPE_MAP, mapid, this))
