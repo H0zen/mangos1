@@ -57,6 +57,7 @@
 #include "World.h"
 #include "CellImpl.h"
 #include "ObjectMgr.h"
+#include "SimulationTime.h"
 
 #ifdef ENABLE_ELUNA
 #include "ElunaConfig.h"
@@ -332,6 +333,11 @@ void MapManager::Update(uint32 diff)
     // every spline, aura tick and AI timer on every map runs fast by half an interval per
     // tick -- ~10% at a 50ms beat, which is a taxi flight ending half a minute early.
     const uint32 elapsed = uint32(i_timer.GetCurrent() - i_timer.GetCurrent() % i_timer.GetInterval());
+
+    // The simulation clock moves HERE and nowhere else, by the number the maps are about to
+    // be handed, before any of them runs. That is what makes an object's elapsed time and
+    // its map's tick two readings of one quantity: there is no second source to drift from.
+    Simulation::Advance(elapsed);
 
     // The world's maps, in parallel, each owning its own grid. A vessel's deck is NOT
     // among them: it belongs to the vessel, which runs it nested inside the tick of the
