@@ -35,7 +35,7 @@ std::vector<uint8_t> ClientConnection::onConnect()
     {
         WorldPacket challenge(SMSG_AUTH_CHALLENGE, 4);
         challenge << m_seed;
-        m_gateway.TracePacket(challenge, false);
+        m_gateway.TracePacket(INVALID_SESSION_ID, challenge, false);
         return EncodePacket(challenge);
     }
     catch (...)
@@ -76,7 +76,8 @@ std::vector<uint8_t> ClientConnection::onData(const uint8_t* data, std::size_t l
             DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "RECV op=0x%04X net=%u chunk=%zu of %zu",
                              packets[i].GetOpcode(), getMSTime(), i + 1, packets.size());
 
-            m_gateway.TracePacket(packets[i], true);
+            m_gateway.TracePacket(m_traceSession.load(std::memory_order_relaxed),
+                                  packets[i], true);
             if (!HandlePacket(packets[i]))
             {
                 Close();
@@ -101,6 +102,7 @@ void ClientConnection::onClose()
         session = m_session;
         m_session = INVALID_SESSION_ID;
     }
+    m_traceSession.store(INVALID_SESSION_ID, std::memory_order_relaxed);
     if (session != INVALID_SESSION_ID)
     {
         try
@@ -126,13 +128,14 @@ void ClientConnection::SendPacket(const WorldPacket& packet)
         // in the follower's own movement means nothing until you can see whether the leader's
         // stream to him kept flowing through it.
         // conn= because the peer address is the IP only: two clients on one machine share it.
-        // Not the session id -- that needs m_sessionLock, and taking it under m_cryptSendLock
-        // would invert the order HandleAuthSession uses.
-        DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "SEND op=0x%04X net=%u conn=%p to=%s",
+        // sess= from the atomic copy: taking m_sessionLock under m_cryptSendLock would invert
+        // the order HandleAuthSession uses.
+        SessionId const traced = m_traceSession.load(std::memory_order_relaxed);
+        DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "SEND op=0x%04X net=%u conn=%p sess=%u to=%s",
                          packet.GetOpcode(), getMSTime(),
-                         static_cast<const void*>(this), m_address.c_str());
+                         static_cast<const void*>(this), traced, m_address.c_str());
 
-        m_gateway.TracePacket(packet, false);
+        m_gateway.TracePacket(traced, packet, false);
         std::vector<uint8> const frame = PacketCodec::Encode(packet,
             [this](uint8* header, std::size_t len) { m_crypt.EncryptSend(header, len); });
         m_sender(frame.data(), frame.size());
@@ -243,6 +246,7 @@ bool ClientConnection::HandleAuthSession(WorldPacket& packet)
         m_gateway.Detach(session);
         return false;
     }
+    m_traceSession.store(session, std::memory_order_relaxed);
     return true;
 }
 
