@@ -30,6 +30,7 @@
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
 #include "Utilities/MathDefines.h"
+#include "terrain/ICollisionModel.hpp"
 #include <set>
 #include "ByteBuffer.h"
 #include "UpdateFields.h"
@@ -832,8 +833,10 @@ bool SeenWithin(WorldObject const& seen, WorldObject const& viewer, float dist, 
 bool InReach(WorldObject const& a, WorldObject const& b, float dist, bool is3D = true);
 bool InFrontPhased(WorldObject const& a, WorldObject const& b, float dist, float arc);
 bool InBackPhased(WorldObject const& a, WorldObject const& b, float dist, float arc);
-bool HasLineOfSight(WorldObject const& a, WorldObject const& b);
-bool HasLineOfSight(WorldObject const& a, Geometry::Vector3 const& point);
+bool HasLineOfSight(WorldObject const& a, WorldObject const& b,
+                    world::terrain::ModelIgnoreFlags ignore = world::terrain::ModelIgnoreFlags::Nothing);
+bool HasLineOfSight(WorldObject const& a, Geometry::Vector3 const& point,
+                    world::terrain::ModelIgnoreFlags ignore = world::terrain::ModelIgnoreFlags::Nothing);
 bool IsPlaceable(WorldObject const& obj);
 
 // Terrain and grid answers about a position. The component supplies the geometry; the

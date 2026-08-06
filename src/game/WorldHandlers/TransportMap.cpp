@@ -336,7 +336,8 @@ std::optional<float> TransportMap::SurfaceAt(float x, float y, float z,
            .HighestSolidAtOrBelow(z + searchUp);
 }
 
-bool TransportMap::IsBlocked(Geometry::Vector3 const& from, Geometry::Vector3 const& to) const
+bool TransportMap::IsBlocked(Geometry::Vector3 const& from, Geometry::Vector3 const& to,
+                             world::terrain::ModelIgnoreFlags ignore) const
 {
     const Geometry::Vector3 seg = to - from;
     const float len = std::sqrt(seg.x * seg.x + seg.y * seg.y + seg.z * seg.z);
@@ -345,7 +346,7 @@ bool TransportMap::IsBlocked(Geometry::Vector3 const& from, Geometry::Vector3 co
         return false;
     }
 
-    return !GetTerrain()->IsInLineOfSight(from.x, from.y, from.z, to.x, to.y, to.z);
+    return !GetTerrain()->IsInLineOfSight(from.x, from.y, from.z, to.x, to.y, to.z, ignore);
 }
 
 std::optional<Geometry::Placement> TransportMap::PositionOf(WorldObject const& obj) const

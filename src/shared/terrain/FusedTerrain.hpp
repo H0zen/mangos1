@@ -11,6 +11,7 @@
 // mangosd asks it, and link none of the server to do so.
 
 #include "terrain/Column.hpp"
+#include "terrain/ICollisionModel.hpp"
 #include "terrain/ILiveGeometry.hpp"
 #include "terrain/Terrain.hpp"
 
@@ -67,11 +68,14 @@ namespace world::terrain
         // which already applies it; adding one here would make static line of sight more
         // permissive than the eyes it models, and would sample a door at a different
         // height than the doorway it sits in.
+        // `ignore` skips whole model categories -- spell line of sight passes M2 so
+        // interior doodads do not block what structural geometry does.
         float NearestHitFraction(float x1, float y1, float z1, float x2, float y2,
-                                 float z2) const;
+                                 float z2,
+                                 ModelIgnoreFlags ignore = ModelIgnoreFlags::Nothing) const;
 
-        bool IsInLineOfSight(float x1, float y1, float z1, float x2, float y2,
-                             float z2) const;
+        bool IsInLineOfSight(float x1, float y1, float z1, float x2, float y2, float z2,
+                             ModelIgnoreFlags ignore = ModelIgnoreFlags::Nothing) const;
 
         // AreaTable.dbc id of the MCNK chunk under (x,y), or 0 when unknown.
         uint16_t GetAreaId(float x, float y) const;
@@ -97,6 +101,7 @@ namespace world::terrain
         using TilePtr = std::shared_ptr<const TerrainTile>;
 
         TilePtr TileAt(float x, float y) const;
+        TilePtr TileAtIndex(int tx, int ty) const;
         TilePtr GlobalWmo() const;
         TilePtr LoadCell(int tx, int ty) const;
         void EvictTile(int tx, int ty) const;

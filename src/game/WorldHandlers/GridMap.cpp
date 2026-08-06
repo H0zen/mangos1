@@ -56,6 +56,7 @@
 #include "DBCEnums.h"
 #include "DBCStores.h"
 #include "GridMap.h"
+#include "DisableMgr.h"
 #include "terrain/TileSerializer.hpp"
 #include "MoveMap.h"
 #include "World.h"
@@ -81,6 +82,11 @@ namespace
     const uint32 LIQUID_OCEAN_ROW = 2;
     const uint32 LIQUID_OUTLAND_OCEAN_ROW = 15;
     const uint32 LIQUID_FIRST_OVERRIDABLE_ROW = 21;
+
+    // MOGP group flag: the group is an interior. Outside (ADT) liquid must not
+    // reach a point inside one -- a dry hold under the sea -- only liquid the
+    // WMO itself carries counts there.
+    const uint32 MOGP_FLAG_INTERIOR = 0x2000;
 
     // MAP_LIQUID_TYPE_* is one bit per family in the order water, ocean, magma, slime.
     // 2.4.3 has no SoundBank column -- that arrives in 3.3.5a -- so the family comes from
@@ -244,7 +250,29 @@ world::terrain::Column TerrainInfo::ColumnAt(float x, float y, float zTop, float
                                              const world::terrain::ILiveGeometry* live,
                                              uint32 phasemask) const
 {
-    return m_terrain.ColumnAt(x, y, zTop, zBottom, live, phasemask);
+    world::terrain::Column column =
+        m_terrain.ColumnAt(x, y, zTop, zBottom, live, phasemask);
+
+    // The `disables` table turns collision off per map, and it is answered HERE because
+    // this one gather feeds every height, floor and liquid query. The split is the one
+    // the vmap path made: height drops the baked models and keeps the heightmap, liquid
+    // status drops what a model carries and keeps the tile's own water.
+    if (DisableMgr::IsVMAPDisabledFor(m_mapId, DisableMgr::COLLISION_DISABLE_HEIGHT))
+    {
+        column.DropIf([](const world::terrain::Surface& s)
+                      {
+                          return s.kind == world::terrain::SurfaceKind::Static;
+                      });
+    }
+    if (DisableMgr::IsVMAPDisabledFor(m_mapId, DisableMgr::COLLISION_DISABLE_LIQUIDSTATUS))
+    {
+        column.DropIf([](const world::terrain::Surface& s)
+                      {
+                          return s.kind == world::terrain::SurfaceKind::Liquid &&
+                                 !s.fromAdt;
+                      });
+    }
+    return column;
 }
 
 std::optional<float> TerrainInfo::StaticFloor(float x, float y, float z) const
@@ -256,6 +284,11 @@ std::optional<float> TerrainInfo::StaticFloor(float x, float y, float z) const
 bool TerrainInfo::GetAreaInfo(float x, float y, float z, uint32& flags, int32& adtId,
                               int32& rootId, int32& groupId) const
 {
+    if (DisableMgr::IsVMAPDisabledFor(m_mapId, DisableMgr::COLLISION_DISABLE_AREAFLAG))
+    {
+        return false;
+    }
+
     float groundZ = 0.0f;
     return m_terrain.GetAreaInfo(x, y, z, flags, adtId, rootId, groupId, groundZ);
 }
@@ -352,10 +385,31 @@ GridMapLiquidStatus TerrainInfo::getLiquidStatus(float x, float y, float z,
     const world::terrain::Column column =
         ColumnAt(x, y, z + FLOOR_BURIED_LIFT, z - FLOOR_SEARCH_DOWN);
 
-    const auto liquid = column.HighestLiquid();
+    // The liquid the point is IN, not the highest anywhere in the column: the latter put
+    // a player in a cellar under a building into the lake outside, and a player standing
+    // on a bridge into the river under it. GetTerrainType above keeps HighestLiquid --
+    // it is a 2D query with no point to contain.
+    auto liquid = column.LiquidAt(z);
     if (!liquid || !liquid->liquidEntry)
     {
         return LIQUID_MAP_NO_WATER;
+    }
+
+    // Tile liquid is the OUTSIDE water. When the point sits inside a WMO
+    // interior group, drop it and keep only what the model itself carries.
+    if (liquid->fromAdt && column.HasStatic())
+    {
+        uint32 mogpFlags = 0;
+        int32 adtId = 0, rootId = 0, groupId = 0;
+        if (GetAreaInfo(x, y, z, mogpFlags, adtId, rootId, groupId) &&
+            (mogpFlags & MOGP_FLAG_INTERIOR))
+        {
+            liquid = column.LiquidAt(z, false);
+            if (!liquid || !liquid->liquidEntry)
+            {
+                return LIQUID_MAP_NO_WATER;
+            }
+        }
     }
     const LiquidInfo info = liquid->AsLiquid();
 
@@ -502,15 +556,23 @@ float TerrainInfo::GetWaterOrGroundLevel(float x, float y, float z, float* pGrou
 }
 
 bool TerrainInfo::IsInLineOfSight(float x1, float y1, float z1, float x2, float y2,
-                                  float z2) const
+                                  float z2, world::terrain::ModelIgnoreFlags ignore) const
 {
-    return m_terrain.IsInLineOfSight(x1, y1, z1, x2, y2, z2);
+    // THROUGH NearestHitFraction, not straight to the engine: the disable below has to
+    // answer both questions the same way, or the sight test and the hit position
+    // disagree about what the segment crosses.
+    return NearestHitFraction(x1, y1, z1, x2, y2, z2, ignore) > 1.0f;
 }
 
 float TerrainInfo::NearestHitFraction(float x1, float y1, float z1, float x2, float y2,
-                                      float z2) const
+                                      float z2,
+                                      world::terrain::ModelIgnoreFlags ignore) const
 {
-    return m_terrain.NearestHitFraction(x1, y1, z1, x2, y2, z2);
+    if (DisableMgr::IsVMAPDisabledFor(m_mapId, DisableMgr::COLLISION_DISABLE_LOS))
+    {
+        return world::terrain::NO_HIT_FRACTION;
+    }
+    return m_terrain.NearestHitFraction(x1, y1, z1, x2, y2, z2, ignore);
 }
 
 TerrainManager::TerrainManager() : m_mutex()

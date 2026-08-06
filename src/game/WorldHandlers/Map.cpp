@@ -3284,11 +3284,14 @@ void Map::PlayDirectSoundToMap(uint32 soundId, uint32 zoneId /*=0*/) const
 /**
  * Function to check if a point is in line of sight from an other point
  */
-bool Map::IsInLineOfSight(float srcX, float srcY, float srcZ, float destX, float destY, float destZ) const
+bool Map::IsInLineOfSight(float srcX, float srcY, float srcZ, float destX, float destY, float destZ,
+                          world::terrain::ModelIgnoreFlags ignore) const
 {
     // Static world (fused terrain + WMO/M2 BVH) first, then the game-object bodies.
     // No pull-back is involved here, so short-circuiting on the static answer is exact.
-    return m_TerrainData->IsInLineOfSight(srcX, srcY, srcZ, destX, destY, destZ)
+    // `ignore` reaches the static side only: a game object is a placed body, never an
+    // M2 doodad, so there is no Mesh category on the dynamic path to filter.
+    return m_TerrainData->IsInLineOfSight(srcX, srcY, srcZ, destX, destY, destZ, ignore)
            && m_dynCollision.IsInLineOfSight(srcX, srcY, srcZ, destX, destY, destZ, PHASE_ANY);
 }
 

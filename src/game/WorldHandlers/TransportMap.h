@@ -27,6 +27,7 @@
 #define MANGOS_TRANSPORT_MAP_H
 
 #include "Map.h"
+#include "terrain/ICollisionModel.hpp"
 
 #include <optional>
 #include <string>
@@ -134,7 +135,8 @@ class TransportMap : public Map
                                        float searchUp, float searchDown) const;
 
         /// True when the hull's own geometry stands between two points on it.
-        bool IsBlocked(Geometry::Vector3 const& from, Geometry::Vector3 const& to) const;
+        bool IsBlocked(Geometry::Vector3 const& from, Geometry::Vector3 const& to,
+                       world::terrain::ModelIgnoreFlags ignore = world::terrain::ModelIgnoreFlags::Nothing) const;
 
         /**
          * @brief A spot `distance2d` yards from `master` at its facing plus `angle`.

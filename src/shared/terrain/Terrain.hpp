@@ -21,6 +21,10 @@ namespace world::terrain
 
     constexpr int FusedTerrainGridCount = 64;
 
+    /// What a segment query answers with when nothing was hit. Any value past 1.0 says
+    /// "beyond the far end"; naming it keeps every producer and every test on one word.
+    constexpr float NO_HIT_FRACTION = 2.0f;
+
     inline float GridCoord(float c) { return GRID_PER_TILE * (MAP_CENTER - c / TILE_SIZE); }
 
     /// The grid is half-open everywhere except its far edge, which is a real coordinate:
