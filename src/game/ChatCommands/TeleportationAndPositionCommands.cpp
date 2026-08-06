@@ -1661,17 +1661,6 @@ bool ChatHandler::HandleTeleAddCommand(char* args)
         return false;
     }
 
-    // Standing on a deck, GetMapId() is the VESSEL'S map. Storing that gives a row nobody can
-    // ever teleport to -- and one that reaches a client the moment a later `.tele` matches its
-    // name, which is fatal to it. Refuse at the source; TeleportTo refuses again at the wire.
-    if (Transport::IsVesselMapId(player->GetMapId()))
-    {
-        PSendSysMessage("Cannot store a teleport here: this is a vessel's deck, and its map "
-                        "is not a place anyone can be sent to. Step ashore first.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
     GameTele tele;
     tele.position_x = player->Where().X();
     tele.position_y = player->Where().Y();
