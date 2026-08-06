@@ -78,8 +78,6 @@
 #include <memory>
 #include <string>
 #include "PlayerRegistry.h"
-#include "TransportMap.h"
-#include "Transports.h"
 #endif
 
 // config option SkipCinematics supported values
@@ -744,38 +742,12 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
     SetPlayer(pCurrChar);
     pCurrChar->SendDungeonDifficulty(false);
 
-    // NEVER THE DECK'S MAP. Logging in aboard, GetMapId() is the vessel's, and the client
-    // has no terrain for one -- it dies in CMap::LoadWdt(). It gets the water she sails and
-    // her coarse pose, which only name the grid to load; the deck offset in his movement
-    // state is what places him, and BoardingMap puts him on the deck map. Same rule as
-    // TransportMap::Board, and the same reason.
-    uint32 verifyMap = pCurrChar->GetMapId();
-    float verifyX = pCurrChar->Where().X();
-    float verifyY = pCurrChar->Where().Y();
-    float verifyZ = pCurrChar->Where().Z();
-    float verifyO = pCurrChar->Where().Facing();
-
-    if (TransportMap const* hull = pCurrChar->GetMap() ? pCurrChar->GetMap()->AsTransport() : NULL)
-    {
-        if (Transport* vessel = hull->Vessel())
-        {
-            if (Map* sailed = vessel->GetMap())
-            {
-                verifyMap = sailed->GetId();
-                verifyX = vessel->Where().X();
-                verifyY = vessel->Where().Y();
-                verifyZ = vessel->Where().Z();
-                verifyO = vessel->Where().Facing();
-            }
-        }
-    }
-
     WorldPacket data(SMSG_LOGIN_VERIFY_WORLD, 20);
-    data << verifyMap;
-    data << verifyX;
-    data << verifyY;
-    data << verifyZ;
-    data << verifyO;
+    data << pCurrChar->GetMapId();
+    data << pCurrChar->Where().X();
+    data << pCurrChar->Where().Y();
+    data << pCurrChar->Where().Z();
+    data << pCurrChar->Where().Facing();
     SendPacket(&data);
 
     data.Initialize(SMSG_ACCOUNT_DATA_TIMES, 128);
