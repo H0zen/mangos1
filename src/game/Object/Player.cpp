@@ -403,6 +403,7 @@ Player::Player(WorldSession* session): Unit(), m_petMgr(this), m_honorMgr(this),
     m_speakCount = 0;
 
     m_visibilityObserverSweepTimer = World::GetVisibilityObserverSweepInterval();
+    m_vesselCrossing = false;
 
     m_objectType |= TYPEMASK_PLAYER;
     m_objectTypeId = TYPEID_PLAYER;

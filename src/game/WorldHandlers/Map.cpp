@@ -1862,6 +1862,14 @@ const char* Map::GetMapName() const
  */
 void Map::UpdateObjectVisibility(WorldObject* obj, Cell cell, CellPair cellpair)
 {
+    // Mid-crossing he is off both maps for an instant, and out of world means invisible:
+    // notifying now destroys him for everyone who is about to be handed him back unchanged.
+    // The client needs none of it -- the transport change rides the movement broadcast.
+    if (obj->GetTypeId() == TYPEID_PLAYER && ((Player*)obj)->IsCrossingVessel())
+    {
+        return;
+    }
+
     cell.SetNoCreate();
     MaNGOS::VisibleChangesNotifier notifier(*obj);
     TypeContainerVisitor<MaNGOS::VisibleChangesNotifier, WorldTypeMapContainer > player_notifier(notifier);

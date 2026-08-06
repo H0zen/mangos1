@@ -3783,6 +3783,12 @@ class Player : public Unit
         // Get the player's camera
         Camera& GetCamera() { return m_camera; }
 
+        /// Set only for the instant TransportMap has him off both maps. The removal half of
+        /// a crossing must tell nobody: he is out of world just then, so every observer would
+        /// be handed a destroy for a man they are about to be given straight back.
+        bool IsCrossingVessel() const { return m_vesselCrossing; }
+        void SetCrossingVessel(bool crossing) { m_vesselCrossing = crossing; }
+
         // Get the cinematic flyover manager
         CinematicFlyover* GetCinematicFlyover() { return m_cinematicFlyover.get(); }
 
@@ -4308,6 +4314,9 @@ class Player : public Unit
 
         // Countdown (ms) for the periodic observer-side visibility sweep
         uint32 m_visibilityObserverSweepTimer;
+
+        /// True only while TransportMap carries him between a deck and the shore.
+        bool m_vesselCrossing;
 
         // Grid reference for the player
         GridReference<Player> m_gridRef;

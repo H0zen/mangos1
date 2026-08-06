@@ -481,7 +481,12 @@ void TransportMap::Embark(Player* passenger)
     DEBUG_FILTER_LOG(LOG_FILTER_DECK_MINIONS,
                      "Embark: %s", DescribeSpatially(passenger).c_str());
 
+    passenger->SetCrossingVessel(true);
     passenger->GetMap()->Remove(passenger, false);
+    passenger->SetCrossingVessel(false);
+
+    // The add DOES speak: whoever is already aboard has never seen him, while whoever ashore
+    // still holds him is told nothing, because nothing about him changed for them.
     Add(passenger);
 
     // His minions come with him, NOW. UpdateMinions reconciles this once per tick and is
@@ -507,7 +512,10 @@ void TransportMap::Disembark(Player* passenger, float x, float y, float z, float
     DEBUG_FILTER_LOG(LOG_FILTER_DECK_MINIONS,
                      "Disembark: %s", DescribeSpatially(passenger).c_str());
 
+    passenger->SetCrossingVessel(true);
     Remove(passenger, false);
+    passenger->SetCrossingVessel(false);
+
     passenger->Place().MoveTo(x, y, z, o);
 
     // BEFORE the add, not after. Map::Add sends SendInitTransports, whose loop skips
@@ -523,6 +531,51 @@ void TransportMap::Disembark(Player* passenger, float x, float y, float z, float
     DrawMinionsTo(passenger, sailed);
 }
 
+namespace
+{
+/// Everyone for whom `world` is the water they are looking at: those standing on it, and
+/// those on the deck of any other vessel sailing it. A deck is its own map, so the second
+/// group is in no player list of the first -- and a vessel that changed map without telling
+/// them stayed drawn on their horizon for good.
+template<typename Fn>
+void ForEachWatcherOf(Map* world, Transport const* skip, Fn fn)
+{
+    Map::PlayerList const& ashore = world->GetPlayers();
+    for (Map::PlayerList::const_iterator itr = ashore.begin(); itr != ashore.end(); ++itr)
+    {
+        if (Player* watcher = itr->getSource())
+        {
+            fn(watcher);
+        }
+    }
+
+    MapManager::TransportsByMapType::const_iterator vessels =
+        sMapMgr.m_TransportsByMap.find(world->GetId());
+    if (vessels == sMapMgr.m_TransportsByMap.end())
+    {
+        return;
+    }
+
+    for (Transport* other : vessels->second)
+    {
+        TransportMap* hull = (other == skip) ? NULL : other->AsMap();
+        if (!hull || other->GetMap() != world)
+        {
+            continue;
+        }
+
+        Map::PlayerList const& aboard = hull->GetPlayers();
+        for (Map::PlayerList::const_iterator itr = aboard.begin(); itr != aboard.end(); ++itr)
+        {
+            if (Player* watcher = itr->getSource())
+            {
+                fn(watcher);
+            }
+        }
+    }
+}
+}
+
 void TransportMap::VesselLeavingWorld(Map* oldWorld, uint32 newMapId,
                                       float x, float y, float z, float o)
 {
@@ -532,15 +585,11 @@ void TransportMap::VesselLeavingWorld(Map* oldWorld, uint32 newMapId,
     }
 
     // From EVERYONE there, not from a range: possession of a vessel is map membership, and
-    // this is the moment membership ends.
-    PlayerList const& ashore = oldWorld->GetPlayers();
-    for (PlayerList::const_iterator itr = ashore.begin(); itr != ashore.end(); ++itr)
-    {
-        if (Player* leaving = itr->getSource())
-        {
-            RetractVessel(m_vessel, leaving);
-        }
-    }
+    // this is the moment membership ends. Decks included -- they were announced her by
+    // TransportMap::Add and nothing else will ever take her away from them.
+    Transport* const vessel = m_vessel;
+    ForEachWatcherOf(oldWorld, vessel,
+                     [vessel](Player* leaving) { RetractVessel(vessel, leaving); });
 
     // Snapshotted: TeleportTo takes the player off this map, and the reference manager being
     // walked is the one it edits.
@@ -576,15 +625,11 @@ void TransportMap::VesselEnteredWorld(Map* newWorld)
     }
 
     // The same channel that took her away gives her back: everyone on the new map gains her
-    // by membership, here and now, with no distance asked.
-    PlayerList const& arriving = newWorld->GetPlayers();
-    for (PlayerList::const_iterator itr = arriving.begin(); itr != arriving.end(); ++itr)
-    {
-        if (Player* found = itr->getSource())
-        {
-            AnnounceVessel(m_vessel, found);
-        }
-    }
+    // by membership, here and now, with no distance asked -- decks included, for the same
+    // reason they are in the retraction.
+    Transport* const vessel = m_vessel;
+    ForEachWatcherOf(newWorld, vessel,
+                     [vessel](Player* found) { AnnounceVessel(vessel, found); });
 }
 
 void TransportMap::EnlistCrew(Creature* crew)
