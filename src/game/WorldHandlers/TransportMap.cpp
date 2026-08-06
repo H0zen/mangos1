@@ -520,6 +520,17 @@ bool TransportMap::Board(Player* passenger, float x, float y, float z, float o, 
     passenger->SetTransport(m_vessel);
     passenger->m_movementInfo.SetTransportData(m_vessel->GetObjectGuid(), x, y, z, o, 0);
 
+    // ALREADY ON THE WATER SHE SAILS: there is no world to port to. TeleportTo only takes the
+    // near path when m_transport is NULL, and it is not -- we just set it -- so it would take
+    // the far one and try to add him to the map he is standing on. Map::CanEnter refuses,
+    // the far path has nowhere to put him, and the world goes down. Walking aboard IS the
+    // operation here, and Embark is what does it.
+    if (passenger->GetMap() == sailed)
+    {
+        Embark(passenger);
+        return true;
+    }
+
     // Her world pose is coarse and it only names the grid his client must load. It is never
     // where he ends up -- the deck offset above is.
     if (passenger->TeleportTo(sailed->GetId(),
