@@ -159,6 +159,21 @@ class TransportMap : public Map
         /// for it, and dies in CMap::LoadWdt() looking for one.
         void Embark(Player* passenger);
 
+        /**
+         * @brief Bring a player aboard FROM ANYWHERE, at a named spot on this deck.
+         *
+         * Embark is for the man who walked up the gangplank and whose client already holds
+         * the vessel. This is every other way of arriving -- a teleport, a summon, a script.
+         * The spot goes into his movement state, his client is sent to the WATER she sails
+         * because that is the only map id it can load, and BoardingMap puts him on this map
+         * once the world-port is acked. That is the login path, unchanged.
+         *
+         * @param x,y,z,o A position on THIS map, composed with nothing.
+         * @return false when she cannot take him, and then he has not moved: no hull, bad
+         *         coordinates, or she is mid-seam.
+         */
+        bool Board(Player* passenger, float x, float y, float z, float o, uint32 options = 0);
+
         /// Put him down on the map the ship sails, at the point the CALLER names. Never
         /// called on unregistering: whoever ends the voyage owns the destination.
         void Disembark(Player* passenger, float x, float y, float z, float o);

@@ -496,6 +496,55 @@ void TransportMap::Embark(Player* passenger)
     DrawMinionsTo(passenger, this);
 }
 
+bool TransportMap::Board(Player* passenger, float x, float y, float z, float o, uint32 options)
+{
+    Map* const sailed = m_vessel ? m_vessel->GetMap() : NULL;
+    if (!m_commissioned || !sailed || !MapManager::IsValidMapCoord(GetId(), x, y, z, o))
+    {
+        return false;
+    }
+
+    // Mid-seam she names the map she is LEAVING, so his client would be sent to load water
+    // she is about to be off. Refused here, before a single field is written.
+    if (m_vessel->IsCrossing())
+    {
+        return false;
+    }
+
+    Transport* const wasOn = passenger->GetTransport();
+    ObjectGuid const wasGuid = passenger->m_movementInfo.GetTransportGuid();
+    Position const wasAt = *passenger->m_movementInfo.GetTransportPos();
+
+    // Both, and BEFORE the teleport: TeleportTo reads m_transport to know this is a port that
+    // keeps its passenger, and the offset is what actually places him. Same order as login.
+    passenger->SetTransport(m_vessel);
+    passenger->m_movementInfo.SetTransportData(m_vessel->GetObjectGuid(), x, y, z, o, 0);
+
+    // Her world pose is coarse and it only names the grid his client must load. It is never
+    // where he ends up -- the deck offset above is.
+    if (passenger->TeleportTo(sailed->GetId(),
+                              m_vessel->Where().X(), m_vessel->Where().Y(),
+                              m_vessel->Where().Z(), m_vessel->Where().Facing(),
+                              options | TELE_TO_NOT_LEAVE_TRANSPORT))
+    {
+        return true;
+    }
+
+    // A refused port must not leave him holding a ship he is not standing on: every question
+    // about where he is would then answer from her deck while his body is somewhere else.
+    passenger->SetTransport(wasOn);
+    if (wasOn)
+    {
+        passenger->m_movementInfo.SetTransportData(wasGuid, wasAt.x, wasAt.y, wasAt.z, wasAt.o, 0);
+    }
+    else
+    {
+        passenger->m_movementInfo.ClearTransportData();
+    }
+
+    return false;
+}
+
 void TransportMap::Disembark(Player* passenger, float x, float y, float z, float o)
 {
     if (passenger->GetMap() != this)

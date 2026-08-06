@@ -1693,6 +1693,26 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
         m_cinematicFlyover->Stop();
     }
 
+    // A DECK IS A MAP THE CLIENT CANNOT LOAD, and naming one is asking to be put ABOARD her.
+    // The coordinates are a real place on that map; it is the map ID that must never go on
+    // the wire, because the client dies in CMap::LoadWdt() looking for terrain it has none of.
+    // Board re-enters here naming the water she sails, which is not a vessel map, so this
+    // branch cannot recurse.
+    if (Transport::IsVesselMapId(mapid))
+    {
+        Map* const deck = sMapMgr.FindMap(mapid);
+        TransportMap* const hull = deck ? deck->AsTransport() : NULL;
+        if (!hull)
+        {
+            sLog.outError("TeleportTo: vessel map %u has no hull; %s not moved.",
+                          mapid, GetGuidStr().c_str());
+            return false;
+        }
+
+        // False is ORDINARY here, not a fault -- she may be mid-seam -- and he stays put.
+        return hull->Board(this, x, y, z, orientation, options);
+    }
+
     if (!MapManager::IsValidMapCoord(mapid, x, y, z, orientation))
     {
         sLog.outError("TeleportTo: invalid map %d or absent instance template.", mapid);
