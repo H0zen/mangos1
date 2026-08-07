@@ -68,14 +68,6 @@ std::vector<uint8_t> ClientConnection::onData(const uint8_t* data, std::size_t l
 
         for (size_t i = 0; i < packets.size() && !m_closed.load(); ++i)
         {
-            // Second clock, on the network thread. Paired with the MOVE line in
-            // HandleMovementOpcodes this says where a packet waits: if RECV is smooth and
-            // MOVE is bursty the wait is in the session queue, if RECV is bursty too the
-            // wait is below us in the transport. No opcode names down here -- the table
-            // lives in the game layer -- so correlate on the hex.
-            DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "RECV op=0x%04X net=%u chunk=%zu of %zu",
-                             packets[i].GetOpcode(), getMSTime(), i + 1, packets.size());
-
             m_gateway.TracePacket(m_traceSession.load(std::memory_order_relaxed),
                                   packets[i], true);
             if (!HandlePacket(packets[i]))
@@ -123,19 +115,7 @@ void ClientConnection::SendPacket(const WorldPacket& packet)
         if (m_closed.load() || !m_sender)
             return;
 
-        // The missing half of the trace. RECV and MOVE both describe the MOVER's session; this
-        // is the only place that says what an OBSERVER was actually handed, and when. A halt
-        // in the follower's own movement means nothing until you can see whether the leader's
-        // stream to him kept flowing through it.
-        // conn= because the peer address is the IP only: two clients on one machine share it.
-        // sess= from the atomic copy: taking m_sessionLock under m_cryptSendLock would invert
-        // the order HandleAuthSession uses.
-        SessionId const traced = m_traceSession.load(std::memory_order_relaxed);
-        DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES, "SEND op=0x%04X net=%u conn=%p sess=%u to=%s",
-                         packet.GetOpcode(), getMSTime(),
-                         static_cast<const void*>(this), traced, m_address.c_str());
-
-        m_gateway.TracePacket(traced, packet, false);
+        m_gateway.TracePacket(m_traceSession.load(std::memory_order_relaxed), packet, false);
         std::vector<uint8> const frame = PacketCodec::Encode(packet,
             [this](uint8* header, std::size_t len) { m_crypt.EncryptSend(header, len); });
         m_sender(frame.data(), frame.size());
