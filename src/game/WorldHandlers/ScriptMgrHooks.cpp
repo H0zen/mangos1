@@ -110,7 +110,15 @@ CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
  */
 GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
 {
-    // TODO - expose in ELuna
+    // No engine bids for this role yet -- Eluna has never exposed game-object
+    // AI, which is what the old "TODO - expose in Eluna" here recorded. The
+    // auction is wired anyway so that exposing it later is a Bid() away
+    // instead of another #ifdef in this function.
+    if (GameObjectAI* claimed = scripting::ClaimGameObjectAI(pGo))
+    {
+        return claimed;
+    }
+
     #ifdef ENABLE_SD3
         return SD3::GetGameObjectAI(pGo);
     #else
@@ -126,6 +134,22 @@ GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
  */
 InstanceData* ScriptMgr::CreateInstanceData(Map* pMap)
 {
+    // BEHAVIOUR CHANGE, deliberate. This function never consulted Eluna, even
+    // though Eluna::GetInstanceData(Map*) has been implemented all along --
+    // the engine shipped instance scripting that nothing in this core ever
+    // reached. Routing the role through the auction wires it up, so a map with
+    // Lua instance bindings now gets the Lua InstanceData; a map without them
+    // still falls through to SD3 exactly as before, because Eluna returns
+    // nullptr when it has no bindings for the map.
+    //
+    // The precedence this establishes -- Lua over SD3 when both claim the same
+    // instance -- is the one Eluna already had for creature AI, so it is
+    // consistent rather than newly invented.
+    if (InstanceData* claimed = scripting::ClaimInstanceData(pMap))
+    {
+        return claimed;
+    }
+
 #ifdef ENABLE_SD3
     return SD3::CreateInstanceData(pMap);
 #else

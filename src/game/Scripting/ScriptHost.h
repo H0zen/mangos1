@@ -101,6 +101,31 @@ namespace scripting
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count);
 
+        /**
+         * The epoch a Borrow handed out right now is stamped with.
+         *
+         * Bumped by Dispatch when it returns, so every borrow issued during a
+         * call is stale the instant that call is over. Thread-local, because
+         * maps update in parallel and an epoch shared between them would let
+         * one map's dispatch invalidate another's live borrow.
+         */
+        uint32 CurrentEpoch();
+
+        /// True while @a borrow still refers to something alive.
+        bool IsBorrowLive(Borrow const& borrow);
+    }
+
+    /// Build a Borrow for @a target, valid until the current dispatch returns.
+    template <class T>
+    Borrow Lend(Domain domain, T* target)
+    {
+        return Borrow{ const_cast<void*>(static_cast<void const*>(target)),
+                       detail::CurrentEpoch(), domain };
+    }
+
+    namespace detail
+    {
+
         inline Context ToContext(Context const& ctx)
         {
             return ctx;

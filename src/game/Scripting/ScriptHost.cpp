@@ -198,6 +198,23 @@ namespace scripting
             return Context{ Context::Scope::Map, object->GetMap() };
         }
 
+        // Per-thread, and it must stay that way. Maps update in parallel, so a
+        // shared counter would let one map's dispatch expire a borrow another
+        // map is still legitimately holding. Starts at 1 so a default-built
+        // Borrow, whose epoch is 0, is never mistaken for a live one.
+        static thread_local uint32 s_epoch = 1;
+        static thread_local uint32 s_depth = 0;
+
+        uint32 CurrentEpoch()
+        {
+            return s_epoch;
+        }
+
+        bool IsBorrowLive(Borrow const& borrow)
+        {
+            return borrow.target != nullptr && borrow.epoch == s_epoch;
+        }
+
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count)
         {
@@ -205,6 +222,31 @@ namespace scripting
             {
                 return Verdict::Continue;
             }
+
+            // Everything lent during this call dies with it. An engine that
+            // squirrels a Borrow away and reads it on a later tick finds an
+            // epoch that no longer matches, which is a reportable script error
+            // rather than a read of freed memory. The pointer is still a
+            // pointer; what changed is that using it late is *detected*.
+            //
+            // The depth counter is not decoration. A script handling an event
+            // can cause the world to raise another one, and a plain bump on
+            // return would expire the OUTER call's borrows while its frame is
+            // still live -- turning a correct engine into a broken one. Only
+            // the outermost dispatch ends the epoch. The cost is that a borrow
+            // issued by a nested call stays valid until the outer one returns,
+            // which is permissive rather than wrong, and rare either way.
+            struct EpochGuard
+            {
+                EpochGuard() { ++s_depth; }
+                ~EpochGuard()
+                {
+                    if (--s_depth == 0)
+                    {
+                        ++s_epoch;
+                    }
+                }
+            } guard;
 
             // A refusal ends the chain: once an action has been vetoed there is
             // nothing left for a later engine to weigh in on. So does a claim,
