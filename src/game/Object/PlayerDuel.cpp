@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Language.h"
 #include "Database/DatabaseEnv.h"
@@ -150,13 +151,10 @@ void Player::DuelComplete(DuelCompleteType type)
         SendMessageToSet(&data, true);
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnDuelEnd(duel->opponent, this, type);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerDuelEnd{ scripting::RefOf(duel->opponent),
+                                  scripting::RefOf(this),
+                                  static_cast<uint32>(type) });
 
     // Remove Duel Flag object
     if (GameObject* obj = GetMap()->GetGameObject(GetGuidValue(PLAYER_DUEL_ARBITER)))

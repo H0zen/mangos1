@@ -2542,13 +2542,8 @@ void Player::GiveLevel(uint32 level)
         pet->SynchronizeLevelWithOwner();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnLevelChanged(this, oldLevel);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerLevelChange{ scripting::RefOf(this), oldLevel });
 
     if (MailLevelReward const* mailReward = sObjectMgr.GetMailLevelReward(level, getRaceMask()))
     {
@@ -2563,13 +2558,8 @@ void Player::GiveLevel(uint32 level)
  */
 void Player::SetFreeTalentPoints(uint32 points)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnFreeTalentPointsChanged(this, points);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerTalentsChange{ scripting::RefOf(this), points });
 
     SetUInt32Value(PLAYER_CHARACTER_POINTS1, points);
 }
@@ -6178,13 +6168,10 @@ void Player::HandleFall(MovementInfo const& movementInfo)
  */
 void Player::ModifyMoney(int32 d)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnMoneyChanged(this, d);
-    }
-#endif /* ENABLE_ELUNA */
+    // A hook may change the delta before it is applied.
+    scripting::PlayerMoneyChange moneyEvent{ scripting::RefOf(this), d };
+    scripting::Notify(this, moneyEvent);
+    d = moneyEvent.amount;
 
     if (d < 0)
     {

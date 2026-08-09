@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Utilities/PackedValues.h"
 #include "Player.h"
@@ -126,16 +127,14 @@ void Player::SaveToDB()
     CharacterDatabase.BeginTransaction();
 
 
-#ifdef ENABLE_ELUNA
-    // Hack to check that this is not on create save
-    if (Eluna* e = GetEluna())
+    // The AT_LOGIN_FIRST test is not incidental: SaveToDB also runs for the
+    // very first save of a freshly created character, and the scripts must
+    // not see that as an ordinary save.
+    if (!HasAtLoginFlag(AT_LOGIN_FIRST))
     {
-        if (!HasAtLoginFlag(AT_LOGIN_FIRST))
-        {
-            e->OnSave(this);
-        }
+        scripting::Notify(this,
+            scripting::PlayerSave{ scripting::RefOf(this) });
     }
-#endif /* ENABLE_ELUNA */
 
     static SqlStatementID delChar ;
     static SqlStatementID insChar ;

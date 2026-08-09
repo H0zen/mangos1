@@ -140,6 +140,110 @@ namespace scripting
                 return allowed ? Verdict::Continue : Verdict::Cancel;
             }
 
+            case EventId::PlayerLevelChange:
+            {
+                MANGOS_ASSERT(count == PlayerLevelChange::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnLevelChanged(player,
+                        static_cast<uint8>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerTalentsChange:
+            {
+                MANGOS_ASSERT(count == PlayerTalentsChange::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnFreeTalentPointsChanged(player,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerMoneyChange:
+            {
+                MANGOS_ASSERT(count == PlayerMoneyChange::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                if (!player)
+                {
+                    return Verdict::Continue;
+                }
+
+                int32 amount = static_cast<int32>(args[1].AsSigned());
+                engine->OnMoneyChanged(player, amount);
+                args[1] = Arg::FromSigned(amount);
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerResurrect:
+            {
+                MANGOS_ASSERT(count == PlayerResurrect::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnResurrect(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerDuelEnd:
+            {
+                MANGOS_ASSERT(count == PlayerDuelEnd::Arity);
+
+                Player* winner = PlayerOf(args[0].AsEntity());
+                Player* loser = PlayerOf(args[1].AsEntity());
+                if (winner && loser)
+                {
+                    engine->OnDuelEnd(winner, loser,
+                        static_cast<DuelCompleteType>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerCanUseItem:
+            {
+                MANGOS_ASSERT(count == PlayerCanUseItem::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                if (!player)
+                {
+                    return Verdict::Continue;
+                }
+
+                // The answer is a value, not a veto: the hook returns an
+                // InventoryResult, and EQUIP_ERR_OK means "no objection".
+                InventoryResult const result = engine->OnCanUseItem(player,
+                    static_cast<uint32>(args[1].AsNumber()));
+                args[2] = Arg::FromNumber(static_cast<uint64>(result));
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerBindToInstance:
+            {
+                MANGOS_ASSERT(count == PlayerBindToInstance::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnBindToInstance(player,
+                        static_cast<Difficulty>(args[1].AsNumber()),
+                        static_cast<uint32>(args[2].AsNumber()),
+                        args[3].AsFlag());
+                }
+
+                return Verdict::Continue;
+            }
+
             default:
                 // Not converted yet. Not delivered is correct; misdelivered
                 // would not be.

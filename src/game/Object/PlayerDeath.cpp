@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Player.h"
 #include "Language.h"
@@ -204,12 +205,8 @@ void Player::ResurrectPlayer(float restore_percent, bool applySickness)
     // update visibility of player for nearby cameras
     UpdateObjectVisibility();
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnResurrect(this);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerResurrect{ scripting::RefOf(this) });
 
     if (!applySickness)
     {
