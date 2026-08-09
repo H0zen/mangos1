@@ -38,6 +38,7 @@
  * with other players using the in-game currency.
  */
 
+#include "ScriptHost.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
 #include "Opcodes.h"
@@ -389,10 +390,12 @@ void WorldSession::HandleAuctionSellItem(WorldPacket& recv_data)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnAdd(auctionHouse, AH);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::ServerAuctionAdd{
+                scripting::Lend(scripting::Domain::AuctionHouse,
+                                auctionHouse),
+                scripting::HandleOf(scripting::Domain::Auction,
+                                    AH->Id) });
 #endif /* ENABLE_ELUNA */
 }
 
@@ -569,10 +572,12 @@ void WorldSession::HandleAuctionRemoveItem(WorldPacket& recv_data)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnRemove(auctionHouse, auction);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::ServerAuctionRemove{
+                scripting::Lend(scripting::Domain::AuctionHouse,
+                                auctionHouse),
+                scripting::HandleOf(scripting::Domain::Auction,
+                                    auction->Id) });
 #endif /* ENABLE_ELUNA */
     delete auction;
 }

@@ -40,6 +40,7 @@
  * appearance customization, and starting location setup.
  */
 
+#include "ScriptHost.h"
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
 #include "Common/Locales.h"
@@ -584,10 +585,8 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnCreate(pNewChar);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::PlayerCharacterCreate{ scripting::RefOf(pNewChar) });
 #endif /* ENABLE_ELUNA */
 
     delete pNewChar;                                        // created only to call SaveToDB()
@@ -653,10 +652,8 @@ void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnDelete(lowguid);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::PlayerCharacterDelete{ lowguid });
 #endif /* ENABLE_ELUNA */
 
     if (sLog.IsOutCharDump())                               // optimize GetPlayerDump call
@@ -1018,13 +1015,12 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = pCurrChar->GetEluna())
-    {
         if (pCurrChar->HasAtLoginFlag(AT_LOGIN_FIRST))
         {
-            e->OnFirstLogin(pCurrChar);
+            scripting::Notify(pCurrChar,
+                scripting::PlayerFirstLogin{
+                    scripting::RefOf(pCurrChar) });
         }
-    }
 #endif /* ENABLE_ELUNA */
 
 
@@ -1076,10 +1072,8 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnLogin(pCurrChar);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::PlayerLogin{ scripting::RefOf(pCurrChar) });
 #endif /* ENABLE_ELUNA */
 
     /* Used for movement */

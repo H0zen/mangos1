@@ -37,6 +37,7 @@
  * - Creature and game object spawning
  */
 
+#include "ScriptHost.h"
 #include "Object.h"
 #include "Player.h"
 #include "BattleGround.h"
@@ -509,10 +510,10 @@ void BattleGround::Update(uint32 diff)
             m_Events |= BG_STARTING_EVENT_4;
 
 #ifdef ENABLE_ELUNA
-            if (Eluna* e = this->GetBgMap()->GetEluna())
-            {
-                e->OnBGCreate(this, GetTypeID(), GetInstanceID());
-            }
+        scripting::Notify(GetBgMap(),
+            scripting::BgCreate{ scripting::HandleOf(this),
+                                 static_cast<uint32>(GetTypeID()),
+                                 GetInstanceID() });
 #endif /* ENABLE_ELUNA */
 
             StartingEventOpenDoors();
@@ -981,10 +982,10 @@ void BattleGround::StartBattleGround()
     sBattleGroundMgr.AddBattleGround(GetInstanceID(), GetTypeID(), this);
 
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetBgMap()->GetEluna())
-    {
-        e->OnBGCreate(this, GetTypeID(), GetInstanceID());
-    }
+        scripting::Notify(GetBgMap(),
+            scripting::BgCreate{ scripting::HandleOf(this),
+                                 static_cast<uint32>(GetTypeID()),
+                                 GetInstanceID() });
 #endif /* ENABLE_ELUNA */
 }
 

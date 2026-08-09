@@ -42,6 +42,7 @@
  * @see Channel for channel chat
  */
 
+#include "ScriptHost.h"
 #include "Common/Locales.h"
 #include "Utilities/Errors.h"
 #include "Chat.h"
@@ -1386,13 +1387,15 @@ void ChatHandler::ExecuteCommand(const char* text)
         case CHAT_COMMAND_UNKNOWN_SUBCOMMAND:
         {
 #ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
-            {
-                if (!e->OnCommand(m_session ? m_session->GetPlayer() : NULL, fullcmd.c_str()))
+                if (scripting::Ask(scripting::GlobalContext(),
+                        scripting::PlayerCommand{
+                            scripting::RefOf(m_session
+                                ? m_session->GetPlayer() : NULL),
+                            fullcmd })
+                        == scripting::Verdict::Cancel)
                 {
                     return;
                 }
-            }
 #endif /* ENABLE_ELUNA */
             SendSysMessage(LANG_NO_SUBCMD);
             ShowHelpForCommand(command->ChildCommands, text);
@@ -1402,13 +1405,15 @@ void ChatHandler::ExecuteCommand(const char* text)
         case CHAT_COMMAND_UNKNOWN:
         {
 #ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
-            {
-                if (!e->OnCommand(m_session ? m_session->GetPlayer() : NULL, fullcmd.c_str()))
+                if (scripting::Ask(scripting::GlobalContext(),
+                        scripting::PlayerCommand{
+                            scripting::RefOf(m_session
+                                ? m_session->GetPlayer() : NULL),
+                            fullcmd })
+                        == scripting::Verdict::Cancel)
                 {
                     return;
                 }
-            }
 #endif /* ENABLE_ELUNA */
             SendSysMessage(LANG_NO_CMD);
             SetSentErrorMessage(true);

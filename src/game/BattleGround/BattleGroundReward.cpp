@@ -39,6 +39,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "BattleGround.h"
 #include "Object.h"
 #include "Player.h"
@@ -179,10 +180,11 @@ void BattleGround::UpdateWorldStateForPlayer(uint32 Field, uint32 Value, Player*
 void BattleGround::EndBattleGround(Team winner)
 {
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetBgMap()->GetEluna())
-    {
-        e->OnBGEnd(this, GetTypeID(), GetInstanceID(), winner);
-    }
+        scripting::Notify(GetBgMap(),
+            scripting::BgEnd{ scripting::HandleOf(this),
+                              static_cast<uint32>(GetTypeID()),
+                              GetInstanceID(),
+                              static_cast<uint32>(winner) });
 #endif /* ENABLE_ELUNA */
     this->RemoveFromBGFreeSlotQueue();
 

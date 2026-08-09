@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include <random>
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -368,10 +369,9 @@ void Spell::EffectDuel(SpellEffectIndex eff_idx)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = caster->GetEluna())
-    {
-        e->OnDuelRequest(target, caster);
-    }
+        scripting::Notify(caster,
+            scripting::PlayerDuelRequest{ scripting::RefOf(target),
+                                          scripting::RefOf(caster) });
 #endif /* ENABLE_ELUNA */
 }
 

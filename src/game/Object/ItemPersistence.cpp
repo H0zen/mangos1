@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Item.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -109,10 +110,11 @@ void Item::UpdateDuration(Player* owner, uint32 diff)
     {
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = owner->GetEluna())
-        {
-            e->OnExpire(owner, GetProto());
-        }
+            scripting::Ask(owner,
+                scripting::ItemExpire{ scripting::RefOf(owner),
+                                       scripting::HandleOf(
+                                           scripting::Domain::ItemTemplate,
+                                           GetProto()->ItemId) });
 #endif /* ENABLE_ELUNA */
         owner->DestroyItem(GetBagSlot(), GetSlot(), true);
         return;

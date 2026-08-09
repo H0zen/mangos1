@@ -27,6 +27,7 @@
 
 #ifdef ENABLE_ELUNA
 
+#include "BattleGround/BattleGround.h"
 #include "Channel.h"
 #include "ElunaConfig.h"
 #include "DBCStores.h"
@@ -172,6 +173,26 @@ namespace scripting
                        ? sAreaTriggerStore.LookupEntry(
                              static_cast<uint32>(handle.id))
                        : nullptr;
+        }
+
+        /**
+         * The battleground that owns the map the event came from.
+         *
+         * Not resolved from the handle in the payload: the events carry the
+         * instance id so a script can read it, but the object we mean is the
+         * one whose map raised the event, and the context is already holding
+         * it. Looking it up again by id would be a second source of truth for
+         * something in hand.
+         */
+        BattleGround* BorrowedBg(Context const& ctx)
+        {
+            if (ctx.scope != Context::Scope::Map || !ctx.map)
+            {
+                return nullptr;
+            }
+
+            BattleGroundMap* bgMap = dynamic_cast<BattleGroundMap*>(ctx.map);
+            return bgMap ? bgMap->GetBG() : nullptr;
         }
 
         /// Every dummy-effect arm shares this; only the target type differs.
@@ -1245,6 +1266,219 @@ namespace scripting
                 if (player && item)
                 {
                     engine->OnRemove(player, item);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::BgCreate:
+            case EventId::BgEnd:
+            {
+                BattleGround* bg = BorrowedBg(ctx);
+                if (!bg)
+                {
+                    return Verdict::Continue;
+                }
+
+                BattleGroundTypeId const type =
+                    static_cast<BattleGroundTypeId>(args[1].AsNumber());
+                uint32 const instance = static_cast<uint32>(args[2].AsNumber());
+
+                if (id == EventId::BgCreate)
+                {
+                    engine->OnBGCreate(bg, type, instance);
+                }
+                else
+                {
+                    engine->OnBGEnd(bg, type, instance,
+                        static_cast<Team>(args[3].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ItemExpire:
+            {
+                MANGOS_ASSERT(count == ItemExpire::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Handle const proto = args[1].AsNamed();
+                if (!player || proto.domain != Domain::ItemTemplate)
+                {
+                    return Verdict::Continue;
+                }
+
+                ItemPrototype const* tpl = ObjectMgr::GetItemPrototype(
+                    static_cast<uint32>(proto.id));
+
+                return (tpl && !engine->OnExpire(player, tpl))
+                           ? Verdict::Cancel : Verdict::Continue;
+            }
+
+            case EventId::PlayerReputationChange:
+            {
+                MANGOS_ASSERT(count == PlayerReputationChange::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                if (!player)
+                {
+                    return Verdict::Continue;
+                }
+
+                int32 standing = static_cast<int32>(args[2].AsSigned());
+                engine->OnReputationChange(player,
+                    static_cast<uint32>(args[1].AsNumber()), standing,
+                    args[3].AsFlag());
+                args[2] = Arg::FromSigned(standing);
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerLogout:
+            {
+                MANGOS_ASSERT(count == PlayerLogout::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnLogout(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerLogin:
+            case EventId::PlayerFirstLogin:
+            case EventId::PlayerCharacterCreate:
+            {
+                MANGOS_ASSERT(count == PlayerLogin::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                if (!player)
+                {
+                    return Verdict::Continue;
+                }
+
+                if (id == EventId::PlayerLogin)
+                {
+                    engine->OnLogin(player);
+                }
+                else if (id == EventId::PlayerFirstLogin)
+                {
+                    engine->OnFirstLogin(player);
+                }
+                else
+                {
+                    engine->OnCreate(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerCharacterDelete:
+            {
+                MANGOS_ASSERT(count == PlayerCharacterDelete::Arity);
+                engine->OnDelete(static_cast<uint32>(args[0].AsNumber()));
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerCommand:
+            {
+                MANGOS_ASSERT(count == PlayerCommand::Arity);
+
+                // The player may legitimately be absent: a console command has
+                // no player behind it, and the engine takes NULL for that.
+                return engine->OnCommand(PlayerOf(args[0].AsEntity()),
+                                         args[1].AsText().c_str())
+                           ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::ServerGameStart:
+            {
+                MANGOS_ASSERT(count == ServerGameStart::Arity);
+                engine->OnGameEventStart(
+                    static_cast<uint32>(args[0].AsNumber()));
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerGameStop:
+            {
+                MANGOS_ASSERT(count == ServerGameStop::Arity);
+                engine->OnGameEventStop(
+                    static_cast<uint32>(args[0].AsNumber()));
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerLootItem:
+            {
+                MANGOS_ASSERT(count == PlayerLootItem::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                if (player && item)
+                {
+                    engine->OnLootItem(player, item,
+                        static_cast<uint32>(args[2].AsNumber()),
+                        ObjectGuid(args[3].AsEntity().guid));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerLootMoney:
+            {
+                MANGOS_ASSERT(count == PlayerLootMoney::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnLootMoney(player,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GossipItemSelect:
+            {
+                MANGOS_ASSERT(count == GossipItemSelect::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                if (player && item)
+                {
+                    engine->HandleGossipSelectOption(player, item,
+                        static_cast<uint32>(args[2].AsNumber()),
+                        static_cast<uint32>(args[3].AsNumber()),
+                        args[4].AsText());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GossipPlayerMenuSelect:
+            {
+                MANGOS_ASSERT(count == GossipPlayerMenuSelect::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->HandleGossipSelectOption(player,
+                        static_cast<uint32>(args[1].AsNumber()),
+                        static_cast<uint32>(args[2].AsNumber()),
+                        static_cast<uint32>(args[3].AsNumber()),
+                        args[4].AsText());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerDuelRequest:
+            {
+                MANGOS_ASSERT(count == PlayerDuelRequest::Arity);
+
+                Player* target = PlayerOf(args[0].AsEntity());
+                Player* challenger = PlayerOf(args[1].AsEntity());
+                if (target && challenger)
+                {
+                    engine->OnDuelRequest(target, challenger);
                 }
 
                 return Verdict::Continue;

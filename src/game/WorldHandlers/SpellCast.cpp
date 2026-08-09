@@ -46,6 +46,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Spell.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
@@ -324,13 +325,14 @@ void Spell::cast(bool skipCheck)
     m_targets.updateTradeSlotItem();
 
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = m_caster->GetEluna())
-    {
         if (m_caster->GetTypeId() == TYPEID_PLAYER)
         {
-            e->OnSpellCast(m_caster->ToPlayer(), this, skipCheck);
+            scripting::Notify(m_caster,
+                scripting::PlayerSpellCast{
+                    scripting::RefOf(m_caster),
+                    scripting::Lend(scripting::Domain::Spell, this),
+                    skipCheck });
         }
-    }
 #endif /* ENABLE_ELUNA */
 
     FillTargetMap();

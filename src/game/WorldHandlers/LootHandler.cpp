@@ -40,6 +40,7 @@
  * determine how items are distributed among party members.
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include "WorldPacket.h"
 #include "Log.h"
@@ -238,10 +239,11 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
         player->SendNewItem(newitem, uint32(item->count), false, false, true);
 
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = player->GetEluna())
-        {
-            e->OnLootItem(player, newitem, item->count, lguid);
-        }
+                scripting::Notify(player,
+                    scripting::PlayerLootItem{
+                        scripting::RefOf(player),
+                        scripting::RefOf(newitem), item->count,
+                        scripting::Ref{ lguid.GetRawValue() } });
 #endif /* ENABLE_ELUNA */
     }
     else
@@ -293,10 +295,9 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recv_data*/)
 
                 // Used by Eluna
                 #ifdef ENABLE_ELUNA
-                if (Eluna* e = player->GetEluna())
-                {
-                    e->OnLootMoney(player, pLoot->gold);
-                }
+                    scripting::Notify(player,
+                        scripting::PlayerLootMoney{
+                            scripting::RefOf(player), pLoot->gold });
                 #endif /* ENABLE_ELUNA */
             }
 
@@ -371,10 +372,9 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recv_data*/)
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = player->GetEluna())
-        {
-            e->OnLootMoney(player, pLoot->gold);
-        }
+                    scripting::Notify(player,
+                        scripting::PlayerLootMoney{
+                            scripting::RefOf(player), pLoot->gold });
 #endif /* ENABLE_ELUNA */
 
         pLoot->gold = 0;
@@ -776,10 +776,11 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recv_data)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = target->GetEluna())
-    {
-        e->OnLootItem(target, newitem, item.count, lootguid);
-    }
+            scripting::Notify(target,
+                scripting::PlayerLootItem{
+                    scripting::RefOf(target),
+                    scripting::RefOf(newitem), item.count,
+                    scripting::Ref{ lootguid.GetRawValue() } });
 #endif /* ENABLE_ELUNA */
 
     // mark as looted

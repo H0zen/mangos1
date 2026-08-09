@@ -78,7 +78,18 @@ void GameObject::Update(uint32 update_diff, uint32 p_time)
         return;
     }
 
-    // Used by Eluna
+    // NOT converted to an event, and it must not be.
+    //
+    // This is a role callback: it runs once per game object per tick, and the
+    // manifest marks gameobject/on_ai_update as `role` for that reason.
+    // Routing a per-object per-tick call through the global dispatch table
+    // would be slower and, worse, semantically wrong -- "decide what to do
+    // this tick" belongs to whichever engine owns this object, not to every
+    // engine that happens to be loaded.
+    //
+    // It stays an engine-specific call until Eluna bids for the GameObjectAI
+    // role, at which point it moves onto the object the auction hands back
+    // and this block goes away entirely. See ScriptMgr::GetGameObjectAI.
 #ifdef ENABLE_ELUNA
     if (Eluna* e = GetEluna())
     {

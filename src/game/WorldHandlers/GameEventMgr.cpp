@@ -42,6 +42,7 @@
  * @see GameEventMgr for the manager class
  */
 
+#include "ScriptHost.h"
 #include "GameEventMgr.h"
 #include "World.h"
 #include "ObjectMgr.h"
@@ -147,13 +148,11 @@ void GameEventMgr::StartEvent(uint16 event_id, bool overwrite /*=false*/, bool r
         }
     }
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
         if (IsActiveEvent(event_id))
         {
-            e->OnGameEventStart(event_id);
+            scripting::Notify(scripting::GlobalContext(),
+                scripting::ServerGameStart{ event_id });
         }
-    }
 #endif
 }
 
@@ -175,13 +174,11 @@ void GameEventMgr::StopEvent(uint16 event_id, bool overwrite)
         }
     }
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
         if (!IsActiveEvent(event_id))
         {
-            e->OnGameEventStop(event_id);
+            scripting::Notify(scripting::GlobalContext(),
+                scripting::ServerGameStop{ event_id });
         }
-    }
 #endif
 }
 

@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "ReputationMgr.h"
 #include "DBCStores.h"
 #include "Player.h"
@@ -329,10 +330,11 @@ bool ReputationMgr::SetReputation(FactionEntry const* factionEntry, int32 standi
 {
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = m_player->GetEluna())
-    {
-        e->OnReputationChange(m_player, factionEntry->ID, standing, incremental);
-    }
+        scripting::PlayerReputationChange repEvent{
+            scripting::RefOf(m_player), factionEntry->ID, standing,
+            incremental };
+        scripting::Notify(m_player, repEvent);
+        standing = repEvent.standing;
 #endif /* ENABLE_ELUNA */
 
     bool res = false;

@@ -46,6 +46,7 @@
  * @see OpcodeTable.cpp for opcode registration
  */
 
+#include "ScriptHost.h"
 #include <zlib.h>
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
@@ -731,10 +732,8 @@ void WorldSession::LogoutPlayer(bool Save)
 
         ///- Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = sWorld.GetEluna())
-        {
-            e->OnLogout(_player);
-        }
+            scripting::Notify(scripting::GlobalContext(),
+                scripting::PlayerLogout{ scripting::RefOf(_player) });
 #endif /* ENABLE_ELUNA */
 
         ///- Remove the player from the world
@@ -1104,13 +1103,14 @@ void WorldSession::ExecuteOpcode(OpcodeHandler const& opHandle, WorldPacket* pac
     }
 
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        if (!e->OnPacketReceive(this, *packet))
+        if (scripting::Ask(scripting::GlobalContext(),
+                scripting::ServerPacketReceive{
+                    scripting::Lend(scripting::Domain::Session, this),
+                    scripting::Lend(scripting::Domain::Packet, packet) })
+                == scripting::Verdict::Cancel)
         {
             return;
         }
-    }
 #endif /* ENABLE_ELUNA */
 
     // need prevent do internal far teleports in handlers because some handlers do lot steps

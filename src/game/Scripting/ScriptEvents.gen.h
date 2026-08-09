@@ -818,12 +818,12 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         house;
+        Borrow         house;
         Handle         entry;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(house);
+            args[0] = Arg::FromLent(house);
             args[1] = Arg::FromNamed(entry);
         }
 
@@ -838,12 +838,12 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         house;
+        Borrow         house;
         Handle         entry;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(house);
+            args[0] = Arg::FromLent(house);
             args[1] = Arg::FromNamed(entry);
         }
 
@@ -858,12 +858,12 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         house;
+        Borrow         house;
         Handle         entry;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(house);
+            args[0] = Arg::FromLent(house);
             args[1] = Arg::FromNamed(entry);
         }
 
@@ -878,12 +878,12 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         house;
+        Borrow         house;
         Handle         entry;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(house);
+            args[0] = Arg::FromLent(house);
             args[1] = Arg::FromNamed(entry);
         }
 
@@ -4106,15 +4106,19 @@ namespace scripting
     struct BgCreate
     {
         static constexpr EventId Id = EventId::BgCreate;
-        static constexpr std::size_t Arity = 1;
+        static constexpr std::size_t Arity = 3;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref            player;
+        Handle         bg;
+        uint32         bgId;
+        uint32         instanceId;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
+            args[0] = Arg::FromNamed(bg);
+            args[1] = Arg::FromNumber(bgId);
+            args[2] = Arg::FromNumber(instanceId);
         }
 
         void Unpack(Arg const*) {}

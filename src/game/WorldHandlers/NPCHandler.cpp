@@ -48,6 +48,7 @@
  * - CMSG_BUY_STABLE_SLOT: Buy stable slot
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include <algorithm>
 #include "Language.h"
@@ -542,10 +543,13 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = GetPlayer()->GetEluna())
-        {
-            e->HandleGossipSelectOption(GetPlayer(), item, GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId), GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId), code);
-        }
+                scripting::Notify(GetPlayer(),
+                    scripting::GossipItemSelect{
+                        scripting::RefOf(GetPlayer()),
+                        scripting::RefOf(item),
+                        GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId),
+                        GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId),
+                        code });
 #endif /* ENABLE_ELUNA */
     }
     else if (guid.IsPlayer())
@@ -558,10 +562,13 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = GetPlayer()->GetEluna())
-        {
-            e->HandleGossipSelectOption(GetPlayer(), GetPlayer()->PlayerTalkClass->GetGossipMenu().GetMenuId(), GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId), GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId), code);
-        }
+                scripting::Notify(GetPlayer(),
+                    scripting::GossipPlayerMenuSelect{
+                        scripting::RefOf(GetPlayer()),
+                        GetPlayer()->PlayerTalkClass->GetGossipMenu().GetMenuId(),
+                        GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId),
+                        GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId),
+                        code });
 #endif /* ENABLE_ELUNA */
     }
 }

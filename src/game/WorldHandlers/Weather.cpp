@@ -27,6 +27,7 @@
     \ingroup world
 */
 
+#include "ScriptHost.h"
 #include "Weather.h"
 #include "WorldSession.h"
 #include "Player.h"
@@ -259,10 +260,11 @@ bool Weather::SendWeatherForPlayersInZone(Map const* _map)
     ///- Log the event
     LogWeatherState(state);
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnChange(this, m_zone, GetWeatherState(), m_grade);
-    }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::ServerWeatherChange{
+                scripting::HandleOf(scripting::Domain::Weather, m_zone),
+                m_zone, static_cast<uint32>(GetWeatherState()),
+                m_grade });
 #endif /* ENABLE_ELUNA */
 
     return true;

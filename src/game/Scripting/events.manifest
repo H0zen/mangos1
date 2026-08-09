@@ -68,10 +68,10 @@ category server = 0x02
     on_map_update                       23  broadcast  map:h.map diff:u32
     on_event_trigger                    24  claim      player:obj trigger:h.areatrigger
     on_weather_change                   25  broadcast  weather:h.weather zone:u32 state:u32 grade:f64
-    on_auction_add                      26  broadcast  house:h.ahouse entry:h.auction
-    on_auction_remove                   27  broadcast  house:h.ahouse entry:h.auction
-    on_auction_successful               28  broadcast  house:h.ahouse entry:h.auction
-    on_auction_expire                   29  broadcast  house:h.ahouse entry:h.auction
+    on_auction_add                      26  broadcast  house:b.ahouse entry:h.auction
+    on_auction_remove                   27  broadcast  house:b.ahouse entry:h.auction
+    on_auction_successful               28  broadcast  house:b.ahouse entry:h.auction
+    on_auction_expire                   29  broadcast  house:b.ahouse entry:h.auction
     on_addon_message                    30  cancel     sender:obj type:u32 msg:str! receiver:obj guild:h.guild group:h.group channel:b.channel
     on_world_delete_creature            31  broadcast  creature:obj
     on_world_delete_gameobject          32  broadcast  gameobject:obj
@@ -243,7 +243,7 @@ category item = 0x0A
 category bg = 0x0C
     on_start                             1  broadcast  bg:h.bg bgId:u32 instanceId:u32
     on_end                               2  broadcast  bg:h.bg bgId:u32 instanceId:u32 winner:u32
-    on_create                            3  broadcast  player:obj
+    on_create                            3  broadcast  bg:h.bg bgId:u32 instanceId:u32
     on_pre_destroy                       4  broadcast  bg:h.bg bgId:u32 instanceId:u32
 
 category instance = 0x0D
