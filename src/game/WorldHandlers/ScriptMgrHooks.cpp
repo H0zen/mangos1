@@ -47,6 +47,7 @@
 
 
 #include "ScriptMgr.h"
+#include "ScriptHost.h"
 #include "Creature.h"
 #include "GameObject.h"
 #include "Player.h"
@@ -83,16 +84,16 @@
  */
 CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = pCreature->GetEluna())
+    // Exactly one engine can drive a creature, so this is an auction, not a
+    // chain: every engine says what it offers, the best one builds, and a
+    // bidder that declines after all drops the role to the next. That is the
+    // same mechanism FactorySelector already uses further down this path with
+    // Permit(), which is why it replaces the old "whichever #ifdef nests
+    // outermost wins" without changing who actually wins today.
+    if (CreatureAI* claimed = scripting::ClaimCreatureAI(pCreature))
     {
-        if (CreatureAI* luaAI = e->GetAI(pCreature))
-        {
-            return luaAI;
-        }
+        return claimed;
     }
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_SD3
     return SD3::GetCreatureAI(pCreature);

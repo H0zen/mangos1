@@ -55,6 +55,27 @@ namespace scripting
 
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
+
+        /**
+         * Eluna bids without knowing whether it will take the role.
+         *
+         * It could know -- Eluna::GetAI decides by asking its binding tables
+         * HasBindingsFor(), a pure query, and only then constructs. But that
+         * query is private and Eluna is an untouched submodule, so the adapter
+         * cannot ask it separately. So the bid is coarse: "I might", at the
+         * precedence Eluna has always had, and Make* returns nullptr when the
+         * answer turns out to be no, which drops the role to the next bidder.
+         *
+         * Nothing is lost by that -- the outcome is exactly today's, since
+         * Eluna went first before too. What changes is that its precedence is
+         * now a number rather than which #ifdef nests outermost, so an engine
+         * that CAN answer precisely will outbid it on the objects it owns.
+         */
+        int Bid(Context const& ctx, RoleId role, Ref subject) override;
+
+        CreatureAI* MakeCreatureAI(Context const& ctx,
+                                   Creature* creature) override;
+        InstanceData* MakeInstanceData(Context const& ctx, Map* map) override;
     };
 }
 

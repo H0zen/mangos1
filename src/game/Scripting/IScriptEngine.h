@@ -28,6 +28,12 @@
 
 #include "ScriptHost.h"
 
+class Creature;
+class GameObject;
+class CreatureAI;
+class GameObjectAI;
+class InstanceData;
+
 /**
  * One scripting back end.
  *
@@ -59,6 +65,45 @@ namespace scripting
          */
         virtual Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                                  std::size_t count) = 0;
+
+        /**
+         * What this engine offers for @a role over @a subject, or NoBid.
+         *
+         * Asked of every engine before any of them builds anything, so a
+         * loser never constructs an object that is then thrown away. An
+         * engine that can answer precisely should: Eluna knows from its
+         * binding tables whether a creature entry has handlers at all,
+         * without instantiating an AI for it.
+         */
+        virtual int Bid(Context const& ctx, RoleId role, Ref subject)
+        {
+            (void)ctx; (void)role; (void)subject;
+            return NoBid;
+        }
+
+        // Only the winning bidder is asked to build. Returning nullptr is
+        // allowed and means "I bid but could not build after all" -- the
+        // auction then falls to the next bidder, which is not a formality:
+        // SD3 bids on having a script bound to the entry, and that script's
+        // own GetAI may still decline.
+
+        virtual CreatureAI* MakeCreatureAI(Context const& ctx, Creature* creature)
+        {
+            (void)ctx; (void)creature;
+            return nullptr;
+        }
+
+        virtual GameObjectAI* MakeGameObjectAI(Context const& ctx, GameObject* go)
+        {
+            (void)ctx; (void)go;
+            return nullptr;
+        }
+
+        virtual InstanceData* MakeInstanceData(Context const& ctx, Map* map)
+        {
+            (void)ctx; (void)map;
+            return nullptr;
+        }
     };
 }
 

@@ -34,6 +34,11 @@
 class Map;
 class Object;
 class WorldObject;
+class Creature;
+class GameObject;
+class CreatureAI;
+class GameObjectAI;
+class InstanceData;
 
 /**
  * What a call site in the world includes, and all it includes.
@@ -197,6 +202,20 @@ namespace scripting
         return detail::Emit(detail::ToContext(where), std::forward<Ev>(event))
                    == Verdict::Handled;
     }
+
+    /**
+     * Auction a role: ask every engine what it offers, let the best one build.
+     *
+     * Returns nullptr when nobody wanted it or nobody could build, and the
+     * caller falls back to whatever it did before -- for a creature, the AI
+     * registry. Ownership passes to the caller.
+     *
+     * These are not templates: there are exactly three roles, and naming them
+     * is more honest than erasing the type of what gets built.
+     */
+    CreatureAI*   ClaimCreatureAI(Creature* creature);
+    GameObjectAI* ClaimGameObjectAI(GameObject* go);
+    InstanceData* ClaimInstanceData(Map* map);
 }
 
 #endif //MANGOS_SCRIPT_HOST_H

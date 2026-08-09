@@ -26,13 +26,21 @@
 #include "ScriptHost.h"
 #include "IScriptEngine.h"
 
+// Complete types, not forward declarations: the auction upcasts Creature and
+// GameObject to WorldObject, and with multiple inheritance in the hierarchy an
+// upcast can adjust the pointer. A reinterpret_cast here would compile and be
+// silently wrong.
+#include "Creature.h"
+#include "GameObject.h"
 #include "Object.h"
 
 #ifdef ENABLE_ELUNA
 #include "ElunaEngine.h"
 #endif /* ENABLE_ELUNA */
 
+#include <algorithm>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace scripting
@@ -89,6 +97,93 @@ namespace scripting
     Ref RefOf(Object const* object)
     {
         return object ? Ref{ object->GetObjectGuid().GetRawValue() } : Ref{ 0 };
+    }
+
+    namespace
+    {
+        /**
+         * Run the auction and let the winners build, best offer first.
+         *
+         * Two phases, and the split is the point: every engine is asked what
+         * it offers before any of them builds, so a loser never constructs an
+         * object that is then destroyed. A winner that returns nullptr has
+         * declined after all, and the next best offer gets its turn -- SD3
+         * bids on having a script bound to the entry, and that script's own
+         * GetAI may still say no.
+         */
+        template <class Product, class Build>
+        Product* Auction(Context const& ctx, RoleId role, Ref subject,
+                         Build build)
+        {
+            if (!detail::g_scriptsEnabled || ctx.scope == Context::Scope::None)
+            {
+                return nullptr;
+            }
+
+            std::vector<std::pair<int, IEngine*>> offers;
+            for (std::unique_ptr<IEngine> const& engine : State().engines)
+            {
+                int const offer = engine->Bid(ctx, role, subject);
+                if (offer > NoBid)
+                {
+                    offers.push_back(std::make_pair(offer, engine.get()));
+                }
+            }
+
+            // Highest offer first; stable, so an equal offer leaves the
+            // configured engine order deciding rather than the sort.
+            std::stable_sort(offers.begin(), offers.end(),
+                [](std::pair<int, IEngine*> const& a,
+                   std::pair<int, IEngine*> const& b)
+                {
+                    return a.first > b.first;
+                });
+
+            for (std::pair<int, IEngine*> const& offer : offers)
+            {
+                if (Product* product = build(offer.second))
+                {
+                    return product;
+                }
+            }
+
+            return nullptr;
+        }
+    }
+
+    CreatureAI* ClaimCreatureAI(Creature* creature)
+    {
+        WorldObject const* subject = creature;
+        Context const ctx = detail::ToContext(subject);
+
+        return Auction<CreatureAI>(ctx, RoleId::CreatureAI, RefOf(subject),
+            [&ctx, creature](IEngine* engine)
+            {
+                return engine->MakeCreatureAI(ctx, creature);
+            });
+    }
+
+    GameObjectAI* ClaimGameObjectAI(GameObject* go)
+    {
+        WorldObject const* subject = go;
+        Context const ctx = detail::ToContext(subject);
+
+        return Auction<GameObjectAI>(ctx, RoleId::GameObjectAI, RefOf(subject),
+            [&ctx, go](IEngine* engine)
+            {
+                return engine->MakeGameObjectAI(ctx, go);
+            });
+    }
+
+    InstanceData* ClaimInstanceData(Map* map)
+    {
+        Context const ctx = detail::ToContext(map);
+
+        return Auction<InstanceData>(ctx, RoleId::InstanceData, Ref{ 0 },
+            [&ctx, map](IEngine* engine)
+            {
+                return engine->MakeInstanceData(ctx, map);
+            });
     }
 
     namespace detail

@@ -146,6 +146,43 @@ namespace scripting
                 return Verdict::Continue;
         }
     }
+
+    int ElunaEngine::Bid(Context const& ctx, RoleId role, Ref subject)
+    {
+        (void)subject;
+
+        if (!StateFor(ctx))
+        {
+            return NoBid;
+        }
+
+        switch (role)
+        {
+            case RoleId::CreatureAI:
+            case RoleId::InstanceData:
+                // See the header: coarse on purpose, at the precedence Eluna
+                // has always had over SD3.
+                return BidNormal;
+
+            default:
+                // Game-object AI was never exposed in Eluna; ScriptMgr still
+                // carries the "TODO - expose in Eluna" that says so.
+                return NoBid;
+        }
+    }
+
+    CreatureAI* ElunaEngine::MakeCreatureAI(Context const& ctx,
+                                            Creature* creature)
+    {
+        Eluna* engine = StateFor(ctx);
+        return engine ? engine->GetAI(creature) : nullptr;
+    }
+
+    InstanceData* ElunaEngine::MakeInstanceData(Context const& ctx, Map* map)
+    {
+        Eluna* engine = StateFor(ctx);
+        return engine ? engine->GetInstanceData(map) : nullptr;
+    }
 }
 
 #endif /* ENABLE_ELUNA */

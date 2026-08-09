@@ -270,6 +270,40 @@ namespace scripting
     };
 
     /**
+     * A thing exactly one engine may own.
+     *
+     * Distinct from an event on purpose. An event is something the world did
+     * and everyone may watch; a role is an object the world hands to a single
+     * owner and then calls back, tick after tick. Two engines cannot both
+     * drive one creature, so this is settled by auction rather than by chain.
+     */
+    enum class RoleId : uint8
+    {
+        CreatureAI,     ///< drives one creature
+        GameObjectAI,   ///< drives one game object
+        InstanceData    ///< drives one instance map
+    };
+
+    /**
+     * What an engine offers for a role. Higher wins; ties go to the engine
+     * configured first.
+     *
+     * This replaces two mechanisms with one. Creature AI is decided today by
+     * whichever #ifdef nests outermost, and the AI registry decides by asking
+     * each factory to score itself with Permit(). Those are the same mechanism
+     * -- the first is just the second with the scores baked into link order.
+     * Making the score a number is what turns "Eluna always beats SD3" from an
+     * accident of the preprocessor into something an operator can configure.
+     */
+    enum : int
+    {
+        NoBid = -1,         ///< this engine does not want the role
+        BidFallback = 0,    ///< take it only if nobody else will
+        BidNormal = 100,
+        BidStrong = 1000    ///< an explicit, per-object binding
+    };
+
+    /**
      * What the world does with a hook's answer.
      *
      * Three outcomes, because the single bool the engines return today means
