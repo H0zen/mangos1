@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include "Utilities/MathDefines.h"
 #include "Database/DatabaseEnv.h"
@@ -383,23 +384,24 @@ void Spell::DoSummon(SpellEffectIndex eff_idx)
     {
         ((Creature*)m_originalCaster)->AI()->JustSummoned((Creature*)spawnCreature);
     }
-#ifdef ENABLE_ELUNA
+    // else, not a second notify: the original caster is told only when the
+    // caster itself is not a unit, which is the shape the old code had and is
+    // easy to flatten by accident into notifying both.
     if (Unit* summoner = m_caster->ToUnit())
     {
-        if (Eluna* e = summoner->GetEluna())
-        {
-            e->OnSummoned(spawnCreature, summoner);
-        }
+        scripting::Notify(summoner,
+            scripting::CreatureSummoned{ scripting::RefOf(spawnCreature),
+                                         scripting::RefOf(summoner) });
     }
     else if (m_originalCaster)
+    {
         if (Unit* summoner = m_originalCaster->ToUnit())
         {
-            if (Eluna* e = summoner->GetEluna())
-            {
-                e->OnSummoned(spawnCreature, summoner);
-            }
+            scripting::Notify(summoner,
+                scripting::CreatureSummoned{ scripting::RefOf(spawnCreature),
+                                             scripting::RefOf(summoner) });
         }
-#endif /* ENABLE_ELUNA */
+    }
 }
 
 

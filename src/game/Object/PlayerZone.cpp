@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Transports.h"
 #include "TransportMap.h"
@@ -272,12 +273,10 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
     }
 
     // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnUpdateZone(this, newZone, newArea);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerUpdateZone{ scripting::RefOf(this),
+                             newZone,
+                             newArea });
 
     m_zoneUpdateId    = newZone;
     m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;

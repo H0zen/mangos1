@@ -42,6 +42,7 @@
  * and distribute rewards.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
 #include "Log.h"
@@ -476,12 +477,9 @@ void WorldSession::HandleQuestLogRemoveQuest(WorldPacket& recv_data)
             }
 
             // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = _player->GetEluna())
-            {
-                e->OnQuestAbandon(_player, quest);
-            }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(_player,
+    scripting::PlayerQuestAbandon{ scripting::RefOf(_player),
+                               quest });
         }
 
         _player->SetQuestSlot(slot, 0);

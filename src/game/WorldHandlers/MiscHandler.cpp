@@ -48,6 +48,7 @@
  * - CMSG_SET_PLAYER_DECLARED_NAME: Set player name
  */
 
+#include "ScriptHost.h"
 #include <zlib.h>
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
@@ -104,12 +105,8 @@ void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
     }
 
     // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetPlayer()->GetEluna())
-    {
-        e->OnRepop(GetPlayer());
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(GetPlayer(),
+    scripting::PlayerRepop{ scripting::RefOf(GetPlayer()) });
 
     // this is spirit release confirm?
     GetPlayer()->RemovePet(PET_SAVE_REAGENTS);

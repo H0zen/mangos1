@@ -42,6 +42,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Geometry/Placement.h"
 #include "Utilities/Errors.h"
 #include "Utilities/MathDefines.h"
@@ -204,15 +205,12 @@ Creature* WorldObject::SummonCreature(uint32 id, float x, float y, float z, floa
         ((Creature*)this)->AI()->JustSummoned(pCreature);
     }
 
-#ifdef ENABLE_ELUNA
     if (Unit* summoner = ToUnit())
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnSummoned(pCreature, summoner);
-        }
+        scripting::Notify(summoner,
+            scripting::CreatureSummoned{ scripting::RefOf(pCreature),
+                                         scripting::RefOf(summoner) });
     }
-#endif /* ENABLE_ELUNA */
 
     // Creature Linking, Initial load is handled like respawn
     if (pCreature->IsLinkingEventTrigger())

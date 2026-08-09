@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Language.h"
 #include "Database/DatabaseEnv.h"
@@ -844,12 +845,9 @@ uint32 Player::resetTalentsCost() const
 bool Player::resetTalents(bool no_cost)
 {
     // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnTalentsReset(this, no_cost);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerTalentsReset{ scripting::RefOf(this),
+                               no_cost });
 
     // not need after this call
     if (HasAtLoginFlag(AT_LOGIN_RESET_TALENTS))

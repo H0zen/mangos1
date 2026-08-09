@@ -1294,12 +1294,9 @@ void Player::UpdateDuelFlag(time_t currTime)
     }
 
     // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnDuelStart(this, duel->opponent);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerDuelStart{ scripting::RefOf(this),
+                            scripting::RefOf(duel->opponent) });
 
     SetUInt32Value(PLAYER_DUEL_TEAM, 1);
     duel->opponent->SetUInt32Value(PLAYER_DUEL_TEAM, 2);

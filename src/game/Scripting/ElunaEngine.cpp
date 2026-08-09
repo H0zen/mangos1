@@ -112,6 +112,16 @@ namespace scripting
 
             return ctx.map->GetUnit(ObjectGuid(ref.guid));
         }
+
+        Creature* CreatureOn(Context const& ctx, Ref ref)
+        {
+            if (ref.IsEmpty() || ctx.scope != Context::Scope::Map || !ctx.map)
+            {
+                return nullptr;
+            }
+
+            return ctx.map->GetCreature(ObjectGuid(ref.guid));
+        }
     }
 
     Verdict ElunaEngine::Dispatch(Context const& ctx, EventId id, Arg* args,
@@ -350,6 +360,85 @@ namespace scripting
                            static_cast<uint32>(args[2].AsNumber()),
                            args[3].AsText(), channel)
                            ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::CreatureSummoned:
+            {
+                MANGOS_ASSERT(count == CreatureSummoned::Arity);
+
+                Creature* summon = CreatureOn(ctx, args[0].AsEntity());
+                Unit* summoner = UnitOn(ctx, args[1].AsEntity());
+                if (summon && summoner)
+                {
+                    engine->OnSummoned(summon, summoner);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerDuelStart:
+            {
+                MANGOS_ASSERT(count == PlayerDuelStart::Arity);
+
+                Player* starter = PlayerOf(args[0].AsEntity());
+                Player* challenger = PlayerOf(args[1].AsEntity());
+                if (starter && challenger)
+                {
+                    engine->OnDuelStart(starter, challenger);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerTalentsReset:
+            {
+                MANGOS_ASSERT(count == PlayerTalentsReset::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnTalentsReset(player, args[1].AsFlag());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerUpdateZone:
+            {
+                MANGOS_ASSERT(count == PlayerUpdateZone::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnUpdateZone(player,
+                        static_cast<uint32>(args[1].AsNumber()),
+                        static_cast<uint32>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerRepop:
+            {
+                MANGOS_ASSERT(count == PlayerRepop::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnRepop(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerQuestAbandon:
+            {
+                MANGOS_ASSERT(count == PlayerQuestAbandon::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnQuestAbandon(player,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
             }
 
             default:
