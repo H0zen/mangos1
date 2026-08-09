@@ -136,7 +136,7 @@ category guild = 0x04
     on_remove_member                     2  broadcast  guild:h.guild player:obj isDisbanding:bool
     on_motd_change                       3  broadcast  guild:h.guild motd:str
     on_info_change                       4  broadcast  guild:h.guild info:str
-    on_create                            5  broadcast  player:obj
+    on_create                            5  broadcast  guild:h.guild leader:obj name:str
     on_disband                           6  broadcast  guild:h.guild
     on_money_withdraw                    7  broadcast  guild:h.guild player:obj amount:u32! isRepair:bool
     on_money_deposit                     8  broadcast  guild:h.guild player:obj amount:u32!
@@ -145,12 +145,12 @@ category guild = 0x04
     on_bank_event                       11  broadcast  guild:h.guild eventType:u32 tabId:u32 playerGuid:u32 itemOrMoney:u32 itemStackCount:u32 destTabId:u32
 
 category group = 0x05
-    on_add_member                        1  broadcast  guild:h.guild player:obj plRank:u32
+    on_add_member                        1  broadcast  group:h.group guid:obj
     on_invite_member                     2  broadcast  group:h.group guid:obj
-    on_remove_member                     3  broadcast  guild:h.guild player:obj isDisbanding:bool
+    on_remove_member                     3  broadcast  group:h.group guid:obj method:u32
     on_leader_change                     4  broadcast  group:h.group newLeader:obj oldLeader:obj
-    on_disband                           5  broadcast  guild:h.guild
-    on_create                            6  broadcast  player:obj
+    on_disband                           5  broadcast  group:h.group
+    on_create                            6  broadcast  group:h.group leaderGuid:obj groupType:u32
     on_member_accept                     7  cancel     group:h.group player:obj
 
 category vehicle = 0x06
@@ -184,26 +184,26 @@ category creature = 0x07
     on_corpse_removed                   26  broadcast  creature:obj respawnDelay:u32!
     on_move_in_los                      27  broadcast  creature:obj who:obj
     on_dummy_effect                     30  claim      caster:obj spellId:u32 effIndex:enum target:obj
-    on_quest_accept                     31  claim      player:obj item:obj quest:h.quest
+    on_quest_accept                     31  claim      player:obj creature:obj quest:h.quest
     on_quest_reward                     34  claim      player:obj creature:obj quest:h.quest opt:u32
     on_dialog_status                    35  claim      player:obj creature:obj
     on_add                              36  broadcast  player:obj item:obj
-    on_remove                           37  cancel     player:obj item:obj
+    on_remove                           37  cancel     creature:obj
 
 category gameobject = 0x08
-    on_ai_update                         1  role       me:obj diff:u32
+    on_ai_update                         1  role       gameobject:obj diff:u32
     on_spawn                             2  broadcast  gameobject:obj
     on_dummy_effect                      3  claim      caster:obj spellId:u32 effIndex:enum target:obj
-    on_quest_accept                      4  claim      player:obj item:obj quest:h.quest
-    on_quest_reward                      5  claim      player:obj creature:obj quest:h.quest opt:u32
+    on_quest_accept                      4  claim      player:obj gameobject:obj quest:h.quest
+    on_quest_reward                      5  claim      player:obj gameobject:obj quest:h.quest opt:u32
     on_dialog_status                     6  claim      player:obj gameobject:obj
     on_destroyed                         7  broadcast  gameObject:obj attacker:obj
     on_damaged                           8  broadcast  gameObject:obj attacker:obj
     on_loot_state_change                 9  broadcast  gameObject:obj state:u32
     on_go_state_changed                 10  broadcast  gameObject:obj state:u32
     on_add                              12  broadcast  player:obj item:obj
-    on_remove                           13  cancel     player:obj item:obj
-    on_use                              14  claim      player:obj item:obj targets:b.casttargets
+    on_remove                           13  cancel     gameobject:obj
+    on_use                              14  claim      player:obj gameobject:obj
 
 category spell = 0x09
     on_cast                              1  broadcast  spell:b.spell skipCheck:bool
@@ -232,7 +232,7 @@ category spell = 0x09
 
 category item = 0x0A
     on_dummy_effect                      1  claim      caster:obj spellId:u32 effIndex:enum target:obj
-    on_use                               2  claim      player:obj item:obj targets:b.casttargets
+    on_use                               2  cancel     player:obj item:obj targets:b.casttargets
     on_quest_accept                      3  claim      player:obj item:obj quest:h.quest
     on_expire                            4  cancel     player:obj proto:h.itemtpl
     on_remove                            5  cancel     player:obj item:obj

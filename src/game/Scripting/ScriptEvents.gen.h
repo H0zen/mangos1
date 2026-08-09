@@ -2158,15 +2158,19 @@ namespace scripting
     struct GuildCreate
     {
         static constexpr EventId Id = EventId::GuildCreate;
-        static constexpr std::size_t Arity = 1;
+        static constexpr std::size_t Arity = 3;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref            player;
+        Handle         guild;
+        Ref            leader;
+        std::string&   name;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
+            args[0] = Arg::FromNamed(guild);
+            args[1] = Arg::FromEntity(leader);
+            args[2] = Arg::FromText(name);
         }
 
         void Unpack(Arg const*) {}
@@ -2336,19 +2340,17 @@ namespace scripting
     struct GroupAddMember
     {
         static constexpr EventId Id = EventId::GroupAddMember;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 2;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         guild;
-        Ref            player;
-        uint32         plRank;
+        Handle         group;
+        Ref            guid;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(guild);
-            args[1] = Arg::FromEntity(player);
-            args[2] = Arg::FromNumber(plRank);
+            args[0] = Arg::FromNamed(group);
+            args[1] = Arg::FromEntity(guid);
         }
 
         void Unpack(Arg const*) {}
@@ -2382,15 +2384,15 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         guild;
-        Ref            player;
-        bool           isDisbanding;
+        Handle         group;
+        Ref            guid;
+        uint32         method;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(guild);
-            args[1] = Arg::FromEntity(player);
-            args[2] = Arg::FromFlag(isDisbanding);
+            args[0] = Arg::FromNamed(group);
+            args[1] = Arg::FromEntity(guid);
+            args[2] = Arg::FromNumber(method);
         }
 
         void Unpack(Arg const*) {}
@@ -2426,11 +2428,11 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Handle         guild;
+        Handle         group;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromNamed(guild);
+            args[0] = Arg::FromNamed(group);
         }
 
         void Unpack(Arg const*) {}
@@ -2440,15 +2442,19 @@ namespace scripting
     struct GroupCreate
     {
         static constexpr EventId Id = EventId::GroupCreate;
-        static constexpr std::size_t Arity = 1;
+        static constexpr std::size_t Arity = 3;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref            player;
+        Handle         group;
+        Ref            leaderGuid;
+        uint32         groupType;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
+            args[0] = Arg::FromNamed(group);
+            args[1] = Arg::FromEntity(leaderGuid);
+            args[2] = Arg::FromNumber(groupType);
         }
 
         void Unpack(Arg const*) {}
@@ -3035,13 +3041,13 @@ namespace scripting
         static constexpr bool Claimable = true;
 
         Ref            player;
-        Ref            item;
+        Ref            creature;
         Handle         quest;
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[1] = Arg::FromEntity(creature);
             args[2] = Arg::FromNamed(quest);
         }
 
@@ -3116,17 +3122,15 @@ namespace scripting
     struct CreatureRemove
     {
         static constexpr EventId Id = EventId::CreatureRemove;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 1;
         static constexpr bool Cancellable = true;
         static constexpr bool Claimable = false;
 
-        Ref            player;
-        Ref            item;
+        Ref            creature;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[0] = Arg::FromEntity(creature);
         }
 
         void Unpack(Arg const*) {}
@@ -3183,13 +3187,13 @@ namespace scripting
         static constexpr bool Claimable = true;
 
         Ref            player;
-        Ref            item;
+        Ref            gameobject;
         Handle         quest;
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[1] = Arg::FromEntity(gameobject);
             args[2] = Arg::FromNamed(quest);
         }
 
@@ -3205,14 +3209,14 @@ namespace scripting
         static constexpr bool Claimable = true;
 
         Ref            player;
-        Ref            creature;
+        Ref            gameobject;
         Handle         quest;
         uint32         opt;
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(creature);
+            args[1] = Arg::FromEntity(gameobject);
             args[2] = Arg::FromNamed(quest);
             args[3] = Arg::FromNumber(opt);
         }
@@ -3344,17 +3348,15 @@ namespace scripting
     struct GameobjectRemove
     {
         static constexpr EventId Id = EventId::GameobjectRemove;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 1;
         static constexpr bool Cancellable = true;
         static constexpr bool Claimable = false;
 
-        Ref            player;
-        Ref            item;
+        Ref            gameobject;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[0] = Arg::FromEntity(gameobject);
         }
 
         void Unpack(Arg const*) {}
@@ -3364,19 +3366,17 @@ namespace scripting
     struct GameobjectUse
     {
         static constexpr EventId Id = EventId::GameobjectUse;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 2;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = true;
 
         Ref            player;
-        Ref            item;
-        Borrow         targets;
+        Ref            gameobject;
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
-            args[2] = Arg::FromLent(targets);
+            args[1] = Arg::FromEntity(gameobject);
         }
 
         void Unpack(Arg const*) {}
@@ -3910,13 +3910,13 @@ namespace scripting
         void Unpack(Arg const*) {}
     };
 
-    /// item/on_use: claim
+    /// item/on_use: cancel
     struct ItemUse
     {
         static constexpr EventId Id = EventId::ItemUse;
         static constexpr std::size_t Arity = 3;
-        static constexpr bool Cancellable = false;
-        static constexpr bool Claimable = true;
+        static constexpr bool Cancellable = true;
+        static constexpr bool Claimable = false;
 
         Ref            player;
         Ref            item;
