@@ -223,6 +223,32 @@ namespace scripting
             });
     }
 
+    void Tick(Context const& ctx, uint32 diff)
+    {
+        if (!detail::g_scriptsEnabled || ctx.scope == Context::Scope::None)
+        {
+            return;
+        }
+
+        for (std::unique_ptr<IEngine> const& engine : State().engines)
+        {
+            engine->Tick(ctx, diff);
+        }
+    }
+
+    void RetireState(Context const& ctx)
+    {
+        if (!detail::g_scriptsEnabled || ctx.scope == Context::Scope::None)
+        {
+            return;
+        }
+
+        for (std::unique_ptr<IEngine> const& engine : State().engines)
+        {
+            engine->RetireState(ctx);
+        }
+    }
+
     namespace detail
     {
         Context ToContext(WorldObject const* object)

@@ -104,6 +104,24 @@ namespace scripting
             (void)ctx; (void)map;
             return nullptr;
         }
+
+        // -- lifetime. Not events, and deliberately not in the manifest: an
+        //    engine having its own timers pumped, or being told a state is
+        //    gone, is not something that happened in the world. Modelling
+        //    them as events would put them in the dispatch table, where every
+        //    engine would see another engine's housekeeping.
+
+        /// Give the engine its slice of the tick to run its own timers.
+        virtual void Tick(Context const& ctx, uint32 diff)
+        {
+            (void)ctx; (void)diff;
+        }
+
+        /// The state named by @a ctx is going away; drop anything keyed to it.
+        virtual void RetireState(Context const& ctx)
+        {
+            (void)ctx;
+        }
     };
 }
 

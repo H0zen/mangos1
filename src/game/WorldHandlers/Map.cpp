@@ -42,6 +42,7 @@
  * including loading terrain data, spawning objects, and cleanup.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include <vector>
 #include "Utilities/MathDefines.h"
@@ -100,20 +101,12 @@
  */
 Map::~Map()
 {
+    scripting::Notify(this, scripting::ServerMapDestroy{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()) });
+    scripting::RetireState(scripting::ContextOf(this));
+
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnDestroy(this);
-    }
-
-    if (Eluna* e = GetEluna())
-    {
-        if (Instanceable())
-        {
-            e->FreeInstanceId(GetInstanceId());
-        }
-    }
-
     delete eluna;
     eluna = nullptr;
 #endif /* ENABLE_ELUNA */
@@ -229,12 +222,9 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
 
     m_weatherSystem = new WeatherSystem(this);
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnCreate(this);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this, scripting::ServerMapCreate{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()) });
 }
 
 /**
@@ -732,13 +722,12 @@ bool Map::Add(Player* player)
     player->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
     UpdateObjectVisibility(player, cell, p);
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnMapChanged(player);
-        e->OnPlayerEnter(this, player);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerMapChange{ scripting::RefOf(player) });
+    scripting::Notify(this, scripting::ServerMapPlayerEnter{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                scripting::RefOf(player) });
 
     if (i_data)
     {
@@ -1065,17 +1054,13 @@ void Map::Update(const uint32& t_diff)
         ScriptsProcess();
     }
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        if (!sElunaConfig->IsElunaCompatibilityMode())
-        {
-            e->UpdateEluna(t_diff);
-        }
-
-        e->OnMapUpdate(this, t_diff);
-    }
-#endif /* ENABLE_ELUNA */
+    // Pumping the engine timers is housekeeping, not an event, so it goes
+    // through Tick and not through the dispatch table.
+    scripting::Tick(scripting::ContextOf(this), t_diff);
+    scripting::Notify(this, scripting::ServerMapUpdate{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                t_diff });
 
     if (i_data)
     {
@@ -1116,12 +1101,10 @@ void Map::Update(const uint32& t_diff)
  */
 void Map::Remove(Player* player, bool remove)
 {
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnPlayerLeave(this, player);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this, scripting::ServerMapPlayerLeave{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                scripting::RefOf(player) });
 
     if (i_data)
     {
@@ -2031,19 +2014,16 @@ void Map::AddObjectToRemoveList(WorldObject* obj)
 {
     MANGOS_ASSERT(obj->GetMapId() == GetId() && obj->GetInstanceId() == GetInstanceId());
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
+    if (Creature* creature = obj->ToCreature())
     {
-        if (Creature* creature = obj->ToCreature())
-        {
-            e->OnRemove(creature);
-        }
-        else if (GameObject* gameobject = obj->ToGameObject())
-        {
-            e->OnRemove(gameobject);
-        }
+        scripting::Notify(this,
+            scripting::CreatureRemove{ scripting::RefOf(creature) });
     }
-#endif /* ENABLE_ELUNA */
+    else if (GameObject* gameobject = obj->ToGameObject())
+    {
+        scripting::Notify(this,
+            scripting::GameobjectRemove{ scripting::RefOf(gameobject) });
+    }
 
     obj->CleanupsBeforeDelete();                            // remove or simplify at least cross referenced links
 
@@ -2305,25 +2285,24 @@ void Map::CreateInstanceData(bool load)
         return;
     }
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        i_data = e->GetInstanceData(this);
-    }
-#endif /* ENABLE_ELUNA */
-
-    uint32 i_script_id = GetScriptId();
-
-    if (!i_script_id)
-    {
-        return;
-    }
-
+    // One path, and the auction runs inside it.
+    //
+    // The old code asked Eluna here and then, if the map ALSO had a script id,
+    // overwrote i_data with SD3's without deleting the first -- leaking the Lua
+    // instance script and discarding it silently. The script-id gate has gone
+    // with it: that gate belongs to the SD3 lookup, which checks it itself, and
+    // applying it up here meant an engine that binds instances by map id could
+    // never own a map with no row in the script-name table.
     i_data = sScriptMgr.CreateInstanceData(this);
     if (!i_data)
     {
         return;
     }
+
+    // Kept only for the debug lines below. It no longer gates anything: an
+    // engine can own an instance that has no script name at all, and the
+    // lookup will simply report an empty one.
+    uint32 const i_script_id = GetScriptId();
 
     if (load)
     {

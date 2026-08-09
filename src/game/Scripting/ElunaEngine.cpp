@@ -28,6 +28,7 @@
 #ifdef ENABLE_ELUNA
 
 #include "Channel.h"
+#include "ElunaConfig.h"
 #include "DBCStores.h"
 #include "GameObject.h"
 #include "Group.h"
@@ -835,6 +836,37 @@ namespace scripting
     {
         Eluna* engine = StateFor(ctx);
         return engine ? engine->GetInstanceData(map) : nullptr;
+    }
+
+    void ElunaEngine::Tick(Context const& ctx, uint32 diff)
+    {
+        Eluna* engine = StateFor(ctx);
+        if (!engine)
+        {
+            return;
+        }
+
+        // Compatibility mode collapses every map onto the world state, so
+        // pumping per map would pump the one state once per map per tick.
+        // The old call site guarded this the same way; the guard has to come
+        // with it.
+        if (ctx.scope == Context::Scope::Map
+            && sElunaConfig->IsElunaCompatibilityMode())
+        {
+            return;
+        }
+
+        engine->UpdateEluna(diff);
+    }
+
+    void ElunaEngine::RetireState(Context const& ctx)
+    {
+        Eluna* engine = StateFor(ctx);
+        if (engine && ctx.scope == Context::Scope::Map && ctx.map
+            && ctx.map->Instanceable())
+        {
+            engine->FreeInstanceId(ctx.map->GetInstanceId());
+        }
     }
 }
 

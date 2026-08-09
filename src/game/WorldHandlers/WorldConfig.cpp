@@ -45,6 +45,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "World.h"
 #include "Database/DatabaseEnv.h"
 #include "Config/Config.h"
@@ -744,15 +745,13 @@ void World::LoadConfigSettings(bool reload)
     MMAP::MMapFactory::preventPathfindingOnMaps(ignoreMapIds.c_str());
     sLog.outString("WORLD: MMap pathfinding %sabled", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
 
-#ifdef ENABLE_ELUNA
+    // Only on reload: the first load is announced by World.cpp once the
+    // engines exist, which they do not yet at this point in start-up.
     if (reload)
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnConfigLoad(reload);
-        }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::ServerConfigLoad{ reload });
     }
-#endif /* ENABLE_ELUNA */
     sLog.outString();
 }
 

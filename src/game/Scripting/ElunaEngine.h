@@ -76,6 +76,9 @@ namespace scripting
         CreatureAI* MakeCreatureAI(Context const& ctx,
                                    Creature* creature) override;
         InstanceData* MakeInstanceData(Context const& ctx, Map* map) override;
+
+        void Tick(Context const& ctx, uint32 diff) override;
+        void RetireState(Context const& ctx) override;
     };
 }
 

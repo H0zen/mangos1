@@ -43,6 +43,7 @@
  * @ingroup world
  */
 
+#include "ScriptHost.h"
 #include "Common/Locales.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
@@ -1099,14 +1100,10 @@ void World::SetInitialWorldSettings()
     sAuctionBot.Initialize();
     sLog.outString();
 
-#ifdef ENABLE_ELUNA
-    ///- Run eluna scripts.
-    // in multithread foreach: run scripts
-    if (Eluna* e = GetEluna())
-    {
-        e->OnConfigLoad(false); // Must be done after Eluna is initialized and scripts have run.
-    }
-#endif
+    ///- Tell the scripts the configuration is up. Must come after the engines
+    /// are initialised and their scripts have run.
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerConfigLoad{ false });
 
 #ifdef ENABLE_PLAYERBOTS
     sPlayerbotAIConfig.Initialize();
@@ -1389,13 +1386,9 @@ void World::Update(uint32 diff)
     sOutdoorPvPMgr.Update(diff);
 
     ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->UpdateEluna(diff);
-        e->OnWorldUpdate(diff);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Tick(scripting::GlobalContext(), diff);
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerWorldUpdate{ diff });
 
     ///- Delete all characters which have been deleted X days before
     if (m_timers[WUPDATE_DELETECHARS].Passed())
@@ -1805,12 +1798,8 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode)
 #endif
 
     ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnShutdownInitiate(ShutdownExitCode(exitcode), ShutdownMask(options));
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerShutdownInit{ exitcode, options });
 }
 
 void World::LoadScheduledExitConfig()
@@ -2079,12 +2068,8 @@ void World::ShutdownCancel()
     DEBUG_LOG("Server %s cancelled.", (m_ShutdownMask & SHUTDOWN_MASK_RESTART) ? "restart" : "shutdown");
 
     ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnShutdownCancel();
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerShutdownCancel{ scripting::Ref{ 0 } });
 }
 
 /**

@@ -87,6 +87,13 @@ namespace scripting
         return Context{ Context::Scope::Global, nullptr };
     }
 
+    /// The state that belongs to @a map.
+    inline Context ContextOf(::Map* map)
+    {
+        return map ? Context{ Context::Scope::Map, map }
+                   : Context{ Context::Scope::None, nullptr };
+    }
+
     /// Identity of @a object; an empty Ref for nullptr.
     Ref RefOf(Object const* object);
 
@@ -256,6 +263,17 @@ namespace scripting
     CreatureAI*   ClaimCreatureAI(Creature* creature);
     GameObjectAI* ClaimGameObjectAI(GameObject* go);
     InstanceData* ClaimInstanceData(Map* map);
+
+    /**
+     * Engine lifetime, which is not an event and never becomes one.
+     *
+     * An engine having its own timers pumped, or being told a state has gone,
+     * is housekeeping rather than something that happened in the world. Put
+     * through the dispatch table it would be visible to every other engine,
+     * which is exactly wrong.
+     */
+    void Tick(Context const& ctx, uint32 diff);
+    void RetireState(Context const& ctx);
 }
 
 #endif //MANGOS_SCRIPT_HOST_H
