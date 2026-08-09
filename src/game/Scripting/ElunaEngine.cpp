@@ -28,13 +28,18 @@
 #ifdef ENABLE_ELUNA
 
 #include "Channel.h"
+#include "DBCStores.h"
+#include "GameObject.h"
 #include "Group.h"
 #include "Guild.h"
 #include "GuildMgr.h"
+#include "Item.h"
 #include "LuaEngine.h"
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "QuestDef.h"
+#include "Spell.h"
 #include "World.h"
 
 namespace scripting
@@ -102,6 +107,17 @@ namespace scripting
             return static_cast<Channel*>(borrow.target);
         }
 
+        SpellCastTargets const* BorrowedTargets(Borrow borrow)
+        {
+            if (borrow.domain != Domain::CastTargets
+                || !detail::IsBorrowLive(borrow))
+            {
+                return nullptr;
+            }
+
+            return static_cast<SpellCastTargets const*>(borrow.target);
+        }
+
         /// Units are resolved on the map that raised the event, never globally.
         Unit* UnitOn(Context const& ctx, Ref ref)
         {
@@ -121,6 +137,51 @@ namespace scripting
             }
 
             return ctx.map->GetCreature(ObjectGuid(ref.guid));
+        }
+
+        GameObject* GameObjectOn(Context const& ctx, Ref ref)
+        {
+            if (ref.IsEmpty() || ctx.scope != Context::Scope::Map || !ctx.map)
+            {
+                return nullptr;
+            }
+
+            return ctx.map->GetGameObject(ObjectGuid(ref.guid));
+        }
+
+        /// An item is only ever reachable through the player who holds it.
+        Item* ItemOf(Player* owner, Ref ref)
+        {
+            return (owner && !ref.IsEmpty())
+                       ? owner->GetItemByGuid(ObjectGuid(ref.guid))
+                       : nullptr;
+        }
+
+        Quest const* QuestOf(Handle handle)
+        {
+            return handle.domain == Domain::Quest
+                       ? sObjectMgr.GetQuestTemplate(
+                             static_cast<uint32>(handle.id))
+                       : nullptr;
+        }
+
+        AreaTriggerEntry const* TriggerOf(Handle handle)
+        {
+            return handle.domain == Domain::AreaTrigger
+                       ? sAreaTriggerStore.LookupEntry(
+                             static_cast<uint32>(handle.id))
+                       : nullptr;
+        }
+
+        /// Every dummy-effect arm shares this; only the target type differs.
+        WorldObject* CasterOn(Context const& ctx, Ref ref)
+        {
+            if (ref.IsEmpty() || ctx.scope != Context::Scope::Map || !ctx.map)
+            {
+                return nullptr;
+            }
+
+            return ctx.map->GetWorldObject(ObjectGuid(ref.guid));
         }
     }
 
@@ -436,6 +497,297 @@ namespace scripting
                 {
                     engine->OnQuestAbandon(player,
                         static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- gossip. Claimed, not cancelled: a script that answers has
+            //    produced the menu itself, so the core skips its default one.
+
+            case EventId::GossipCreatureHello:
+            {
+                MANGOS_ASSERT(count == GossipCreatureHello::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Creature* creature = CreatureOn(ctx, args[1].AsEntity());
+                if (player && creature && engine->OnGossipHello(player, creature))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GossipGameobjectHello:
+            {
+                MANGOS_ASSERT(count == GossipGameobjectHello::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (player && go && engine->OnGossipHello(player, go))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GossipCreatureSelect:
+            {
+                MANGOS_ASSERT(count == GossipCreatureSelect::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Creature* creature = CreatureOn(ctx, args[1].AsEntity());
+                if (!player || !creature)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Eluna splits coded and uncoded selection into two hooks; the
+                // seam carries one event whose code is simply empty.
+                std::string& code = args[4].AsText();
+                uint32 const sender = static_cast<uint32>(args[2].AsNumber());
+                uint32 const action = static_cast<uint32>(args[3].AsNumber());
+
+                bool const handled = code.empty()
+                    ? engine->OnGossipSelect(player, creature, sender, action)
+                    : engine->OnGossipSelectCode(player, creature, sender,
+                                                 action, code.c_str());
+
+                return handled ? Verdict::Handled : Verdict::Continue;
+            }
+
+            case EventId::GossipGameobjectSelect:
+            {
+                MANGOS_ASSERT(count == GossipGameobjectSelect::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (!player || !go)
+                {
+                    return Verdict::Continue;
+                }
+
+                std::string& code = args[4].AsText();
+                uint32 const sender = static_cast<uint32>(args[2].AsNumber());
+                uint32 const action = static_cast<uint32>(args[3].AsNumber());
+
+                bool const handled = code.empty()
+                    ? engine->OnGossipSelect(player, go, sender, action)
+                    : engine->OnGossipSelectCode(player, go, sender, action,
+                                                 code.c_str());
+
+                return handled ? Verdict::Handled : Verdict::Continue;
+            }
+
+            // -- quests
+
+            case EventId::CreatureQuestAccept:
+            {
+                MANGOS_ASSERT(count == CreatureQuestAccept::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Creature* creature = CreatureOn(ctx, args[1].AsEntity());
+                Quest const* quest = QuestOf(args[2].AsNamed());
+                if (player && creature && quest
+                    && engine->OnQuestAccept(player, creature, quest))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectQuestAccept:
+            {
+                MANGOS_ASSERT(count == GameobjectQuestAccept::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                Quest const* quest = QuestOf(args[2].AsNamed());
+                if (player && go && quest
+                    && engine->OnQuestAccept(player, go, quest))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ItemQuestAccept:
+            {
+                MANGOS_ASSERT(count == ItemQuestAccept::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                Quest const* quest = QuestOf(args[2].AsNamed());
+                if (player && item && quest
+                    && engine->OnQuestAccept(player, item, quest))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::CreatureQuestReward:
+            {
+                MANGOS_ASSERT(count == CreatureQuestReward::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Creature* creature = CreatureOn(ctx, args[1].AsEntity());
+                Quest const* quest = QuestOf(args[2].AsNamed());
+                if (player && creature && quest
+                    && engine->OnQuestReward(player, creature, quest,
+                           static_cast<uint32>(args[3].AsNumber())))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectQuestReward:
+            {
+                MANGOS_ASSERT(count == GameobjectQuestReward::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                Quest const* quest = QuestOf(args[2].AsNamed());
+                if (player && go && quest
+                    && engine->OnQuestReward(player, go, quest,
+                           static_cast<uint32>(args[3].AsNumber())))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- dialog status. Eluna returns nothing here; it pushes the
+            //    status into its own state, so this can only ever be Continue.
+
+            case EventId::CreatureDialogStatus:
+            {
+                MANGOS_ASSERT(count == CreatureDialogStatus::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Creature* creature = CreatureOn(ctx, args[1].AsEntity());
+                if (player && creature)
+                {
+                    engine->GetDialogStatus(player, creature);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectDialogStatus:
+            {
+                MANGOS_ASSERT(count == GameobjectDialogStatus::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (player && go)
+                {
+                    engine->GetDialogStatus(player, go);
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- use
+
+            case EventId::GameobjectUse:
+            {
+                MANGOS_ASSERT(count == GameobjectUse::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                GameObject* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (player && go && engine->OnGameObjectUse(player, go))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ItemUse:
+            {
+                MANGOS_ASSERT(count == ItemUse::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                SpellCastTargets const* targets =
+                    BorrowedTargets(args[2].AsLent());
+                if (!player || !item || !targets)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Inverted, and deliberately so: Eluna::OnUse returns TRUE to
+                // mean "go ahead and cast" and FALSE when a script blocked it.
+                // That is the opposite polarity to OnGossipHello, which is why
+                // this is a cancel and not a claim.
+                return engine->OnUse(player, item, *targets)
+                           ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::ServerEventTrigger:
+            {
+                MANGOS_ASSERT(count == ServerEventTrigger::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                AreaTriggerEntry const* trigger = TriggerOf(args[1].AsNamed());
+                if (player && trigger
+                    && engine->OnAreaTrigger(player, trigger))
+                {
+                    return Verdict::Handled;
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- dummy effects. One shape, three target types.
+
+            case EventId::CreatureDummyEffect:
+            case EventId::GameobjectDummyEffect:
+            case EventId::ItemDummyEffect:
+            {
+                MANGOS_ASSERT(count == CreatureDummyEffect::Arity);
+
+                WorldObject* caster = CasterOn(ctx, args[0].AsEntity());
+                if (!caster)
+                {
+                    return Verdict::Continue;
+                }
+
+                uint32 const spellId = static_cast<uint32>(args[1].AsNumber());
+                SpellEffectIndex const effIndex =
+                    static_cast<SpellEffectIndex>(args[2].AsNumber());
+
+                if (id == EventId::CreatureDummyEffect)
+                {
+                    if (Creature* target = CreatureOn(ctx, args[3].AsEntity()))
+                    {
+                        engine->OnDummyEffect(caster, spellId, effIndex, target);
+                    }
+                }
+                else if (id == EventId::GameobjectDummyEffect)
+                {
+                    if (GameObject* target =
+                            GameObjectOn(ctx, args[3].AsEntity()))
+                    {
+                        engine->OnDummyEffect(caster, spellId, effIndex, target);
+                    }
+                }
+                else
+                {
+                    Player* owner = caster->ToPlayer();
+                    if (Item* target = ItemOf(owner, args[3].AsEntity()))
+                    {
+                        engine->OnDummyEffect(caster, spellId, effIndex, target);
+                    }
                 }
 
                 return Verdict::Continue;
