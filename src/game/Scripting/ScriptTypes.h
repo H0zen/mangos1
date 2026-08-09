@@ -66,12 +66,18 @@ namespace scripting
         None = 0,
 
         // Handle domains: a stable id that is simply not an ObjectGuid.
-        Guild, Group, Quest, Map, BattleGround, Channel, Auction,
+        Guild, Group, Quest, Map, BattleGround, Auction,
         AuctionHouse, ItemTemplate, SpellInfo, AreaTrigger, Weather,
 
         // Borrow domains: things with no identity to give at all.
+        //
+        // Channel is here and not above, which is not obvious: a channel looks
+        // like it has an id, but Channel::GetChannelId() returns the DBC id --
+        // 1 for General, 2 for Trade -- and it is 0 for every custom channel.
+        // Treating that as a handle would collapse every custom channel on the
+        // server into one identity.
         Spell, Aura, AuraEffect, Packet, CastTargets, Proc, Damage,
-        Dispel, SpellDestination, Session, ObjectList, ObjectSlot
+        Dispel, SpellDestination, Session, ObjectList, ObjectSlot, Channel
     };
 
     /**

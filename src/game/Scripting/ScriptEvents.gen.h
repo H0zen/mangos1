@@ -904,7 +904,7 @@ namespace scripting
         Ref            receiver;
         Handle         guild;
         Handle         group;
-        Handle         channel;
+        Borrow         channel;
 
         void Pack(Arg* args) const
         {
@@ -914,7 +914,7 @@ namespace scripting
             args[3] = Arg::FromEntity(receiver);
             args[4] = Arg::FromNamed(guild);
             args[5] = Arg::FromNamed(group);
-            args[6] = Arg::FromNamed(channel);
+            args[6] = Arg::FromLent(channel);
         }
 
         void Unpack(Arg const*) {}
@@ -1475,7 +1475,7 @@ namespace scripting
         uint32         type;
         uint32         lang;
         std::string&   msg;    ///< in/out
-        Handle         channel;
+        Borrow         channel;
 
         void Pack(Arg* args) const
         {
@@ -1483,7 +1483,7 @@ namespace scripting
             args[1] = Arg::FromNumber(type);
             args[2] = Arg::FromNumber(lang);
             args[3] = Arg::FromText(msg);
-            args[4] = Arg::FromNamed(channel);
+            args[4] = Arg::FromLent(channel);
         }
 
         void Unpack(Arg const*) {}

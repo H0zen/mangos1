@@ -30,9 +30,13 @@
 // GameObject to WorldObject, and with multiple inheritance in the hierarchy an
 // upcast can adjust the pointer. A reinterpret_cast here would compile and be
 // silently wrong.
+#include "BattleGround/BattleGround.h"
 #include "Creature.h"
 #include "GameObject.h"
+#include "Group.h"
+#include "Guild.h"
 #include "Object.h"
+#include "QuestDef.h"
 
 #ifdef ENABLE_ELUNA
 #include "ElunaEngine.h"
@@ -97,6 +101,39 @@ namespace scripting
     Ref RefOf(Object const* object)
     {
         return object ? Ref{ object->GetObjectGuid().GetRawValue() } : Ref{ 0 };
+    }
+
+    // Guild and Group both carry a plain numeric id, so their handles are
+    // exact. Quest and BattleGround are keyed by the id the world already uses
+    // to look them up, for the same reason. Channel deliberately has no
+    // HandleOf: see the note on Domain::Channel.
+    Handle HandleOf(Guild const* guild)
+    {
+        return guild ? HandleOf(Domain::Guild,
+                                const_cast<Guild*>(guild)->GetId())
+                     : Handle{ 0, Domain::None };
+    }
+
+    Handle HandleOf(Group const* group)
+    {
+        return group ? HandleOf(Domain::Group, group->GetId())
+                     : Handle{ 0, Domain::None };
+    }
+
+    Handle HandleOf(Quest const* quest)
+    {
+        return quest ? HandleOf(Domain::Quest, quest->GetQuestId())
+                     : Handle{ 0, Domain::None };
+    }
+
+    Handle HandleOf(BattleGround const* bg)
+    {
+        // GetInstanceID, not GetClientInstanceID: the latter is the number the
+        // client is shown ("Warsong Gulch 3") and is not unique across
+        // battleground types.
+        return bg ? HandleOf(Domain::BattleGround,
+                             const_cast<BattleGround*>(bg)->GetInstanceID())
+                  : Handle{ 0, Domain::None };
     }
 
     namespace

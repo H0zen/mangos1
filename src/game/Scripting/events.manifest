@@ -72,7 +72,7 @@ category server = 0x02
     on_auction_remove                   27  broadcast  house:h.ahouse entry:h.auction
     on_auction_successful               28  broadcast  house:h.ahouse entry:h.auction
     on_auction_expire                   29  broadcast  house:h.ahouse entry:h.auction
-    on_addon_message                    30  cancel     sender:obj type:u32 msg:str! receiver:obj guild:h.guild group:h.group channel:h.channel
+    on_addon_message                    30  cancel     sender:obj type:u32 msg:str! receiver:obj guild:h.guild group:h.group channel:b.channel
     on_world_delete_creature            31  broadcast  creature:obj
     on_world_delete_gameobject          32  broadcast  gameobject:obj
     on_lua_state_open                   33  broadcast  -
@@ -101,7 +101,7 @@ category player = 0x03
     on_whisper                          19  cancel     player:obj type:u32 lang:u32 msg:str! receiver:obj
     on_group_chat                       20  cancel     player:obj type:u32 lang:u32 msg:str! group:h.group
     on_guild_chat                       21  cancel     player:obj type:u32 lang:u32 msg:str! guild:h.guild
-    on_channel_chat                     22  cancel     player:obj type:u32 lang:u32 msg:str! channel:h.channel
+    on_channel_chat                     22  cancel     player:obj type:u32 lang:u32 msg:str! channel:b.channel
     on_emote                            23  broadcast  player:obj emote:u32
     on_text_emote                       24  broadcast  player:obj textEmote:u32 emoteNum:u32 guid:obj
     on_save                             25  broadcast  player:obj

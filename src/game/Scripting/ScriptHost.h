@@ -39,6 +39,10 @@ class GameObject;
 class CreatureAI;
 class GameObjectAI;
 class InstanceData;
+class Guild;
+class Group;
+class Quest;
+class BattleGround;
 
 /**
  * What a call site in the world includes, and all it includes.
@@ -85,6 +89,17 @@ namespace scripting
 
     /// Identity of @a object; an empty Ref for nullptr.
     Ref RefOf(Object const* object);
+
+    /// Identity of something that has one but is not an ObjectGuid.
+    inline Handle HandleOf(Domain domain, uint64 id)
+    {
+        return id ? Handle{ id, domain } : Handle{ 0, Domain::None };
+    }
+
+    Handle HandleOf(Guild const* guild);
+    Handle HandleOf(Group const* group);
+    Handle HandleOf(Quest const* quest);
+    Handle HandleOf(BattleGround const* bg);
 
     namespace detail
     {

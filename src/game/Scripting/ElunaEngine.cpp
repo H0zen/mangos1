@@ -27,6 +27,10 @@
 
 #ifdef ENABLE_ELUNA
 
+#include "Channel.h"
+#include "Group.h"
+#include "Guild.h"
+#include "GuildMgr.h"
 #include "LuaEngine.h"
 #include "Map.h"
 #include "ObjectMgr.h"
@@ -64,6 +68,38 @@ namespace scripting
             return ref.IsEmpty()
                        ? nullptr
                        : sObjectMgr.GetPlayer(ObjectGuid(ref.guid), false);
+        }
+
+        Group* GroupOf(Handle handle)
+        {
+            return handle.domain == Domain::Group
+                       ? sObjectMgr.GetGroupById(static_cast<uint32>(handle.id))
+                       : nullptr;
+        }
+
+        Guild* GuildOf(Handle handle)
+        {
+            return handle.domain == Domain::Guild
+                       ? sGuildMgr.GetGuildById(static_cast<uint32>(handle.id))
+                       : nullptr;
+        }
+
+        /**
+         * Unwrap a borrowed channel, but only while the borrow is live.
+         *
+         * This is the epoch doing its job. The pointer is still a raw pointer;
+         * what the check buys is that a stale one -- kept past the dispatch
+         * that lent it -- is refused here instead of being dereferenced.
+         */
+        Channel* BorrowedChannel(Borrow borrow)
+        {
+            if (borrow.domain != Domain::Channel
+                || !detail::IsBorrowLive(borrow))
+            {
+                return nullptr;
+            }
+
+            return static_cast<Channel*>(borrow.target);
         }
 
         /// Units are resolved on the map that raised the event, never globally.
@@ -242,6 +278,78 @@ namespace scripting
                 }
 
                 return Verdict::Continue;
+            }
+
+            case EventId::PlayerWhisper:
+            {
+                MANGOS_ASSERT(count == PlayerWhisper::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Player* receiver = PlayerOf(args[4].AsEntity());
+                if (!player || !receiver)
+                {
+                    return Verdict::Continue;
+                }
+
+                return engine->OnChat(player,
+                           static_cast<uint32>(args[1].AsNumber()),
+                           static_cast<uint32>(args[2].AsNumber()),
+                           args[3].AsText(), receiver)
+                           ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::PlayerGroupChat:
+            {
+                MANGOS_ASSERT(count == PlayerGroupChat::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Group* group = GroupOf(args[4].AsNamed());
+                if (!player || !group)
+                {
+                    return Verdict::Continue;
+                }
+
+                return engine->OnChat(player,
+                           static_cast<uint32>(args[1].AsNumber()),
+                           static_cast<uint32>(args[2].AsNumber()),
+                           args[3].AsText(), group)
+                           ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::PlayerGuildChat:
+            {
+                MANGOS_ASSERT(count == PlayerGuildChat::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Guild* guild = GuildOf(args[4].AsNamed());
+                if (!player || !guild)
+                {
+                    return Verdict::Continue;
+                }
+
+                return engine->OnChat(player,
+                           static_cast<uint32>(args[1].AsNumber()),
+                           static_cast<uint32>(args[2].AsNumber()),
+                           args[3].AsText(), guild)
+                           ? Verdict::Continue : Verdict::Cancel;
+            }
+
+            case EventId::PlayerChannelChat:
+            {
+                MANGOS_ASSERT(count == PlayerChannelChat::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Channel* channel = BorrowedChannel(args[4].AsLent());
+                if (!player || !channel)
+                {
+                    return Verdict::Continue;
+                }
+
+                return engine->OnChat(player,
+                           static_cast<uint32>(args[1].AsNumber()),
+                           static_cast<uint32>(args[2].AsNumber()),
+                           args[3].AsText(), channel)
+                           ? Verdict::Continue : Verdict::Cancel;
             }
 
             default:
