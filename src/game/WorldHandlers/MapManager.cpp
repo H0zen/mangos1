@@ -59,13 +59,6 @@
 #include "ObjectMgr.h"
 #include "SimulationTime.h"
 
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#include <cassert>
-#include <cstdlib>
-#include <functional>
-#include <mutex>
-#endif /* ENABLE_ELUNA */
 
 
 MapManager::MapManager()
@@ -122,14 +115,6 @@ MapManager::Initialize()
 {
     int num_threads(sWorld.getConfig(CONFIG_UINT32_NUMTHREADS));
 
-#ifdef ENABLE_ELUNA
-    if (sElunaConfig->IsElunaEnabled() && sElunaConfig->IsElunaCompatibilityMode() && num_threads > 1)
-    {
-        // Force 1 thread for Eluna if compatibility mode is enabled. Compatibility mode is single state and does not allow more update threads.
-        sLog.outError("Map update threads set to %i, when Eluna in compatibility mode only allows 1, changing to 1", num_threads);
-        num_threads = 1;
-    }
-#endif /* ENABLE_ELUNA */
 
     // Start mtmaps if needed.
     if (num_threads > 0 && m_updater.activate(num_threads) == -1)

@@ -66,9 +66,6 @@
 #include "GameTime.h"
 #include "Policies/Singleton.h"
 #include "Language.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Initializes the selection pool for team balancing.

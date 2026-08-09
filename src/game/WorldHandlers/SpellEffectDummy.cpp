@@ -73,11 +73,6 @@
 #include "Geometry/Vector3.h"
 #include <random>
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Executes spell-specific dummy effect behavior.

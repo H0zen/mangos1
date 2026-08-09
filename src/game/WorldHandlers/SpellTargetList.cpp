@@ -76,10 +76,6 @@
 #include "TemporarySummon.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Builds the spell target lists for each active effect.

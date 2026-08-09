@@ -101,15 +101,6 @@
 #include <iostream>
 #include <sstream>
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaLoader.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "PlayerbotAIConfig.h"
 #endif /* ENABLE_PLAYERBOTS */

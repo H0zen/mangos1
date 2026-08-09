@@ -71,9 +71,9 @@ namespace scripting
          *
          * Asked of every engine before any of them builds anything, so a
          * loser never constructs an object that is then thrown away. An
-         * engine that can answer precisely should: Eluna knows from its
-         * binding tables whether a creature entry has handlers at all,
-         * without instantiating an AI for it.
+         * engine that can answer precisely should. Whether an entry has
+         * handlers bound to it at all is a table lookup; building an AI to
+         * find out is not.
          */
         virtual int Bid(Context const& ctx, RoleId role, Ref subject)
         {

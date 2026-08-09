@@ -70,12 +70,6 @@
 #ifdef CLASSIC
 #include "LFGMgr.h"
 #endif /* CLASSIC */
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <algorithm>
-#include <mutex>
-#include <set>
-#endif /* ENABLE_ELUNA */
 
 // /////////////////////////////////////////////////////////
 //              Scripting Library Hooks

@@ -76,11 +76,6 @@
 #include "Pet.h"
 #include "SocialMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
 {
@@ -104,7 +99,6 @@ void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
         GetPlayer()->KillPlayer();
     }
 
-    // Used by Eluna
 scripting::Notify(GetPlayer(),
     scripting::PlayerRepop{ scripting::RefOf(GetPlayer()) });
 

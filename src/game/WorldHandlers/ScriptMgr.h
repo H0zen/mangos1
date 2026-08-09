@@ -94,7 +94,6 @@ enum ScriptImplementation
 {
     SCRIPT_FROM_DATABASE    = 0,
     SCRIPT_FROM_CORE        = 1,
-    SCRIPT_FROM_ELUNA       = 2,
 };
 
 enum DBScriptCommand                                        // resSource, resTarget are the resulting Source/ Target after buddy search is done

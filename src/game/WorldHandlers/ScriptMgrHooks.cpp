@@ -66,9 +66,6 @@
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "WaypointMovementGenerator.h"
 #include "Mail.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_SD3
 #include "system/ScriptDevMgr.h"
 #endif /* ENABLE_SD3 */
@@ -110,10 +107,9 @@ CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
  */
 GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
 {
-    // No engine bids for this role yet -- Eluna has never exposed game-object
-    // AI, which is what the old "TODO - expose in Eluna" here recorded. The
-    // auction is wired anyway so that exposing it later is a Bid() away
-    // instead of another #ifdef in this function.
+    // No engine bids for this role yet. The auction is wired anyway, so an
+    // engine that wants game-object AI declares it with a Bid() rather than
+    // with another #ifdef in this function.
     if (GameObjectAI* claimed = scripting::ClaimGameObjectAI(pGo))
     {
         return claimed;
@@ -134,17 +130,12 @@ GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
  */
 InstanceData* ScriptMgr::CreateInstanceData(Map* pMap)
 {
-    // BEHAVIOUR CHANGE, deliberate. This function never consulted Eluna, even
-    // though Eluna::GetInstanceData(Map*) has been implemented all along --
-    // the engine shipped instance scripting that nothing in this core ever
-    // reached. Routing the role through the auction wires it up, so a map with
-    // Lua instance bindings now gets the Lua InstanceData; a map without them
-    // still falls through to SD3 exactly as before, because Eluna returns
-    // nullptr when it has no bindings for the map.
-    //
-    // The precedence this establishes -- Lua over SD3 when both claim the same
-    // instance -- is the one Eluna already had for creature AI, so it is
-    // consistent rather than newly invented.
+    // The auction runs first and SD3 is the fallback, which is the same
+    // precedence creature AI uses. This function used to consult only SD3,
+    // even though the scripting engine of the day implemented instance data
+    // too -- so that engine shipped instance scripting nothing in this core
+    // ever reached. Going through the auction is what keeps that from
+    // happening again to the next engine.
     if (InstanceData* claimed = scripting::ClaimInstanceData(pMap))
     {
         return claimed;
@@ -214,10 +205,6 @@ bool ScriptMgr::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
  */
 bool ScriptMgr::OnGossipHello(Player* pPlayer, Item* pItem)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-// TODO ELUNA handler
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_SD3
     return SD3::ItemGossipHello(pPlayer, pItem);
@@ -277,7 +264,6 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 send
  */
 bool ScriptMgr::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 sender, uint32 action, const char* code)
 {
-    // Used by Eluna
     // One event, not two: the engines split coded and uncoded
     // selection into separate hooks, but it is the same thing
     // happening with the text field empty.
@@ -317,10 +303,6 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 
  */
 bool ScriptMgr::OnGossipSelect(Player* pPlayer, Item* pItem, uint32 sender, uint32 action, const char* code)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-// TODO Add Eluna handlers
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_SD3
     if (code)
@@ -544,7 +526,6 @@ bool ScriptMgr::OnGameObjectUse(Player* pPlayer, GameObject* pGameObject)
  */
 bool ScriptMgr::OnGameObjectUse(Unit* pUnit, GameObject* pGameObject)
 {
-    // TODO Add Eluna support
 
 #ifdef ENABLE_SD3
     return SD3::GOUse(pUnit, pGameObject);

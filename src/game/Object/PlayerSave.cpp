@@ -76,16 +76,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <cstdio>
-#include <ctime>
-#include <list>
-#include <sstream>
-#include <string>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 #define PLAYER_SKILL_INDEX(x)       (PLAYER_SKILL_INFO_1_1 + ((x)*3))
 
@@ -1293,7 +1283,6 @@ void Player::UpdateDuelFlag(time_t currTime)
         return;
     }
 
-    // Used by Eluna
 scripting::Notify(this,
     scripting::PlayerDuelStart{ scripting::RefOf(this),
                             scripting::RefOf(duel->opponent) });

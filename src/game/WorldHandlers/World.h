@@ -49,10 +49,6 @@
 #include <string>
 #include <vector>
 
-#ifdef ENABLE_ELUNA
-#include "Player.h"
-class Eluna;
-#endif /* ENABLE_ELUNA */
 
 class Object;
 class ObjectGuid;
@@ -764,10 +760,6 @@ class World
          **/
         void InvalidatePlayerDataToAllClient(ObjectGuid guid);
 
-#ifdef ENABLE_ELUNA
-        Eluna* GetEluna() const { return eluna; }
-        Eluna* eluna;
-#endif /* ENABLE_ELUNA */
 
     protected:
         void _UpdateGameTime();

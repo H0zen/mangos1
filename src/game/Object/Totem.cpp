@@ -34,10 +34,6 @@
 #include "CreatureAI.h"
 #include "InstanceData.h"
 #include "ObjectLookup.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Initializes a totem creature instance.

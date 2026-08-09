@@ -75,9 +75,6 @@
 #include "SocialMgr.h"
 #include "DBCEnums.h"
 #include <zlib.h>
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Resets the player's or group's saved instances.

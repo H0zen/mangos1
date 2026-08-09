@@ -40,9 +40,6 @@
 #include "GameTime.h"
 #include "SimulationTime.h"
 #include "Geometry/Placement.h"
-#ifdef ENABLE_ELUNA
-#include "LuaValue.h"
-#endif /* ENABLE_ELUNA */
 
 #include <ctime>
 #include <string>
@@ -99,11 +96,6 @@ class Map;
 class UpdateMask;
 class InstanceData;
 class TerrainInfo;
-#ifdef ENABLE_ELUNA
-class Eluna;
-class ElunaEventProcessor;
-class LuaVal;
-#endif /* ENABLE_ELUNA */
 struct MangosStringLocale;
 
 typedef std::unordered_map<Player*, UpdateData> UpdateDataMapType;
@@ -655,12 +647,6 @@ class WorldObject : public Object
 
         void _Create(uint32 guidlow, HighGuid guidhigh);
 
-        /// In a VEHICLE SEAT, and only ever that -- a ship is a map, and what is on a map
-        /// is simply on it. 2.4.3 has no vehicle system at all, so the answer is always
-        /// no; it exists because Eluna guards this call with `#ifndef CLASSIC` and
-        /// vehicles do not arrive until WotLK.
-        bool IsBoarded() const { return false; }
-
         /// WHERE THIS OBJECT IS -- the whole spatial API. An object HAS a placement; it
         /// is not a bag of coordinates with geometry methods bolted on, so there are no
         /// GetPositionX/GetDistance/HasInArc here and there never will be. Ask the
@@ -744,7 +730,11 @@ class WorldObject : public Object
         GameObject* SummonGameObject(uint32 id, float x, float y, float z, float angle, uint32 despwtime);
 
         bool IsActiveObject() const { return m_isActiveObject || m_viewPoint.hasViewers(); }
-        bool isActiveObject() const { return IsActiveObject(); } // This is for Eluna to build. Should be removed in the future!
+
+        /// Lower-case alias, and not a leftover: Map::Add and Map::Remove
+        /// both spell it this way. Renaming it is a core-wide rename, not a
+        /// deletion.
+        bool isActiveObject() const { return IsActiveObject(); }
 
         void SetActiveObjectState(bool active);
 
@@ -761,13 +751,12 @@ class WorldObject : public Object
 
         virtual void StartGroupLoot(Group* /*group*/, uint32 /*timer*/) { }
 
-#ifdef ENABLE_ELUNA
-        ElunaEventProcessor* elunaEvents;
-
-        Eluna* GetEluna() const;
-
-        LuaVal lua_data = LuaVal({});
-#endif /* ENABLE_ELUNA */
+        // No scripting engine has a field, a pointer or an accessor on this
+        // class, and none should acquire one. The world raises events through
+        // src/game/Scripting and an engine reaches objects by resolving the
+        // ObjectGuid it was handed -- never by holding a pointer this class
+        // keeps alive for it. The previous engine had three members here and
+        // every one of them was a way for a script to outlive its subject.
 
 #ifdef MANGOS_SCRIPT_COMPAT
 #include "ScriptApiCompat.inl"

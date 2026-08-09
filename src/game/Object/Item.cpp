@@ -31,11 +31,6 @@
 #include "Database/DatabaseEnv.h"
 #include "ItemEnchantmentMgr.h"
 #include "SQLStorages.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cassert>
-#include <cstring>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Applies item set bonuses when an item is equipped.

@@ -966,9 +966,6 @@ class Creature : public Unit
     private:
         GridReference<Creature> m_gridRef;
         CreatureInfo const* m_creatureInfo;                 // in heroic mode can different from sObjectMgr::GetCreatureTemplate(GetEntry())
-#ifdef MANGOS_SCRIPT_COMPAT
-#include "Object/ScriptApiCompatCreature.inl"
-#endif
 };
 
 class ForcedDespawnDelayEvent : public BasicEvent

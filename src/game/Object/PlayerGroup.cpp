@@ -72,10 +72,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Checks whether another player should be visible through group visibility rules.

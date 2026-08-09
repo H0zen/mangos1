@@ -57,11 +57,6 @@
 #include "GameObjectAI.h"
 #include "Geometry/Quat.h"
 #include "PlayerRegistry.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Handles use interaction for this game object.

@@ -67,9 +67,6 @@
 #ifdef CLASSIC
 #include "LFGMgr.h"
 #endif /* CLASSIC */
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_SD3
 #include "system/ScriptDevMgr.h"
 #include <mutex>

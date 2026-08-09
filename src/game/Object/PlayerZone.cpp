@@ -74,10 +74,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -272,7 +268,6 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
         }
     }
 
-    // Used by Eluna
 scripting::Notify(this,
     scripting::PlayerUpdateZone{ scripting::RefOf(this),
                              newZone,

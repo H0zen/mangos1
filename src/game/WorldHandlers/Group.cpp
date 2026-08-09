@@ -60,11 +60,6 @@
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
 #include "LootMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 #define LOOT_ROLL_TIMEOUT  (1*MINUTE*IN_MILLISECONDS)
 
@@ -193,13 +188,6 @@ bool Group::Create(ObjectGuid guid, const char* name)
         CharacterDatabase.CommitTransaction();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupCreate{ scripting::HandleOf(this),
-                                scripting::Ref{ m_leaderGuid.GetRawValue() },
-                                static_cast<uint32>(m_groupType) });
-#endif /* ENABLE_ELUNA */
 
     return true;
 }
@@ -334,12 +322,6 @@ bool Group::AddInvite(Player* player)
 
     player->SetGroupInvite(this);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupInviteMember{ scripting::HandleOf(this),
-                                      scripting::RefOf(player) });
-#endif /* ENABLE_ELUNA */
 
     return true;
 }
@@ -459,12 +441,6 @@ bool Group::AddMember(ObjectGuid guid, const char* name)
         player->SetGroupUpdateFlag(GROUP_UPDATE_FULL);
         UpdatePlayerOutOfRange(player);
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupAddMember{ scripting::HandleOf(this),
-                                   scripting::RefOf(player) });
-#endif /* ENABLE_ELUNA */
 
         // quest related GO state dependent from raid membership
         if (isRaidGroup())
@@ -536,13 +512,6 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
         Disband(true);
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupRemoveMember{ scripting::HandleOf(this),
-                                      scripting::Ref{ guid.GetRawValue() },
-                                      removeMethod });
-#endif /* ENABLE_ELUNA */
 
     return m_memberSlots.size();
 }
@@ -560,13 +529,6 @@ void Group::ChangeLeader(ObjectGuid guid)
         return;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupLeaderChange{ scripting::HandleOf(this),
-                                      scripting::Ref{ guid.GetRawValue() },
-                                      scripting::Ref{ GetLeaderGuid().GetRawValue() } });
-#endif /* ENABLE_ELUNA */
 
     _setLeader(guid);
 
@@ -658,11 +620,6 @@ void Group::Disband(bool hideDestroy)
         ResetInstances(INSTANCE_RESET_GROUP_DISBAND, NULL);
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GroupDisband{ scripting::HandleOf(this) });
-#endif /* ENABLE_ELUNA */
 
     m_leaderGuid.Clear();
     m_leaderName.clear();

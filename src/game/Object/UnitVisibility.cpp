@@ -60,15 +60,6 @@
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
 #include "Transports.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Checks whether the unit is visible to or detectable by another unit.

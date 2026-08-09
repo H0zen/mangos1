@@ -73,10 +73,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Adds or updates a spell entry in the player's spellbook.
@@ -844,7 +840,6 @@ uint32 Player::resetTalentsCost() const
  */
 bool Player::resetTalents(bool no_cost)
 {
-    // Used by Eluna
 scripting::Notify(this,
     scripting::PlayerTalentsReset{ scripting::RefOf(this),
                                no_cost });

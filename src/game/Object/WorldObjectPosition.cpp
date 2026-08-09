@@ -70,16 +70,6 @@
 #include "CreatureLinkingMgr.h"
 #include "Chat.h"
 #include "GameTime.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Cleanups before delete
@@ -96,16 +86,9 @@ void WorldObject::CleanupsBeforeDelete()
  * @param update_diff Time since last update
  * @param time_diff Time parameter (unused)
  *
- * Updates Eluna events if enabled.
  */
 void WorldObject::Update(uint32 update_diff, uint32 /*time_diff*/)
 {
-#ifdef ENABLE_ELUNA
-    if (elunaEvents) // can be null on maps without eluna
-    {
-        elunaEvents->Update(update_diff);
-    }
-#endif /* ENABLE_ELUNA */
 }
 
 /**

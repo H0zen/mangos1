@@ -61,15 +61,6 @@
 #include "GameTime.h"
 #include "DynamicObject.h"
 #include "GameObject.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Registers a dynamic object owned by the unit.

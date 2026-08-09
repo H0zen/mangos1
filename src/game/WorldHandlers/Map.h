@@ -70,9 +70,6 @@
 #include "ScriptMgr.h"
 #include "CreatureLinkingMgr.h"
 #include "DynamicCollision.h"
-#ifdef ENABLE_ELUNA
-#include "LuaValue.h"
-#endif /* ENABLE_ELUNA */
 
 #include <bitset>
 #include <optional>
@@ -83,9 +80,6 @@
 
 struct CreatureInfo;
 class Creature;
-#ifdef ENABLE_ELUNA
-class Eluna;
-#endif /* ENABLE_ELUNA */
 class TransportMap;
 class Unit;
 class WorldPacket;
@@ -464,11 +458,6 @@ class Map : public GridRefManager<NGridType>
         bool IsCellLoaded(float x, float y) const;
         void DowngradeGridToEnvelope(NGridType* grid, uint32 gridX, uint32 gridY);
 
-#ifdef ENABLE_ELUNA
-        Eluna* GetEluna() const;
-
-        LuaVal lua_data = LuaVal({});
-#endif /* ENABLE_ELUNA */
 
     private:
         void LoadMapAndVMap(int gx, int gy);
@@ -585,9 +574,6 @@ class Map : public GridRefManager<NGridType>
         // WeatherSystem
         WeatherSystem* m_weatherSystem;
 
-#ifdef ENABLE_ELUNA
-        Eluna* eluna;
-#endif /* ENABLE_ELUNA */
 };
 
 class WorldMap : public Map

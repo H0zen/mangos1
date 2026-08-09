@@ -114,9 +114,6 @@ LogFilterData logFilterData[LOG_FILTER_COUNT] =
  */
 Log::Log() :
     raLogfile(NULL), logfile(NULL), gmLogfile(NULL), charLogfile(NULL), dberLogfile(NULL),
-#ifdef ENABLE_ELUNA
-    elunaErrLogfile(NULL),
-#endif /* ENABLE_ELUNA */
 
     eventAiErLogfile(NULL), scriptErrLogFile(NULL), worldLogfile(NULL), wardenLogfile(NULL),
     m_consoleBody(NULL), m_consoleThread(NULL), m_consoleAsync(false), m_colored(false),
@@ -310,13 +307,6 @@ void Log::CloseLogFiles()
         fclose(dberLogfile);
         dberLogfile = NULL;
     }
-#ifdef ENABLE_ELUNA
-    if (elunaErrLogfile != NULL)
-    {
-        fclose(elunaErrLogfile);
-        elunaErrLogfile = NULL;
-    }
-#endif /* ENABLE_ELUNA */
     if (eventAiErLogfile != NULL)
     {
         fclose(eventAiErLogfile);
@@ -574,9 +564,6 @@ void Log::Initialize()
 
     charLogfile = openLogFile("CharLogFile", "CharLogTimestamp", "a");
     dberLogfile = openLogFile("DBErrorLogFile", NULL, "a");
-#ifdef ENABLE_ELUNA
-    elunaErrLogfile = openLogFile("ElunaErrorLogFile", NULL, "a");
-#endif /* ENABLE_ELUNA */
 
     eventAiErLogfile = openLogFile("EventAIErrorLogFile", NULL, "a");
     raLogfile = openLogFile("RaLogFile", NULL, "a");
@@ -823,75 +810,6 @@ void Log::outErrorDb(const char* err, ...)
         fflush(dberLogfile);
     }
 }
-
-#ifdef ENABLE_ELUNA
-void Log::outErrorEluna()
-{
-    ConsoleEmitBlank(false);
-
-    if (logfile)
-    {
-        outTimestamp(logfile);
-        fprintf(logfile, "ERROR Eluna\n");
-        fflush(logfile);
-    }
-
-    if (elunaErrLogfile)
-    {
-        outTimestamp(elunaErrLogfile);
-        fprintf(elunaErrLogfile, "\n");
-        fflush(elunaErrLogfile);
-    }
-}
-#else
-/* This is made to not fiddle with the eluna code in LuaEngine/ at all */
-void Log::outErrorEluna() {}
-#endif /* ENABLE_ELUNA */
-
-#ifdef ENABLE_ELUNA
-void Log::outErrorEluna(const char* err, ...)
-{
-    if (!err)
-    {
-        return;
-    }
-
-    va_list ap;
-
-    va_start(ap, err);
-    ConsoleEmit(false, LogError, m_colored, err, &ap);
-    va_end(ap);
-
-    if (logfile)
-    {
-        outTimestamp(logfile);
-        fprintf(logfile, "ERROR Eluna: ");
-
-        va_start(ap, err);
-        vfprintf(logfile, err, ap);
-        va_end(ap);
-
-        fprintf(logfile, "\n");
-        fflush(logfile);
-    }
-
-    if (elunaErrLogfile)
-    {
-        outTimestamp(elunaErrLogfile);
-
-        va_list ap;
-        va_start(ap, err);
-        vfprintf(elunaErrLogfile, err, ap);
-        va_end(ap);
-
-        fprintf(elunaErrLogfile, "\n");
-        fflush(elunaErrLogfile);
-    }
-}
-#else
-/* This is made to not fiddle with the eluna code in LuaEngine/ at all */
-void Log::outErrorEluna(const char* err, ...) {}
-#endif /* ENABLE_ELUNA */
 
 void Log::outErrorEventAI()
 {

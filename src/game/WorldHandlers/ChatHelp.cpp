@@ -63,11 +63,6 @@
 #include "PoolManager.h"
 #include "GameEventMgr.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cstring>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Displays the available subcommands for a command table.

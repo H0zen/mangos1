@@ -31,10 +31,6 @@
 #include "ObjectMgr.h"
 #include "WorldSession.h"
 #include "DBCStores.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cstring>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Checks whether the player can carry more copies of a limited item.

@@ -61,9 +61,6 @@
 #include "movement/MoveSplineInit.h"
 #include "CreatureLinkingMgr.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 // apply implementation of the singletons
 #include "Policies/Singleton.h"
@@ -295,9 +292,6 @@ Creature::~Creature()
  */
 void Creature::AddToWorld()
 {
-#ifdef ENABLE_ELUNA
-    bool inWorld = IsInWorld();
-#endif /* ENABLE_ELUNA */
 
     ///- Register the creature for guid lookup
     if (!IsInWorld() && GetObjectGuid().IsCreature())
@@ -327,13 +321,6 @@ void Creature::AddToWorld()
         SetActiveObjectState(true);
     }
 
-#ifdef ENABLE_ELUNA
-    if (!inWorld)
-    {
-    scripting::Notify(this,
-        scripting::CreatureAdd{ scripting::RefOf(this) });
-    }
-#endif /* ENABLE_ELUNA */
 
 }
 
@@ -352,13 +339,6 @@ void Creature::RemoveFromWorld()
         }
     }
 
-#ifdef ENABLE_ELUNA
-    if (IsInWorld())
-    {
-    scripting::Notify(this,
-        scripting::CreatureRemove{ scripting::RefOf(this) });
-    }
-#endif /* ENABLE_ELUNA */
 
     ///- Remove the creature from the accessor
     if (IsInWorld() && GetObjectGuid().IsCreature())

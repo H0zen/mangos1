@@ -15,9 +15,6 @@
 #include "World.h"
 #include "WorldSession.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif
 
 #include <cstring>
 #include <memory>

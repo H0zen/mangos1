@@ -56,12 +56,6 @@
 #include "MassMailMgr.h"
 #include "Policies/Singleton.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <map>
-#include <sstream>
-#endif
 
 
 /**
@@ -147,13 +141,6 @@ void GameEventMgr::StartEvent(uint16 event_id, bool overwrite /*=false*/, bool r
             mGameEvent[event_id].end = mGameEvent[event_id].start + mGameEvent[event_id].length;
         }
     }
-#ifdef ENABLE_ELUNA
-        if (IsActiveEvent(event_id))
-        {
-            scripting::Notify(scripting::GlobalContext(),
-                scripting::ServerGameStart{ event_id });
-        }
-#endif
 }
 
 /**
@@ -173,13 +160,6 @@ void GameEventMgr::StopEvent(uint16 event_id, bool overwrite)
             mGameEvent[event_id].end = mGameEvent[event_id].start + mGameEvent[event_id].length;
         }
     }
-#ifdef ENABLE_ELUNA
-        if (!IsActiveEvent(event_id))
-        {
-            scripting::Notify(scripting::GlobalContext(),
-                scripting::ServerGameStop{ event_id });
-        }
-#endif
 }
 
 /**

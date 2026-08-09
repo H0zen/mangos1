@@ -71,9 +71,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 bool Player::EnchantmentFitsRequirements(uint32 enchantmentcondition, int8 slot)
 {

@@ -38,10 +38,6 @@
 #include "Object.h"
 #include "QuestDef.h"
 
-#ifdef ENABLE_ELUNA
-#include "ElunaEngine.h"
-#endif /* ENABLE_ELUNA */
-
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -51,17 +47,14 @@ namespace scripting
 {
     namespace detail
     {
-        // The compile-time gate: is there any engine at all in this build?
+        // Is there any engine at all in this build?
         //
-        // Whether a *state* exists for a given map is a runtime question and
-        // belongs to the engine, which answers Continue when it has none. The
-        // flag here only spares an emit site the call when the answer can
-        // never be anything else.
-#ifdef ENABLE_ELUNA
-        bool g_scriptsEnabled = true;
-#else
+        // Flipped on by whichever engine registers itself in MakeHostState.
+        // With none built, every emit site in the world folds to this single
+        // test and never becomes a call. Whether a *state* exists for a given
+        // map stays a runtime question for the engine, which answers Continue
+        // when it has none.
         bool g_scriptsEnabled = false;
-#endif /* ENABLE_ELUNA */
     }
 
     namespace
@@ -72,14 +65,17 @@ namespace scripting
             std::vector<std::unique_ptr<IEngine>> engines;
         };
 
+        /**
+         * Build the engine list.
+         *
+         * Empty at the moment, and the build is correct that way: the seam
+         * costs one test at every emit site and nothing else. An engine
+         * registers by pushing itself here and flipping g_scriptsEnabled --
+         * that pair is the whole contract for adding one.
+         */
         HostState MakeHostState()
         {
             HostState state;
-
-#ifdef ENABLE_ELUNA
-            state.engines.push_back(std::unique_ptr<IEngine>(new ElunaEngine()));
-#endif /* ENABLE_ELUNA */
-
             return state;
         }
 

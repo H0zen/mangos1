@@ -298,8 +298,9 @@ namespace scripting
      * whichever #ifdef nests outermost, and the AI registry decides by asking
      * each factory to score itself with Permit(). Those are the same mechanism
      * -- the first is just the second with the scores baked into link order.
-     * Making the score a number is what turns "Eluna always beats SD3" from an
-     * accident of the preprocessor into something an operator can configure.
+     * Making the score a number is what turned "whichever engine the outermost
+     * #ifdef named" from an accident of the preprocessor into something an
+     * operator can configure.
      */
     enum : int
     {

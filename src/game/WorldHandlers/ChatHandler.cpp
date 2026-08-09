@@ -58,9 +58,6 @@
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "ScriptHost.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot.h"
 #include "RandomPlayerbotMgr.h"
@@ -337,7 +334,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
             scripting::PlayerWhisper chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::RefOf(player) };
@@ -394,7 +390,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -450,7 +445,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             if (GetPlayer()->GetGuildId())
                 if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
                 {
-                    // Used by Eluna
                     scripting::PlayerGuildChat chatEvent{ scripting::RefOf(GetPlayer()),
                                               type, lang, msg,
                                               scripting::HandleOf(guild) };
@@ -507,7 +501,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             if (GetPlayer()->GetGuildId())
                 if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
                 {
-                    // Used by Eluna
                     scripting::PlayerGuildChat chatEvent{ scripting::RefOf(GetPlayer()),
                                               type, lang, msg,
                                               scripting::HandleOf(guild) };
@@ -558,7 +551,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -620,7 +612,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -669,7 +660,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                     return;
                 }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -720,7 +710,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 return;
             }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -757,7 +746,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 return;
             }
 
-            // Used by Eluna
             scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg,
                                       scripting::HandleOf(group) };
@@ -792,7 +780,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             {
                 if (Channel* chn = cMgr->GetChannel(channel, _player))
                 {
-                    // Used by Eluna
                     scripting::PlayerChannelChat chatEvent{ scripting::RefOf(GetPlayer()),
                                               type, lang, msg,
                                               scripting::Lend(scripting::Domain::Channel, chn) };
@@ -842,7 +829,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
                     _player->ToggleAFK();
                 }
-                // Used by Eluna
                 scripting::PlayerChat chatEvent{ scripting::RefOf(GetPlayer()),
                                           type, lang, msg };
                 if (scripting::Ask(scripting::GlobalContext(), chatEvent)
@@ -880,7 +866,6 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
                 _player->ToggleDND();
             }
-            // Used by Eluna
             scripting::PlayerChat chatEvent{ scripting::RefOf(GetPlayer()),
                                       type, lang, msg };
             if (scripting::Ask(scripting::GlobalContext(), chatEvent)
@@ -913,7 +898,6 @@ void WorldSession::HandleEmoteOpcode(WorldPacket& recv_data)
     uint32 emote;
     recv_data >> emote;
 
-    // Used by Eluna
     scripting::Notify(GetPlayer(),
             scripting::PlayerEmote{ scripting::RefOf(GetPlayer()),
                                     emote });
@@ -982,7 +966,6 @@ void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
     recv_data >> emoteNum;
     recv_data >> guid;
 
-    // Used by Eluna
     scripting::Notify(GetPlayer(),
             scripting::PlayerTextEmote{ scripting::RefOf(GetPlayer()),
                                         text_emote, emoteNum,

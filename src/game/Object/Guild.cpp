@@ -38,12 +38,6 @@
 #include "Language.h"
 #include "World.h"
 #include "PlayerRegistry.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <set>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 //// MemberSlot ////////////////////////////////////////////
 /**
@@ -208,13 +202,6 @@ bool Guild::Create(Player* leader, std::string gname)
 
     CreateDefaultGuildRanks(lSession->GetSessionDbLocaleIndex());
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildCreate{ scripting::HandleOf(this),
-                                scripting::RefOf(leader),
-                                gname });
-#endif /* ENABLE_ELUNA */
 
     return AddMember(m_LeaderGuid, (uint32)GR_GUILDMASTER);
 }
@@ -336,13 +323,6 @@ bool Guild::AddMember(ObjectGuid plGuid, uint32 plRank)
 
     UpdateAccountsNumber();
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildAddMember{ scripting::HandleOf(this),
-                                   scripting::RefOf(pl),
-                                   newmember.RankId });
-#endif /* ENABLE_ELUNA */
 
     return true;
 }
@@ -360,12 +340,6 @@ void Guild::SetMOTD(std::string motd)
     CharacterDatabase.escape_string(motd);
     CharacterDatabase.PExecute("UPDATE `guild` SET `motd`='%s' WHERE `guildid`='%u'", motd.c_str(), m_Id);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildMotdChange{ scripting::HandleOf(this),
-                                    motd });
-#endif /* ENABLE_ELUNA */
 }
 
 /**
@@ -381,12 +355,6 @@ void Guild::SetGINFO(std::string ginfo)
     CharacterDatabase.escape_string(ginfo);
     CharacterDatabase.PExecute("UPDATE `guild` SET `info`='%s' WHERE `guildid`='%u'", ginfo.c_str(), m_Id);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildInfoChange{ scripting::HandleOf(this),
-                                    ginfo });
-#endif /* ENABLE_ELUNA */
 }
 
 /**
@@ -759,13 +727,6 @@ bool Guild::DelMember(ObjectGuid guid, bool isDisbanding)
         UpdateAccountsNumber();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildRemoveMember{ scripting::HandleOf(this),
-                                      scripting::RefOf(player),
-                                      isDisbanding });
-#endif /* ENABLE_ELUNA */
 
     return members.empty();
 }
@@ -930,11 +891,6 @@ void Guild::Disband()
     CharacterDatabase.PExecute("DELETE FROM `guild_eventlog` WHERE `guildid` = '%u'", m_Id);
     CharacterDatabase.CommitTransaction();
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(scripting::GlobalContext(),
-        scripting::GuildDisband{ scripting::HandleOf(this) });
-#endif /* ENABLE_ELUNA */
 
     sGuildMgr.RemoveGuild(m_Id);
 }

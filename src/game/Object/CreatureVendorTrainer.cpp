@@ -58,10 +58,6 @@
 #include "CreatureLinkingMgr.h"
 #include "DisableMgr.h"
 #include "Policies/Singleton.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Gets vendor items directly assigned to this creature entry.

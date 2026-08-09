@@ -75,9 +75,6 @@
 #include "TemporarySummon.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 extern pEffect SpellEffects[TOTAL_SPELL_EFFECTS];
 

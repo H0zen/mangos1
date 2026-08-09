@@ -55,12 +55,6 @@
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <ctime>
-#include <sstream>
-#endif /* ENABLE_ELUNA */
 
 
 /**
@@ -112,9 +106,6 @@ GameObject::~GameObject()
  */
 void GameObject::AddToWorld()
 {
-#ifdef ENABLE_ELUNA
-    bool inWorld = IsInWorld();
-#endif /* ENABLE_ELUNA */
 
     ///- Register the gameobject for guid lookup
     if (!IsInWorld())
@@ -132,13 +123,6 @@ void GameObject::AddToWorld()
     // After Object::AddToWorld so that for initial state the GO is added to the world (and hence handled correctly)
     UpdateCollisionState();
 
-#ifdef ENABLE_ELUNA
-    if (!inWorld)
-    {
-    scripting::Notify(this,
-        scripting::GameobjectAdd{ scripting::RefOf(this) });
-    }
-#endif /* ENABLE_ELUNA */
 
 }
 
@@ -150,10 +134,6 @@ void GameObject::RemoveFromWorld()
     ///- Remove the gameobject from the accessor
     if (IsInWorld())
     {
-#ifdef ENABLE_ELUNA
-    scripting::Notify(this,
-        scripting::GameobjectRemove{ scripting::RefOf(this) });
-#endif /* ENABLE_ELUNA */
 
         // Notify the outdoor pvp script
         if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(GetTerrain()->GetZoneId(Where().X(), Where().Y(), Where().Z())))
@@ -288,11 +268,6 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
             break;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    scripting::Notify(this,
-        scripting::GameobjectSpawn{ scripting::RefOf(this) });
-#endif /* ENABLE_ELUNA */
 
     // Notify the battleground or outdoor pvp script
     if (map->IsBattleGroundOrArena())
@@ -1357,11 +1332,6 @@ uint32 GameObject::RollMineralVein(uint32 entry)      //Maybe incedicite bloodst
 void GameObject::SetLootState(LootState state)
 {
     m_lootState = state;
-#ifdef ENABLE_ELUNA
-    scripting::Notify(this,
-        scripting::GameobjectLootStateChange{ scripting::RefOf(this),
-                                              static_cast<uint32>(state) });
-#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 
@@ -1373,11 +1343,6 @@ void GameObject::SetLootState(LootState state)
 void GameObject::SetGoState(GOState state)
 {
     SetByteValue(GAMEOBJECT_STATE, 0, state);
-#ifdef ENABLE_ELUNA
-    scripting::Notify(this,
-        scripting::GameobjectGoStateChanged{ scripting::RefOf(this),
-                                             static_cast<uint32>(state) });
-#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 

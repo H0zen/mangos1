@@ -1,8 +1,8 @@
-// THE OLD SPATIAL API, FOR THE SUBMODULES ONLY.
+// THE OLD SPATIAL API, FOR SD3 AND THE BOTS MODULE ONLY.
 //
-// SD3 and Eluna are never modified here -- a local commit inside a submodule makes the
-// parent reference an object on no remote -- and both were written against a WorldObject
-// that owned its coordinates. This hands that shape back to them. Every one of these is a
+// SD3 is never modified here -- a local commit inside a submodule makes the parent
+// reference an object on no remote -- and it was written against a WorldObject that
+// owned its coordinates. This hands that shape back to them. Every one of these is a
 // one-line forward to the placement component or to the free functions beside it, defined
 // in ScriptApiCompat.cpp, so there is no second implementation of anything.
 //

@@ -73,16 +73,6 @@
 #include "Chat.h"
 #include "GameTime.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Assigns the current map context to the world object.
@@ -811,20 +801,3 @@ void WorldObject::SetActiveObjectState(bool active)
     m_isActiveObject = active;
 }
 
-#ifdef ENABLE_ELUNA
-/**
- * @brief Get Eluna instance
- * @return Eluna instance pointer or nullptr
- *
- * Returns the Eluna scripting engine instance for this object's map.
- */
-Eluna* WorldObject::GetEluna() const
-{
-    if (IsInWorld())
-    {
-        return GetMap()->GetEluna();
-    }
-
-    return nullptr;
-}
-#endif /* ENABLE_ELUNA */

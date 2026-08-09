@@ -37,10 +37,6 @@
 #include "Log.h"
 #include "Util.h"
 #include "ProgressBar.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /// Create the Weather object
 Weather::Weather(uint32 zone, WeatherZoneChances const* weatherChances) :
@@ -259,13 +255,6 @@ bool Weather::SendWeatherForPlayersInZone(Map const* _map)
 
     ///- Log the event
     LogWeatherState(state);
-#ifdef ENABLE_ELUNA
-        scripting::Notify(scripting::GlobalContext(),
-            scripting::ServerWeatherChange{
-                scripting::HandleOf(scripting::Domain::Weather, m_zone),
-                m_zone, static_cast<uint32>(GetWeatherState()),
-                m_grade });
-#endif /* ENABLE_ELUNA */
 
     return true;
 }

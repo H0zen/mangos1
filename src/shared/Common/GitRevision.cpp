@@ -44,21 +44,6 @@ char const* GitRevision::GetBranch()
     return REVISION_BRANCH;
 }
 
-char const* GitRevision::GetDepElunaHash()
-{
-    return DEP_ELUNA_REVISION_HASH;
-}
-
-char const* GitRevision::GetDepElunaDate()
-{
-    return DEP_ELUNA_REVISION_DATE;
-}
-
-char const* GitRevision::GetDepElunaBranch()
-{
-    return DEP_ELUNA_REVISION_BRANCH;
-}
-
 char const* GitRevision::GetDepSD3Hash()
 {
     return DEP_SD3_REVISION_HASH;
@@ -171,16 +156,6 @@ char const* GitRevision::GetWorldDBUpdateDescription()
 char const* GitRevision::GetFullRevision()
 {
     return "Mangos revision: " VER_PRODUCTVERSION_STR;
-}
-
-char const* GitRevision::GetDepElunaFullRevision()
-{
-    return DEP_ELUNA_REVISION_STR;
-}
-
-char const* GitRevision::GetDepElunaFullRevisionStr()
-{
-    return "Eluna submodule revision: " DEP_ELUNA_REVISION_STR;
 }
 
 char const* GitRevision::GetDepSD3FullRevision()

@@ -34,10 +34,6 @@
 #include "ObjectMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "DBCStores.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 // Return stored item (if stored to stack, it can diff. from pItem). And pItem ca be deleted in this case.
 Item* Player::StoreNewItem(ItemPosCountVec const& dest, uint32 item, bool update, int32 randomPropertyId)
@@ -338,23 +334,9 @@ Item* Player::EquipItem(uint16 pos, Item* pItem, bool update)
 
         ApplyEquipCooldown(pItem2);
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-                scripting::Notify(this,
-                    scripting::ItemEquip{ scripting::RefOf(this),
-                                          scripting::RefOf(pItem2),
-                                          bag, slot });
-#endif /* ENABLE_ELUNA */
 
         return pItem2;
     }
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-            scripting::Notify(this,
-                scripting::ItemEquip{ scripting::RefOf(this),
-                                      scripting::RefOf(pItem),
-                                      bag, slot });
-#endif /* ENABLE_ELUNA */
 
     return pItem;
 }
@@ -642,11 +624,6 @@ void Player::DestroyItem(uint8 bag, uint8 slot, bool update)
         }
 
         ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
-#ifdef ENABLE_ELUNA
-                scripting::Notify(this,
-                    scripting::ItemRemove{ scripting::RefOf(this),
-                                           scripting::RefOf(pItem) });
-#endif /* ENABLE_ELUNA */
 
         if (bag == INVENTORY_SLOT_BAG_0)
         {

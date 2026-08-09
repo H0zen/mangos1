@@ -68,12 +68,6 @@
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "Geometry/Vector3.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <list>
-#include <utility>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Removes auras from the target that match the specified mechanic.

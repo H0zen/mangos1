@@ -72,10 +72,6 @@
 #include "SQLStorages.h"
 #include "DisableMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <set>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Checks whether this player should be visible to another player in grid range.

@@ -67,7 +67,6 @@ option(BUILD_REALMD         "Build the login server"                        ON)
 option(BUILD_TOOLS          "Build the client-data extractor"               ON)
 option(WITH_TESTS           "Build the unit tests"                          OFF)
 option(WITH_NET_TESTS       "Build the socket tests (slow; never in CI)"    OFF)
-option(SCRIPT_LIB_ELUNA     "Compile with support for Eluna scripts"        ON)
 option(SCRIPT_LIB_SD3       "Compile with support for ScriptDev3 scripts"   ON)
 option(PLAYERBOTS           "Enable Player Bots"                            OFF)
 option(SOAP                 "Enable remote access via SOAP"                 OFF)
@@ -94,7 +93,6 @@ message(
     DEBUG                   Debug build, only for systems without IDE (Linux, *BSD)
     WITHOUT_GIT             Disable Git revision detection
    Scripting engines:
-    SCRIPT_LIB_ELUNA        Compile with support for Eluna scripts
     SCRIPT_LIB_SD3          Compile with support for ScriptDev3 scripts
    Modules:
     PLAYERBOTS              Enable Player Bots
@@ -221,17 +219,6 @@ endif()
 
 find_package(ZLIB QUIET)
 find_package(BZip2 QUIET)
-
-# dep/lualib (the Lua build used by Eluna) links against readline by its bare
-# library name and is not itself touched here; find_package(Readline) below
-# declares a GLOBAL IMPORTED target literally named `readline` (see
-# cmake/FindReadline.cmake) before that subdirectory is added, so its
-# existing bare-name references resolve to a properly-detected library
-# instead of an unqualified linker search. Readline has no Windows build and
-# is only needed when Eluna is being built.
-if(NOT WIN32 AND SCRIPT_LIB_ELUNA)
-  find_package(Readline REQUIRED)
-endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenRevision.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/EnsureVersion.cmake)

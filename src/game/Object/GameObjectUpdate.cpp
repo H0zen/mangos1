@@ -53,10 +53,6 @@
 #include "SQLStorages.h"
 #include "GameObjectAI.h"
 #include "Geometry/Quat.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 enum
 {
@@ -78,24 +74,11 @@ void GameObject::Update(uint32 update_diff, uint32 p_time)
         return;
     }
 
-    // NOT converted to an event, and it must not be.
-    //
-    // This is a role callback: it runs once per game object per tick, and the
-    // manifest marks gameobject/on_ai_update as `role` for that reason.
-    // Routing a per-object per-tick call through the global dispatch table
-    // would be slower and, worse, semantically wrong -- "decide what to do
-    // this tick" belongs to whichever engine owns this object, not to every
-    // engine that happens to be loaded.
-    //
-    // It stays an engine-specific call until Eluna bids for the GameObjectAI
-    // role, at which point it moves onto the object the auction hands back
-    // and this block goes away entirely. See ScriptMgr::GetGameObjectAI.
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->UpdateAI(this, update_diff);
-    }
-#endif /* ENABLE_ELUNA */
+    // Do not add a scripting event here. Driving a game object is a ROLE,
+    // won at auction and delivered through the GameObjectAI the engine
+    // builds -- see ScriptMgr::GetGameObjectAI. A per-object per-tick call
+    // through the global dispatch table would be slower and, worse, would
+    // show every loaded engine a decision that belongs to one of them.
 
     switch (m_lootState)
     {

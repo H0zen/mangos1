@@ -18,15 +18,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# SD3 and Eluna link the `game` library, which only exists when BUILD_MANGOSD.
+# SD3 links the `game` library, which only exists when BUILD_MANGOSD.
 # Guard on BOTH the script-lib option AND BUILD_MANGOSD so a server-less
 # configure does not try to build them.
 if(BUILD_MANGOSD AND SCRIPT_LIB_SD3)
     add_subdirectory(SD3)
     mangos_submodule_compat(mangosscript
         "${CMAKE_SOURCE_DIR}/src/shared/Compat/sd3")
-endif()
-
-if(BUILD_MANGOSD AND SCRIPT_LIB_ELUNA)
-    add_subdirectory(Eluna)
 endif()

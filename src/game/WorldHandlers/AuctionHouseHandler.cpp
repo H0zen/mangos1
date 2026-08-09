@@ -51,14 +51,6 @@
 #include "Mail.h"
 #include "Util.h"
 #include "Chat.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <algorithm>
-#include <cstring>
-#include <sstream>
-#include <string>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 /** \addtogroup auctionhouse
  * @{
@@ -388,15 +380,6 @@ void WorldSession::HandleAuctionSellItem(WorldPacket& recv_data)
 
     SendAuctionCommandResult(AH, AUCTION_STARTED, AUCTION_OK);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-        scripting::Notify(scripting::GlobalContext(),
-            scripting::ServerAuctionAdd{
-                scripting::Lend(scripting::Domain::AuctionHouse,
-                                auctionHouse),
-                scripting::HandleOf(scripting::Domain::Auction,
-                                    AH->Id) });
-#endif /* ENABLE_ELUNA */
 }
 
 // this function is called when client bids or buys out auction
@@ -570,15 +553,6 @@ void WorldSession::HandleAuctionRemoveItem(WorldPacket& recv_data)
     sAuctionMgr.RemoveAItem(auction->itemGuidLow);
     auctionHouse->RemoveAuction(auction->Id);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-        scripting::Notify(scripting::GlobalContext(),
-            scripting::ServerAuctionRemove{
-                scripting::Lend(scripting::Domain::AuctionHouse,
-                                auctionHouse),
-                scripting::HandleOf(scripting::Domain::Auction,
-                                    auction->Id) });
-#endif /* ENABLE_ELUNA */
     delete auction;
 }
 

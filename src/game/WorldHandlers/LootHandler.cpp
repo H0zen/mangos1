@@ -55,11 +55,6 @@
 #include "Group.h"
 #include "World.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
 {
@@ -238,13 +233,6 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recv_data)
 
         player->SendNewItem(newitem, uint32(item->count), false, false, true);
 
-#ifdef ENABLE_ELUNA
-                scripting::Notify(player,
-                    scripting::PlayerLootItem{
-                        scripting::RefOf(player),
-                        scripting::RefOf(newitem), item->count,
-                        scripting::Ref{ lguid.GetRawValue() } });
-#endif /* ENABLE_ELUNA */
     }
     else
     {
@@ -293,12 +281,6 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recv_data*/)
             {
                 pLoot = &bones->loot;
 
-                // Used by Eluna
-                #ifdef ENABLE_ELUNA
-                    scripting::Notify(player,
-                        scripting::PlayerLootMoney{
-                            scripting::RefOf(player), pLoot->gold });
-                #endif /* ENABLE_ELUNA */
             }
 
             break;
@@ -370,12 +352,6 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recv_data*/)
             player->ModifyMoney(pLoot->gold);
         }
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-                    scripting::Notify(player,
-                        scripting::PlayerLootMoney{
-                            scripting::RefOf(player), pLoot->gold });
-#endif /* ENABLE_ELUNA */
 
         pLoot->gold = 0;
 
@@ -774,14 +750,6 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recv_data)
     Item* newitem = target->StoreNewItem(dest, item.itemid, true, item.randomPropertyId);
     target->SendNewItem(newitem, uint32(item.count), false, false, true);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-            scripting::Notify(target,
-                scripting::PlayerLootItem{
-                    scripting::RefOf(target),
-                    scripting::RefOf(newitem), item.count,
-                    scripting::Ref{ lootguid.GetRawValue() } });
-#endif /* ENABLE_ELUNA */
 
     // mark as looted
     item.count = 0;

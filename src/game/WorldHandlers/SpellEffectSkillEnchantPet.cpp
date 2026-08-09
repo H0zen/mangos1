@@ -71,13 +71,6 @@
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "Geometry/Vector3.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <list>
-#include <string>
-#include <utility>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Teaches a spell to the target player or pet.

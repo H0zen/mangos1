@@ -57,9 +57,6 @@
 #include "PlayerRegistry.h"
 #include "ScriptMgr.h"
 #include "Group.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
 {
@@ -476,7 +473,6 @@ void WorldSession::HandleQuestLogRemoveQuest(WorldPacket& recv_data)
                 stmt.Execute();
             }
 
-            // Used by Eluna
 scripting::Notify(_player,
     scripting::PlayerQuestAbandon{ scripting::RefOf(_player),
                                quest });

@@ -53,10 +53,6 @@
 #include "SQLStorages.h"
 #include "GameObjectAI.h"
 #include "Geometry/Quat.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <list>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Sets the capture point slider and derived state.

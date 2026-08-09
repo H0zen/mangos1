@@ -102,11 +102,6 @@
 #include "UpdateTime.h"
 #include "GameTime.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include "ElunaConfig.h"
-#include "ElunaLoader.h"
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
 
@@ -250,11 +245,6 @@ World::World()
 /// World destructor
 World::~World()
 {
-#ifdef ENABLE_ELUNA
-    // Delete world Eluna state
-    delete eluna;
-    eluna = nullptr;
-#endif /* ENABLE_ELUNA */
 
     ///- Empty the kicked session set
     while (!m_sessions.empty())
@@ -582,22 +572,6 @@ void World::SetInitialWorldSettings()
     sObjectMgr.SetHighestGuids();                           // must be after packing instances
     sLog.outString();
 
-#ifdef ENABLE_ELUNA
-    ///- Initialize Lua Engine
-
-    // lua state begins uninitialized
-    eluna = nullptr;
-
-    sLog.outString("Loading Eluna config...");
-    sElunaConfig->Initialize();
-
-    if (sElunaConfig->IsElunaEnabled())
-    {
-        ///- Initialize Lua Engine
-        sLog.outString("Loading Lua scripts...");
-        sElunaLoader->LoadScripts();
-    }
-#endif /* ENABLE_ELUNA */
 
     sLog.outString("World data");
 
@@ -922,16 +896,6 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Scripts");
 
-#ifdef ENABLE_ELUNA
-    if (sElunaConfig->IsElunaEnabled())
-    {
-        ///- Run eluna scripts.
-        sLog.outString("Starting Eluna world state...");
-        // use map id -1 for the global Eluna state
-        eluna = new Eluna(nullptr);
-        sLog.outString();
-    }
-#endif /*ENABLE_ELUNA*/
 
     ///- Load and initialize DBScripts Engine
     sLog.outString("Loading DB-Scripts Engine...");
@@ -1126,7 +1090,7 @@ void World::SetInitialWorldSettings()
 
 namespace
 {
-    /// "Eluna, ScriptDev3, Warden" -- or "none" for an empty list.
+    /// "ScriptDev3, Warden" -- or "none" for an empty list.
     std::string JoinList(const std::vector<std::string>& items)
     {
         std::string joined;
@@ -1155,10 +1119,7 @@ void World::showFooter(uint32 startupMs)
     std::vector<std::string> enabled;
     std::vector<std::string> disabled;
 
-    // Eluna and SD3 are either compiled in or not there at all.
-#ifdef ENABLE_ELUNA
-    enabled.push_back("Eluna");
-#endif
+    // SD3 is either compiled in or not there at all.
 
 #ifdef ENABLE_SD3
     enabled.push_back("ScriptDev3");
@@ -1224,7 +1185,6 @@ void World::showFooter(uint32 startupMs)
     // what survives a redirected stdout.
     sLog.outString("World initialization complete (%s)", ready);
     sLog.outString("    server   : %s", GitRevision::GetProductVersionStr());
-    sLog.outString("    eluna    : %s", GitRevision::GetDepElunaFullRevision());
     sLog.outString("    sd3      : %s", GitRevision::GetDepSD3FullRevision());
     sLog.outString("    database : %s", database);
     sLog.outString("    clients  : %s", EXPECTED_MANGOSD_CLIENT_VERSION);
@@ -1385,7 +1345,6 @@ void World::Update(uint32 diff)
     sBattleGroundMgr.Update(diff);
     sOutdoorPvPMgr.Update(diff);
 
-    ///- Used by Eluna
     scripting::Tick(scripting::GlobalContext(), diff);
     scripting::Notify(scripting::GlobalContext(),
         scripting::ServerWorldUpdate{ diff });
@@ -1797,7 +1756,6 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode)
     sRandomPlayerbotMgr.LogoutAllBots();
 #endif
 
-    ///- Used by Eluna
     scripting::Notify(scripting::GlobalContext(),
         scripting::ServerShutdownInit{ exitcode, options });
 }
@@ -2067,7 +2025,6 @@ void World::ShutdownCancel()
 
     DEBUG_LOG("Server %s cancelled.", (m_ShutdownMask & SHUTDOWN_MASK_RESTART) ? "restart" : "shutdown");
 
-    ///- Used by Eluna
     scripting::Notify(scripting::GlobalContext(),
         scripting::ServerShutdownCancel{ scripting::Ref{ 0 } });
 }

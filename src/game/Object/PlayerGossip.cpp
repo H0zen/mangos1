@@ -72,10 +72,6 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Builds the current gossip menu for a source object.

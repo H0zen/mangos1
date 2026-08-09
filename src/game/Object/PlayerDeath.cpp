@@ -76,10 +76,6 @@
 #include "SQLStorages.h"
 #include "DisableMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 // corpse reclaim times
 #define DEATH_EXPIRE_STEP (5*MINUTE)

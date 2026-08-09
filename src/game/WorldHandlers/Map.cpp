@@ -75,19 +75,11 @@
 #include <cmath>
 #include "Corpse.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include "ElunaConfig.h"
-#include "ElunaLoader.h"
-#include <ctime>
-#include <set>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Map destructor
  *
  * Cleans up all resources associated with the map:
- * - Triggers Eluna OnDestroy callback if enabled
  * - Unloads all grids and objects
  * - Cleans up scheduled scripts
  * - Releases persistent state reference
@@ -106,10 +98,6 @@ Map::~Map()
                                                     GetId()) });
     scripting::RetireState(scripting::ContextOf(this));
 
-#ifdef ENABLE_ELUNA
-    delete eluna;
-    eluna = nullptr;
-#endif /* ENABLE_ELUNA */
 
     UnloadAll(true);
 
@@ -175,7 +163,6 @@ void Map::LoadMapAndVMap(int gx, int gy)
  * - Terrain data loading
  * - Grid state initialization
  * - GUID generators for temporary objects
- * - Eluna Lua state (if enabled)
  *
  * @note This constructor is used for both continents and instanced maps
  */
@@ -188,15 +175,6 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
       i_data(NULL)
 {
-#ifdef ENABLE_ELUNA
-    // lua state begins uninitialized
-    eluna = nullptr;
-
-    if (sElunaConfig->IsElunaEnabled() && !sElunaConfig->IsElunaCompatibilityMode() && sElunaConfig->ShouldMapLoadEluna(id))
-    {
-        eluna = new Eluna(this);
-    }
-#endif
 
     m_CreatureGuids.Set(sObjectMgr.GetFirstTemporaryCreatureLowGuid());
     m_GameObjectGuids.Set(sObjectMgr.GetFirstTemporaryGameObjectLowGuid());
@@ -2287,12 +2265,14 @@ void Map::CreateInstanceData(bool load)
 
     // One path, and the auction runs inside it.
     //
-    // The old code asked Eluna here and then, if the map ALSO had a script id,
-    // overwrote i_data with SD3's without deleting the first -- leaking the Lua
-    // instance script and discarding it silently. The script-id gate has gone
-    // with it: that gate belongs to the SD3 lookup, which checks it itself, and
-    // applying it up here meant an engine that binds instances by map id could
-    // never own a map with no row in the script-name table.
+    // The old code asked the scripting engine here and then, if the map ALSO
+    // had a script id, overwrote i_data with SD3's WITHOUT DELETING THE FIRST
+    // -- leaking the engine's instance script and discarding it silently. Do
+    // not reintroduce a second assignment to i_data in this function. The
+    // script-id gate went with it: that gate belongs to the SD3 lookup, which
+    // checks it itself, and applying it up here meant an engine that binds
+    // instances by map id could never own a map with no row in the
+    // script-name table.
     i_data = sScriptMgr.CreateInstanceData(this);
     if (!i_data)
     {
@@ -3652,20 +3632,3 @@ bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, f
     return false;
 }
 
-#ifdef ENABLE_ELUNA
-
-/**
- * @brief Returns the Eluna engine associated with this map.
- *
- * @return Eluna* The active Eluna instance.
- */
-Eluna* Map::GetEluna() const
-{
-    if (sElunaConfig->IsElunaCompatibilityMode())
-    {
-        return sWorld.GetEluna();
-    }
-
-    return eluna;
-}
-#endif /* ENABLE_ELUNA */
