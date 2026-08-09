@@ -1,0 +1,294 @@
+# Event manifest -- the single source of truth for the scripting seam.
+#
+# Generated from this file, never edited by hand:
+#     ScriptEvents.gen.h    the EventId enum and one struct per event
+#     events.d.lua          editor type stubs for script authors
+#     doc/ScriptEvents.md   the reference table
+#
+# IDENTITY IS ABI. EventId = (category << 8) | local id, and the local ids below
+# are Eluna's own numbers, unchanged, so every Lua script that registers by
+# number keeps working across the move. Never renumber an entry: retire it and
+# let the hole stand, the way Eluna's own gaps stand today.
+#
+# policy
+#     broadcast   every engine sees it, nobody answers          -> Notify()
+#     cancel      any engine may refuse the action              -> Ask()
+#     claim       an engine states it produced the behaviour so
+#                 the core skips its own default                -> Offer()
+#     role        NOT an event. A callback on an object an engine won at
+#                 auction (CreatureAI, InstanceData). Listed so this file is a
+#                 complete census of the surface; excluded from dispatch,
+#                 because routing a per-creature per-tick call through a global
+#                 table would be both slower and semantically wrong.
+#
+# payload types
+#     obj         entity named by an ObjectGuid, resolved through the world at
+#                 the moment of use
+#     h.<domain>  stable identity that is not a guid: guild, group, quest, map,
+#                 bg, channel, auction, ahouse, itemtpl, spellinfo, areatrigger
+#     b.<domain>  BORROW, valid only for the duration of the call. There is no
+#                 identity to give -- a Spell in flight, an Aura, a WorldPacket.
+#                 The engine receives an epoch-checked handle, so a script that
+#                 stores one and touches it next tick fails loudly instead of
+#                 dereferencing freed memory. This is the single largest
+#                 correctness gap in the current engines: 10% of all payload
+#                 arguments are raw pointers of exactly this kind.
+#     u32 i32 u64 i64 f64 bool str enum
+#     trailing !  in/out; an engine may write the slot back
+#     ?           payload not yet transcribed. The identity on the line is
+#                 final; only the argument list is outstanding.
+
+category packet = 0x01
+    on_receive                           5  cancel     player:obj packet:b.packet!
+    on_receive_unk                       6  cancel     player:obj packet:b.packet!
+    on_send                              7  cancel     player:obj packet:b.packet
+
+category server = 0x02
+    on_network_start                     1  broadcast  -   # id reserved; this core never fires it
+    on_network_stop                      2  broadcast  -   # id reserved; this core never fires it
+    on_socket_open                       3  broadcast  -   # id reserved; this core never fires it
+    on_socket_close                      4  broadcast  -   # id reserved; this core never fires it
+    on_packet_receive                    5  cancel     session:b.session packet:b.packet!
+    on_packet_receive_unk                6  cancel     player:obj packet:b.packet!
+    on_packet_send                       7  cancel     session:b.session packet:b.packet
+    on_open_state_change                 8  broadcast  open:bool
+    on_config_load                       9  broadcast  reload:bool
+    on_shutdown_init                    11  broadcast  code:u32 mask:u32
+    on_shutdown_cancel                  12  broadcast  -
+    on_world_update                     13  broadcast  diff:u32
+    on_world_startup                    14  broadcast  -
+    on_world_shutdown                   15  broadcast  -
+    on_lua_state_close                  16  broadcast  -
+    on_map_create                       17  broadcast  map:h.map
+    on_map_destroy                      18  broadcast  map:h.map
+    on_map_grid_load                    19  broadcast  -   # id reserved; this core never fires it
+    on_map_grid_unload                  20  broadcast  -   # id reserved; this core never fires it
+    on_map_player_enter                 21  broadcast  map:h.map player:obj
+    on_map_player_leave                 22  broadcast  map:h.map player:obj
+    on_map_update                       23  broadcast  map:h.map diff:u32
+    on_event_trigger                    24  claim      player:obj trigger:h.areatrigger
+    on_weather_change                   25  broadcast  weather:h.weather zone:u32 state:u32 grade:f64
+    on_auction_add                      26  broadcast  house:h.ahouse entry:h.auction
+    on_auction_remove                   27  broadcast  house:h.ahouse entry:h.auction
+    on_auction_successful               28  broadcast  house:h.ahouse entry:h.auction
+    on_auction_expire                   29  broadcast  house:h.ahouse entry:h.auction
+    on_addon_message                    30  cancel     sender:obj type:u32 msg:str! receiver:obj guild:h.guild group:h.group channel:h.channel
+    on_world_delete_creature            31  broadcast  creature:obj
+    on_world_delete_gameobject          32  broadcast  gameobject:obj
+    on_lua_state_open                   33  broadcast  -
+    on_game_start                       34  broadcast  eventId:u32
+    on_game_stop                        35  broadcast  eventId:u32
+
+category player = 0x03
+    on_character_create                  1  broadcast  player:obj
+    on_character_delete                  2  broadcast  guid:u32
+    on_login                             3  broadcast  player:obj
+    on_logout                            4  broadcast  player:obj
+    on_spell_cast                        5  broadcast  player:obj spell:b.spell skipCheck:bool
+    on_kill_player                       6  broadcast  killer:obj killed:obj
+    on_kill_creature                     7  broadcast  killer:obj killed:obj
+    on_killed_by_creature                8  broadcast  killer:obj killed:obj
+    on_duel_request                      9  broadcast  target:obj challenger:obj
+    on_duel_start                       10  broadcast  starter:obj challenger:obj
+    on_duel_end                         11  broadcast  winner:obj loser:obj type:enum
+    on_give_xp                          12  broadcast  player:obj amount:u32! victim:obj
+    on_level_change                     13  broadcast  player:obj oldLevel:u32
+    on_money_change                     14  broadcast  player:obj amount:i32!
+    on_reputation_change                15  broadcast  player:obj factionID:u32 standing:i32! incremental:bool
+    on_talents_change                   16  broadcast  player:obj newPoints:u32
+    on_talents_reset                    17  broadcast  player:obj noCost:bool
+    on_chat                             18  cancel     player:obj type:u32 lang:u32 msg:str!
+    on_whisper                          19  cancel     player:obj type:u32 lang:u32 msg:str! receiver:obj
+    on_group_chat                       20  cancel     player:obj type:u32 lang:u32 msg:str! group:h.group
+    on_guild_chat                       21  cancel     player:obj type:u32 lang:u32 msg:str! guild:h.guild
+    on_channel_chat                     22  cancel     player:obj type:u32 lang:u32 msg:str! channel:h.channel
+    on_emote                            23  broadcast  player:obj emote:u32
+    on_text_emote                       24  broadcast  player:obj textEmote:u32 emoteNum:u32 guid:obj
+    on_save                             25  broadcast  player:obj
+    on_bind_to_instance                 26  broadcast  player:obj difficulty:enum mapid:u32 permanent:bool
+    on_update_zone                      27  broadcast  player:obj newZone:u32 newArea:u32
+    on_map_change                       28  broadcast  player:obj
+    on_equip                            29  broadcast  player:obj item:obj bag:u32 slot:u32
+    on_first_login                      30  broadcast  player:obj
+    on_can_use_item                     31  broadcast  player:obj itemEntry:u32 result:u32!
+    on_loot_item                        32  broadcast  player:obj item:obj count:u32 guid:obj
+    on_enter_combat                     33  broadcast  player:obj enemy:obj
+    on_leave_combat                     34  broadcast  player:obj
+    on_repop                            35  broadcast  player:obj
+    on_resurrect                        36  broadcast  player:obj
+    on_loot_money                       37  broadcast  player:obj amount:u32
+    on_quest_abandon                    38  broadcast  player:obj questId:u32
+    on_learn_talents                    39  broadcast  player:obj talentId:u32 talentRank:u32 spellid:u32
+    on_environmental_death              40  broadcast  killed:obj damageType:u32
+    on_trade_accept                     41  cancel     trader:obj tradee:obj
+    on_command                          42  cancel     player:obj text:str
+    on_skill_change                     43  broadcast  player:obj skillId:u32 skillValue:u32
+    on_learn_spell                      44  broadcast  player:obj spellid:u32
+    on_achievement_complete             45  broadcast  player:obj achievementId:u32
+    on_discover_area                    46  broadcast  player:obj area:u32
+    on_update_area                      47  broadcast  player:obj oldArea:u32 newArea:u32
+    on_trade_init                       48  cancel     trader:obj tradee:obj
+    on_send_mail                        49  cancel     sender:obj recipientGuid:obj
+    on_quest_status_changed             54  broadcast  player:obj questId:u32 status:u32
+
+category guild = 0x04
+    on_add_member                        1  broadcast  guild:h.guild player:obj plRank:u32
+    on_remove_member                     2  broadcast  guild:h.guild player:obj isDisbanding:bool
+    on_motd_change                       3  broadcast  guild:h.guild motd:str
+    on_info_change                       4  broadcast  guild:h.guild info:str
+    on_create                            5  broadcast  player:obj
+    on_disband                           6  broadcast  guild:h.guild
+    on_money_withdraw                    7  broadcast  guild:h.guild player:obj amount:u32! isRepair:bool
+    on_money_deposit                     8  broadcast  guild:h.guild player:obj amount:u32!
+    on_item_move                         9  broadcast  guild:h.guild player:obj item:obj isSrcBank:bool srcContainer:u32 srcSlotId:u32 isDestBank:bool destContainer:u32 destSlotId:u32
+    on_event                            10  broadcast  guild:h.guild eventType:u32 playerGuid1:u32 playerGuid2:u32 newRank:u32
+    on_bank_event                       11  broadcast  guild:h.guild eventType:u32 tabId:u32 playerGuid:u32 itemOrMoney:u32 itemStackCount:u32 destTabId:u32
+
+category group = 0x05
+    on_add_member                        1  broadcast  guild:h.guild player:obj plRank:u32
+    on_invite_member                     2  broadcast  group:h.group guid:obj
+    on_remove_member                     3  broadcast  guild:h.guild player:obj isDisbanding:bool
+    on_leader_change                     4  broadcast  group:h.group newLeader:obj oldLeader:obj
+    on_disband                           5  broadcast  guild:h.guild
+    on_create                            6  broadcast  player:obj
+    on_member_accept                     7  cancel     group:h.group player:obj
+
+category vehicle = 0x06
+    on_install                           1  broadcast  vehicle:enum
+    on_uninstall                         2  broadcast  vehicle:enum
+    on_install_accessory                 4  broadcast  vehicle:enum accessory:obj
+    on_add_passenger                     5  broadcast  vehicle:enum passenger:obj seatId:i32
+    on_remove_passenger                  6  broadcast  vehicle:enum passenger:obj
+
+category creature = 0x07
+    on_enter_combat                      1  broadcast  player:obj enemy:obj
+    on_leave_combat                      2  broadcast  player:obj
+    on_target_died                       3  broadcast  creature:obj victim:obj
+    on_died                              4  broadcast  creature:obj killer:obj
+    on_spawn                             5  broadcast  gameobject:obj
+    on_reach_wp                          6  broadcast  creature:obj type:u32 id:u32
+    on_ai_update                         7  role       me:obj diff:u32
+    on_receive_emote                     8  broadcast  creature:obj player:obj emoteId:u32
+    on_damage_taken                      9  broadcast  creature:obj attacker:obj damage:u32!
+    on_pre_combat                       10  broadcast  creature:obj target:obj
+    on_owner_attacked                   12  broadcast  creature:obj target:obj
+    on_owner_attacked_at                13  broadcast  creature:obj attacker:obj
+    on_hit_by_spell                     14  broadcast  creature:obj caster:obj spell:h.spellinfo
+    on_spell_hit_target                 15  broadcast  creature:obj target:obj spell:h.spellinfo
+    on_just_summoned_creature           19  broadcast  creature:obj summon:obj
+    on_summoned_creature_despawn        20  broadcast  creature:obj summon:obj
+    on_summoned_creature_died           21  broadcast  creature:obj summon:obj killer:obj
+    on_summoned                         22  cancel     creature:obj summoner:obj
+    on_reset                            23  broadcast  creature:obj
+    on_reach_home                       24  broadcast  creature:obj
+    on_corpse_removed                   26  broadcast  creature:obj respawnDelay:u32!
+    on_move_in_los                      27  broadcast  creature:obj who:obj
+    on_dummy_effect                     30  claim      caster:obj spellId:u32 effIndex:enum target:obj
+    on_quest_accept                     31  claim      player:obj item:obj quest:h.quest
+    on_quest_reward                     34  claim      player:obj creature:obj quest:h.quest opt:u32
+    on_dialog_status                    35  claim      player:obj creature:obj
+    on_add                              36  broadcast  player:obj item:obj
+    on_remove                           37  cancel     player:obj item:obj
+
+category gameobject = 0x08
+    on_ai_update                         1  role       me:obj diff:u32
+    on_spawn                             2  broadcast  gameobject:obj
+    on_dummy_effect                      3  claim      caster:obj spellId:u32 effIndex:enum target:obj
+    on_quest_accept                      4  claim      player:obj item:obj quest:h.quest
+    on_quest_reward                      5  claim      player:obj creature:obj quest:h.quest opt:u32
+    on_dialog_status                     6  claim      player:obj gameobject:obj
+    on_destroyed                         7  broadcast  gameObject:obj attacker:obj
+    on_damaged                           8  broadcast  gameObject:obj attacker:obj
+    on_loot_state_change                 9  broadcast  gameObject:obj state:u32
+    on_go_state_changed                 10  broadcast  gameObject:obj state:u32
+    on_add                              12  broadcast  player:obj item:obj
+    on_remove                           13  cancel     player:obj item:obj
+    on_use                              14  claim      player:obj item:obj targets:b.casttargets
+
+category spell = 0x09
+    on_cast                              1  broadcast  spell:b.spell skipCheck:bool
+    on_aura_application                  2  cancel     aura:b.aura auraEff:b.auraeffect target:obj mode:u32 apply:bool
+    on_dispel                            3  broadcast  aura:b.aura dispel:b.dispel
+    on_periodic_tick                     4  cancel     aura:b.aura auraEff:b.auraeffect target:obj
+    on_periodic_update                   5  broadcast  aura:b.aura auraEff:b.auraeffect
+    on_aura_calc_amount                  6  broadcast  aura:b.aura auraEff:b.auraeffect amount:i32! canBeRecalculated:bool!
+    on_calc_periodic                     7  broadcast  aura:b.aura auraEff:b.auraeffect isPeriodic:bool! amplitude:i32!
+    on_check_proc                        8  cancel     aura:b.aura proc:b.proc
+    on_proc                              9  cancel     aura:b.aura proc:b.proc
+    on_check_cast                       10  broadcast  spell:b.spell
+    on_before_cast                      11  broadcast  spell:b.spell
+    on_after_cast                       12  broadcast  spell:b.spell
+    on_object_area_target               13  broadcast  spell:b.spell effIndex:u32 targets:b.objlist
+    on_object_target                    14  broadcast  spell:b.spell effIndex:u32 target:b.objslot
+    on_dest_target                      15  broadcast  spell:b.spell effIndex:u32 dest:b.spelldest
+    on_effect_launch                    16  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
+    on_effect_launch_target             17  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
+    on_effect_calc_absorb               18  broadcast  spell:b.spell damageInfo:b.damage resistAmount:u32! absorbAmount:i32!
+    on_effect_hit                       19  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
+    on_before_hit                       20  broadcast  spell:b.spell missInfo:u32
+    on_effect_hit_target                21  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
+    on_hit                              22  broadcast  spell:b.spell
+    on_after_hit                        23  broadcast  spell:b.spell
+
+category item = 0x0A
+    on_dummy_effect                      1  claim      caster:obj spellId:u32 effIndex:enum target:obj
+    on_use                               2  claim      player:obj item:obj targets:b.casttargets
+    on_quest_accept                      3  claim      player:obj item:obj quest:h.quest
+    on_expire                            4  cancel     player:obj proto:h.itemtpl
+    on_remove                            5  cancel     player:obj item:obj
+    on_add                               6  broadcast  player:obj item:obj
+    on_equip                             7  broadcast  player:obj item:obj bag:u32 slot:u32
+    on_unequip                           8  broadcast  player:obj item:obj slot:u32
+
+category bg = 0x0C
+    on_start                             1  broadcast  bg:h.bg bgId:u32 instanceId:u32
+    on_end                               2  broadcast  bg:h.bg bgId:u32 instanceId:u32 winner:u32
+    on_create                            3  broadcast  player:obj
+    on_pre_destroy                       4  broadcast  bg:h.bg bgId:u32 instanceId:u32
+
+category instance = 0x0D
+    on_initialize                        1  role       ai:b.instanceai
+    on_load                              2  role       ai:b.instanceai
+    on_update                            3  role       -
+    on_player_enter                      4  role       map:h.map player:obj
+    on_creature_create                   5  role       ai:b.instanceai creature:obj
+    on_gameobject_create                 6  role       ai:b.instanceai gameobject:obj
+    on_check_encounter_in_progress       7  role       ai:b.instanceai
+
+# Eluna numbers gossip by register type, so one id means four different
+# events with four different payloads. The seam splits them, because an id
+# must name one thing. The Eluna adapter maps these back to (regtype, 1|2);
+# this is the one place the manifest deliberately leaves Eluna numbering.
+category gossip = 0x0B
+    creature_hello                       1  claim      player:obj creature:obj
+    creature_select                      2  claim      player:obj creature:obj sender:u32 action:u32 code:str
+    gameobject_hello                     3  claim      player:obj gameobject:obj
+    gameobject_select                    4  claim      player:obj gameobject:obj sender:u32 action:u32 code:str
+    item_hello                           5  claim      player:obj item:obj
+    item_select                          6  claim      player:obj item:obj sender:u32 action:u32 code:str
+    player_menu_select                   7  claim      player:obj menuId:u32 sender:u32 action:u32 code:str
+
+# DBScripts. Fire-and-forget by construction: the engine queues commands on
+# the map with a per-command delay and returns before any of them run, so it
+# can never answer. All ten are broadcast, and that is a property of the
+# engine, not a choice made here.
+category dbscript = 0x0E
+    on_quest_start                       0  broadcast  source:obj target:obj id:u32
+    on_quest_end                         1  broadcast  source:obj target:obj id:u32
+    on_gossip                            2  broadcast  source:obj target:obj id:u32
+    on_creature_movement                 3  broadcast  source:obj target:obj id:u32
+    on_creature_death                    4  broadcast  source:obj target:obj id:u32
+    on_spell                             5  broadcast  source:obj target:obj id:u32
+    on_go_use                            6  broadcast  source:obj target:obj id:u32
+    on_got_use                           7  broadcast  source:obj target:obj id:u32
+    on_event                             8  broadcast  source:obj target:obj id:u32
+    on_creature_spell                    9  broadcast  source:obj target:obj id:u32
+
+# The three SD3 entry points with no Eluna counterpart. Every other hook SD3
+# exposes falls into a category above -- which is itself the finding: two
+# engines have been maintaining near-identical surfaces side by side, each
+# with its own gaps, for years.
+category core = 0x0F
+    on_npc_spell_click                   1  claim      player:obj creature:obj spellId:u32
+    on_effect_script_effect              2  claim      caster:obj spellId:u32 effIndex:u32 target:obj originalCaster:obj
+    on_aura_dummy                        3  claim      aura:b.aura apply:bool

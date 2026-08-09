@@ -75,6 +75,7 @@
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
+#include "ScriptHost.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -1298,13 +1299,8 @@ void Player::Update(uint32 update_diff, uint32 p_time)
         if (update_diff >= m_nextSave)
         {
             // m_nextSave reset in SaveToDB call
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = GetEluna())
-            {
-                e->OnSave(this);
-            }
-#endif /* ENABLE_ELUNA */
+            scripting::Notify(this,
+                scripting::PlayerSave{ scripting::RefOf(this) });
             SaveToDB();
             DETAIL_LOG("Player '%s' (GUID: %u) saved", GetName(), GetGUIDLow());
         }
@@ -2418,13 +2414,12 @@ void Player::GiveXP(uint32 xp, Unit* victim)
 
     uint32 level = getLevel();
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnGiveXP(this, xp, victim);
-    }
-#endif /* ENABLE_ELUNA */
+    // A hook may raise, lower or zero the award; whatever comes back is what
+    // the world goes on to grant.
+    scripting::PlayerGiveXp xpEvent{ scripting::RefOf(this), xp,
+                                     scripting::RefOf(victim) };
+    scripting::Notify(this, xpEvent);
+    xp = xpEvent.amount;
 
     // XP to money conversion processed in Player::RewardQuest
     if (level >= sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))

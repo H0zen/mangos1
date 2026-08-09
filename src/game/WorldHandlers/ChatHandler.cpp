@@ -57,6 +57,7 @@
 #include "Util.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
+#include "ScriptHost.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -247,44 +248,45 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 break;
             }
 
+            // The scripts see the line before the world does, and may rewrite
+            // `msg` in place or refuse it outright. The global state is used
+            // here, not the player's map, because that is the state the hand
+            // written call this replaces resolved to.
             if (type == CHAT_MSG_SAY)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, lang, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, lang, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->Say(msg, lang);
+
+                GetPlayer()->Say(msg, lang);
             }
             else if (type == CHAT_MSG_EMOTE)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, LANG_UNIVERSAL, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, LANG_UNIVERSAL, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->TextEmote(msg);
+
+                GetPlayer()->TextEmote(msg);
             }
             else if (type == CHAT_MSG_YELL)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, lang, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, lang, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->Yell(msg, lang);
+
+                GetPlayer()->Yell(msg, lang);
             }
          } break;
 

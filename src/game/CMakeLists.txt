@@ -54,6 +54,12 @@ source_group("Outdoor PvP" FILES ${SRC_GRP_OUTDOOR_PVP})
 file(GLOB SRC_GRP_REFERENCES References/*.cpp References/*.h)
 source_group("References" FILES ${SRC_GRP_REFERENCES})
 
+#Scripting seam group
+# Always built, with or without an engine: the seam is what the world talks to,
+# and with no engine compiled in every emit site folds to a single test.
+file(GLOB SRC_GRP_SCRIPTING Scripting/*.cpp Scripting/*.h)
+source_group("Scripting" FILES ${SRC_GRP_SCRIPTING})
+
 #Server group
 file(GLOB SRC_GRP_SERVER Server/*.cpp Server/*.h)
 source_group("Server" FILES ${SRC_GRP_SERVER})
@@ -203,6 +209,7 @@ add_library(game STATIC
     ${SRC_GRP_OBJECT}
     ${SRC_GRP_OUTDOOR_PVP}
     ${SRC_GRP_REFERENCES}
+    ${SRC_GRP_SCRIPTING}
     ${SRC_GRP_SERVER}
     ${SRC_GRP_TIME}
     ${SRC_GRP_TOOL}
@@ -231,6 +238,7 @@ target_include_directories(game
         Object
         OutdoorPvP
         References
+        Scripting
         Server
         Time
         Tools
