@@ -794,6 +794,462 @@ namespace scripting
                 return Verdict::Continue;
             }
 
+            // -- map and world lifecycle events
+
+            case EventId::ServerMapCreate:
+            case EventId::ServerMapDestroy:
+            case EventId::ServerMapPlayerEnter:
+            case EventId::ServerMapPlayerLeave:
+            case EventId::ServerMapUpdate:
+            {
+                // Every one of these carries the map as a handle, but the
+                // engine wants the object -- and the only map it can mean is
+                // the one that raised the event, which the context already
+                // names. Looking it up again by id would be a second source
+                // of truth for something we are holding.
+                if (ctx.scope != Context::Scope::Map || !ctx.map)
+                {
+                    return Verdict::Continue;
+                }
+
+                if (id == EventId::ServerMapCreate)
+                {
+                    engine->OnCreate(ctx.map);
+                }
+                else if (id == EventId::ServerMapDestroy)
+                {
+                    engine->OnDestroy(ctx.map);
+                }
+                else if (id == EventId::ServerMapUpdate)
+                {
+                    engine->OnMapUpdate(ctx.map,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+                else if (Player* player = PlayerOf(args[1].AsEntity()))
+                {
+                    if (id == EventId::ServerMapPlayerEnter)
+                    {
+                        engine->OnPlayerEnter(ctx.map, player);
+                    }
+                    else
+                    {
+                        engine->OnPlayerLeave(ctx.map, player);
+                    }
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerMapChange:
+            {
+                MANGOS_ASSERT(count == PlayerMapChange::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnMapChanged(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerWorldDeleteCreature:
+            {
+                MANGOS_ASSERT(count == ServerWorldDeleteCreature::Arity);
+
+                if (Creature* creature = CreatureOn(ctx, args[0].AsEntity()))
+                {
+                    engine->OnRemove(creature);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerWorldDeleteGameobject:
+            {
+                MANGOS_ASSERT(count == ServerWorldDeleteGameobject::Arity);
+
+                if (GameObject* go = GameObjectOn(ctx, args[0].AsEntity()))
+                {
+                    engine->OnRemove(go);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerConfigLoad:
+            {
+                MANGOS_ASSERT(count == ServerConfigLoad::Arity);
+                engine->OnConfigLoad(args[0].AsFlag());
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerWorldUpdate:
+            {
+                MANGOS_ASSERT(count == ServerWorldUpdate::Arity);
+                engine->OnWorldUpdate(static_cast<uint32>(args[0].AsNumber()));
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerShutdownInit:
+            {
+                MANGOS_ASSERT(count == ServerShutdownInit::Arity);
+                engine->OnShutdownInitiate(
+                    ShutdownExitCode(args[0].AsNumber()),
+                    ShutdownMask(args[1].AsNumber()));
+                return Verdict::Continue;
+            }
+
+            case EventId::ServerShutdownCancel:
+            {
+                engine->OnShutdownCancel();
+                return Verdict::Continue;
+            }
+
+            // -- guild
+
+            case EventId::GuildCreate:
+            {
+                MANGOS_ASSERT(count == GuildCreate::Arity);
+
+                Guild* guild = GuildOf(args[0].AsNamed());
+                Player* leader = PlayerOf(args[1].AsEntity());
+                if (guild && leader)
+                {
+                    engine->OnCreate(guild, leader, args[2].AsText());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GuildAddMember:
+            {
+                MANGOS_ASSERT(count == GuildAddMember::Arity);
+
+                Guild* guild = GuildOf(args[0].AsNamed());
+                Player* player = PlayerOf(args[1].AsEntity());
+                if (guild && player)
+                {
+                    engine->OnAddMember(guild, player,
+                        static_cast<uint32>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GuildRemoveMember:
+            {
+                MANGOS_ASSERT(count == GuildRemoveMember::Arity);
+
+                Guild* guild = GuildOf(args[0].AsNamed());
+                Player* player = PlayerOf(args[1].AsEntity());
+                if (guild && player)
+                {
+                    engine->OnRemoveMember(guild, player, args[2].AsFlag());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GuildMotdChange:
+            {
+                MANGOS_ASSERT(count == GuildMotdChange::Arity);
+
+                if (Guild* guild = GuildOf(args[0].AsNamed()))
+                {
+                    engine->OnMOTDChanged(guild, args[1].AsText());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GuildInfoChange:
+            {
+                MANGOS_ASSERT(count == GuildInfoChange::Arity);
+
+                if (Guild* guild = GuildOf(args[0].AsNamed()))
+                {
+                    engine->OnInfoChanged(guild, args[1].AsText());
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GuildDisband:
+            {
+                MANGOS_ASSERT(count == GuildDisband::Arity);
+
+                if (Guild* guild = GuildOf(args[0].AsNamed()))
+                {
+                    engine->OnDisband(guild);
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- group. Members are named by guid, not resolved to a Player:
+            //    a member can be offline, and the engine takes the guid.
+
+            case EventId::GroupCreate:
+            {
+                MANGOS_ASSERT(count == GroupCreate::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnCreate(group,
+                        ObjectGuid(args[1].AsEntity().guid),
+                        static_cast<GroupType>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GroupAddMember:
+            {
+                MANGOS_ASSERT(count == GroupAddMember::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnAddMember(group,
+                        ObjectGuid(args[1].AsEntity().guid));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GroupInviteMember:
+            {
+                MANGOS_ASSERT(count == GroupInviteMember::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnInviteMember(group,
+                        ObjectGuid(args[1].AsEntity().guid));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GroupRemoveMember:
+            {
+                MANGOS_ASSERT(count == GroupRemoveMember::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnRemoveMember(group,
+                        ObjectGuid(args[1].AsEntity().guid),
+                        static_cast<uint8>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GroupLeaderChange:
+            {
+                MANGOS_ASSERT(count == GroupLeaderChange::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnChangeLeader(group,
+                        ObjectGuid(args[1].AsEntity().guid),
+                        ObjectGuid(args[2].AsEntity().guid));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GroupDisband:
+            {
+                MANGOS_ASSERT(count == GroupDisband::Arity);
+
+                if (Group* group = GroupOf(args[0].AsNamed()))
+                {
+                    engine->OnDisband(group);
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- creature and gameobject presence
+
+            case EventId::CreatureAdd:
+            case EventId::CreatureRemove:
+            {
+                MANGOS_ASSERT(count == CreatureAdd::Arity);
+
+                if (Creature* creature = CreatureOn(ctx, args[0].AsEntity()))
+                {
+                    if (id == EventId::CreatureAdd)
+                    {
+                        engine->OnAddToWorld(creature);
+                    }
+                    else
+                    {
+                        engine->OnRemoveFromWorld(creature);
+                    }
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectAdd:
+            case EventId::GameobjectRemove:
+            {
+                MANGOS_ASSERT(count == GameobjectAdd::Arity);
+
+                if (GameObject* go = GameObjectOn(ctx, args[0].AsEntity()))
+                {
+                    if (id == EventId::GameobjectAdd)
+                    {
+                        engine->OnAddToWorld(go);
+                    }
+                    else
+                    {
+                        engine->OnRemoveFromWorld(go);
+                    }
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectSpawn:
+            {
+                MANGOS_ASSERT(count == GameobjectSpawn::Arity);
+
+                if (GameObject* go = GameObjectOn(ctx, args[0].AsEntity()))
+                {
+                    engine->OnSpawn(go);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectLootStateChange:
+            {
+                MANGOS_ASSERT(count == GameobjectLootStateChange::Arity);
+
+                if (GameObject* go = GameObjectOn(ctx, args[0].AsEntity()))
+                {
+                    engine->OnLootStateChanged(go,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::GameobjectGoStateChanged:
+            {
+                MANGOS_ASSERT(count == GameobjectGoStateChanged::Arity);
+
+                if (GameObject* go = GameObjectOn(ctx, args[0].AsEntity()))
+                {
+                    engine->OnGameObjectStateChanged(go,
+                        static_cast<uint32>(args[1].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- kills and combat
+
+            case EventId::PlayerKilledByCreature:
+            {
+                MANGOS_ASSERT(count == PlayerKilledByCreature::Arity);
+
+                Creature* killer = CreatureOn(ctx, args[0].AsEntity());
+                Player* killed = PlayerOf(args[1].AsEntity());
+                if (killer && killed)
+                {
+                    engine->OnPlayerKilledByCreature(killer, killed);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerKillPlayer:
+            {
+                MANGOS_ASSERT(count == PlayerKillPlayer::Arity);
+
+                Player* killer = PlayerOf(args[0].AsEntity());
+                Player* killed = PlayerOf(args[1].AsEntity());
+                if (killer && killed)
+                {
+                    engine->OnPVPKill(killer, killed);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerKillCreature:
+            {
+                MANGOS_ASSERT(count == PlayerKillCreature::Arity);
+
+                Player* killer = PlayerOf(args[0].AsEntity());
+                Creature* killed = CreatureOn(ctx, args[1].AsEntity());
+                if (killer && killed)
+                {
+                    engine->OnCreatureKill(killer, killed);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerEnterCombat:
+            {
+                MANGOS_ASSERT(count == PlayerEnterCombat::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Unit* enemy = UnitOn(ctx, args[1].AsEntity());
+                if (player && enemy)
+                {
+                    engine->OnPlayerEnterCombat(player, enemy);
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::PlayerLeaveCombat:
+            {
+                MANGOS_ASSERT(count == PlayerLeaveCombat::Arity);
+
+                if (Player* player = PlayerOf(args[0].AsEntity()))
+                {
+                    engine->OnPlayerLeaveCombat(player);
+                }
+
+                return Verdict::Continue;
+            }
+
+            // -- items
+
+            case EventId::ItemEquip:
+            {
+                MANGOS_ASSERT(count == ItemEquip::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                if (player && item)
+                {
+                    engine->OnItemEquip(player, item,
+                        static_cast<uint8>(args[2].AsNumber()));
+                }
+
+                return Verdict::Continue;
+            }
+
+            case EventId::ItemRemove:
+            {
+                MANGOS_ASSERT(count == ItemRemove::Arity);
+
+                Player* player = PlayerOf(args[0].AsEntity());
+                Item* item = ItemOf(player, args[1].AsEntity());
+                if (player && item)
+                {
+                    engine->OnRemove(player, item);
+                }
+
+                return Verdict::Continue;
+            }
+
             default:
                 // Not converted yet. Not delivered is correct; misdelivered
                 // would not be.

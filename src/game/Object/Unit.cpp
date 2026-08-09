@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
 #include "Utilities/MathDefines.h"
@@ -1045,13 +1046,13 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
         {
             // Used by Eluna
 #ifdef ENABLE_ELUNA
-            if (Eluna* e = killer->GetEluna())
-            {
                 if (Player* killed = pVictim->ToPlayer())
                 {
-                    e->OnPlayerKilledByCreature(killer, killed);
+                    scripting::Notify(killer,
+                        scripting::PlayerKilledByCreature{
+                            scripting::RefOf(killer),
+                            scripting::RefOf(killed) });
                 }
-            }
 #endif /* ENABLE_ELUNA */
         }
 
@@ -1116,10 +1117,10 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
 
                 // Used by Eluna
 #ifdef ENABLE_ELUNA
-                if (Eluna* e = player_tap->GetEluna())
-                {
-                    e->OnPVPKill(player_tap, playerVictim);
-                }
+                    scripting::Notify(player_tap,
+                        scripting::PlayerKillPlayer{
+                            scripting::RefOf(player_tap),
+                            scripting::RefOf(playerVictim) });
 #endif /* ENABLE_ELUNA */
             }
         }
@@ -1376,10 +1377,10 @@ void Unit::JustKilledCreature(Creature* victim, Player* responsiblePlayer)
 
        // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = responsiblePlayer->GetEluna())
-        {
-            e->OnCreatureKill(responsiblePlayer, victim);
-        }
+            scripting::Notify(responsiblePlayer,
+                scripting::PlayerKillCreature{
+                    scripting::RefOf(responsiblePlayer),
+                    scripting::RefOf(victim) });
 #endif /* ENABLE_ELUNA */
     }
 
@@ -4002,13 +4003,12 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
         if (GetTypeId() == TYPEID_PLAYER)
         {
-            e->OnPlayerEnterCombat(ToPlayer(), enemy);
+            scripting::Notify(this,
+                scripting::PlayerEnterCombat{ scripting::RefOf(this),
+                                              scripting::RefOf(enemy) });
         }
-    }
 #endif /* ENABLE_ELUNA */
 }
 
@@ -4027,13 +4027,11 @@ void Unit::ClearInCombat()
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
         if (GetTypeId() == TYPEID_PLAYER)
         {
-            e->OnPlayerLeaveCombat(ToPlayer());
+            scripting::Notify(this,
+                scripting::PlayerLeaveCombat{ scripting::RefOf(this) });
         }
-    }
 #endif /* ENABLE_ELUNA */
 
     // Player's state will be cleared in Player::UpdateContestedPvP

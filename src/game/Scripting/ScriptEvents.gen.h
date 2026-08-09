@@ -3102,17 +3102,15 @@ namespace scripting
     struct CreatureAdd
     {
         static constexpr EventId Id = EventId::CreatureAdd;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 1;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref            player;
-        Ref            item;
+        Ref            creature;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[0] = Arg::FromEntity(creature);
         }
 
         void Unpack(Arg const*) {}
@@ -3328,17 +3326,15 @@ namespace scripting
     struct GameobjectAdd
     {
         static constexpr EventId Id = EventId::GameobjectAdd;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 1;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref            player;
-        Ref            item;
+        Ref            gameobject;
 
         void Pack(Arg* args) const
         {
-            args[0] = Arg::FromEntity(player);
-            args[1] = Arg::FromEntity(item);
+            args[0] = Arg::FromEntity(gameobject);
         }
 
         void Unpack(Arg const*) {}

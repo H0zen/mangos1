@@ -187,7 +187,7 @@ category creature = 0x07
     on_quest_accept                     31  claim      player:obj creature:obj quest:h.quest
     on_quest_reward                     34  claim      player:obj creature:obj quest:h.quest opt:u32
     on_dialog_status                    35  claim      player:obj creature:obj
-    on_add                              36  broadcast  player:obj item:obj
+    on_add                              36  broadcast  creature:obj
     on_remove                           37  cancel     creature:obj
 
 category gameobject = 0x08
@@ -201,7 +201,7 @@ category gameobject = 0x08
     on_damaged                           8  broadcast  gameObject:obj attacker:obj
     on_loot_state_change                 9  broadcast  gameObject:obj state:u32
     on_go_state_changed                 10  broadcast  gameObject:obj state:u32
-    on_add                              12  broadcast  player:obj item:obj
+    on_add                              12  broadcast  gameobject:obj
     on_remove                           13  cancel     gameobject:obj
     on_use                              14  claim      player:obj gameobject:obj
 

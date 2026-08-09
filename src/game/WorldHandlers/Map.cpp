@@ -2017,12 +2017,12 @@ void Map::AddObjectToRemoveList(WorldObject* obj)
     if (Creature* creature = obj->ToCreature())
     {
         scripting::Notify(this,
-            scripting::CreatureRemove{ scripting::RefOf(creature) });
+            scripting::ServerWorldDeleteCreature{ scripting::RefOf(creature) });
     }
     else if (GameObject* gameobject = obj->ToGameObject())
     {
         scripting::Notify(this,
-            scripting::GameobjectRemove{ scripting::RefOf(gameobject) });
+            scripting::ServerWorldDeleteGameobject{ scripting::RefOf(gameobject) });
     }
 
     obj->CleanupsBeforeDelete();                            // remove or simplify at least cross referenced links

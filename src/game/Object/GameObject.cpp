@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "GameObject.h"
 #include "Geometry/Quat.h"
 #include "QuestDef.h"
@@ -134,10 +135,8 @@ void GameObject::AddToWorld()
 #ifdef ENABLE_ELUNA
     if (!inWorld)
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnAddToWorld(this);
-        }
+    scripting::Notify(this,
+        scripting::GameobjectAdd{ scripting::RefOf(this) });
     }
 #endif /* ENABLE_ELUNA */
 
@@ -152,10 +151,8 @@ void GameObject::RemoveFromWorld()
     if (IsInWorld())
     {
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
-        {
-            e->OnRemoveFromWorld(this);
-        }
+    scripting::Notify(this,
+        scripting::GameobjectRemove{ scripting::RefOf(this) });
 #endif /* ENABLE_ELUNA */
 
         // Notify the outdoor pvp script
@@ -293,10 +290,8 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnSpawn(this);
-    }
+    scripting::Notify(this,
+        scripting::GameobjectSpawn{ scripting::RefOf(this) });
 #endif /* ENABLE_ELUNA */
 
     // Notify the battleground or outdoor pvp script
@@ -1363,10 +1358,9 @@ void GameObject::SetLootState(LootState state)
 {
     m_lootState = state;
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnLootStateChanged(this, state);
-    }
+    scripting::Notify(this,
+        scripting::GameobjectLootStateChange{ scripting::RefOf(this),
+                                              static_cast<uint32>(state) });
 #endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
@@ -1380,10 +1374,9 @@ void GameObject::SetGoState(GOState state)
 {
     SetByteValue(GAMEOBJECT_STATE, 0, state);
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnGameObjectStateChanged(this, state);
-    }
+    scripting::Notify(this,
+        scripting::GameobjectGoStateChanged{ scripting::RefOf(this),
+                                             static_cast<uint32>(state) });
 #endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }

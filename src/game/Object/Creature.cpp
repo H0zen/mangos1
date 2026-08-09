@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
 #include "Utilities/MathDefines.h"
@@ -329,10 +330,8 @@ void Creature::AddToWorld()
 #ifdef ENABLE_ELUNA
     if (!inWorld)
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnAddToWorld(this);
-        }
+    scripting::Notify(this,
+        scripting::CreatureAdd{ scripting::RefOf(this) });
     }
 #endif /* ENABLE_ELUNA */
 
@@ -356,10 +355,8 @@ void Creature::RemoveFromWorld()
 #ifdef ENABLE_ELUNA
     if (IsInWorld())
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnRemoveFromWorld(this);
-        }
+    scripting::Notify(this,
+        scripting::CreatureRemove{ scripting::RefOf(this) });
     }
 #endif /* ENABLE_ELUNA */
 

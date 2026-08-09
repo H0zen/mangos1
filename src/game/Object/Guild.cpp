@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -209,10 +210,10 @@ bool Guild::Create(Player* leader, std::string gname)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnCreate(this, leader, gname.c_str());
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildCreate{ scripting::HandleOf(this),
+                                scripting::RefOf(leader),
+                                gname });
 #endif /* ENABLE_ELUNA */
 
     return AddMember(m_LeaderGuid, (uint32)GR_GUILDMASTER);
@@ -337,10 +338,10 @@ bool Guild::AddMember(ObjectGuid plGuid, uint32 plRank)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnAddMember(this, pl, newmember.RankId);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildAddMember{ scripting::HandleOf(this),
+                                   scripting::RefOf(pl),
+                                   newmember.RankId });
 #endif /* ENABLE_ELUNA */
 
     return true;
@@ -361,10 +362,9 @@ void Guild::SetMOTD(std::string motd)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnMOTDChanged(this, motd);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildMotdChange{ scripting::HandleOf(this),
+                                    motd });
 #endif /* ENABLE_ELUNA */
 }
 
@@ -383,10 +383,9 @@ void Guild::SetGINFO(std::string ginfo)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnInfoChanged(this, ginfo);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildInfoChange{ scripting::HandleOf(this),
+                                    ginfo });
 #endif /* ENABLE_ELUNA */
 }
 
@@ -762,10 +761,10 @@ bool Guild::DelMember(ObjectGuid guid, bool isDisbanding)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnRemoveMember(this, player, isDisbanding); // IsKicked not a part of Mangos, implement?
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildRemoveMember{ scripting::HandleOf(this),
+                                      scripting::RefOf(player),
+                                      isDisbanding });
 #endif /* ENABLE_ELUNA */
 
     return members.empty();
@@ -933,10 +932,8 @@ void Guild::Disband()
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnDisband(this);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GuildDisband{ scripting::HandleOf(this) });
 #endif /* ENABLE_ELUNA */
 
     sGuildMgr.RemoveGuild(m_Id);

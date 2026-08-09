@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Log.h"
 #include "Opcodes.h"
@@ -339,22 +340,20 @@ Item* Player::EquipItem(uint16 pos, Item* pItem, bool update)
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
-        {
-            e->OnEquip(this, pItem2, bag, slot); // This is depricated and will be removed in the future
-            e->OnItemEquip(this, pItem2, slot);
-        }
+                scripting::Notify(this,
+                    scripting::ItemEquip{ scripting::RefOf(this),
+                                          scripting::RefOf(pItem2),
+                                          bag, slot });
 #endif /* ENABLE_ELUNA */
 
         return pItem2;
     }
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnEquip(this, pItem, bag, slot); // This is depricated and will be removed in the future
-        e->OnItemEquip(this, pItem, slot);
-    }
+            scripting::Notify(this,
+                scripting::ItemEquip{ scripting::RefOf(this),
+                                      scripting::RefOf(pItem),
+                                      bag, slot });
 #endif /* ENABLE_ELUNA */
 
     return pItem;
@@ -644,10 +643,9 @@ void Player::DestroyItem(uint8 bag, uint8 slot, bool update)
 
         ItemRemovedQuestCheck(pItem->GetEntry(), pItem->GetCount());
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
-        {
-            e->OnRemove(this, pItem);
-        }
+                scripting::Notify(this,
+                    scripting::ItemRemove{ scripting::RefOf(this),
+                                           scripting::RefOf(pItem) });
 #endif /* ENABLE_ELUNA */
 
         if (bag == INVENTORY_SLOT_BAG_0)

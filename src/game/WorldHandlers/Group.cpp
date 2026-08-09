@@ -44,6 +44,7 @@
  * @see GroupMgr for group management
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -194,10 +195,10 @@ bool Group::Create(ObjectGuid guid, const char* name)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnCreate(this, m_leaderGuid, m_groupType);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupCreate{ scripting::HandleOf(this),
+                                scripting::Ref{ m_leaderGuid.GetRawValue() },
+                                static_cast<uint32>(m_groupType) });
 #endif /* ENABLE_ELUNA */
 
     return true;
@@ -335,10 +336,9 @@ bool Group::AddInvite(Player* player)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnInviteMember(this, player->GetObjectGuid());
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupInviteMember{ scripting::HandleOf(this),
+                                      scripting::RefOf(player) });
 #endif /* ENABLE_ELUNA */
 
     return true;
@@ -461,10 +461,9 @@ bool Group::AddMember(ObjectGuid guid, const char* name)
 
         // Used by Eluna
 #ifdef ENABLE_ELUNA
-        if (Eluna* e = sWorld.GetEluna())
-        {
-            e->OnAddMember(this, player->GetObjectGuid());
-        }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupAddMember{ scripting::HandleOf(this),
+                                   scripting::RefOf(player) });
 #endif /* ENABLE_ELUNA */
 
         // quest related GO state dependent from raid membership
@@ -539,10 +538,10 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnRemoveMember(this, guid, removeMethod); // Kicker and Reason not a part of Mangos, implement?
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupRemoveMember{ scripting::HandleOf(this),
+                                      scripting::Ref{ guid.GetRawValue() },
+                                      removeMethod });
 #endif /* ENABLE_ELUNA */
 
     return m_memberSlots.size();
@@ -563,10 +562,10 @@ void Group::ChangeLeader(ObjectGuid guid)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnChangeLeader(this, guid, GetLeaderGuid());
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupLeaderChange{ scripting::HandleOf(this),
+                                      scripting::Ref{ guid.GetRawValue() },
+                                      scripting::Ref{ GetLeaderGuid().GetRawValue() } });
 #endif /* ENABLE_ELUNA */
 
     _setLeader(guid);
@@ -661,10 +660,8 @@ void Group::Disband(bool hideDestroy)
 
     // Used by Eluna
 #ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnDisband(this);
-    }
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::GroupDisband{ scripting::HandleOf(this) });
 #endif /* ENABLE_ELUNA */
 
     m_leaderGuid.Clear();
