@@ -192,6 +192,22 @@ namespace mai
 
                 held = data->GetData(guard.subject);
             }
+            else if (guard.of == GuardAura || guard.of == GuardTargetAura)
+            {
+                // Stacks, not presence: absent is zero, so one comparison
+                // answers "is it up", "is it gone" and "is it at three".
+                Unit const* who = guard.of == GuardAura
+                                      ? static_cast<Unit const*>(m_creature)
+                                      : m_creature->getVictim();
+                if (!who)
+                {
+                    return false;
+                }
+
+                SpellAuraHolder* holder =
+                    const_cast<Unit*>(who)->GetSpellAuraHolder(guard.subject);
+                held = holder ? holder->GetStackAmount() : 0;
+            }
             else
             {
                 held = guard.subject < MaxStates

@@ -358,29 +358,46 @@ namespace mai
 
             Guard guard;
 
-            // `instance:6` asks the instance rather than the creature. The
-            // colon is what tells them apart, and a state may not be called
-            // `instance` for the same reason a column may not be called *.
-            static char const kInstance[] = "instance:";
-            std::size_t const prefix = sizeof(kInstance) - 1;
-
-            if (held.compare(0, prefix, kInstance) == 0)
+            // A prefix asks something other than the creature's own memory.
+            // The colon is what tells them apart, and a state may not be
+            // called `instance`, `aura` or `target_aura` for the same reason a
+            // column may not be called *.
+            static struct { char const* prefix; GuardOf of; } const kPrefixes[] =
             {
-                std::string const field = held.substr(prefix);
+                { "instance:",    GuardInstance },
+                { "aura:",        GuardAura },
+                { "target_aura:", GuardTargetAura },
+            };
+
+            bool prefixed = false;
+            for (auto const& known : kPrefixes)
+            {
+                std::size_t const length = std::strlen(known.prefix);
+                if (held.size() <= length ||
+                    held.compare(0, length, known.prefix) != 0)
+                {
+                    continue;
+                }
+
+                std::string const field = held.substr(length);
                 char* stop = nullptr;
-                guard.of = GuardInstance;
+                guard.of = known.of;
                 guard.subject = uint32(std::strtoul(field.c_str(), &stop, 10));
 
                 if (field.empty() || (stop && *stop))
                 {
                     std::snprintf(buffer, sizeof(buffer),
-                                  "guard 'instance:%s' does not name a field "
-                                  "number", field.c_str());
+                                  "guard '%s' does not name a number after "
+                                  "'%s'", held.c_str(), known.prefix);
                     error = buffer;
                     return false;
                 }
+
+                prefixed = true;
+                break;
             }
-            else
+
+            if (!prefixed)
             {
                 std::size_t const slot = owner.Intern(held);
                 if (slot >= MaxStates)

@@ -116,7 +116,14 @@ namespace mai
     enum GuardOf : uint8
     {
         GuardState,     ///< one of the creature's own remembered numbers
-        GuardInstance   ///< a field of the instance's own data
+        GuardInstance,  ///< a field of the instance's own data
+
+        /// How many stacks of a spell are on the creature, or on its victim.
+        /// Zero when the aura is absent, which makes `aura:9438=0` mean "not
+        /// under it" and `aura:9438>=3` mean what it says -- one comparison
+        /// covering both questions the triggers needed two names for.
+        GuardAura,
+        GuardTargetAura
     };
 
     struct Guard

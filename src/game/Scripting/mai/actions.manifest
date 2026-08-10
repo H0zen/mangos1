@@ -210,6 +210,16 @@ category unit = 0x13
     set_unit_flag           115   value:flags
     remove_unit_flag        116   value:flags
     set_sheath              117   state:u32
+
+    # Make the step's subject immune to something, or stop being. `kind` is
+    # SharedDefines.h's SpellImmunity -- 3 is damage of a school, 2 is the
+    # school itself, 5 is a mechanic -- and `value` is whatever enum that kind
+    # indexes.
+    #
+    # Two enums in two columns rather than one verb per kind, because the six
+    # kinds are the same operation on six different vocabularies, and a verb
+    # each would be six names for ApplySpellImmune.
+    set_immunity            131   kind:u32 value:flags apply:bool?
     emote_target            118   emote:emote
 
 category quest = 0x14

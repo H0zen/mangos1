@@ -180,6 +180,7 @@ namespace mai
         SetUnitFlag                = 115,
         RemoveUnitFlag             = 116,
         SetSheath                  = 117,
+        SetImmunity                = 131,
         EmoteTarget                = 118,
 
         // quest
@@ -590,6 +591,13 @@ namespace mai
         { "state", ParamType::U32, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsSetImmunity[] =
+    {
+        { "kind", ParamType::U32, false },
+        { "value", ParamType::Flags, false },
+        { "apply", ParamType::Bool, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsEmoteTarget[] =
     {
         { "emote", ParamType::Emote, false },
@@ -715,6 +723,7 @@ namespace mai
         { ActionId::SetUnitFlag, "set_unit_flag", g_actionParamsSetUnitFlag, 1, 1, 0 },
         { ActionId::RemoveUnitFlag, "remove_unit_flag", g_actionParamsRemoveUnitFlag, 1, 1, 0 },
         { ActionId::SetSheath, "set_sheath", g_actionParamsSetSheath, 1, 1, 0 },
+        { ActionId::SetImmunity, "set_immunity", g_actionParamsSetImmunity, 3, 3, 0 },
         { ActionId::EmoteTarget, "emote_target", g_actionParamsEmoteTarget, 1, 1, 0 },
         { ActionId::QuestEvent, "quest_event", g_actionParamsQuestEvent, 2, 2, 0 },
         { ActionId::CastEvent, "cast_event", g_actionParamsCastEvent, 3, 3, 0 },

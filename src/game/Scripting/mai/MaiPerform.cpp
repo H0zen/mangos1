@@ -318,6 +318,32 @@ namespace mai
             return false;
         }
 
+        /**
+         * Immune to something, or no longer.
+         *
+         * Jandice Barov's illusions are made immune to magic damage the moment
+         * they are summoned, and that is the whole trick of the fight: they
+         * cannot be AoE'd down, so they have to be found. Without it she is a
+         * different boss, which is why she was the one refusal this round that
+         * was NOT one flag away.
+         */
+        bool SetImmunity(Doing& doing, Step const& step)
+        {
+            Unit* self = doing.SourceUnit();
+            if (!self)
+            {
+                sLog.outErrorDb("MAI: set_immunity has no unit to apply to");
+                return false;
+            }
+
+            // `apply` defaults to true: a step that mentions an immunity and
+            // says nothing else means to grant it.
+            bool const apply = !step.Has(2) || Given(step, 2) != 0;
+
+            self->ApplySpellImmune(0, Given(step, 0), Given(step, 1), apply);
+            return false;
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -808,6 +834,7 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::SetImmunity:       return SetImmunity(doing, step);
             case ActionId::SendAiEvent:       return SendAiEvent(doing, step);
             case ActionId::TeleportToTarget:  return TeleportToTarget(doing, step);
             case ActionId::SetThrowMask:      return SetThrowMask(doing, step);
