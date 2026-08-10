@@ -71,22 +71,6 @@ namespace mai
     enum : std::size_t { MaxOperands = 8 };
 
     /**
-     * One thing that happens, and when.
-     *
-     * @a atMs is measured from the START of the sequence, not from the step
-     * before it -- and that is the decision that lets one representation hold
-     * both systems. A `dbscripts_on_*` row carries exactly such an absolute
-     * delay, so lowering a row is a copy; a script that says `wait 2s` between
-     * two actions is accumulating into the same field. Written as a relative
-     * gap instead, every DB row would have to be rewritten on the way in, and
-     * a mistake there would be invisible.
-     *
-     * It also makes the runner trivial and, more to the point, INSPECTABLE: a
-     * sequence is a sorted list of (time, action), so what a script will do and
-     * when can be printed without running it. The differential test against the
-     * DB scripts is built on being able to do exactly that.
-     */
-    /**
      * Who a step really acts on, when it is not the source.
      *
      * A DB-script row may redirect ANY command at a creature found near the
@@ -108,6 +92,22 @@ namespace mai
         bool IsEmpty() const { return entry == 0 && guidOrRadius == 0; }
     };
 
+    /**
+     * One thing that happens, and when.
+     *
+     * @a atMs is measured from the START of the sequence, not from the step
+     * before it -- and that is the decision that lets one representation hold
+     * both systems. A `dbscripts_on_*` row carries exactly such an absolute
+     * delay, so lowering a row is a copy; a script that says `wait 2s` between
+     * two actions is accumulating into the same field. Written as a relative
+     * gap instead, every DB row would have to be rewritten on the way in, and
+     * a mistake there would be invisible.
+     *
+     * It also makes the runner trivial and, more to the point, INSPECTABLE: a
+     * sequence is a sorted list of (time, action), so what a script will do and
+     * when can be printed without running it. The differential test against the
+     * DB scripts is built on being able to do exactly that.
+     */
     struct Step
     {
         uint32   atMs = 0;
@@ -123,6 +123,23 @@ namespace mai
         /// not the same as one set to zero: `despawn_self` with no delay means
         /// "now", and `despawn_self 0` means the same thing only by accident.
         uint8    given = 0;
+
+        /**
+         * The row this step was lowered from, while the DB tables still exist.
+         *
+         * MIGRATION SCAFFOLDING, and deliberately visible as such. MAI owns the
+         * model, the clock and the targeting from the start, but the forty-odd
+         * effect bodies are already written, already correct against this core,
+         * and already the thing a differential test would be comparing against
+         * -- so they are reused rather than retyped blind. Rewriting twelve
+         * hundred lines of effects with no way to run them is how the last two
+         * commits earned their titles.
+         *
+         * The order is: new spine, old bodies, differential test green, then
+         * bodies replaced one verb at a time with the test watching. When the
+         * last one goes, so does this pointer.
+         */
+        void const* origin = nullptr;
 
         bool Has(std::size_t slot) const
         {
@@ -140,6 +157,13 @@ namespace mai
     struct Sequence
     {
         uint32            id = 0;
+
+        /// Which `db_scripts` type this came from. Migration scaffolding, the
+        /// twin of Step::origin: the effect bodies still want it, for their
+        /// own error messages and for the map's "is this script already
+        /// running" test. It leaves with them.
+        uint32            origin = 0;
+
         std::string       name;     ///< as reported in an error
         std::vector<Step> steps;    ///< sorted by atMs
 

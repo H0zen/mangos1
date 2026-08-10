@@ -92,6 +92,7 @@ namespace mai
         out = Step();
         out.atMs = row.delay;
         out.action = spec->id;
+        out.origin = &row;
 
         // The buddy search modifies the step whatever the verb is.
         out.buddy.entry = row.buddyEntry;

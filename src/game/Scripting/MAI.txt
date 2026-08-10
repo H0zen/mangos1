@@ -1,0 +1,93 @@
+Am datele. Nu propun din burtă — iată ce am măsurat pe cele 319 fișiere SD3 (145.853 linii, 1.344 clase de script):
+
+ce fac scripturile	de câte ori
+DoScriptText (zi ceva)	1.919
+DoCastSpellIfCan	1.764
+membri m_uiXTimer	1.456
+urand	1.401
+SetData/GetData (stare de instanță)	1.228
+SummonCreature	456
+SelectHostileTarget / SelectAttackingTarget	676
+DoUseDoorOrButton	236
+if	9.912
+74,4% din clase nu conțin niciun C++ „greu" — zero bucle, zero containere, zero alocări. Iar din cele 344 „grele": 315 sunt bucle, dintre care doar 8 parcurg lista de amenințare și 14 jucătorii hărții; 195 iterează un container pe care scriptul și l-a construit singur. Și 1.218 din cele 2.088 new sunt boilerplate de fabrică (new boss_xAI(pCreature)), nu alocare reală.
+
+Constatarea care decide totul: toate scripturile de instanță sunt „grele" — 43/43 InstanceScript, 37/39 ScriptedInstance. Nu pentru că au logică complicată, ci pentru că fiecare ține un std::vector<uint32> m_auiEncounter plus bucle de salvare/încărcare a lui, scrise de mână de 80 de ori.
+
+MAI — propunere
+Observația centrală
+Cele trei sisteme actuale nu sunt trei limbaje. Sunt trei forme ale aceluiași lucru, fiecare cu o singură primitivă și fără celelalte două:
+
+sistem	primitiva pe care o are	ce-i lipsește
+EventAI	regulă: eveniment → gardă → acțiuni	secvențe, stare
+dbscripts	secvență: acțiuni cu întârziere	reacție la evenimente, stare
+SD3	toate trei, dar scrise de mână în C++ de 1.344 de ori	—
+MAI are exact trei primitive, și cu ele înghite toate trei sistemele:
+
+Regula — when <event> [if <expr>] then <actions> (EventAI, dar cu expresii reale în loc de param1/param2/param3)
+Secvența — acțiuni cu wait, rulate ca o corutină, întreruptibile (dbscripts 100%, plus fiecare eveniment RP din SD3)
+Starea — variabile tipate, cu trei domenii: self (creatura), encounter (instanța, persistată automat), global
+DoScriptText + DoCastSpellIfCan + timer + urand = 6.540 de apeluri care sunt literalmente primitiva 1. SetData/GetData × 1.228 = primitiva 3. Cele 90 de opcode-uri SCRIPT_COMMAND_* din dbscripts = vocabularul de acțiuni al primitivei 2 — nu-l reinventez, îl adopt.
+
+Forma
+
+creature 15990 "Kel'Thuzad" {
+    var addsAlive: int = 0
+
+    state combat {
+        on enter                       -> say "Minions, servants!"; encounter.phase = 1
+        every 20s..30s if hp% > 45     -> cast 27808 at random(player, not tank, 40y)
+        when hp% <= 45  once           -> goto state frenzy
+        when summon.died               -> addsAlive -= 1
+        when damage.taken > 5000       -> cast 27819 at self
+    }
+
+    state frenzy {
+        on enter -> sequence {
+            say "Your soul will languish!"
+            wait 2s
+            cast 28410 at threat.top
+            wait 1s
+            summon 16428 at self.pos offset(0,5) count 4 -> addsAlive += 4
+        }
+        every 8s -> cast 27810 at random(player)
+    }
+}
+Trei lucruri fac diferența față de EventAI:
+
+goto state — fazele de boss, în loc de măști de biți pe un câmp phase. Cele 104 câmpuri m_uiPhase dispar.
+sequence { ... wait ... } — asta e primitiva pe care nici EventAI, nici SD3 n-o au ca primitivă. În SD3 fiecare secvență RP e un timer + un switch pe un contor de pas. Aici e cel mai mare câștig, și e și tot ce face dbscripts.
+selectori de țintă ca valori de prim rang — random(player, not tank, 40y), threat.top, threat.top except current, unit with aura 12345. Cele 676 de Select*Target sunt aproape toate una din 8 forme.
+Starea de instanță — unde se câștigă cele 80 de scripturi
+
+instance 533 "Naxxramas" {
+    encounter anub'rekhan, faerlina, maexxna, patchwerk, ...   -- persisted, no code
+    door 181126 opens when anub'rekhan == done
+    door 181209 opens when faerlina == done
+}
+Salvarea/încărcarea, GetData/SetData, verificarea „e vreun boss în progres" și deschiderea ușilor sunt derivate din declarație. Nu se mai scrie niciun m_auiEncounter. Asta e ce transformă 43/43 „grele" în 43/43 date.
+
+Ce rămâne în afară — cei 5%
+N-o să pretind că e 100%, și e important să numesc ce nu intră:
+
+Chess event din Karazhan (76 KB, ChessPieceScript) — un joc întreg cu tablă și AI de mutare. Nu e comportament de creatură.
+Illidan / Kael'thas — coregrafie multi-fază cu geometrie proprie.
+Efectele de vrajă „dummy" cu logică proprie (57 SpellScript + 15 AuraScript) — astea nu sunt AI, sunt reguli de joc. Rămân C++ sau trec în Luau.
+Cele ~86 de alocări reale și ~110 containere construite de script.
+Estimarea mea onestă: ~93-96% din clase, ~85% din linii. Restul rămâne SD3 — și e în regulă, pentru că seam-ul deja permite mai multe motoare simultan, cu licitație pentru rol.
+
+Planul
+Faza 0 — recensământ mecanic (1 pas, verificabil). Un parser peste cele 319 fișiere care clasifică fiecare clasă în: absorbabilă / absorbabilă-cu-primitiva-X / reziduală. Nu estimări — o listă. Dacă numărul nu iese peste 90%, designul se schimbă înainte să scriu cod.
+
+Faza 1 — MAI ca IEngine, doar primitiva 2. Implementez secvențele și demonstrez că DbScriptEngine poate fi șters: cele 90 de opcode-uri devin acțiuni MAI, cele 10 tabele devin secvențe MAI. Test diferențial: rulez ambele motoare pe aceleași evenimente și compar urmele de acțiuni. Zero diferențe, sau nu merge mai departe.
+
+Faza 2 — regulile + starea. EventAI devine un front-end care traduce creature_ai_scripts în reguli MAI. Aceleași teste diferențiale.
+
+Faza 3 — stare de instanță declarativă. Cele 80 de scripturi de instanță.
+
+Faza 4 — conversia SD3, cu un traducător automat pentru cele 74% triviale și revizuire umană pentru rest.
+
+Obiecția pe care trebuie s-o pun eu
+„De ce nu pur și simplu Luau, că tocmai l-ai băgat?" Răspunsul cinstit: pentru că 74% din SD3 e tipar, nu logică. Un tipar scris ca date poate fi validat la încărcare contra lumii (vraja există? creatura există? textul are traducere?) — exact ce face EventAI azi și ce niciun VM nu-ți dă. Poate fi generat de o unealtă, diff-uit, și nu costă un GC pe hartă. Luau e pentru cei 5% deschiși; MAI e pentru cei 95% care se repetă.
+
+Riscul real al propunerii: expresiile. Cele 9.912 if sunt partea grea, nu acțiunile. Dacă limbajul de expresii iese prea sărac, absorbția pică sub 70% și rămâi cu două sisteme în loc de unul. De-aia Faza 0 măsoară exact ce forme au gărzile alea, înainte de orice altceva.
