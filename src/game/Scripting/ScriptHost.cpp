@@ -116,6 +116,15 @@ namespace scripting
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new LuauEngine()));
 #endif
+            // EventAI BEFORE MAI, and the order is load order rather than
+            // precedence: the two bid on different AINames and never compete,
+            // but MAI's rules are still converted from `creature_ai_scripts`
+            // at start-up, and an engine cannot convert a table that the
+            // engine after it has not read yet. The dependency leaves when the
+            // rules come from `mai_rule`, and this comment with it.
+            state.engines.push_back(
+                std::unique_ptr<IEngine>(new EventAiEngine()));
+
             // MAI, where DbScriptEngine was. It reads the same tables through
             // its own model and starts the same sequences from the same rows;
             // what made the swap something other than an act of faith is the
@@ -124,8 +133,6 @@ namespace scripting
             // the same tick.
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new MaiEngine()));
-            state.engines.push_back(
-                std::unique_ptr<IEngine>(new EventAiEngine()));
 
             return state;
         }

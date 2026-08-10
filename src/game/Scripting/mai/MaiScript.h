@@ -93,6 +93,45 @@ namespace mai
     };
 
     /**
+     * Who a step acts on, chosen from what the creature can see right now.
+     *
+     * EventAI's contribution to the model, and the one thing it had that the
+     * DB scripts genuinely lacked. A queued command list knows its source and
+     * its target when it is queued; a creature's AI does not -- "the second
+     * name on my threat list" is a question that can only be asked at the
+     * moment the action runs, and the answer changes between two ticks.
+     *
+     * It sits on the Step for exactly the reason Buddy does: it MODIFIES the
+     * step rather than being a parameter of the verb. EventAI declared it as a
+     * parameter, which is why its `cast` takes three arguments and its
+     * `remove_aura` takes the target FIRST -- the same concept, in a different
+     * column, per verb. Here it is one field in one place, and the per-verb
+     * knowledge of which of EventAI's columns held it lives in the lowering,
+     * where it can be read as a table and checked.
+     *
+     * Numbering is EventAI's own TARGET_T_*, unchanged, so a converted row
+     * means what it meant. SelectSelf is 0 and is therefore what a step with
+     * no selector at all gets -- which is right: a DB-script step acts as its
+     * source, and its source is itself.
+     */
+    enum Selector : uint8
+    {
+        SelectSelf              = 0,    ///< the creature running the rule
+        SelectVictim            = 1,    ///< highest threat
+        SelectSecondAggro       = 2,
+        SelectLastAggro         = 3,
+        SelectRandom            = 4,
+        SelectRandomNotTop      = 5,
+        SelectInvoker           = 6,    ///< whoever made the rule fire
+        SelectInvokerOwner      = 7,
+        SelectRandomPlayer      = 8,
+        SelectRandomPlayerNotTop = 9,
+        SelectEventSender       = 10,   ///< the creature that threw the AI event
+
+        SelectEnd
+    };
+
+    /**
      * One thing that happens, and when.
      *
      * @a atMs is measured from the START of the sequence, not from the step
@@ -113,6 +152,11 @@ namespace mai
         uint32   atMs = 0;
         ActionId action = ActionId::None;
         Buddy    buddy;
+
+        /// Whom to act on, resolved at the moment the step runs. Only a rule
+        /// ever sets this; a sequence started by the world has a source and a
+        /// target already and leaves it at SelectSelf.
+        Selector select = SelectSelf;
 
         /// Laid out in the order the action's ParamSpec table names them, so
         /// operand `n` is `SpecOf(action)->params[n]`. There is no other
@@ -198,6 +242,12 @@ namespace mai
         ObjectGuid      source;
         ObjectGuid      target;
         ObjectGuid      owner;          ///< the player holding an item source
+
+        /// The creature that threw the AI event this run was started by, when
+        /// one was. A guid like the rest and for the same reason: a sequence
+        /// outlives the moment that started it, and the sender can be dead by
+        /// the time a step three seconds in asks for it.
+        ObjectGuid      sender;
 
         bool Finished() const
         {

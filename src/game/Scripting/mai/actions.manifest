@@ -150,8 +150,25 @@ category ai = 0x11
     throw_ai_event          110   event:u32 radius:f32?
     set_throw_mask          111   mask:flags
 
+# The randomness EventAI expressed by having three columns. `talk` needed no
+# verb of its own because a text id is already four-wide -- picking one of four
+# IS what the facet is for -- but a sound and an emote are single values, so
+# choosing between three of them is a different verb rather than a wider one.
+category random = 0x15
+    random_sound            122   a:sound b:sound? c:sound?
+    random_emote            123   a:emote b:emote? c:emote?
+
+    # A phase from a RANGE, which `random_phase` cannot say: it picks from a
+    # list of up to three, and "somewhere between 1 and 16" is not a list.
+    random_phase_range      124   min:u32 max:u32
+
 category instance = 0x12
     set_instance_data       112   field:u32 value:u32
+
+    # The value is WHO, not a number: it stores the target's guid, which is not
+    # known until the step runs. That is why it cannot be set_instance_data64
+    # with two literal halves, and why it takes no value at all.
+    set_instance_data_guid  125   field:u32
     # Two halves, not a u64: an operand is one 32-bit cell, and widening every
     # one of them for the single verb that wants eight bytes -- a verb the live
     # world calls zero times -- is the wrong trade.

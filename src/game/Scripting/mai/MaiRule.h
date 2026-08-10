@@ -1,0 +1,125 @@
+/**
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * MaNGOS is a full featured server for World of Warcraft, supporting
+ * the following clients: 1.12.x, 2.4.3, 3.3.5a, 4.3.4a and 5.4.8
+ *
+ * Copyright (C) 2005-2026 MaNGOS <https://www.getmangos.eu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * World of Warcraft, and all World of Warcraft or Warcraft art, images,
+ * and lore are copyrighted by Blizzard Entertainment, Inc.
+ */
+
+#ifndef MANGOS_MAI_RULE_H
+#define MANGOS_MAI_RULE_H
+
+#include "MaiRules.gen.h"
+#include "MaiScript.h"
+
+#include <string>
+#include <vector>
+
+/**
+ * When a sequence starts.
+ *
+ * A sequence says what happens and when, from its own start. A rule says what
+ * makes it start. That is the whole of the difference between the two systems
+ * being folded together, and each of them spent real effort faking the other:
+ * EventAI faked sequences with timers, the DB scripts faked rules by having
+ * ten tables.
+ */
+namespace mai
+{
+    /**
+     * A rule's flags, named. The values are `creature_ai_scripts`'s own.
+     *
+     * Written out here so that nothing which merely RUNS rules has to include
+     * EventAI's headers to know what a bit means. The conversion reads that
+     * table; the engine reads these.
+     */
+    enum RuleFlags : uint8
+    {
+        RuleRepeatable = 0x01,  ///< fires more than once without being re-armed
+        RuleNormalOnly = 0x02,  ///< normal difficulty only
+        RuleHeroicOnly = 0x04,  ///< heroic difficulty only
+
+        /// Run ONE of the steps, chosen at random, rather than all of them.
+        /// An EventAI-ism: with three fixed action slots and no way to say
+        /// "then", picking one was the only randomness available.
+        RuleRandomStep = 0x20,
+
+        RuleDebugOnly  = 0x80
+    };
+
+    /**
+     * One trigger, its condition, and what it runs.
+     *
+     * The steps are a Sequence rather than a list, and that is not a detail:
+     * EventAI gave every row exactly three action slots -- because a table
+     * needs a fixed width, not because three is a natural number of things to
+     * do -- so a creature doing four things on aggro was two rows with the
+     * same trigger, the second one a fiction told to get more columns. A rule
+     * that starts a sequence has no such ceiling, and gets `wait` for free the
+     * moment the steps are allowed times.
+     */
+    struct Rule
+    {
+        uint32   id = 0;
+        RuleId   trigger = RuleId::None;
+
+        /// Laid out in the order this trigger's ParamSpec table names them.
+        Operand  operands[MaxOperands] = {};
+        uint8    given = 0;
+
+        /// The phases this rule does NOT fire in. Inverted, as the tables have
+        /// it, so a converted row means what it meant.
+        uint32   inversePhaseMask = 0;
+
+        /// Out of 100, and ZERO MEANS NEVER rather than always -- which is a
+        /// trap worth the line: the loader reports a rule with 0 as an error
+        /// and then keeps it, so a row written that way is loaded, valid, and
+        /// silent for ever.
+        uint8    chance = 100;
+        uint8    flags = 0;
+
+        Sequence steps;
+
+        bool Has(std::size_t slot) const
+        {
+            return (given & (1u << slot)) != 0;
+        }
+
+        uint32 Param(std::size_t slot, uint32 fallback = 0) const
+        {
+            return Has(slot) ? operands[slot].u : fallback;
+        }
+    };
+
+    /**
+     * Every rule one creature entry has, and the state a running one needs.
+     *
+     * Kept per ENTRY, not per creature: the rules are the same for every
+     * Onyxia in the world, and what differs between two of them is the timers
+     * and the phase, which live on the Actor.
+     */
+    struct RuleSet
+    {
+        uint32            creature = 0;
+        std::vector<Rule> rules;
+    };
+}
+
+#endif //MANGOS_MAI_RULE_H

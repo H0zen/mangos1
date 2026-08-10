@@ -139,6 +139,74 @@ namespace mai
             return false;
         }
 
+        bool RandomPhaseRange(Doing& doing, Step const& step)
+        {
+            if (!doing.actor)
+            {
+                return false;
+            }
+
+            uint32 const least = Given(step, 0);
+            uint32 const most = Given(step, 1);
+
+            // An inverted range is the row's mistake, not a reason to pick
+            // one end of it silently: the original swapped them, and so does
+            // this, because a phase is still a phase either way round.
+            uint32 const low = least < most ? least : most;
+            uint32 const high = least < most ? most : least;
+
+            doing.actor->phases.current = urand(low, high) & 31u;
+            return false;
+        }
+
+        // ---- one of three ---------------------------------------------------
+
+        /// The slots that were actually given, which is what "one of three"
+        /// has to choose between. A row with two sounds must not pick the
+        /// third an eighth of the time and play silence.
+        uint32 OneOfThree(Step const& step, bool& any)
+        {
+            uint32 choices[3];
+            uint32 count = 0;
+            for (std::size_t slot = 0; slot < 3; ++slot)
+            {
+                if (step.Has(slot))
+                {
+                    choices[count++] = step.operands[slot].u;
+                }
+            }
+
+            any = count != 0;
+            return any ? choices[urand(0, count - 1)] : 0;
+        }
+
+        bool RandomSound(Doing& doing, Step const& step)
+        {
+            bool any = false;
+            uint32 const sound = OneOfThree(step, any);
+
+            if (any && doing.source)
+            {
+                doing.source->PlayDirectSound(sound);
+            }
+            return false;
+        }
+
+        bool RandomEmote(Doing& doing, Step const& step)
+        {
+            bool any = false;
+            uint32 const emote = OneOfThree(step, any);
+
+            if (any)
+            {
+                if (Unit* self = doing.SourceUnit())
+                {
+                    self->HandleEmote(emote);
+                }
+            }
+            return false;
+        }
+
         // ---- threat ---------------------------------------------------------
 
         bool ThreatChange(Doing& doing, Step const& step)
@@ -387,6 +455,36 @@ namespace mai
             return false;
         }
 
+        bool SetInstanceDataGuid(Doing& doing, Step const& step)
+        {
+            if (!doing.map)
+            {
+                return false;
+            }
+
+            // WHO, not a number. The target is whoever the step's selector
+            // picked, and its guid is the value -- which is why this cannot be
+            // set_instance_data64 with two literal halves: nothing knows the
+            // number until the step runs.
+            if (!doing.target)
+            {
+                sLog.outErrorDb("MAI: set_instance_data_guid with no target");
+                return false;
+            }
+
+            if (InstanceData* data = doing.map->GetInstanceData())
+            {
+                data->SetData64(Given(step, 0),
+                                doing.target->GetObjectGuid().GetRawValue());
+            }
+            else
+            {
+                sLog.outErrorDb("MAI: set_instance_data_guid on map %u, which "
+                                "has no instance data", doing.map->GetId());
+            }
+            return false;
+        }
+
         // ---- fields and flags -----------------------------------------------
 
         bool SetUnitField(Doing& doing, Step const& step)
@@ -519,6 +617,9 @@ namespace mai
             case ActionId::SetPhase:          return SetPhase(doing, step);
             case ActionId::IncPhase:          return IncPhase(doing, step);
             case ActionId::RandomPhase:       return RandomPhase(doing, step);
+            case ActionId::RandomPhaseRange:  return RandomPhaseRange(doing, step);
+            case ActionId::RandomSound:       return RandomSound(doing, step);
+            case ActionId::RandomEmote:       return RandomEmote(doing, step);
 
             case ActionId::ThreatChange:      return ThreatChange(doing, step);
             case ActionId::CallForHelp:       return CallForHelp(doing, step);
@@ -537,6 +638,8 @@ namespace mai
 
             case ActionId::SetInstanceData:   return SetInstanceData(doing, step);
             case ActionId::SetInstanceData64: return SetInstanceData64(doing, step);
+            case ActionId::SetInstanceDataGuid:
+                                              return SetInstanceDataGuid(doing, step);
 
             case ActionId::SetUnitField:      return SetUnitField(doing, step);
             case ActionId::SetUnitFlag:       return SetUnitFlag(doing, step);

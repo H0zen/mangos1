@@ -207,4 +207,108 @@ namespace mai
 
         return true;
     }
+
+    bool Raise(Step const& step, ScriptInfo& out, std::string& error)
+    {
+        ActionSpec const* spec = SpecOf(step.action);
+        if (!spec)
+        {
+            char buffer[128];
+            std::snprintf(buffer, sizeof(buffer),
+                          "action %u has no spec to write back out",
+                          uint32(step.action));
+            error = buffer;
+            return false;
+        }
+
+        // A row has two datalongs and no more. The three verbs that take a
+        // third own parameter are all MAI's own and all have native bodies, so
+        // this is unreachable in practice -- but silently dropping the third
+        // is not the way to find out if that ever stops being true.
+        if (spec->own > 2)
+        {
+            char buffer[160];
+            std::snprintf(buffer, sizeof(buffer),
+                          "%s takes %u own parameters and a row holds 2",
+                          spec->name, uint32(spec->own));
+            error = buffer;
+            return false;
+        }
+
+        out = ScriptInfo();
+        out.id = 0;
+        // Back to SECONDS, because that is what the column held and what the
+        // borrowed bodies were written against. The step already ran at the
+        // right moment -- MAI's runner decided that -- so this field is only
+        // ever read by a body that reports it, never to schedule anything.
+        out.delay = step.atMs / 1000;
+        out.command = uint32(spec->id);
+
+        out.buddyEntry = step.buddy.entry;
+        out.searchRadiusOrGuid = step.buddy.guidOrRadius;
+        out.data_flags = step.buddy.flags;
+
+        // A row's textId is -1 for "none", and 0 is a real text id, so the
+        // absent ones cannot be left zeroed.
+        for (int i = 0; i < MAX_TEXT_ID; ++i)
+        {
+            out.textId[i] = -1;
+        }
+
+        std::size_t slot = 0;
+
+        uint32* const raw[2] = { &out.raw.data[0], &out.raw.data[1] };
+        for (std::size_t i = 0; i < spec->own && i < 2; ++i, ++slot)
+        {
+            if (!step.Has(slot))
+            {
+                continue;
+            }
+
+            // Back through the same type the manifest declared, so a distance
+            // that was widened into a float on the way in is narrowed on the
+            // way out rather than reinterpreted. The bit pattern of 10.0f read
+            // as an integer is 1092616192, and a body handed that would summon
+            // a creature for eighteen days.
+            *raw[i] = spec->params[slot].type == ParamType::F32
+                          ? uint32(step.operands[slot].f)
+                          : step.operands[slot].u;
+        }
+
+        if (spec->facets & FacetTexts)
+        {
+            for (int i = 0; i < MAX_TEXT_ID; ++i, ++slot)
+            {
+                if (step.Has(slot))
+                {
+                    out.textId[i] = step.operands[slot].i;
+                }
+            }
+        }
+
+        if (spec->facets & FacetAt)
+        {
+            float* const at[4] = { &out.x, &out.y, &out.z, &out.o };
+            for (int i = 0; i < 4; ++i, ++slot)
+            {
+                if (step.Has(slot))
+                {
+                    *at[i] = step.operands[slot].f;
+                }
+            }
+        }
+
+        if (slot != spec->arity)
+        {
+            char buffer[192];
+            std::snprintf(buffer, sizeof(buffer),
+                          "%s wrote back %u of %u parameters -- the manifest "
+                          "and this raising disagree about its shape",
+                          spec->name, uint32(slot), uint32(spec->arity));
+            error = buffer;
+            return false;
+        }
+
+        return true;
+    }
 }

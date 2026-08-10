@@ -157,8 +157,14 @@ namespace mai
         ThrowAiEvent               = 110,
         SetThrowMask               = 111,
 
+        // random
+        RandomSound                = 122,
+        RandomEmote                = 123,
+        RandomPhaseRange           = 124,
+
         // instance
         SetInstanceData            = 112,
+        SetInstanceDataGuid        = 125,
         SetInstanceData64          = 113,
 
         // unit
@@ -494,10 +500,35 @@ namespace mai
         { "mask", ParamType::Flags, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsRandomSound[] =
+    {
+        { "a", ParamType::Sound, false },
+        { "b", ParamType::Sound, true },
+        { "c", ParamType::Sound, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRandomEmote[] =
+    {
+        { "a", ParamType::Emote, false },
+        { "b", ParamType::Emote, true },
+        { "c", ParamType::Emote, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRandomPhaseRange[] =
+    {
+        { "min", ParamType::U32, false },
+        { "max", ParamType::U32, false },
+    };
+
     inline constexpr ParamSpec g_actionParamsSetInstanceData[] =
     {
         { "field", ParamType::U32, false },
         { "value", ParamType::U32, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsSetInstanceDataGuid[] =
+    {
+        { "field", ParamType::U32, false },
     };
 
     inline constexpr ParamSpec g_actionParamsSetInstanceData64[] =
@@ -638,7 +669,11 @@ namespace mai
         { ActionId::SetInvincibility, "set_invincibility", g_actionParamsSetInvincibility, 2, 2, 0 },
         { ActionId::ThrowAiEvent, "throw_ai_event", g_actionParamsThrowAiEvent, 2, 2, 0 },
         { ActionId::SetThrowMask, "set_throw_mask", g_actionParamsSetThrowMask, 1, 1, 0 },
+        { ActionId::RandomSound, "random_sound", g_actionParamsRandomSound, 3, 3, 0 },
+        { ActionId::RandomEmote, "random_emote", g_actionParamsRandomEmote, 3, 3, 0 },
+        { ActionId::RandomPhaseRange, "random_phase_range", g_actionParamsRandomPhaseRange, 2, 2, 0 },
         { ActionId::SetInstanceData, "set_instance_data", g_actionParamsSetInstanceData, 2, 2, 0 },
+        { ActionId::SetInstanceDataGuid, "set_instance_data_guid", g_actionParamsSetInstanceDataGuid, 1, 1, 0 },
         { ActionId::SetInstanceData64, "set_instance_data64", g_actionParamsSetInstanceData64, 3, 3, 0 },
         { ActionId::SetUnitField, "set_unit_field", g_actionParamsSetUnitField, 2, 2, 0 },
         { ActionId::SetUnitFlag, "set_unit_flag", g_actionParamsSetUnitFlag, 1, 1, 0 },

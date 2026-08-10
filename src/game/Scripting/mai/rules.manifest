@@ -49,7 +49,10 @@ category sight = 0x01
     spawned                 11   condition:u32? value:u32?
     reached_waypoint        31   waypoint:u32? path:u32?
     reached_home            21
-    received_emote          22   emote:emote condition:u32? value:u32?
+    # Four columns, not three: a PlayerCondition takes two values, and the row
+    # has always carried both. Declared with three, the second was dropped and
+    # every condition that uses it silently became a different condition.
+    received_emote          22   emote:emote condition:u32? value:u32? value2:u32?
     received_ai_event       30   event:u32 sender:creature?
 
 category target = 0x02
@@ -64,10 +67,17 @@ category self = 0x03
     missing_aura            27   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
     timer                   29   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
 
+# The order here is the UNION'S, not the one that reads best, and the three
+# lines below were the only ones in this file that got that wrong. A trigger's
+# parameters are copied across by position -- that is what lets the lowering be
+# a loop instead of a table -- so declaring `radius` first when the row holds
+# the health deficit first does not rename a column, it swaps two values that
+# are both uint32 and both load. The symptom is a healer that watches a radius
+# of 3000 for a friend missing 30 health.
 category friendly = 0x04
-    friendly_hurt           14   radius:f32 missing_hp:u32 repeat:ms? repeat_max:ms?
-    friendly_controlled     15   radius:f32 repeat:ms? repeat_max:ms?
-    friendly_missing_buff   16   radius:f32 spell:spell repeat:ms? repeat_max:ms?
+    friendly_hurt           14   missing_hp:u32 radius:f32 repeat:ms? repeat_max:ms?
+    friendly_controlled     15   dispel:u32? radius:f32 repeat:ms? repeat_max:ms?
+    friendly_missing_buff   16   spell:spell radius:f32 repeat:ms? repeat_max:ms?
 
 category summons = 0x05
     summoned_unit           17   creature:creature? repeat:ms? repeat_max:ms?

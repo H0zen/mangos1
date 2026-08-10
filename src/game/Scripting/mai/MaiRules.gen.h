@@ -35,41 +35,6 @@
 
 namespace mai
 {
-    /// What a parameter is, and therefore what the loader checks
-    /// it against before a script is allowed to run.
-    enum class ParamType : uint8
-    {
-        Area,
-        Bool,
-        Creature,
-        Emote,
-        F32,
-        Faction,
-        Field,
-        Flags,
-        Gameobject,
-        I32,
-        Item,
-        Mail,
-        Map,
-        Movie,
-        Ms,
-        Quest,
-        Sound,
-        Spell,
-        Taxi,
-        Text,
-        U32,
-        U64,
-    };
-
-    struct ParamSpec
-    {
-        char const* name;
-        ParamType   type;
-        bool        optional;
-    };
-
     /// The verbs. The numbers are the DB-script command ids,
     /// unchanged, so an existing row lowers by number.
     enum class RuleId : uint16
@@ -222,6 +187,7 @@ namespace mai
         { "emote", ParamType::Emote, false },
         { "condition", ParamType::U32, true },
         { "value", ParamType::U32, true },
+        { "value2", ParamType::U32, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsReceivedAiEvent[] =
@@ -294,14 +260,15 @@ namespace mai
 
     inline constexpr ParamSpec g_ruleParamsFriendlyHurt[] =
     {
-        { "radius", ParamType::F32, false },
         { "missing_hp", ParamType::U32, false },
+        { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsFriendlyControlled[] =
     {
+        { "dispel", ParamType::U32, true },
         { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
@@ -309,8 +276,8 @@ namespace mai
 
     inline constexpr ParamSpec g_ruleParamsFriendlyMissingBuff[] =
     {
-        { "radius", ParamType::F32, false },
         { "spell", ParamType::Spell, false },
+        { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
     };
@@ -391,16 +358,6 @@ namespace mai
         { "event", ParamType::U32, false },
     };
 
-    /// Which shared facets an action carries, and therefore
-    /// where its own parameters stop and theirs begin. The
-    /// lowering from `dbscripts_on_*` reads this instead of
-    /// having a case per verb: a DB row is two datalongs plus
-    /// exactly these facets, so knowing which ones apply is
-    /// the whole of the mapping.
-    enum Facet : uint8
-    {
-    };
-
     struct RuleSpec
     {
         RuleId            id;
@@ -428,7 +385,7 @@ namespace mai
         { RuleId::Spawned, "spawned", g_ruleParamsSpawned, 2, 2, 0 },
         { RuleId::ReachedWaypoint, "reached_waypoint", g_ruleParamsReachedWaypoint, 2, 2, 0 },
         { RuleId::ReachedHome, "reached_home", nullptr, 0, 0, 0 },
-        { RuleId::ReceivedEmote, "received_emote", g_ruleParamsReceivedEmote, 3, 3, 0 },
+        { RuleId::ReceivedEmote, "received_emote", g_ruleParamsReceivedEmote, 4, 4, 0 },
         { RuleId::ReceivedAiEvent, "received_ai_event", g_ruleParamsReceivedAiEvent, 2, 2, 0 },
         { RuleId::TargetHealthBelow, "target_health_below", g_ruleParamsTargetHealthBelow, 4, 4, 0 },
         { RuleId::TargetCasting, "target_casting", g_ruleParamsTargetCasting, 2, 2, 0 },
@@ -439,7 +396,7 @@ namespace mai
         { RuleId::MissingAura, "missing_aura", g_ruleParamsMissingAura, 4, 4, 0 },
         { RuleId::Timer, "timer", g_ruleParamsTimer, 4, 4, 0 },
         { RuleId::FriendlyHurt, "friendly_hurt", g_ruleParamsFriendlyHurt, 4, 4, 0 },
-        { RuleId::FriendlyControlled, "friendly_controlled", g_ruleParamsFriendlyControlled, 3, 3, 0 },
+        { RuleId::FriendlyControlled, "friendly_controlled", g_ruleParamsFriendlyControlled, 4, 4, 0 },
         { RuleId::FriendlyMissingBuff, "friendly_missing_buff", g_ruleParamsFriendlyMissingBuff, 4, 4, 0 },
         { RuleId::SummonedUnit, "summoned_unit", g_ruleParamsSummonedUnit, 3, 3, 0 },
         { RuleId::SummonDied, "summon_died", g_ruleParamsSummonDied, 3, 3, 0 },

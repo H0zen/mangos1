@@ -30,7 +30,7 @@
 --   A step's parameters are `name=value` pairs in one text column, named by
 --   the manifest:
 --
---       cast_spell    spell=11962 flags=1
+--       cast_spell    spell=11962 flags=1   -- flags are CAST flags here
 --       talk          text0=-1000123 text1=-1000124
 --       temp_summon_creature  entry=2044 despawn_delay=300000
 --                             x=-10953.3 y=988.509 z=98.984 o=5.349
@@ -179,6 +179,21 @@ CREATE TABLE `mai_rule_step`
     -- proved, not during it.
     `action`   VARCHAR(48) NOT NULL,
     `params`   VARCHAR(512) NOT NULL DEFAULT '',
+
+    -- WHO the step acts on, asked at the moment it runs. Not part of `params`
+    -- for the same reason the buddy is not: it modifies the step rather than
+    -- being an argument of the verb. EventAI declared it as a parameter, which
+    -- is why its `cast` took three arguments and its `remove_aura` took the
+    -- target FIRST -- one concept, a different column per verb.
+    --
+    -- Zero is "itself", which is what a step with nothing to choose gets. The
+    -- numbers are EventAI's own TARGET_T_*, unchanged.
+    `select`   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- How the selected unit joins the step: 0x01 means the creature acts ON it
+    -- (`cast_spell`), and without the bit the selected unit IS the actor
+    -- (`set_unit_field`). The same flags `mai_step` uses.
+    `buddy_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
     PRIMARY KEY (`creature`, `rule`, `seq`),
     CONSTRAINT `mai_rule_step_belongs_to_a_rule`

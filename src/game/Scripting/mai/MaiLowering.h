@@ -52,6 +52,29 @@ namespace mai
 
     bool Lower(ScriptChain const& chain, uint32 id, char const* name,
                Sequence& out, std::string& error);
+
+    /**
+     * A step, written back out as the row it would have been.
+     *
+     * The inverse of the first Lower, and it exists for a reason that is
+     * temporary in the same way the rest of this file is. A step that came
+     * from `dbscripts_on_*` carries a pointer to the row it was lowered from,
+     * and the borrowed effect bodies read that row. A step that came from a
+     * RULE has no row -- EventAI's tables are a different shape entirely -- so
+     * the twelve verbs whose bodies are still ScriptAction's would have had
+     * nothing to read, and a creature converted to MAI could set its phase and
+     * change its threat but could not talk, cast or summon.
+     *
+     * So the row is manufactured. It is honest scaffolding rather than a
+     * trick: the manifest was extracted from the very union this fills in, so
+     * the mapping is the same table read backwards, and it disappears verb by
+     * verb as each grows a native body -- the last one to go takes this with
+     * it.
+     *
+     * @return false when the step's own shape and the manifest disagree, which
+     *         can only happen if one of them was edited without the other.
+     */
+    bool Raise(Step const& step, ScriptInfo& out, std::string& error);
 }
 
 #endif //MANGOS_MAI_LOWERING_H

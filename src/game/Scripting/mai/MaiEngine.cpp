@@ -25,17 +25,18 @@
 
 #include "MaiEngine.h"
 
+#include "mai/MaiCreatureAI.h"
+#include "mai/MaiExecute.h"
 #include "mai/MaiLowering.h"
+#include "mai/MaiRuleLowering.h"
 #include "mai/MaiRunner.h"
-#include "mai/MaiPerform.h"
-#include "mai/MaiTargeting.h"
 #include "mai/MaiValidate.h"
+
+#include "eventai/engine/CreatureEventAI.h"
+#include "eventai/engine/CreatureEventAIMgr.h"
 
 #include "Creature.h"
 #include "GameObject.h"
-#include "GridNotifiers.h"
-#include "GridNotifiersImpl.h"
-#include "CellImpl.h"
 #include "Log.h"
 #include "Map.h"
 #include "ObjectMgr.h"
@@ -50,131 +51,15 @@ namespace scripting
 {
     namespace
     {
-        /**
-         * The creature or game object a step's buddy fields name.
-         *
-         * The half of targeting that needs a world, kept apart from the half
-         * that does not -- see MaiTargeting.h. This mirrors the DB scripts'
-         * own search exactly, including which grid it visits: a pet is found
-         * among world objects and an ordinary creature among grid objects, and
-         * the two are different visits rather than two names for one.
-         *
-         * @return false when the row asked for a buddy and none was found,
-         *         which stops the step. A row that asked for none returns true
-         *         with @a buddy left null, which is the common case.
-         */
-        bool FindBuddy(Map* map, mai::Step const& step, WorldObject* source,
-                       WorldObject* target, WorldObject*& buddy)
-        {
-            buddy = nullptr;
-
-            if (!step.buddy.entry)
-            {
-                return true;
-            }
-
-            uint8 const flags = step.buddy.flags;
-
-            if (flags & mai::BuddyByGuid)
-            {
-                if (CreatureInfo const* info =
-                        ObjectMgr::GetCreatureTemplate(step.buddy.entry))
-                {
-                    Creature* found = map->GetCreature(
-                        info->GetObjectGuid(step.buddy.guidOrRadius));
-
-                    // A dead buddy named by guid stops the step rather than
-                    // being acted through, which is the original's rule and
-                    // not an obvious one: by ENTRY the search simply looks
-                    // among the living instead.
-                    if (found && !found->IsAlive())
-                    {
-                        return false;
-                    }
-                    buddy = found;
-                }
-                else
-                {
-                    buddy = map->GetGameObject(ObjectGuid(
-                        HIGHGUID_GAMEOBJECT, step.buddy.entry,
-                        step.buddy.guidOrRadius));
-                }
-
-                return buddy != nullptr;
-            }
-
-            if (!source && !target)
-            {
-                return false;
-            }
-
-            // Prefer a non-player as the searcher: a player standing anywhere
-            // near the action would otherwise decide what "nearby" means.
-            WorldObject* searcher = source ? source : target;
-            if (searcher->GetTypeId() == TYPEID_PLAYER && target &&
-                target->GetTypeId() != TYPEID_PLAYER)
-            {
-                searcher = target;
-            }
-
-            float const radius = float(step.buddy.guidOrRadius);
-
-            if (ObjectMgr::GetCreatureTemplate(step.buddy.entry))
-            {
-                Creature* found = nullptr;
-
-                if (flags & mai::BuddyIsDespawned)
-                {
-                    MaNGOS::AllCreaturesOfEntryInRangeCheck check(
-                        searcher, step.buddy.entry, radius);
-                    MaNGOS::CreatureLastSearcher<
-                        MaNGOS::AllCreaturesOfEntryInRangeCheck>
-                            search(found, check);
-                    Cell::VisitGridObjects(searcher, search, radius);
-                }
-                else
-                {
-                    MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck
-                        check(*searcher, step.buddy.entry, true, false, radius,
-                              true);
-                    MaNGOS::CreatureLastSearcher<
-                        MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck>
-                            search(found, check);
-
-                    if (flags & mai::BuddyIsPet)
-                    {
-                        Cell::VisitWorldObjects(searcher, search, radius);
-                    }
-                    else
-                    {
-                        Cell::VisitGridObjects(searcher, search, radius);
-                    }
-                }
-
-                // The original's last resort, kept: a script that names its
-                // own entry and finds nobody else meant itself.
-                if (!found && searcher->GetEntry() == step.buddy.entry)
-                {
-                    buddy = searcher;
-                    return true;
-                }
-
-                buddy = found;
-            }
-            else
-            {
-                GameObject* found = nullptr;
-                MaNGOS::NearestGameObjectEntryInObjectRangeCheck check(
-                    *searcher, step.buddy.entry, radius);
-                MaNGOS::GameObjectLastSearcher<
-                    MaNGOS::NearestGameObjectEntryInObjectRangeCheck>
-                        search(found, check);
-                Cell::VisitGridObjects(searcher, search, radius);
-                buddy = found;
-            }
-
-            return buddy != nullptr;
-        }
+        /// What `creature_template.AIName` says to reach this engine.
+        ///
+        /// Its OWN name, not EventAI's, and that is the migration plan rather
+        /// than an oversight: the two engines bid on different names, so a
+        /// single creature can be moved across by changing one column and
+        /// moved back by changing it again. A flag day for 5,822 creatures,
+        /// with no way to compare the two side by side, is not a thing to do
+        /// to a live world.
+        char const AI_NAME[] = "MAI";
 
         /**
          * The subject of a case, as the type that case is about.
@@ -311,90 +196,57 @@ namespace scripting
             return node != path->end() ? node->second.script_id : 0;
         }
 
-        WorldObject* Resolve(Map* map, ObjectGuid guid)
-        {
-            return guid.IsEmpty() ? nullptr : map->GetWorldObject(guid);
-        }
-
         /**
-         * Carry out one step.
+         * Carry out one step of a sequence the WORLD started.
          *
-         * MIGRATION SCAFFOLDING, and the commit that added it says so at
-         * length: MAI owns the model, the clock, the targeting and the
-         * validation, and hands the effect itself to the body that already
-         * exists and is already right. Twelve hundred lines of effects retyped
-         * blind, with no differential test yet to catch a transposition, would
-         * be the largest unforced risk in this whole exercise.
+         * A thin call now that a creature's AI runs steps too: what a step
+         * does belongs to mai::Execute, and this only says which of the Run's
+         * fields a world-started sequence fills in. Which is most of the
+         * point -- the two callers differ in what they know, not in what a
+         * step means.
          *
          * @return true when the sequence should stop here.
          */
-        bool Perform(Map* map, mai::Frame const& frame,
-                     mai::Step const& step)
+        bool Perform(Map* map, mai::Frame const& frame, mai::Step const& step)
         {
-            ScriptInfo const* row = static_cast<ScriptInfo const*>(step.origin);
-            if (!row)
-            {
-                return false;
-            }
+            mai::Run run;
+            run.map = map;
+            run.source = frame.source;
+            run.target = frame.target;
+            run.owner = frame.owner;
+            run.origin = frame.sequence ? frame.sequence->origin : 0;
 
-            WorldObject* source = Resolve(map, frame.source);
-            WorldObject* target = Resolve(map, frame.target);
+            // No creature behind it, so no Actor and no selector: a queued
+            // command list was told its target when it was queued.
+            run.actor = nullptr;
+            run.fromRule = false;
 
-            WorldObject* found = nullptr;
-            if (!FindBuddy(map, step, source, target, found))
-            {
-                // The row asked for someone who is not there. The original
-                // logs and skips the step; the sequence carries on.
-                return false;
-            }
-
-            mai::Cast<WorldObject*> cast;
-            cast.source = source;
-            cast.target = target;
-            cast.buddy = found;
-
-            WorldObject* finalSource = nullptr;
-            WorldObject* finalTarget = nullptr;
-            mai::Redirect(step.buddy.flags, cast, finalSource, finalTarget);
-
-            // The native verbs first. A step MAI implements itself never
-            // reaches ScriptAction, which is what lets the borrowed bodies be
-            // retired one at a time: each verb that grows a native body simply
-            // stops falling through.
-            mai::Doing doing;
-            doing.map = map;
-            doing.source = finalSource;
-            doing.target = finalTarget;
-            doing.owner = frame.owner;
-            doing.actor = nullptr;  // a world-started sequence has no creature
-
-            bool handled = false;
-            bool const stop = mai::PerformNative(doing, step, handled);
-            if (handled)
-            {
-                return stop;
-            }
-
-            ScriptAction action(DBScriptType(frame.sequence->origin), map,
-                                finalSource ? finalSource->GetObjectGuid()
-                                            : ObjectGuid(),
-                                finalTarget ? finalTarget->GetObjectGuid()
-                                            : ObjectGuid(),
-                                frame.owner, row);
-            return action.HandleScriptStep();
+            return mai::Execute(run, step);
         }
     }
 
     void MaiEngine::LoadData(LoadPhase phase)
     {
         // Last: every table a step's parameters are checked against has to be
-        // in place before any of them can be checked at all. That ordering is
-        // the entire reason LoadPhase exists.
+        // in place before any of them can be checked at all.
         if (phase != LoadPhase::Final)
         {
             return;
         }
 
+        LoadSequences();
+
+        // ONCE, and never from a reload. Every live MaiCreatureAI holds
+        // pointers into m_rules -- that is the whole point of keeping the
+        // rules per entry rather than per creature -- so rebuilding it under
+        // them is a use after free on every creature currently in the world.
+        // The sequences above have no such problem because a reload clears the
+        // frames that point into them first.
+        LoadRules();
+    }
+
+    void MaiEngine::LoadSequences()
+    {
         m_sequences.clear();
 
         std::size_t sequences = 0;
@@ -444,6 +296,115 @@ namespace scripting
                        uint32(refusedSteps));
     }
 
+    void MaiEngine::LoadRules()
+    {
+        // MIGRATION SCAFFOLDING, the twin of the lowering above: the rules are
+        // converted from `creature_ai_scripts` at start-up rather than read
+        // from `mai_rule`, so that the rule engine can be proved against the
+        // twenty thousand rows a live world already has. When the table is
+        // what gets read, this goes and the ordering dependency in
+        // ScriptHost.cpp goes with it.
+        m_rules.clear();
+
+        std::size_t creatures = 0;
+        std::size_t rules = 0;
+        std::size_t refused = 0;
+        std::size_t refusedSteps = 0;
+
+        for (auto const& entry : sEventAIMgr.GetCreatureEventAIMap())
+        {
+            mai::RuleSet set;
+            set.creature = entry.first;
+            set.rules.reserve(entry.second.size());
+
+            for (CreatureEventAI_Event const& row : entry.second)
+            {
+                mai::Rule rule;
+                std::string error;
+                if (!mai::Lower(row, rule, error))
+                {
+                    // Named, not counted: every one of these is a question for
+                    // a manifest rather than a broken row, and a total with no
+                    // reasons is a number nobody can act on.
+                    sLog.outErrorDb("MAI: creature %u event %u: %s",
+                                    entry.first, row.event_id, error.c_str());
+                    ++refused;
+                    continue;
+                }
+
+                // Held up against the world exactly as a sequence is: a rule
+                // naming a spell this build does not have is refused now
+                // rather than logged every time the creature is pulled.
+                refusedSteps += mai::Validate(rule.steps);
+
+                set.rules.push_back(std::move(rule));
+                ++rules;
+            }
+
+            if (set.rules.empty())
+            {
+                continue;
+            }
+
+            ++creatures;
+            m_rules.emplace(entry.first, std::move(set));
+        }
+
+        sLog.outString("MAI: %u rule(s) over %u creature(s); %u row(s) the "
+                       "manifests cannot yet express, %u step(s) naming "
+                       "something this world does not have.",
+                       uint32(rules), uint32(creatures), uint32(refused),
+                       uint32(refusedSteps));
+    }
+
+    int MaiEngine::Bid(Context const& ctx, RoleId role, Ref subject)
+    {
+        if (role != RoleId::CreatureAI || ctx.scope != Context::Scope::Map ||
+            !ctx.map)
+        {
+            return NoBid;
+        }
+
+        Creature const* creature = CreatureOn(ctx, subject);
+        if (!creature)
+        {
+            return NoBid;
+        }
+
+        // Not a totem, for the reason EventAI is not: the world picked TotemAI
+        // by NPC flag before the AI registry was ever consulted, and the
+        // auction runs before those flags are read. The refusal is inherited
+        // along with the rules.
+        if (creature->IsTotem())
+        {
+            return NoBid;
+        }
+
+        // BidNormal, not BidStrong: the binding is per TEMPLATE ENTRY, and an
+        // engine holding a script bound to one particular creature knows more
+        // about it than a row naming every copy of the entry.
+        return creature->GetAIName() == AI_NAME ? BidNormal : NoBid;
+    }
+
+    CreatureAI* MaiEngine::MakeCreatureAI(Context const& ctx,
+                                          Creature* creature)
+    {
+        (void)ctx;
+
+        if (!creature)
+        {
+            return nullptr;
+        }
+
+        // Never declines, and an entry with no rules is not a refusal: an
+        // AIName pointing at an empty rule set has always meant a creature
+        // that does nothing in particular, which is a thing worth being able
+        // to say.
+        auto found = m_rules.find(creature->GetEntry());
+        return new mai::MaiCreatureAI(
+            creature, found != m_rules.end() ? &found->second : nullptr);
+    }
+
     bool MaiEngine::ReloadData(char const* table)
     {
         // The DB-script tables are MAI's now, so the reload commands are too.
@@ -479,7 +440,11 @@ namespace scripting
         // m_sequences, so rebuilding it while a map thread walked one would be
         // a use after free.
         m_frames.clear();
-        LoadData(LoadPhase::Final);
+
+        // The SEQUENCES only. The rules are deliberately not rebuilt here --
+        // see LoadData -- so a `db_scripts` reload cannot pull the ground out
+        // from under every creature currently running MAI.
+        LoadSequences();
         return true;
     }
 

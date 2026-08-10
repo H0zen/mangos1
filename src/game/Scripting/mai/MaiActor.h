@@ -65,8 +65,9 @@ namespace mai
      */
     struct Phases
     {
-        uint32 current = 1;     ///< the phase NUMBER, 0..31; 1 is where a
-                                ///< creature starts, as EventAI had it
+        uint32 current = 0;     ///< the phase NUMBER, 0..31; ZERO is where a
+                                ///< creature starts, as EventAI had it -- and
+                                ///< a creature that has died is put back to it
 
         bool Allows(uint32 inversePhaseMask) const
         {

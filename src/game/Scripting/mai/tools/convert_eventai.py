@@ -54,64 +54,13 @@ COLUMNS = ('id creature_id event_type phase_mask chance flags '
            'a1 a1p1 a1p2 a1p3 a2 a2p1 a2p2 a2p3 a3 a3p1 a3p2 a3p3 '
            'comment').split()
 
-# EventAI's action_type -> the MAI verb it means, and how its three params map.
-# A name, not a number: the two systems number the same verbs differently and
-# there is no reason for MAI to inherit either numbering for a translation.
-#
-# The parameter lists are the MAI parameter names, in the order EventAI's
-# param1..3 fill them. An empty slot means EventAI did not use that column.
-ACTIONS = {
-    1:  ('talk', ['text0', 'text1', 'text2']),
-    2:  ('set_faction', ['faction', 'flags']),
-    3:  ('morph_to_entry_or_model', ['entry']),
-    4:  ('play_sound', ['sound']),
-    5:  ('emote', ['emote']),
-    6:  ('talk', ['text0', 'text1', 'text2']),
-    7:  ('talk', ['text0', 'text1', 'text2']),
-    8:  ('talk', ['text0', 'text1', 'text2']),
-    9:  ('play_sound', ['sound']),
-    10: ('emote', ['emote']),
-    11: ('cast_spell', ['spell', 'flags']),
-    12: ('temp_summon_creature', ['entry', 'despawn_delay']),
-    13: ('threat_change', ['percent']),
-    14: ('threat_change', ['percent']),
-    15: ('quest_event', ['quest']),
-    16: ('cast_event', ['creature', 'spell']),
-    17: ('set_unit_field', ['field', 'value']),
-    18: ('set_unit_flag', ['value']),
-    19: ('remove_unit_flag', ['value']),
-    20: ('auto_attack', ['enable']),
-    21: ('combat_movement', ['enable', 'melee']),
-    22: ('set_phase', ['phase']),
-    23: ('inc_phase', ['by']),
-    24: ('evade', []),
-    25: ('flee_for_assist', []),
-    26: ('quest_event', ['quest']),
-    27: ('cast_event', ['creature', 'spell']),
-    28: ('remove_aura', ['spell']),
-    29: ('ranged_movement', ['distance', 'angle']),
-    30: ('random_phase', ['a', 'b', 'c']),
-    31: ('random_phase', ['a', 'b']),
-    32: ('temp_summon_creature', ['entry', 'despawn_delay']),
-    33: ('killed_monster', ['creature']),
-    34: ('set_instance_data', ['field', 'value']),
-    35: ('set_instance_data64', ['field', 'low']),
-    36: ('update_template', ['entry', 'faction']),
-    37: ('die', []),
-    38: ('zone_combat_pulse', []),
-    39: ('call_for_help', ['radius']),
-    40: ('set_sheath', ['state']),
-    41: ('despawn_self', ['delay']),
-    42: ('set_invincibility', ['hp', 'percent']),
-    43: ('mount_to_entry_or_model', ['entry']),
-    44: ('talk', ['text0']),
-    45: ('throw_ai_event', ['event', 'radius']),
-    46: ('set_throw_mask', ['mask']),
-    47: ('stand_state', ['state']),
-    48: ('change_movement', ['type', 'wander_distance']),
-    49: ('temp_summon_creature', ['entry', 'despawn_delay']),
-    50: ('emote_target', ['emote']),
-}
+# The EventAI mapping is DECLARED, in eventai.map, and read here through the
+# generator's own parser rather than copied. It used to be a table in this file
+# and a second table in MaiRuleLowering.cpp, which is exactly the drift the
+# manifests exist to end -- and it was not hypothetical: the positional table
+# that lived here put a target selector into the cast flags of 6,556 rows and
+# dropped the real cast flags of 3,873.
+import gen_actions
 
 # EventAI's event_type -> the MAI rule it means, and its four parameters.
 RULES = {
@@ -207,13 +156,118 @@ HEADER = """-- MAI: creature %(entry)s
 """
 
 
+# The two TargetFlags this conversion can set. Named here because the values
+# are the DB's own and MaiTargeting.h is where the names live.
+BUDDY_AS_TARGET = 0x01
+COMMAND_ADDITIONAL = 0x08
+
+# TARGET_T_*, for the prose. The numbers are EventAI's own and are what goes
+# into the `select` column; these names are only ever read by a person.
+SELECTORS = (
+    'itself', 'the victim', 'second on threat', 'last on threat',
+    'anyone on threat', 'anyone but the top', 'whoever triggered it',
+    "that unit's owner", 'a player on threat', 'a player but the top',
+    'whoever sent the event',
+)
+
+
+def load_summons(path):
+    """spawn id -> (x, y, z, o, despawn). Empty when no export was given."""
+    summons = {}
+    if not path:
+        return summons
+
+    for raw in io.open(path, encoding='utf-8'):
+        cells = raw.rstrip(EOL).split(TAB)
+        if len(cells) != 6:
+            continue
+        summons[int(cells[0])] = tuple(cells[1:])
+    return summons
+
+
+def build_step(verb, slots, flags, pin_slot, pin_value, form, args, names,
+               optional, summons, problems):
+    """One action slot, as (verb, params, select, flags) or None."""
+    filled = {}
+    select = 0
+    buddy = flags
+
+    if form == 'entry_or_model':
+        # Two columns, one slot: an entry in the first or a model id in the
+        # second, and the verb says which it holds with a flag. Both zero is
+        # demorph, which is a literal zero rather than an absent parameter.
+        if int(args[0]):
+            filled[0] = args[0]
+        elif int(args[1]):
+            filled[0] = args[1]
+            buddy |= COMMAND_ADDITIONAL
+        else:
+            filled[0] = '0'
+
+    elif form == 'summon_spawn':
+        # The third column names a row in `creature_ai_summons` holding the
+        # position and the despawn time -- resolved here, at conversion, so a
+        # step carries its own position and needs no second lookup per summon.
+        spawn = int(args[2])
+        if spawn not in summons:
+            problems['summon %d is not in creature_ai_summons' % spawn] += 1
+            return None
+
+        x, y, z, o, despawn = summons[spawn]
+        filled[0] = args[0]
+        select = int(args[1])
+        if int(despawn):
+            filled[names.index('despawn_delay')] = despawn
+        for axis, value in zip(('x', 'y', 'z', 'o'), (x, y, z, o)):
+            filled[names.index(axis)] = value
+
+    else:
+        for column, slot in enumerate(slots):
+            if slot is None:
+                continue
+            if slot == 'select':
+                select = int(args[column])
+                continue
+            filled[slot] = args[column]
+
+    if pin_slot is not None:
+        filled[pin_slot] = str(pin_value)
+
+    if select >= 11:
+        problems['%s: %d is not a target selector' % (verb, select)] += 1
+        return None
+
+    # In slot order, and a zero is dropped only where the manifest says the
+    # parameter is optional -- the lesson the db_scripts conversion taught, and
+    # the reason an unused EventAI text id (which is 0) does not become text 0.
+    written = []
+    for slot in sorted(filled):
+        name = names[slot]
+        value = filled[slot]
+        try:
+            if int(float(value)) == 0 and float(value) == 0 and name in optional:
+                continue
+        except ValueError:
+            pass
+        written.append('%s=%s' % (name, value))
+
+    return (verb, ' '.join(written), select, buddy)
+
+
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         sys.stderr.write(__doc__)
         return 1
 
     source, target = sys.argv[1], sys.argv[2]
+    summons = load_summons(sys.argv[3] if len(sys.argv) == 4 else None)
     os.makedirs(target, exist_ok=True)
+
+    # One mapping, read through the generator that also emits the C++ half.
+    facets, cats = gen_actions.parse(gen_actions.MANIFEST)
+    known = gen_actions.shapes(facets, cats)
+    mapping = {row[0]: row
+               for row in gen_actions.parse_map(gen_actions.EVENTAI, known)}
 
     action_optional = optional_names(os.path.join(MAI, 'actions.manifest'))
     rule_optional = optional_names(os.path.join(MAI, 'rules.manifest'))
@@ -241,12 +295,22 @@ def main():
             kind = int(row[slot])
             if kind == 0:
                 continue
-            if kind not in ACTIONS:
-                unknown_actions[kind] += 1
+
+            if kind not in mapping:
+                unknown_actions['action type %d is not in eventai.map' % kind] += 1
                 continue
-            verb, params = ACTIONS[kind]
-            args = [row['%sp%d' % (slot, i + 1)] for i in range(len(params))]
-            steps.append((verb, pairs(params, args, action_optional[verb])))
+
+            _kind, verb, slots, flags, pin, pinned, form, refused = mapping[kind]
+            if refused:
+                unknown_actions['action type %d %s' % (kind, refused)] += 1
+                continue
+
+            args = [row['%sp%d' % (slot, i + 1)] for i in range(3)]
+            step = build_step(verb, slots, flags, pin, pinned, form, args,
+                              known[verb][1], action_optional[verb], summons,
+                              unknown_actions)
+            if step:
+                steps.append(step)
 
         if not steps:
             continue
@@ -280,9 +344,16 @@ def main():
             if rule['phase_mask']:
                 when += ', except in phases 0x%02X' % rule['phase_mask']
             story.append('--   ' + when)
-            for verb, params in rule['steps']:
-                story.append('--       ' + verb
-                             + ((' ' + params) if params else ''))
+            for verb, params, select, _buddy in rule['steps']:
+                told = '--       ' + verb
+                if params:
+                    told += ' ' + params
+                # The selector is the thing EventAI could never say out loud:
+                # `cast_spell spell=11962 flags=1` meant "at the victim", and
+                # the 1 was in a column called flags.
+                if select:
+                    told += ' -> ' + SELECTORS[select]
+                story.append(told)
             if rule['comment']:
                 story.append('--       -- ' + rule['comment'])
 
@@ -302,15 +373,16 @@ def main():
         lines.append('')
 
         lines.append('INSERT INTO `mai_rule_step` (`creature`, `rule`, `seq`, '
-                     '`action`, `params`) VALUES')
+                     '`action`, `params`, `select`, `buddy_flags`) VALUES')
         values = []
         for rule in creatures[entry]:
-            for seq, (verb, params) in enumerate(rule['steps']):
-                values.append('(%d, %d, %d, %s, %s)'
+            for seq, (verb, params, select, buddy) in enumerate(rule['steps']):
+                values.append('(%d, %d, %d, %s, %s, %d, %d)'
                               % (entry, rule['id'], seq, quote(verb),
-                                 quote(params)))
+                                 quote(params), select, buddy))
                 fixture.write(TAB.join([str(entry), str(rule['id']),
-                                        str(seq), verb, params]) + EOL)
+                                        str(seq), verb, params,
+                                        str(select), str(buddy)]) + EOL)
                 steps += 1
             rules += 1
         lines.append((',' + EOL).join(values) + ';')

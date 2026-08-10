@@ -28,6 +28,7 @@
 
 #include "IScriptEngine.h"
 
+#include "mai/MaiRule.h"
 #include "mai/MaiScript.h"
 
 #include <cstddef>
@@ -65,6 +66,11 @@ namespace scripting
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
 
+        int Bid(Context const& ctx, RoleId role, Ref subject) override;
+
+        CreatureAI* MakeCreatureAI(Context const& ctx,
+                                   Creature* creature) override;
+
         void LoadData(LoadPhase phase) override;
         bool ReloadData(char const* table) override;
         void Tick(Context const& ctx, uint32 diff) override;
@@ -99,8 +105,27 @@ namespace scripting
         bool Start(Map* map, uint32 type, uint32 id, WorldObject* source,
                    WorldObject* target, uint32 unique);
 
+        /// The sequences, lowered from `db_scripts`. Re-runnable: a reload
+        /// clears the frames that point into them first.
+        void LoadSequences();
+
+        /// The rules, converted from `creature_ai_scripts`. Called ONCE, from
+        /// LoadData's final phase, after the table it reads has been read --
+        /// never from a reload, because live AI objects point into the result.
+        void LoadRules();
+
         std::unordered_map<Key, mai::Sequence, KeyHash> m_sequences;
         std::unordered_map<Map const*, std::vector<mai::Frame>> m_frames;
+
+        /// The rules, per creature ENTRY -- because that is what they are the
+        /// same for. Every Onyxia in the world has these rules; what differs
+        /// between two of them is the timers and the phase, which live on the
+        /// AI object rather than here.
+        ///
+        /// The AI objects hold pointers INTO this, so it must not be rebuilt
+        /// while any of them exist. Loading happens once at start-up and
+        /// reloading `creature_ai_scripts` is refused for exactly that reason.
+        std::unordered_map<uint32, mai::RuleSet> m_rules;
     };
 }
 
