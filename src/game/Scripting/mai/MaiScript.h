@@ -1,0 +1,191 @@
+/**
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * MaNGOS is a full featured server for World of Warcraft, supporting
+ * the following clients: 1.12.x, 2.4.3, 3.3.5a, 4.3.4a and 5.4.8
+ *
+ * Copyright (C) 2005-2026 MaNGOS <https://www.getmangos.eu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * World of Warcraft, and all World of Warcraft or Warcraft art, images,
+ * and lore are copyrighted by Blizzard Entertainment, Inc.
+ */
+
+#ifndef MANGOS_MAI_SCRIPT_H
+#define MANGOS_MAI_SCRIPT_H
+
+#include "MaiActions.gen.h"
+
+#include "ObjectGuid.h"
+#include "Platform/Define.h"
+
+#include <string>
+#include <vector>
+
+/**
+ * What a MAI script IS, once it has been read.
+ *
+ * A sequence of steps, each an action with a time. Nothing else yet -- rules
+ * and state arrive in later phases, and adding them before a sequence
+ * demonstrably replaces the DB scripts would be building on an unproven floor.
+ */
+namespace mai
+{
+    /**
+     * One parameter value.
+     *
+     * Small and flat on purpose. The manifest already said what type each slot
+     * has, so an operand does not need to carry one: the action's spec is the
+     * type, and this is only storage. Keeping it a plain 32-bit cell means a
+     * step is a fixed-size record, an array of them is contiguous, and reading
+     * one is not a pointer chase -- which matters because the commonest thing
+     * MAI will ever do is walk a handful of steps looking for the ones due.
+     *
+     * Float and integer share the cell rather than converting, because a
+     * coordinate and a spell id are both here and rounding one into the other
+     * is the kind of bug that shows up as a creature standing in the wrong
+     * place two years later.
+     */
+    union Operand
+    {
+        uint32 u;
+        int32  i;
+        float  f;
+    };
+
+    /// The most parameters any verb takes, facets included. `talk` takes four
+    /// texts; `temp_summon_creature` takes two of its own plus a position.
+    /// Checked at load, so a manifest edit that outgrows it fails loudly.
+    enum : std::size_t { MaxOperands = 8 };
+
+    /**
+     * One thing that happens, and when.
+     *
+     * @a atMs is measured from the START of the sequence, not from the step
+     * before it -- and that is the decision that lets one representation hold
+     * both systems. A `dbscripts_on_*` row carries exactly such an absolute
+     * delay, so lowering a row is a copy; a script that says `wait 2s` between
+     * two actions is accumulating into the same field. Written as a relative
+     * gap instead, every DB row would have to be rewritten on the way in, and
+     * a mistake there would be invisible.
+     *
+     * It also makes the runner trivial and, more to the point, INSPECTABLE: a
+     * sequence is a sorted list of (time, action), so what a script will do and
+     * when can be printed without running it. The differential test against the
+     * DB scripts is built on being able to do exactly that.
+     */
+    /**
+     * Who a step really acts on, when it is not the source.
+     *
+     * A DB-script row may redirect ANY command at a creature found near the
+     * actor -- by entry within a radius, or by guid outright, and optionally
+     * searched from the target rather than the source, or among the dead. It
+     * modifies the step rather than being a parameter of the verb, which is
+     * why it sits here and not in the manifest: declared there it would have
+     * been repeated 47 times and still been wrong about what it changes.
+     *
+     * An empty entry and guid means "no redirection", which is the common case
+     * by a wide margin.
+     */
+    struct Buddy
+    {
+        uint32 entry = 0;       ///< creature entry to look for
+        uint32 guidOrRadius = 0;///< a guid when ByGuid is set, else a radius
+        uint8  flags = 0;       ///< the row's data_flags, kept verbatim
+
+        bool IsEmpty() const { return entry == 0 && guidOrRadius == 0; }
+    };
+
+    struct Step
+    {
+        uint32   atMs = 0;
+        ActionId action = ActionId::None;
+        Buddy    buddy;
+
+        /// Laid out in the order the action's ParamSpec table names them, so
+        /// operand `n` is `SpecOf(action)->params[n]`. There is no other
+        /// mapping to get wrong.
+        Operand  operands[MaxOperands] = {};
+
+        /// Which operands were actually given. An absent optional parameter is
+        /// not the same as one set to zero: `despawn_self` with no delay means
+        /// "now", and `despawn_self 0` means the same thing only by accident.
+        uint8    given = 0;
+
+        bool Has(std::size_t slot) const
+        {
+            return (given & (1u << slot)) != 0;
+        }
+    };
+
+    /**
+     * A named list of steps, shared by every run of it.
+     *
+     * Immutable once loaded. What differs between two creatures running the
+     * same sequence is the Frame, not this -- which is what allows a hundred
+     * of them to run at once without a hundred copies.
+     */
+    struct Sequence
+    {
+        uint32            id = 0;
+        std::string       name;     ///< as reported in an error
+        std::vector<Step> steps;    ///< sorted by atMs
+
+        /// The last moment anything happens, which is how long a frame must be
+        /// kept alive.
+        uint32 Duration() const
+        {
+            return steps.empty() ? 0 : steps.back().atMs;
+        }
+    };
+
+    /**
+     * One RUN of a sequence: where it got to, and what it is acting on.
+     *
+     * The three guids are the DB scripts' own vocabulary and are kept because
+     * they are genuinely three different things: the source is who is doing it,
+     * the target is who it is being done to, and the owner is the player whose
+     * bags an item source lives in -- the one object that cannot be found from
+     * its guid alone.
+     *
+     * Guids, not pointers, for the reason the seam gives everywhere else: a
+     * sequence is a thing that happens OVER TIME, and anything it names can die
+     * in the middle of it. Resolving late means a dead actor ends the step
+     * rather than the process.
+     */
+    struct Frame
+    {
+        Sequence const* sequence = nullptr;
+        std::size_t     next = 0;       ///< index of the first step not run
+        uint32          elapsedMs = 0;
+
+        ObjectGuid      source;
+        ObjectGuid      target;
+        ObjectGuid      owner;          ///< the player holding an item source
+
+        bool Finished() const
+        {
+            return !sequence || next >= sequence->steps.size();
+        }
+
+        /// When the next step is due, relative to the start.
+        uint32 NextDueMs() const
+        {
+            return Finished() ? 0 : sequence->steps[next].atMs;
+        }
+    };
+}
+
+#endif //MANGOS_MAI_SCRIPT_H

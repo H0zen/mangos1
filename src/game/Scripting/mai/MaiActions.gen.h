@@ -389,63 +389,77 @@ namespace mai
         { "radius", ParamType::F32, false },
     };
 
+    /// Which shared facets an action carries, and therefore
+    /// where its own parameters stop and theirs begin. The
+    /// lowering from `dbscripts_on_*` reads this instead of
+    /// having a case per verb: a DB row is two datalongs plus
+    /// exactly these facets, so knowing which ones apply is
+    /// the whole of the mapping.
+    enum Facet : uint8
+    {
+        FacetAt         = 1 << 0,
+        FacetTexts      = 1 << 1,
+    };
+
     struct ActionSpec
     {
         ActionId          id;
         char const*       name;       ///< "cast_spell"
         ParamSpec const*  params;
-        std::size_t       arity;
+        std::size_t       arity;      ///< own parameters + facets
+        std::size_t       own;        ///< how many are the verb's own
+        uint8             facets;     ///< a mask of Facet
     };
 
     inline constexpr ActionSpec g_actionSpecs[] =
     {
-        { ActionId::Talk, "talk", g_paramsTalk, 4 },
-        { ActionId::Emote, "emote", g_paramsEmote, 1 },
-        { ActionId::PlaySound, "play_sound", g_paramsPlaySound, 2 },
-        { ActionId::PlayMovie, "play_movie", g_paramsPlayMovie, 1 },
-        { ActionId::FieldSet, "field_set", g_paramsFieldSet, 2 },
-        { ActionId::FlagSet, "flag_set", g_paramsFlagSet, 2 },
-        { ActionId::FlagRemove, "flag_remove", g_paramsFlagRemove, 2 },
-        { ActionId::MorphToEntryOrModel, "morph_to_entry_or_model", g_paramsMorphToEntryOrModel, 1 },
-        { ActionId::MountToEntryOrModel, "mount_to_entry_or_model", g_paramsMountToEntryOrModel, 1 },
-        { ActionId::ChangeEntry, "change_entry", g_paramsChangeEntry, 1 },
-        { ActionId::UpdateTemplate, "update_template", g_paramsUpdateTemplate, 2 },
-        { ActionId::SetEquipmentSlots, "set_equipment_slots", g_paramsSetEquipmentSlots, 1 },
-        { ActionId::ModifyNpcFlags, "modify_npc_flags", g_paramsModifyNpcFlags, 2 },
-        { ActionId::SetFaction, "set_faction", g_paramsSetFaction, 2 },
-        { ActionId::MoveTo, "move_to", g_paramsMoveTo, 5 },
-        { ActionId::TeleportTo, "teleport_to", g_paramsTeleportTo, 5 },
-        { ActionId::Movement, "movement", g_paramsMovement, 2 },
-        { ActionId::SetRun, "set_run", g_paramsSetRun, 1 },
-        { ActionId::TurnTo, "turn_to", g_paramsTurnTo, 1 },
-        { ActionId::MoveDynamic, "move_dynamic", g_paramsMoveDynamic, 2 },
-        { ActionId::SendTaxiPath, "send_taxi_path", g_paramsSendTaxiPath, 1 },
-        { ActionId::PauseWaypoints, "pause_waypoints", g_paramsPauseWaypoints, 1 },
-        { ActionId::SetFly, "set_fly", g_paramsSetFly, 1 },
-        { ActionId::StandState, "stand_state", g_paramsStandState, 1 },
-        { ActionId::CastSpell, "cast_spell", g_paramsCastSpell, 2 },
-        { ActionId::RemoveAura, "remove_aura", g_paramsRemoveAura, 1 },
-        { ActionId::AttackStart, "attack_start", nullptr, 0 },
-        { ActionId::DespawnSelf, "despawn_self", g_paramsDespawnSelf, 1 },
-        { ActionId::Respawn, "respawn", nullptr, 0 },
-        { ActionId::RespawnGo, "respawn_go", g_paramsRespawnGo, 2 },
-        { ActionId::DespawnGo, "despawn_go", g_paramsDespawnGo, 2 },
-        { ActionId::OpenDoor, "open_door", g_paramsOpenDoor, 2 },
-        { ActionId::CloseDoor, "close_door", g_paramsCloseDoor, 2 },
-        { ActionId::ActivateObject, "activate_object", nullptr, 0 },
-        { ActionId::ResetGo, "reset_go", nullptr, 0 },
-        { ActionId::GoLockState, "go_lock_state", g_paramsGoLockState, 1 },
-        { ActionId::TempSummonCreature, "temp_summon_creature", g_paramsTempSummonCreature, 6 },
-        { ActionId::SetActiveobject, "set_activeobject", g_paramsSetActiveobject, 1 },
-        { ActionId::QuestExplored, "quest_explored", g_paramsQuestExplored, 2 },
-        { ActionId::KillCredit, "kill_credit", g_paramsKillCredit, 2 },
-        { ActionId::CreateItem, "create_item", g_paramsCreateItem, 2 },
-        { ActionId::SendMail, "send_mail", g_paramsSendMail, 2 },
-        { ActionId::JoinLfg, "join_lfg", g_paramsJoinLfg, 1 },
-        { ActionId::XpUser, "xp_user", g_paramsXpUser, 1 },
-        { ActionId::TerminateScript, "terminate_script", g_paramsTerminateScript, 2 },
-        { ActionId::TerminateCond, "terminate_cond", g_paramsTerminateCond, 2 },
-        { ActionId::SendAiEventAround, "send_ai_event_around", g_paramsSendAiEventAround, 2 },
+        { ActionId::Talk, "talk", g_paramsTalk, 4, 0, FacetTexts },
+        { ActionId::Emote, "emote", g_paramsEmote, 1, 1, 0 },
+        { ActionId::PlaySound, "play_sound", g_paramsPlaySound, 2, 2, 0 },
+        { ActionId::PlayMovie, "play_movie", g_paramsPlayMovie, 1, 1, 0 },
+        { ActionId::FieldSet, "field_set", g_paramsFieldSet, 2, 2, 0 },
+        { ActionId::FlagSet, "flag_set", g_paramsFlagSet, 2, 2, 0 },
+        { ActionId::FlagRemove, "flag_remove", g_paramsFlagRemove, 2, 2, 0 },
+        { ActionId::MorphToEntryOrModel, "morph_to_entry_or_model", g_paramsMorphToEntryOrModel, 1, 1, 0 },
+        { ActionId::MountToEntryOrModel, "mount_to_entry_or_model", g_paramsMountToEntryOrModel, 1, 1, 0 },
+        { ActionId::ChangeEntry, "change_entry", g_paramsChangeEntry, 1, 1, 0 },
+        { ActionId::UpdateTemplate, "update_template", g_paramsUpdateTemplate, 2, 2, 0 },
+        { ActionId::SetEquipmentSlots, "set_equipment_slots", g_paramsSetEquipmentSlots, 1, 1, 0 },
+        { ActionId::ModifyNpcFlags, "modify_npc_flags", g_paramsModifyNpcFlags, 2, 2, 0 },
+        { ActionId::SetFaction, "set_faction", g_paramsSetFaction, 2, 2, 0 },
+        { ActionId::MoveTo, "move_to", g_paramsMoveTo, 5, 1, FacetAt },
+        { ActionId::TeleportTo, "teleport_to", g_paramsTeleportTo, 5, 1, FacetAt },
+        { ActionId::Movement, "movement", g_paramsMovement, 2, 2, 0 },
+        { ActionId::SetRun, "set_run", g_paramsSetRun, 1, 1, 0 },
+        { ActionId::TurnTo, "turn_to", g_paramsTurnTo, 1, 1, 0 },
+        { ActionId::MoveDynamic, "move_dynamic", g_paramsMoveDynamic, 2, 2, 0 },
+        { ActionId::SendTaxiPath, "send_taxi_path", g_paramsSendTaxiPath, 1, 1, 0 },
+        { ActionId::PauseWaypoints, "pause_waypoints", g_paramsPauseWaypoints, 1, 1, 0 },
+        { ActionId::SetFly, "set_fly", g_paramsSetFly, 1, 1, 0 },
+        { ActionId::StandState, "stand_state", g_paramsStandState, 1, 1, 0 },
+        { ActionId::CastSpell, "cast_spell", g_paramsCastSpell, 2, 2, 0 },
+        { ActionId::RemoveAura, "remove_aura", g_paramsRemoveAura, 1, 1, 0 },
+        { ActionId::AttackStart, "attack_start", nullptr, 0, 0, 0 },
+        { ActionId::DespawnSelf, "despawn_self", g_paramsDespawnSelf, 1, 1, 0 },
+        { ActionId::Respawn, "respawn", nullptr, 0, 0, 0 },
+        { ActionId::RespawnGo, "respawn_go", g_paramsRespawnGo, 2, 2, 0 },
+        { ActionId::DespawnGo, "despawn_go", g_paramsDespawnGo, 2, 2, 0 },
+        { ActionId::OpenDoor, "open_door", g_paramsOpenDoor, 2, 2, 0 },
+        { ActionId::CloseDoor, "close_door", g_paramsCloseDoor, 2, 2, 0 },
+        { ActionId::ActivateObject, "activate_object", nullptr, 0, 0, 0 },
+        { ActionId::ResetGo, "reset_go", nullptr, 0, 0, 0 },
+        { ActionId::GoLockState, "go_lock_state", g_paramsGoLockState, 1, 1, 0 },
+        { ActionId::TempSummonCreature, "temp_summon_creature", g_paramsTempSummonCreature, 6, 2, FacetAt },
+        { ActionId::SetActiveobject, "set_activeobject", g_paramsSetActiveobject, 1, 1, 0 },
+        { ActionId::QuestExplored, "quest_explored", g_paramsQuestExplored, 2, 2, 0 },
+        { ActionId::KillCredit, "kill_credit", g_paramsKillCredit, 2, 2, 0 },
+        { ActionId::CreateItem, "create_item", g_paramsCreateItem, 2, 2, 0 },
+        { ActionId::SendMail, "send_mail", g_paramsSendMail, 2, 2, 0 },
+        { ActionId::JoinLfg, "join_lfg", g_paramsJoinLfg, 1, 1, 0 },
+        { ActionId::XpUser, "xp_user", g_paramsXpUser, 1, 1, 0 },
+        { ActionId::TerminateScript, "terminate_script", g_paramsTerminateScript, 2, 2, 0 },
+        { ActionId::TerminateCond, "terminate_cond", g_paramsTerminateCond, 2, 2, 0 },
+        { ActionId::SendAiEventAround, "send_ai_event_around", g_paramsSendAiEventAround, 2, 2, 0 },
     };
 
     /// The shape of @a id, or nullptr when nothing carries it.

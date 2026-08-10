@@ -176,22 +176,37 @@ def emit(facets, cats):
         out.append('    };')
         out.append('')
 
+    out.append('    /// Which shared facets an action carries, and therefore')
+    out.append('    /// where its own parameters stop and theirs begin. The')
+    out.append('    /// lowering from `dbscripts_on_*` reads this instead of')
+    out.append('    /// having a case per verb: a DB row is two datalongs plus')
+    out.append('    /// exactly these facets, so knowing which ones apply is')
+    out.append('    /// the whole of the mapping.')
+    out.append('    enum Facet : uint8')
+    out.append('    {')
+    for i, facet in enumerate(sorted(facets)):
+        out.append('        Facet%-10s = 1 << %d,' % (camel(facet), i))
+    out.append('    };')
+    out.append('')
     out.append('    struct ActionSpec')
     out.append('    {')
     out.append('        ActionId          id;')
     out.append('        char const*       name;       ///< "cast_spell"')
     out.append('        ParamSpec const*  params;')
-    out.append('        std::size_t       arity;')
+    out.append('        std::size_t       arity;      ///< own parameters + facets')
+    out.append('        std::size_t       own;        ///< how many are the verb\'s own')
+    out.append('        uint8             facets;     ///< a mask of Facet')
     out.append('    };')
     out.append('')
     out.append('    inline constexpr ActionSpec g_actionSpecs[] =')
     out.append('    {')
     for ident_name, name, _id, params, used in rows:
         count = len(params) + sum(len(facets[f]) for f in used)
-        out.append('        { ActionId::%s, "%s", %s, %d },'
+        mask = ' | '.join('Facet' + camel(f) for f in used) or '0'
+        out.append('        { ActionId::%s, "%s", %s, %d, %d, %s },'
                    % (ident_name, name,
                       ('g_params%s' % ident_name) if count else 'nullptr',
-                      count))
+                      count, len(params), mask))
     out.append('    };')
     out.append('')
     out.append('    /// The shape of @a id, or nullptr when nothing carries it.')

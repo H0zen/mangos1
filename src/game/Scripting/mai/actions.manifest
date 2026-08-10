@@ -36,13 +36,16 @@
 # Every action also carries the three facets every DB-script row carried, and
 # they are declared once here rather than repeated per verb:
 #
-#     buddy       who the action really acts on, when it is not the source --
-#                 an entry to search for, a radius, and flags saying whether to
-#                 search by guid, from the target, or among the dead
 #     texts       up to four text ids, because TALK picks one at random
 #     at          a position, for the verbs that need one
+#
+# The buddy search is NOT among them, and that is a correction rather than an
+# omission. In `dbscripts_on_*` it is a property of the ROW, not of the
+# command: any command at all may be redirected to act on some other creature
+# found nearby. That makes it a property of a step, like the time, and it
+# lives on Step in MaiScript.h -- putting it here would have declared it 47
+# times and still been wrong about what it modifies.
 
-facet buddy   entry:creature? radius:f32? flags:flags?
 facet texts   text0:text? text1:text? text2:text? text3:text?
 facet at      x:f32? y:f32? z:f32? o:f32?
 
