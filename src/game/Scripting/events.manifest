@@ -78,6 +78,7 @@ category server = 0x02
     on_lua_state_open                   33  broadcast  -
     on_game_start                       34  broadcast  eventId:u32
     on_game_stop                        35  broadcast  eventId:u32
+    on_event_raised                     36  claim      source:obj target:obj eventId:u32
 
 category player = 0x03
     on_character_create                  1  broadcast  player:obj
@@ -130,6 +131,8 @@ category player = 0x03
     on_trade_init                       48  cancel     trader:obj tradee:obj
     on_send_mail                        49  cancel     sender:obj recipientGuid:obj
     on_quest_status_changed             54  broadcast  player:obj questId:u32 status:u32
+    on_quest_start                      55  broadcast  player:obj questGiver:obj quest:h.quest
+    on_quest_end                        56  broadcast  player:obj questGiver:obj quest:h.quest
 
 category guild = 0x04
     on_add_member                        1  broadcast  guild:h.guild player:obj plRank:u32
@@ -166,7 +169,7 @@ category creature = 0x07
     on_target_died                       3  broadcast  creature:obj victim:obj
     on_died                              4  broadcast  creature:obj killer:obj
     on_spawn                             5  broadcast  gameobject:obj
-    on_reach_wp                          6  broadcast  creature:obj type:u32 id:u32
+    on_reach_wp                          6  broadcast  creature:obj pathId:i32 pathOrigin:u32 nodeIndex:u32
     on_ai_update                         7  role       me:obj diff:u32
     on_receive_emote                     8  broadcast  creature:obj player:obj emoteId:u32
     on_damage_taken                      9  broadcast  creature:obj attacker:obj damage:u32!
@@ -203,7 +206,8 @@ category gameobject = 0x08
     on_go_state_changed                 10  broadcast  gameObject:obj state:u32
     on_add                              12  broadcast  gameobject:obj
     on_remove                           13  cancel     gameobject:obj
-    on_use                              14  claim      player:obj gameobject:obj
+    on_use                              14  claim      user:obj gameobject:obj
+    on_activate                         15  broadcast  user:obj gameobject:obj
 
 category spell = 0x09
     on_cast                              1  broadcast  spell:b.spell skipCheck:bool
@@ -224,7 +228,7 @@ category spell = 0x09
     on_effect_launch                    16  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
     on_effect_launch_target             17  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
     on_effect_calc_absorb               18  broadcast  spell:b.spell damageInfo:b.damage resistAmount:u32! absorbAmount:i32!
-    on_effect_hit                       19  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
+    on_effect_hit                       19  claim      caster:obj target:obj spellId:u32
     on_before_hit                       20  broadcast  spell:b.spell missInfo:u32
     on_effect_hit_target                21  cancel     spell:b.spell effIndex:u32 mode:u32 preventDefault:bool
     on_hit                              22  broadcast  spell:b.spell
@@ -267,27 +271,24 @@ category gossip = 0x0B
     item_hello                           5  claim      player:obj item:obj
     item_select                          6  claim      player:obj item:obj sender:u32 action:u32 code:str
     player_menu_select                   7  claim      player:obj menuId:u32 sender:u32 action:u32 code:str
+    action_chosen                        8  broadcast  player:obj source:obj menuId:u32 gossipListId:u32
+    menu_shown                           9  broadcast  player:obj source:obj menuId:u32 textId:u32
 
 # DBScripts. Fire-and-forget by construction: the engine queues commands on
 # the map with a per-command delay and returns before any of them run, so it
 # can never answer. All ten are broadcast, and that is a property of the
 # engine, not a choice made here.
-category dbscript = 0x0E
-    on_quest_start                       0  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_quest_end                         1  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_gossip                            2  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_creature_movement                 3  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_creature_death                    4  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_spell                             5  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_go_use                            6  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_got_use                           7  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_event                             8  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
-    on_creature_spell                    9  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
 
-# The three SD3 entry points with no Eluna counterpart. Every other hook SD3
-# exposes falls into a category above -- which is itself the finding: two
-# engines have been maintaining near-identical surfaces side by side, each
-# with its own gaps, for years.
+# Category 0x0E was `dbscript` and is retired. It listed the ten
+# `dbscripts_on_*` TABLE TYPES as if they were events, which put one engine's
+# vocabulary into the core's: a spell effect ended up naming the scripting
+# system that happened to listen to it, and carried that system's script id
+# and its dedup flag in the payload. The test the category failed is simple --
+# delete the engine and ask whether the event still describes anything.
+#
+# Its sites now raise what actually happened (a spell effect landed, a
+# gameobject was used, a quest started) and the engine resolves its own
+# binding from the subject. The ten ids stay retired; none is reused.
 category core = 0x0F
     on_npc_spell_click                   1  claim      player:obj creature:obj spellId:u32
     on_effect_script_effect              2  claim      caster:obj spellId:u32 effIndex:u32 target:obj originalCaster:obj

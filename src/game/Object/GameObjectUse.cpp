@@ -89,11 +89,8 @@ void GameObject::Use(Unit* user)
     if (!scriptReturnValue)
     {
         scripting::Notify(GetMap(),
-                scripting::DbscriptGotUse{ scripting::RefOf(spellCaster),
-                                scripting::RefOf(this),
-                                GetEntry(),
-                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                false });
+            scripting::GameobjectUse{ scripting::RefOf(spellCaster),
+                                      scripting::RefOf(this) });
     }
 
     switch (GetGoType())
@@ -107,11 +104,8 @@ void GameObject::Use(Unit* user)
             if (!scriptReturnValue)
             {
                 scripting::Notify(GetMap(),
-                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
-                                        scripting::RefOf(this),
-                                        GetGUIDLow(),
-                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                        false });
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
             return;
         }
@@ -126,11 +120,8 @@ void GameObject::Use(Unit* user)
             if (!scriptReturnValue)
             {
                 scripting::Notify(GetMap(),
-                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
-                                        scripting::RefOf(this),
-                                        GetGUIDLow(),
-                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                        false });
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
 
             return;
@@ -390,11 +381,8 @@ void GameObject::Use(Unit* user)
             if (!scriptReturnValue)
             {
                 scripting::Notify(GetMap(),
-                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
-                                        scripting::RefOf(this),
-                                        GetGUIDLow(),
-                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                        false });
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
             else
             {

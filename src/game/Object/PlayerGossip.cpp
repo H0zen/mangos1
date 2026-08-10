@@ -481,27 +481,13 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
         }
     }
 
-    if (pMenuData && menuData.m_gAction_script)
-    {
-        if (pSource->GetTypeId() == TYPEID_UNIT)
-        {
-            scripting::Notify(GetMap(),
-                    scripting::DbscriptGossip{ scripting::RefOf(pSource),
-                                    scripting::RefOf(this),
-                                    menuData.m_gAction_script,
-                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
-                                    false });
-        }
-        else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
-        {
-            scripting::Notify(GetMap(),
-                    scripting::DbscriptGossip{ scripting::RefOf(this),
-                                    scripting::RefOf(pSource),
-                                    menuData.m_gAction_script,
-                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET),
-                                    false });
-        }
-    }
+    // The world says which line of which menu was chosen. Whether anything
+    // is bound to it, and which of the two ends the binding is keyed on, is
+    // the listening engine's business.
+    scripting::Notify(GetMap(),
+        scripting::GossipActionChosen{ scripting::RefOf(this),
+                                       scripting::RefOf(pSource),
+                                       menuId, gossipListId });
 }
 
 /**
@@ -559,16 +545,12 @@ uint32 Player::GetGossipTextId(uint32 menuId, WorldObject* pSource)
         }
     }
 
-    // Start related script
-    if (scriptId)
-    {
-        scripting::Notify(GetMap(),
-                scripting::DbscriptGossip{ scripting::RefOf(this),
-                                scripting::RefOf(pSource),
-                                scriptId,
-                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET),
-                                false });
-    }
+    // The menu, and which of its rows the conditions selected. What is bound
+    // to that row is not the world's question.
+    scripting::Notify(GetMap(),
+        scripting::GossipMenuShown{ scripting::RefOf(this),
+                                    scripting::RefOf(pSource),
+                                    menuId, textId });
 
     return textId;
 }

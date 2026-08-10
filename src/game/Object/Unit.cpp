@@ -1361,13 +1361,10 @@ void Unit::JustKilledCreature(Creature* victim, Player* responsiblePlayer)
         outdoorPvP->HandleCreatureDeath(victim);
     }
 
-    // Start creature death script
     scripting::Notify(GetMap(),
-            scripting::DbscriptCreatureDeath{ scripting::RefOf(victim),
-                            scripting::RefOf(responsiblePlayer ? responsiblePlayer : this),
-                            victim->GetEntry(),
-                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                            false });
+        scripting::CreatureDied{ scripting::RefOf(victim),
+                                 scripting::RefOf(responsiblePlayer
+                                     ? responsiblePlayer : this) });
 
     if (victim->IsLinkingEventTrigger())
     {

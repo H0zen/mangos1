@@ -452,17 +452,13 @@ void Spell::EffectTriggerSpellWithValue(SpellEffectIndex eff_idx)
         if (startDBScript)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerSpell", m_spellInfo->ID);
-            // `started` comes back in the payload, not in the verdict: the
-            // question is whether anything was queued, which is a value, and
-            // the error below is the only reason anyone asks.
-            scripting::DbscriptSpell event{
-                scripting::RefOf(m_caster),
-                scripting::RefOf(unitTarget),
-                m_spellInfo->ID,
-                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                false };
-            scripting::Notify(m_caster->GetMap(), event);
-            startDBScript = event.started;
+            // Offer, not Notify: the error below fires when NOTHING took
+            // the trigger, and "did an engine deal with this" is exactly
+            // what a claim answers.
+            startDBScript = scripting::Offer(m_caster->GetMap(),
+                scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                           scripting::RefOf(unitTarget),
+                                           m_spellInfo->ID });
         }
 
         if (!startDBScript)
@@ -501,11 +497,9 @@ void Spell::EffectForceCast(SpellEffectIndex /*eff_idx*/)
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectDummy", m_spellInfo->ID);
     scripting::Notify(m_caster->GetMap(),
-            scripting::DbscriptSpell{ scripting::RefOf(m_caster),
-                            scripting::RefOf(unitTarget),
-                            m_spellInfo->ID,
-                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                            false });
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(unitTarget),
+                                   m_spellInfo->ID });
 }
 
 /**
@@ -713,12 +707,10 @@ void Spell::EffectTriggerMissileSpell(SpellEffectIndex effect_idx)
         if (unitTarget)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerMissileSpell", m_spellInfo->ID);
-            scripting::Notify(m_caster->GetMap(),
-            scripting::DbscriptSpell{ scripting::RefOf(m_caster),
-                            scripting::RefOf(unitTarget),
-                            m_spellInfo->ID,
-                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                            false });
+    scripting::Notify(m_caster->GetMap(),
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(unitTarget),
+                                   m_spellInfo->ID });
         }
         else
             sLog.outError("EffectTriggerMissileSpell of spell %u (eff: %u): triggering unknown spell id %u",

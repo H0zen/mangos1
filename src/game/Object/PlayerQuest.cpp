@@ -749,11 +749,9 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
         if (pQuest->GetQuestStartScript() != 0)
         {
             scripting::Notify(GetMap(),
-                    scripting::DbscriptQuestStart{ scripting::RefOf(questGiver),
-                                    scripting::RefOf(this),
-                                    pQuest->GetQuestStartScript(),
-                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
-                                    false });
+                scripting::PlayerQuestStart{ scripting::RefOf(this),
+                                             scripting::RefOf(questGiver),
+                                             scripting::HandleOf(pQuest) });
         }
     }
 
@@ -1042,11 +1040,9 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     if (!handled && pQuest->GetQuestCompleteScript() != 0)
     {
         scripting::Notify(GetMap(),
-                scripting::DbscriptQuestEnd{ scripting::RefOf(questGiver),
-                                scripting::RefOf(this),
-                                pQuest->GetQuestCompleteScript(),
-                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
-                                false });
+            scripting::PlayerQuestEnd{ scripting::RefOf(this),
+                                       scripting::RefOf(questGiver),
+                                       scripting::HandleOf(pQuest) });
     }
 
     // cast spells after mark quest complete (some spells have quest completed state reqyurements in spell_area data)

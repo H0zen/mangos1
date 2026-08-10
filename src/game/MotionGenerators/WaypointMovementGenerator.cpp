@@ -251,16 +251,14 @@ void WaypointMovementGenerator::OnArrived(Creature& creature)
     MANGOS_ASSERT(currPoint != m_path->end());
     WaypointNode const& node = currPoint->second;
 
-    if (node.script_id)
-    {
-        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Creature movement start script %u at point %u for %s.", node.script_id, m_currentNode, creature.GetGuidStr().c_str());
-        scripting::Notify(creature.GetMap(),
-                scripting::DbscriptCreatureMovement{ scripting::RefOf(&creature),
-                                scripting::RefOf(&creature),
-                                node.script_id,
-                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                false });
-    }
+    // Raised unconditionally. Testing node.script_id here would be the core
+    // asking whether a particular engine has a row for this node -- which is
+    // the engine's question, and the reason it now looks the node up itself.
+    scripting::Notify(creature.GetMap(),
+        scripting::CreatureReachWp{ scripting::RefOf(&creature),
+                                    m_pathId,
+                                    static_cast<uint32>(m_pathOrigin),
+                                    m_currentNode });
 
     if (WaypointBehavior* behavior = node.behavior)
     {
@@ -869,11 +867,9 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
             if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, false))
             {
                 scripting::Notify(player.GetMap(),
-                        scripting::DbscriptEvent{ scripting::RefOf(&player),
-                                        scripting::RefOf(&player),
-                                        eventid,
-                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                        false });
+                    scripting::ServerEventRaised{ scripting::RefOf(&player),
+                                                  scripting::RefOf(&player),
+                                                  eventid });
             }
         }
     }

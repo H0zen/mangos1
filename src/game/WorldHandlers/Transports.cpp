@@ -936,11 +936,9 @@ void Transport::DoEventIfAny(WayPointMap::value_type const& node, bool departure
         if (!sScriptMgr.OnProcessEvent(eventid, this, this, departure))
         {
             scripting::Notify(GetMap(),
-                    scripting::DbscriptEvent{ scripting::RefOf(this),
-                                    scripting::RefOf(this),
-                                    eventid,
-                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                    false });
+                scripting::ServerEventRaised{ scripting::RefOf(this),
+                                              scripting::RefOf(this),
+                                              eventid });
         }
     }
 }

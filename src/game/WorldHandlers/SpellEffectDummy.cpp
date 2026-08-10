@@ -2227,9 +2227,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectDummy", m_spellInfo->ID);
     scripting::Notify(m_caster->GetMap(),
-            scripting::DbscriptSpell{ scripting::RefOf(m_caster),
-                            scripting::RefOf(unitTarget),
-                            m_spellInfo->ID,
-                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                            false });
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(unitTarget),
+                                   m_spellInfo->ID });
 }

@@ -305,11 +305,9 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
             if (!sScriptMgr.OnProcessEvent(eventid, GetPlayer(), GetPlayer(), false))
             {
                 scripting::Notify(GetPlayer()->GetMap(),
-                        scripting::DbscriptEvent{ scripting::RefOf(GetPlayer()),
-                                        scripting::RefOf(GetPlayer()),
-                                        eventid,
-                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
-                                        false });
+                    scripting::ServerEventRaised{
+                        scripting::RefOf(GetPlayer()),
+                        scripting::RefOf(GetPlayer()), eventid });
             }
     }
 

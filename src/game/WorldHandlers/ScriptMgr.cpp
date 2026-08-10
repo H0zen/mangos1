@@ -329,27 +329,10 @@ bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool
         }
     }
 
-    Map::ScriptExecutionParam execParam = Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET;
-    if (source->isType(TYPEMASK_CREATURE_OR_GAMEOBJECT))
-    {
-        execParam = Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE;
-    }
-    else if (target && target->isType(TYPEMASK_CREATURE_OR_GAMEOBJECT))
-    {
-        execParam = Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET;
-    }
-
-    // The exec param is computed here rather than carried by the event,
-    // because it depends on which of the two actors is a creature or game
-    // object -- a question about this call site, not about the event.
-    scripting::DbscriptEvent event{ scripting::RefOf(source),
-                                    scripting::RefOf(target),
-                                    id,
-                                    static_cast<uint32>(execParam),
-                                    false };
-    scripting::Notify(map, event);
-
-    return event.started;
+    return scripting::Offer(map,
+               scripting::ServerEventRaised{ scripting::RefOf(source),
+                                             scripting::RefOf(target),
+                                             id });
 }
 
 // Wrappers
