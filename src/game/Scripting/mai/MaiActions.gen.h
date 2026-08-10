@@ -155,6 +155,7 @@ namespace mai
         Evade                      = 107,
         Die                        = 108,
         SetInvincibility           = 109,
+        SetHealth                  = 128,
         ThrowAiEvent               = 110,
         SetThrowMask               = 111,
 
@@ -494,6 +495,11 @@ namespace mai
         { "percent", ParamType::Bool, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsSetHealth[] =
+    {
+        { "percent", ParamType::U32, false },
+    };
+
     inline constexpr ParamSpec g_actionParamsThrowAiEvent[] =
     {
         { "event", ParamType::U32, false },
@@ -684,6 +690,7 @@ namespace mai
         { ActionId::Evade, "evade", nullptr, 0, 0, 0 },
         { ActionId::Die, "die", nullptr, 0, 0, 0 },
         { ActionId::SetInvincibility, "set_invincibility", g_actionParamsSetInvincibility, 2, 2, 0 },
+        { ActionId::SetHealth, "set_health", g_actionParamsSetHealth, 1, 1, 0 },
         { ActionId::ThrowAiEvent, "throw_ai_event", g_actionParamsThrowAiEvent, 2, 2, 0 },
         { ActionId::SetThrowMask, "set_throw_mask", g_actionParamsSetThrowMask, 1, 1, 0 },
         { ActionId::RandomSound, "random_sound", g_actionParamsRandomSound, 3, 3, 0 },

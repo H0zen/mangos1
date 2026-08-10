@@ -147,6 +147,11 @@ category ai = 0x11
     evade                   107
     die                     108
     set_invincibility       109   hp:u32 percent:bool?
+
+    # Out of 100, because a script that heals says "to full" and never "to
+    # 43,891". The absolute number is the one thing a creature's own template
+    # already knows.
+    set_health              128   percent:u32
     throw_ai_event          110   event:u32 radius:f32?
     set_throw_mask          111   mask:flags
 

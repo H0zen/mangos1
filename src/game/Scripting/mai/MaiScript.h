@@ -103,9 +103,31 @@ namespace mai
         CompareEnd
     };
 
+    /**
+     * What a guard is asking about.
+     *
+     * Instance data is here because leaving it out was an inconsistency rather
+     * than a limit: MAI writes it three ways -- set_instance_data, _data64,
+     * _data_guid -- and could not read it at all, so "act only while the boss
+     * next door is still alive" was the one thing a script could say and a
+     * rule could not. That asymmetry, not any depth of expression, is what
+     * kept several ScriptDev files in C++.
+     */
+    enum GuardOf : uint8
+    {
+        GuardState,     ///< one of the creature's own remembered numbers
+        GuardInstance   ///< a field of the instance's own data
+    };
+
     struct Guard
     {
-        uint8   state = 0;      ///< which of the creature's own numbers
+        GuardOf of = GuardState;
+
+        /// A state slot when @a of is GuardState; an instance data field when
+        /// it is GuardInstance. One field because it is one question -- which
+        /// number -- asked of two different holders.
+        uint32  subject = 0;
+
         Compare op = CompareEq;
         uint32  value = 0;
 

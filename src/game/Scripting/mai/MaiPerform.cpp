@@ -43,6 +43,8 @@
 
 #include "MaiPerform.h"
 
+#include "MaiTargeting.h"
+
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "GameObject.h"
@@ -204,6 +206,74 @@ namespace mai
                     self->HandleEmote(emote);
                 }
             }
+            return false;
+        }
+
+        /**
+         * Casting, the way an AI casts.
+         *
+         * THE FIRST BORROWED BODY TO BE REPLACED, and it earns it: 10,512 of
+         * the 27,561 converted steps are this verb, and every one of them came
+         * from an EventAI row that called DoCastSpellIfCan. The DB-script body
+         * they were falling through to calls Unit::CastSpell outright, and the
+         * two differ in ways that show up as a boss behaving oddly rather than
+         * as anything failing:
+         *
+         *   * DoCastSpellIfCan REFUSES while the creature is already casting
+         *     something non-triggered. The raw call does not, so a creature
+         *     with three timers coming due in one scan tries three casts and
+         *     interrupts itself twice.
+         *   * it runs CanCastSpell first -- range, line of sight, silence,
+         *     immunity -- and the raw call leaves all of that to the spell
+         *     system, which fails later and differently.
+         *   * it needs no target to refuse gracefully; the borrowed body logs
+         *     a database error every time one is missing.
+         *
+         * The flags operand is the CAST_* vocabulary, unchanged, because that
+         * is what EventAI's own column held. `command_additional` on the step
+         * means triggered, which is how the DB scripts spelled the same thing.
+         */
+        bool CastSpell(Doing& doing, Step const& step, bool& handled)
+        {
+            Creature* self = doing.SourceCreature();
+            Unit* victim = doing.TargetUnit();
+
+            // Only a creature with an AI casts this way. A sequence the world
+            // started may have a game object or a player as its source, and
+            // neither has a creature AI to ask -- so those fall through to the
+            // borrowed body exactly as before.
+            if (!self || !self->AI())
+            {
+                handled = false;
+                return false;
+            }
+
+            uint32 flags = Given(step, 1);
+            if (step.buddy.flags & CommandAdditional)
+            {
+                flags |= CAST_TRIGGERED;
+            }
+
+            self->AI()->DoCastSpellIfCan(victim ? victim : self,
+                                         Given(step, 0), flags);
+            return false;
+        }
+
+        bool SetHealth(Doing& doing, Step const& step)
+        {
+            Unit* self = doing.SourceUnit();
+            if (!self || !self->IsAlive())
+            {
+                return false;
+            }
+
+            // Out of 100 and clamped there. The maximum is the creature's own,
+            // so a script says "to full" and stays right when the template
+            // changes underneath it.
+            uint32 const percent = Given(step, 0) > 100 ? 100 : Given(step, 0);
+            uint32 const wanted = (self->GetMaxHealth() * percent) / 100;
+
+            self->SetHealth(wanted ? wanted : 1);
             return false;
         }
 
@@ -653,6 +723,9 @@ namespace mai
 
         switch (step.action)
         {
+            case ActionId::CastSpell:         return CastSpell(doing, step,
+                                                                handled);
+
             case ActionId::SetState:          return SetState(doing, step);
             case ActionId::AddState:          return AddState(doing, step);
 
@@ -675,6 +748,7 @@ namespace mai
             case ActionId::Evade:             return Evade(doing, step);
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
+            case ActionId::SetHealth:         return SetHealth(doing, step);
             case ActionId::SetThrowMask:      return SetThrowMask(doing, step);
             case ActionId::ThrowAiEvent:      return ThrowAiEvent(doing, step);
 

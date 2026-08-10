@@ -356,20 +356,48 @@ namespace mai
             }
             std::string const number(value, std::size_t(at - value));
 
-            std::size_t const slot = owner.Intern(held);
-            if (slot >= MaxStates)
+            Guard guard;
+
+            // `instance:6` asks the instance rather than the creature. The
+            // colon is what tells them apart, and a state may not be called
+            // `instance` for the same reason a column may not be called *.
+            static char const kInstance[] = "instance:";
+            std::size_t const prefix = sizeof(kInstance) - 1;
+
+            if (held.compare(0, prefix, kInstance) == 0)
             {
-                std::snprintf(buffer, sizeof(buffer),
-                              "guard names '%s' and this creature already "
-                              "remembers %u things",
-                              held.c_str(), uint32(MaxStates));
-                error = buffer;
-                return false;
+                std::string const field = held.substr(prefix);
+                char* stop = nullptr;
+                guard.of = GuardInstance;
+                guard.subject = uint32(std::strtoul(field.c_str(), &stop, 10));
+
+                if (field.empty() || (stop && *stop))
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "guard 'instance:%s' does not name a field "
+                                  "number", field.c_str());
+                    error = buffer;
+                    return false;
+                }
+            }
+            else
+            {
+                std::size_t const slot = owner.Intern(held);
+                if (slot >= MaxStates)
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "guard names '%s' and this creature already "
+                                  "remembers %u things",
+                                  held.c_str(), uint32(MaxStates));
+                    error = buffer;
+                    return false;
+                }
+
+                guard.of = GuardState;
+                guard.subject = uint32(slot);
             }
 
             char* end = nullptr;
-            Guard guard;
-            guard.state = uint8(slot);
             guard.op = op;
             guard.value = uint32(std::strtoul(number.c_str(), &end, 10));
 

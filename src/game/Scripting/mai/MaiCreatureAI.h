@@ -119,8 +119,13 @@ namespace mai
             };
 
             /// Whether this rule may fire at all right now: armed, not waiting,
-            /// and not in a phase it is excluded from.
+            /// not in a phase it is excluded from, and past its guards.
             bool Ready(Armed const& armed) const;
+
+            /// Whether every guard holds. Separate from Ready because the
+            /// TIMER asks it too -- a guarded rule's clock is frozen while the
+            /// guard is false, exactly as a phase freezes it.
+            bool Allowed(Rule const& rule) const;
 
             /// Set the timer from a pair of operand slots holding min and max.
             /// @return false when the pair is inverted, which DISABLES the

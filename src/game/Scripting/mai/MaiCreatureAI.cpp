@@ -50,6 +50,7 @@
 #include "MaiSelect.h"
 
 #include "Creature.h"
+#include "InstanceData.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
@@ -162,14 +163,43 @@ namespace mai
             return false;
         }
 
+        return Allowed(*armed.rule);
+    }
+
+    bool MaiCreatureAI::Allowed(Rule const& rule) const
+    {
         // The decision, and it comes BEFORE the trigger's own condition on
         // purpose: a guard is about what this creature remembers, which is
         // free to test, while a condition asks the world -- who is on the
         // threat list, what auras are up. A boss that only enrages once should
         // not search the grid every half second to rediscover that.
-        for (Guard const& guard : armed.rule->guards)
+        for (Guard const& guard : rule.guards)
         {
-            if (!guard.Holds(m_actor.states[guard.state]))
+            uint32 held = 0;
+
+            if (guard.of == GuardInstance)
+            {
+                InstanceData* data = m_creature->GetMap()->GetInstanceData();
+                if (!data)
+                {
+                    // Outside an instance there is nothing to ask, and a rule
+                    // that asked is not satisfied. Refusing rather than
+                    // defaulting to zero: zero is a real encounter state --
+                    // NOT_STARTED -- so treating "no instance" as zero would
+                    // make `instance:6=0` fire in the open world.
+                    return false;
+                }
+
+                held = data->GetData(guard.subject);
+            }
+            else
+            {
+                held = guard.subject < MaxStates
+                           ? m_actor.states[guard.subject]
+                           : 0;
+            }
+
+            if (!guard.Holds(held))
             {
                 return false;
             }
@@ -688,7 +718,14 @@ namespace mai
                     // suppressed would come due the instant the phase changed,
                     // which is how a boss fires four abilities at once on
                     // entering phase two.
-                    if (m_actor.phases.Allows(armed.rule->inversePhaseMask))
+                    //
+                    // A GUARD suppresses it the same way, and for the same
+                    // reason. Golemagg's earthquake is on a three-second timer
+                    // that the script only decrements once he has enraged; let
+                    // it run underneath and the earthquake lands the instant
+                    // he does, which is not the fight anyone wrote.
+                    if (m_actor.phases.Allows(armed.rule->inversePhaseMask) &&
+                        Allowed(*armed.rule))
                     {
                         armed.timeMs -= diff;
                     }
