@@ -70,6 +70,60 @@ namespace mai
     /// Checked at load, so a manifest edit that outgrows it fails loudly.
     enum : std::size_t { MaxOperands = 8 };
 
+    /// How much a creature may remember. Eight is not a guess: it is what the
+    /// scripts being converted actually use -- a phase, an "already enraged",
+    /// a kill count -- and a creature needing a ninth is a creature whose
+    /// encounter wants writing rather than declaring.
+    enum : std::size_t { MaxStates = 8 };
+
+    /**
+     * A decision, which is the one thing MAI had no way to say.
+     *
+     * A trigger says WHEN. A guard says WHETHER -- and the difference is what
+     * kept half of SD3 in C++: `if (!m_bEnraged && health < 26%)` is a health
+     * trigger and a memory, and MAI had the first without the second.
+     *
+     * Deliberately NOT an expression language. It is one comparison against
+     * one remembered number, and a rule may carry several which all have to
+     * hold. No or, no nesting, no arithmetic. Every script this was written
+     * for needs exactly this much, and the moment it needs more the honest
+     * answer is that the encounter is a program and belongs in C++ -- which is
+     * a boundary worth keeping visible rather than eroding one operator at a
+     * time.
+     */
+    enum Compare : uint8
+    {
+        CompareEq,      ///< ==
+        CompareNe,      ///< !=
+        CompareLt,      ///< <
+        CompareLe,      ///< <=
+        CompareGt,      ///< >
+        CompareGe,      ///< >=
+
+        CompareEnd
+    };
+
+    struct Guard
+    {
+        uint8   state = 0;      ///< which of the creature's own numbers
+        Compare op = CompareEq;
+        uint32  value = 0;
+
+        bool Holds(uint32 held) const
+        {
+            switch (op)
+            {
+            case CompareEq: return held == value;
+            case CompareNe: return held != value;
+            case CompareLt: return held < value;
+            case CompareLe: return held <= value;
+            case CompareGt: return held > value;
+            case CompareGe: return held >= value;
+            default:        return false;
+            }
+        }
+    };
+
     /**
      * Who a step really acts on, when it is not the source.
      *

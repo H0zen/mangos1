@@ -57,6 +57,7 @@ namespace mai
         Quest,
         Sound,
         Spell,
+        State,
         Taxi,
         Text,
         U32,
@@ -161,6 +162,10 @@ namespace mai
         RandomSound                = 122,
         RandomEmote                = 123,
         RandomPhaseRange           = 124,
+
+        // memory
+        SetState                   = 126,
+        AddState                   = 127,
 
         // instance
         SetInstanceData            = 112,
@@ -520,6 +525,18 @@ namespace mai
         { "max", ParamType::U32, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsSetState[] =
+    {
+        { "name", ParamType::State, false },
+        { "value", ParamType::U32, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsAddState[] =
+    {
+        { "name", ParamType::State, false },
+        { "by", ParamType::I32, false },
+    };
+
     inline constexpr ParamSpec g_actionParamsSetInstanceData[] =
     {
         { "field", ParamType::U32, false },
@@ -672,6 +689,8 @@ namespace mai
         { ActionId::RandomSound, "random_sound", g_actionParamsRandomSound, 3, 3, 0 },
         { ActionId::RandomEmote, "random_emote", g_actionParamsRandomEmote, 3, 3, 0 },
         { ActionId::RandomPhaseRange, "random_phase_range", g_actionParamsRandomPhaseRange, 2, 2, 0 },
+        { ActionId::SetState, "set_state", g_actionParamsSetState, 2, 2, 0 },
+        { ActionId::AddState, "add_state", g_actionParamsAddState, 2, 2, 0 },
         { ActionId::SetInstanceData, "set_instance_data", g_actionParamsSetInstanceData, 2, 2, 0 },
         { ActionId::SetInstanceDataGuid, "set_instance_data_guid", g_actionParamsSetInstanceDataGuid, 1, 1, 0 },
         { ActionId::SetInstanceData64, "set_instance_data64", g_actionParamsSetInstanceData64, 3, 3, 0 },

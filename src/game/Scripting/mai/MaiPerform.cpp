@@ -207,6 +207,45 @@ namespace mai
             return false;
         }
 
+        // ---- what a creature remembers --------------------------------------
+
+        bool SetState(Doing& doing, Step const& step)
+        {
+            if (!doing.actor)
+            {
+                return false;
+            }
+
+            std::size_t const slot = Given(step, 0);
+            if (slot < MaxStates)
+            {
+                doing.actor->states[slot] = Given(step, 1);
+            }
+            return false;
+        }
+
+        bool AddState(Doing& doing, Step const& step)
+        {
+            if (!doing.actor)
+            {
+                return false;
+            }
+
+            std::size_t const slot = Given(step, 0);
+            if (slot >= MaxStates)
+            {
+                return false;
+            }
+
+            // Signed, and floored at zero rather than wrapped. A count that
+            // goes below zero becomes four billion, and a guard reading
+            // `kills>=3` would then be true for ever.
+            int32 const by = step.Has(1) ? step.operands[1].i : 1;
+            int64 const now = int64(doing.actor->states[slot]) + by;
+            doing.actor->states[slot] = uint32(now < 0 ? 0 : now);
+            return false;
+        }
+
         // ---- threat ---------------------------------------------------------
 
         bool ThreatChange(Doing& doing, Step const& step)
@@ -614,6 +653,9 @@ namespace mai
 
         switch (step.action)
         {
+            case ActionId::SetState:          return SetState(doing, step);
+            case ActionId::AddState:          return AddState(doing, step);
+
             case ActionId::SetPhase:          return SetPhase(doing, step);
             case ActionId::IncPhase:          return IncPhase(doing, step);
             case ActionId::RandomPhase:       return RandomPhase(doing, step);

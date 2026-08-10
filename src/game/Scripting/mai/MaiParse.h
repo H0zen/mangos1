@@ -59,6 +59,22 @@ namespace mai
     /// as reading `spell=11962`.
     bool Parse(char const* trigger, char const* params, Rule& out,
                std::string& error);
+
+    /// The same again, for a step whose verb names one of the creature's own
+    /// remembered numbers. @a owner is where such a name is interned, and is
+    /// required for exactly the two verbs that take one.
+    bool Parse(char const* action, char const* params, Step& out,
+               RuleSet& owner, std::string& error);
+
+    /**
+     * A rule's guard: `enraged=0`, or `kills>=3 phase!=2`.
+     *
+     * All of them must hold. The operators are the six a comparison has and
+     * nothing else -- see Guard in MaiScript.h for why there is deliberately
+     * no `or` and no nesting.
+     */
+    bool ParseGuards(char const* text, Rule& out, RuleSet& owner,
+                     std::string& error);
 }
 
 #endif //MANGOS_MAI_PARSE_H

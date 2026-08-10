@@ -77,7 +77,7 @@ namespace mai
         /// and a rule have in common -- and all this needs of either.
         template <class Spec>
         bool Fill(Spec const& spec, char const* params, Operand* operands,
-                  uint8& given, std::string& error)
+                  uint8& given, RuleSet* owner, std::string& error)
             {
             char buffer[256];
 
@@ -131,6 +131,38 @@ namespace mai
 
                 std::string const text(value, std::size_t(at - value));
                 ParamType const type = spec.params[slot].type;
+
+                if (type == ParamType::State)
+                {
+                    // A name, not a number, and the only parameter type that
+                    // is. Interning needs the creature it belongs to, which is
+                    // why the caller has to supply one.
+                    if (!owner)
+                    {
+                        std::snprintf(buffer, sizeof(buffer),
+                                      "%s.%s names a remembered value and "
+                                      "nothing said whose",
+                                      spec.name, spec.params[slot].name);
+                        error = buffer;
+                        return false;
+                    }
+
+                    std::size_t const at = owner->Intern(text);
+                    if (at >= MaxStates)
+                    {
+                        std::snprintf(buffer, sizeof(buffer),
+                                      "%s.%s is '%s' and this creature already "
+                                      "remembers %u things",
+                                      spec.name, spec.params[slot].name,
+                                      text.c_str(), uint32(MaxStates));
+                        error = buffer;
+                        return false;
+                    }
+
+                    operands[slot].u = uint32(at);
+                    given |= uint8(1u << slot);
+                    continue;
+                }
 
                 char* end = nullptr;
                 if (type == ParamType::F32)
@@ -212,7 +244,8 @@ namespace mai
 
         out = Step();
         out.action = id;
-        return Fill(*SpecOf(id), params, out.operands, out.given, error);
+        return Fill(*SpecOf(id), params, out.operands, out.given, nullptr,
+                    error);
     }
 
     RuleId RuleNamed(char const* name)
@@ -249,6 +282,109 @@ namespace mai
 
         out = Rule();
         out.trigger = id;
-        return Fill(*SpecOf(id), params, out.operands, out.given, error);
+        return Fill(*SpecOf(id), params, out.operands, out.given, nullptr,
+                    error);
+    }
+
+    bool Parse(char const* action, char const* params, Step& out,
+               RuleSet& owner, std::string& error)
+    {
+        ActionId const id = ActionNamed(action);
+        if (id == ActionId::None)
+        {
+            char buffer[128];
+            std::snprintf(buffer, sizeof(buffer),
+                          "'%s' is not an action MAI has", action ? action : "");
+            error = buffer;
+            return false;
+        }
+
+        out = Step();
+        out.action = id;
+        return Fill(*SpecOf(id), params, out.operands, out.given, &owner,
+                    error);
+    }
+
+    bool ParseGuards(char const* text, Rule& out, RuleSet& owner,
+                     std::string& error)
+    {
+        char buffer[192];
+
+        char const* at = text ? text : "";
+        while (*at)
+        {
+            while (IsSpace(*at))
+            {
+                ++at;
+            }
+            if (!*at)
+            {
+                break;
+            }
+
+            char const* name = at;
+            while (*at && *at != '=' && *at != '!' && *at != '<' &&
+                   *at != '>' && !IsSpace(*at))
+            {
+                ++at;
+            }
+            std::string const held(name, std::size_t(at - name));
+
+            // The six a comparison has. Longest first: `<=` must be tried
+            // before `<`, or every `<=` reads as `<` followed by a value
+            // beginning with `=`.
+            Compare op = CompareEq;
+            if (at[0] == '!' && at[1] == '=') { op = CompareNe; at += 2; }
+            else if (at[0] == '<' && at[1] == '=') { op = CompareLe; at += 2; }
+            else if (at[0] == '>' && at[1] == '=') { op = CompareGe; at += 2; }
+            else if (at[0] == '<') { op = CompareLt; at += 1; }
+            else if (at[0] == '>') { op = CompareGt; at += 1; }
+            else if (at[0] == '=') { op = CompareEq; at += 1; }
+            else
+            {
+                std::snprintf(buffer, sizeof(buffer),
+                              "guard '%s' has no comparison; the form is "
+                              "name=value, or != < <= > >=", held.c_str());
+                error = buffer;
+                return false;
+            }
+
+            char const* value = at;
+            while (*at && !IsSpace(*at))
+            {
+                ++at;
+            }
+            std::string const number(value, std::size_t(at - value));
+
+            std::size_t const slot = owner.Intern(held);
+            if (slot >= MaxStates)
+            {
+                std::snprintf(buffer, sizeof(buffer),
+                              "guard names '%s' and this creature already "
+                              "remembers %u things",
+                              held.c_str(), uint32(MaxStates));
+                error = buffer;
+                return false;
+            }
+
+            char* end = nullptr;
+            Guard guard;
+            guard.state = uint8(slot);
+            guard.op = op;
+            guard.value = uint32(std::strtoul(number.c_str(), &end, 10));
+
+            if (number.empty() || (end && *end))
+            {
+                std::snprintf(buffer, sizeof(buffer),
+                              "guard on '%s' compares against '%s', which is "
+                              "not a number", held.c_str(), number.c_str());
+                error = buffer;
+                return false;
+            }
+
+            out.guards.push_back(guard);
+        }
+
+        return true;
     }
 }

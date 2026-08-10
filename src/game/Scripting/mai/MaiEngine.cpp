@@ -336,7 +336,8 @@ namespace scripting
         // written in -- which is the order they fire in when both are due.
         std::unique_ptr<QueryResult> result(WorldDatabase.Query(
             "SELECT `creature`, `id`, `rule`, `params`, `phase_mask`, "
-            "`chance`, `flags` FROM `mai_rule` ORDER BY `creature`, `id`"));
+            "`chance`, `flags`, `guard` FROM `mai_rule` "
+            "ORDER BY `creature`, `id`"));
 
         if (!result)
         {
@@ -348,6 +349,12 @@ namespace scripting
         // Every rule's steps, in one query rather than one per rule. Twenty
         // thousand round trips at start-up is a minute of a server's life
         // spent on something a single scan answers.
+        //
+        // Read BEFORE the rules, and that ordering is load-bearing now: a
+        // `set_state name=enraged` step interns "enraged" into the creature's
+        // own name table, and a guard reading `enraged=0` has to find the same
+        // slot. Both go through the RuleSet, so whichever is met first creates
+        // it and the other finds it.
         std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> steps;
         {
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
@@ -361,10 +368,13 @@ namespace scripting
                 uint32 const creature = field[0].GetUInt32();
                 uint32 const rule = field[1].GetUInt32();
 
+                mai::RuleSet& owner = m_rules[creature];
+                owner.creature = creature;
+
                 mai::Step step;
                 std::string error;
                 if (!mai::Parse(field[2].GetString(), field[3].GetString(),
-                                step, error))
+                                step, owner, error))
                 {
                     sLog.outErrorDb("MAI: creature %u rule %u: %s", creature,
                                     rule, error.c_str());
@@ -411,6 +421,17 @@ namespace scripting
             rule.chance = field[5].GetUInt8();
             rule.flags = field[6].GetUInt8();
 
+            mai::RuleSet& set = m_rules[creature];
+            set.creature = creature;
+
+            if (!mai::ParseGuards(field[7].GetString(), rule, set, error))
+            {
+                sLog.outErrorDb("MAI: creature %u rule %u: %s", creature, id,
+                                error.c_str());
+                ++refused;
+                continue;
+            }
+
             auto found = steps.find(std::make_pair(creature, id));
             if (found != steps.end())
             {
@@ -424,8 +445,6 @@ namespace scripting
             // than logged every time the creature is pulled.
             refusedSteps += mai::Validate(rule.steps);
 
-            mai::RuleSet& set = m_rules[creature];
-            set.creature = creature;
             set.rules.push_back(std::move(rule));
             ++rules;
         }

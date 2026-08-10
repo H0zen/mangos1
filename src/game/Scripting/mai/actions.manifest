@@ -162,6 +162,14 @@ category random = 0x15
     # list of up to three, and "somewhere between 1 and 16" is not a list.
     random_phase_range      124   min:u32 max:u32
 
+# What a creature remembers, and the other half of a decision: a guard reads
+# these, and these are the only things that write them. Named, not numbered --
+# `set_state name=enraged value=1` says what `datalong3 = 1` never could, and
+# the name is interned to a slot when the creature's rules load.
+category memory = 0x16
+    set_state               126   name:state value:u32
+    add_state               127   name:state by:i32
+
 category instance = 0x12
     set_instance_data       112   field:u32 value:u32
 

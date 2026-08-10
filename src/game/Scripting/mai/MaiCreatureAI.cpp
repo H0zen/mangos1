@@ -156,8 +156,26 @@ namespace mai
 
     bool MaiCreatureAI::Ready(Armed const& armed) const
     {
-        return armed.enabled && armed.timeMs == 0 && armed.rule &&
-               m_actor.phases.Allows(armed.rule->inversePhaseMask);
+        if (!armed.enabled || armed.timeMs != 0 || !armed.rule ||
+            !m_actor.phases.Allows(armed.rule->inversePhaseMask))
+        {
+            return false;
+        }
+
+        // The decision, and it comes BEFORE the trigger's own condition on
+        // purpose: a guard is about what this creature remembers, which is
+        // free to test, while a condition asks the world -- who is on the
+        // threat list, what auras are up. A boss that only enrages once should
+        // not search the grid every half second to rediscover that.
+        for (Guard const& guard : armed.rule->guards)
+        {
+            if (!guard.Holds(m_actor.states[guard.state]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     bool MaiCreatureAI::ReArm(Armed& armed, std::size_t minSlot,

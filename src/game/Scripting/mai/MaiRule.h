@@ -88,6 +88,10 @@ namespace mai
         /// it, so a converted row means what it meant.
         uint32   inversePhaseMask = 0;
 
+        /// What must be true as well, all of it. Empty on almost every rule
+        /// converted from EventAI, because EventAI had no way to say it.
+        std::vector<Guard> guards;
+
         /// Out of 100, and ZERO MEANS NEVER rather than always -- which is a
         /// trap worth the line: the loader reports a rule with 0 as an error
         /// and then keeps it, so a row written that way is loaded, valid, and
@@ -119,6 +123,38 @@ namespace mai
     {
         uint32            creature = 0;
         std::vector<Rule> rules;
+
+        /// The names this creature's guards and set_state steps use, in the
+        /// order they were first met. A rule stores the INDEX; this is what
+        /// turns it back into a word for an error message or a GM command.
+        ///
+        /// Per entry rather than global because `phase` on one boss and
+        /// `phase` on another are not the same number and must not share a
+        /// slot -- and because eight slots per creature is plenty while eight
+        /// across a world would not be.
+        std::vector<std::string> stateNames;
+
+        /// The slot @a name has, interning it if this is the first time.
+        /// @return MaxStates when the creature has run out, which is refused
+        ///         at load rather than silently aliasing two names onto one.
+        std::size_t Intern(std::string const& name)
+        {
+            for (std::size_t slot = 0; slot < stateNames.size(); ++slot)
+            {
+                if (stateNames[slot] == name)
+                {
+                    return slot;
+                }
+            }
+
+            if (stateNames.size() >= MaxStates)
+            {
+                return MaxStates;
+            }
+
+            stateNames.push_back(name);
+            return stateNames.size() - 1;
+        }
     };
 }
 

@@ -88,6 +88,15 @@ namespace mai
     {
         Phases phases;
 
+        /// What this creature remembers. Named in the tables and numbered
+        /// here: the names are interned per creature ENTRY when its rules load,
+        /// so a guard costs an array index at run time and still reads as
+        /// `enraged=0` where a person looks at it.
+        ///
+        /// Cleared by Reset, which is what makes "already enraged" mean
+        /// already enraged IN THIS FIGHT.
+        uint32 states[MaxStates] = {};
+
         /// Health this creature refuses to drop below, and whether the number
         /// is a percentage. Zero means it dies like anything else.
         uint32 invincibilityHp = 0;
@@ -107,6 +116,10 @@ namespace mai
         void Reset()
         {
             phases = Phases();
+            for (uint32& state : states)
+            {
+                state = 0;
+            }
             invincibilityHp = 0;
             invincibilityIsPercent = false;
             throwMask = 0;

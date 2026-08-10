@@ -160,6 +160,18 @@ CREATE TABLE `mai_rule`
 
     -- The phases this rule does NOT fire in. Inverted, as EventAI had it, and
     -- kept inverted so a converted row means what it meant.
+    -- WHETHER, as opposed to WHEN. The trigger says a health threshold was
+    -- crossed; the guard says "and we have not enraged yet". Empty on every
+    -- rule converted from EventAI, because EventAI had no way to say it.
+    --
+    --     enraged=0            fires only while that is still zero
+    --     kills>=3 phase!=2    all of them must hold
+    --
+    -- The names are the creature's own and are interned to eight slots when
+    -- its rules load. Six comparisons, no `or`, no nesting -- a script that
+    -- needs more is a program and belongs in C++.
+    `guard`      VARCHAR(255) NOT NULL DEFAULT '',
+
     `phase_mask` INT UNSIGNED NOT NULL DEFAULT 0,
     `chance`     TINYINT UNSIGNED NOT NULL DEFAULT 100,
     `flags`      INT UNSIGNED NOT NULL DEFAULT 0,

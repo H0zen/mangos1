@@ -70,6 +70,12 @@ TYPES = {
     'mail':       ('uint32', 'MailTemplate'),
     'area':       ('uint32', 'Area'),
     'text':       ('int32', 'Text'),
+
+    # A NAME in the table and a slot at run time. The only type whose value is
+    # not a number on the way in, which is why the parser has to know about it
+    # rather than the loader translating first: interning needs the creature it
+    # belongs to, and the parser is where the creature is known.
+    'state':      ('uint32', 'State'),
 }
 
 
