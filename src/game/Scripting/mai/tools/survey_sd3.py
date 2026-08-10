@@ -89,6 +89,27 @@ ALLOWED = (
     re.compile(r'^\s*DoScriptText\s*\('),
     re.compile(r'^\s*if\s*\(\s*!m_creature->SelectHostileTarget\(\)\s*\|\|\s*!m_creature->getVictim\(\)\s*\)\s*$'),
     re.compile(r'^\s*return\s*;\s*$'),
+
+    # -- the scaffolding a ScriptedAI needs to exist at all. None of it is
+    #    behaviour, and all of it disappears when the file does.
+    re.compile(r'^\s*struct\s+\w+\s*:\s*public\s+ScriptedAI\s*$'),
+    re.compile(r'^\s*\w+\s*\(\s*Creature\*\s*\w+\s*\)\s*:\s*ScriptedAI\s*\(\s*\w+\s*\)\s*\{?\s*$'),
+    re.compile(r'^\s*ScriptedInstance\*\s*m_pInstance\s*;\s*$'),
+    re.compile(r'^\s*uint32\s+m_ui\w*Timer\s*;\s*$'),
+    re.compile(r'^\s*m_pInstance\s*=\s*\(ScriptedInstance\*\)\s*\w+->GetInstanceData\s*\(\s*\)\s*;\s*$'),
+    re.compile(r'^\s*Reset\s*\(\s*\)\s*;\s*$'),
+    re.compile(r'^\s*void\s+Reset\s*\(\s*\)\s*override\s*$'),
+    re.compile(r'^\s*void\s+UpdateAI\s*\(\s*const\s+uint32\s+\w+\s*\)\s*override\s*$'),
+
+    # -- the three encounter callbacks, and the ONE thing they are allowed to
+    #    do. `SetData(TYPE_X, IN_PROGRESS)` is `set_instance_data`, and aggro,
+    #    died and reached_home are all triggers MAI already has. A boss that
+    #    only tells the instance where the fight is up to is still mechanical.
+    re.compile(r'^\s*void\s+Aggro\s*\(\s*Unit\*\s*/?\*?\w*\*?/?\s*\)\s*override\s*$'),
+    re.compile(r'^\s*void\s+JustDied\s*\(\s*Unit\*\s*/?\*?\w*\*?/?\s*\)\s*override\s*$'),
+    re.compile(r'^\s*void\s+JustReachedHome\s*\(\s*\)\s*override\s*$'),
+    re.compile(r'^\s*if\s*\(\s*m_pInstance\s*\)\s*$'),
+    re.compile(r'^\s*m_pInstance->SetData\s*\(\s*\w+\s*,\s*\w+\s*\)\s*;\s*$'),
 )
 
 TIMER = re.compile(r'\bm_ui(\w*?)Timer\b')
@@ -105,9 +126,13 @@ def classify(path):
     if 'CreatureScript' not in text and 'ScriptedAI' not in text:
         return 'other', 'registers no creature AI'
 
-    body = update_body(text)
+    # THE WHOLE AI, not just UpdateAI. Reading one method and calling the file
+    # mechanical is how a boss with arbitrary code in Aggro() passes: the
+    # timers convert, the thing that made it a boss does not, and nobody finds
+    # out until the encounter is live.
+    body = struct_body(text)
     if body is None:
-        return 'creature-ai', 'no UpdateAI to read'
+        return 'creature-ai', 'no ScriptedAI struct to read'
 
     for line in body.split(EOL):
         if not any(rule.match(line) for rule in ALLOWED):
@@ -119,12 +144,13 @@ def classify(path):
     return 'mechanical', None
 
 
-def update_body(text):
-    """The text of UpdateAI, brace-matched, or None."""
-    start = text.find('void UpdateAI(')
-    if start < 0:
+def struct_body(text):
+    """The text of the ScriptedAI struct, brace-matched, or None."""
+    found = re.search(r'struct\s+\w+\s*:\s*public\s+ScriptedAI\b', text)
+    if not found:
         return None
 
+    start = found.start()
     open_brace = text.find('{', start)
     if open_brace < 0:
         return None
