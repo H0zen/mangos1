@@ -48,7 +48,6 @@
 
 #include "DBCStores.h"
 #include "ProgressBar.h"
-#include "ScriptMgr.h"
 
 /**
  * @brief Loads and initializes all configured global transports.

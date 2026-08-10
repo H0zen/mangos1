@@ -30,7 +30,7 @@
 #include "ProgressBar.h"
 #include "MapManager.h"
 #include "ObjectMgr.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScriptStore.h"
 #include <set>
 #include <utility>
 
@@ -86,7 +86,7 @@ void WaypointManager::Load()
     uint32 total_behaviors = 0;
 
     /* Getting the script chain map for the DBS_ON_CREATURE_MOVEMENT event. */
-    ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
+    ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
     if (!scm)
     {
         return;
@@ -766,7 +766,7 @@ bool WaypointManager::SetNodeScriptId(uint32 entry, uint32 dbGuid, uint32 point,
         find->second.script_id = scriptId;
     }
 
-    ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
+    ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
     if (!scm)
     {
         return false;

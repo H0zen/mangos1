@@ -32,7 +32,7 @@
 #include "ObjectMgr.h"
 #include "QuestDef.h"
 #include "Log.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScriptStore.h"
 #include "WaypointManager.h"
 
 #include <cstring>
@@ -417,31 +417,31 @@ namespace scripting
             case LoadPhase::BeforeGossip:
                 // The gossip menu rows are validated against these, not the
                 // other way round, so this one goes in FIRST.
-                sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);
+                sDbScripts.LoadDbScripts(DBS_ON_GOSSIP);
                 break;
 
             case LoadPhase::AfterWaypoints:
                 // Read before creature_movement, which is checked against it.
-                sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_MOVEMENT);
+                sDbScripts.LoadDbScripts(DBS_ON_CREATURE_MOVEMENT);
                 break;
 
             case LoadPhase::AfterTemplates:
                 // All seven need the creature and gameobject templates and
                 // their spawn data; the two quest ones also need the quests.
-                sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);
-                sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);
-                sScriptMgr.LoadDbScripts(DBS_ON_SPELL);
-                sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);
-                sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);
-                sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);
-                sScriptMgr.LoadDbScripts(DBS_ON_EVENT);
+                sDbScripts.LoadDbScripts(DBS_ON_QUEST_START);
+                sDbScripts.LoadDbScripts(DBS_ON_QUEST_END);
+                sDbScripts.LoadDbScripts(DBS_ON_SPELL);
+                sDbScripts.LoadDbScripts(DBS_ON_GO_USE);
+                sDbScripts.LoadDbScripts(DBS_ON_GOT_USE);
+                sDbScripts.LoadDbScripts(DBS_ON_CREATURE_DEATH);
+                sDbScripts.LoadDbScripts(DBS_ON_EVENT);
                 break;
 
             case LoadPhase::Final:
                 // Last of all: the locale strings are checked against every
                 // script that references one, so every script must be in.
                 sLog.outString("Loading DB-script text locales...");
-                sScriptMgr.LoadDbScriptStrings();
+                sDbScripts.LoadDbScriptStrings();
                 break;
 
             default:
@@ -470,14 +470,14 @@ namespace scripting
         {
             if (std::strcmp(table, entry.name) == 0)
             {
-                sScriptMgr.LoadDbScripts(entry.type);
+                sDbScripts.LoadDbScripts(entry.type);
                 return true;
             }
         }
 
         if (std::strcmp(table, "db_script_string") == 0)
         {
-            sScriptMgr.LoadDbScriptStrings();
+            sDbScripts.LoadDbScriptStrings();
             return true;
         }
 

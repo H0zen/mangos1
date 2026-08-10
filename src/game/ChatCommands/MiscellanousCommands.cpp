@@ -34,6 +34,7 @@
  */
 
 #include "Chat.h"
+#include "sd3/ScriptBindings.h"
 #include "ObjectMgr.h"
 #include "World.h"
 #include "BattleGroundMgr.h"
@@ -110,7 +111,7 @@ bool ChatHandler::HandleLoadScriptsCommand(char* args)
         return false;
     }
 
-    switch (sScriptMgr.LoadScriptLibrary(args))
+    switch (sScriptBindings.LoadScriptLibrary(args))
     {
         case SCRIPT_LOAD_OK:
             sWorld.SendWorldText(LANG_SCRIPTS_RELOADED_ANNOUNCE);

@@ -36,12 +36,14 @@
  * than in WorldHandlers, where every file that wanted a script id dragged the
  * whole command set in behind it.
  *
- * ScriptMgr.h still includes this, so nothing that used to see these names
- * has stopped seeing them; what has changed is where they are defined and who
- * owns them.
+ * DbScriptStore.h includes this and owns the tables; ScriptAction.cpp runs
+ * them; DbScriptEngine decides that one should start. A file that wants only
+ * the vocabulary -- Map.h wants ScriptInfo and ScriptAction, and nothing else
+ * -- includes this and stops here.
  */
 
 #include "Platform/Define.h"
+#include "dbscripts/DbScripts.h"
 #include "ObjectGuid.h"
 #include "DBCEnums.h"
 
@@ -71,30 +73,6 @@ enum DBScriptType
     DBS_END                   = 10,
 };
 #define DBS_START DBS_ON_QUEST_START
-
-enum ScriptedObjectType
-{
-    SCRIPTED_UNIT           = 0,    //CreatureScript
-    SCRIPTED_GAMEOBJECT     = 1,    //GameObjectScript
-    SCRIPTED_ITEM           = 2,    //ItemScript
-    SCRIPTED_AREATRIGGER    = 3,    //AreaTriggerScript
-    SCRIPTED_SPELL          = 4,    //SpellScript
-    SCRIPTED_AURASPELL      = 5,    //AuraScript
-    SCRIPTED_MAPEVENT       = 6,    //MapEventScript
-    SCRIPTED_MAP            = 7,    //ZoneScript
-    SCRIPTED_BATTLEGROUND   = 8,    //BattleGroundScript
-    SCRIPTED_PVP_ZONE       = 9,    //OutdoorPvPScript
-    SCRIPTED_INSTANCE       = 10,   //InstanceScript
-    SCRIPTED_CONDITION      = 11,   //ConditionScript
-    SCRIPTED_ACHIEVEMENT    = 12,   //AchievementScript
-    SCRIPTED_MAX_TYPE
-};
-
-enum ScriptImplementation
-{
-    SCRIPT_FROM_DATABASE    = 0,
-    SCRIPT_FROM_CORE        = 1,
-};
 
 enum DBScriptCommand                                        // resSource, resTarget are the resulting Source/ Target after buddy search is done
 {

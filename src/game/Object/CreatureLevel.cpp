@@ -32,7 +32,6 @@
 #include "LivingWorldAnchorPolicy.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "SpellMgr.h"

@@ -38,7 +38,7 @@
 #include "Log.h"
 #include "MapManager.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "Group.h"
@@ -380,18 +380,6 @@ void ObjectMgr::AddLocaleString(std::string const& s, LocaleConstant locale, Str
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 // name must be checked to correctness (if received) before call this function
 ObjectGuid ObjectMgr::GetPlayerGuidByName(std::string name) const
 {
@@ -524,12 +512,6 @@ uint32 ObjectMgr::GetPlayerAccountIdByPlayerName(const std::string& name) const
 
 
 
-
-
-
-
-
-
 /* ********************************************************************************************* */
 /* *                                Static Wrappers                                              */
 /* ********************************************************************************************* */
@@ -614,8 +596,6 @@ CreatureDataAddon const* ObjectMgr::GetCreatureTemplateAddon(uint32 entry) { ret
  * @return The item prototype, or null if missing.
  */
 ItemPrototype const* ObjectMgr::GetItemPrototype(uint32 id) { return sItemStorage.LookupEntry<ItemPrototype>(id); }
-
-
 
 
 
@@ -777,14 +757,12 @@ void ObjectMgr::LoadPetCreateSpells()
     sLog.outString(">> Loaded %u pet create spells from table and %u from DBC", count, dcount);
 }
 
-
-
 struct SQLInstanceLoader : public SQLStorageLoaderBase<SQLInstanceLoader, SQLStorage>
 {
     template<class D>
     void convert_from_str(uint32 /*field_pos*/, char const* src, D& dst)
     {
-        dst = D(sScriptMgr.GetScriptId(src));
+        dst = D(sScriptBindings.GetScriptId(src));
     }
 };
 
@@ -869,7 +847,7 @@ struct SQLWorldLoader : public SQLStorageLoaderBase<SQLWorldLoader, SQLStorage>
     template<class D>
     void convert_from_str(uint32 /*field_pos*/, char const* src, D& dst)
     {
-        dst = D(sScriptMgr.GetScriptId(src));
+        dst = D(sScriptBindings.GetScriptId(src));
     }
 };
 
@@ -916,8 +894,6 @@ GossipText const* ObjectMgr::GetGossipText(uint32 Text_ID) const
     }
     return NULL;
 }
-
-
 
 // not very fast function but it is called only once a day, or on starting-up
 /// @param serverUp true if the server is already running, false when the server is started
@@ -1158,12 +1134,6 @@ void ObjectMgr::LoadTavernAreaTriggers()
 
 
 
-
-
-
-
-
-
 /**
  * @brief Renumbers group ids into a compact sequential range.
  */
@@ -1315,12 +1285,6 @@ void ObjectMgr::SetHighestGuids()
     m_StaticGameObjectGuids.Set(m_FirstTemporaryGameObjectGuid);
     m_FirstTemporaryGameObjectGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT);
 }
-
-
-
-
-
-
 
 
 
@@ -1530,8 +1494,6 @@ void ObjectMgr::LoadCorpses()
 }
 
 
-
-
 /**
  * @brief Loads point-of-interest definitions used by NPC map markers.
  */
@@ -1712,12 +1674,6 @@ void ObjectMgr::DeleteCorpseCellData(uint32 mapid, uint32 cellid, uint32 player_
     CellObjectGuids& cell_guids = mMapObjectGuids[MAKE_PAIR32(mapid, 0)][cellid];
     cell_guids.corpses.erase(player_guid);
 }
-
-
-
-
-
-
 
 
 
@@ -2945,8 +2901,6 @@ SkillRangeType GetSkillRangeType(SkillLineEntry const* pSkill, bool racial)
 
 
 
-
-
 void ObjectMgr::LoadMailLevelRewards()
 {
     m_mailLevelRewardMap.clear();                           // for reload case
@@ -3012,8 +2966,6 @@ void ObjectMgr::LoadMailLevelRewards()
     sLog.outString();
     sLog.outString(">> Loaded %u level dependent mail rewards,", count);
 }
-
-
 
 
 
@@ -3164,8 +3116,6 @@ ObjectMgr::LivingWorldStartupStats ObjectMgr::LoadActiveEntities(Map* _map)
 
     return ObjectMgr::LivingWorldStartupStats();
 }
-
-
 
 
 void ObjectMgr::AddVendorItem(uint32 entry, uint32 item, uint32 maxcount, uint32 incrtime, uint32 extendedcost)
@@ -3400,8 +3350,6 @@ void ObjectMgr::RemoveArenaTeam(uint32 Id)
 {
     mArenaTeamMap.erase(Id);
 }
-
-
 
 
 

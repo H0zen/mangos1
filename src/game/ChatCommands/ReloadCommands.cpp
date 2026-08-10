@@ -35,6 +35,8 @@
  */
 
 #include "Chat.h"
+#include "dbscripts/DbScriptStore.h"
+#include "sd3/ScriptBindings.h"
 #include "Language.h"
 #include "SpellMgr.h"
 #include "DisableMgr.h"
@@ -187,7 +189,7 @@ bool ChatHandler::HandleReloadAllQuestCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadAllScriptsCommand(char* /*args*/)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         PSendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -792,7 +794,7 @@ bool ChatHandler::HandleReloadSkillExtraItemTemplateCommand(char* /*args*/)
 bool ChatHandler::HandleReloadScriptBindingCommand(char* /*args*/)
 {
     sLog.outString("Trying to re-load `script_binding` Table!");
-    if (sScriptMgr.ReloadScriptBinding())
+    if (sScriptBindings.ReloadScriptBinding())
     {
         SendGlobalSysMessage("DB table `script_binding` reloaded.", SEC_MODERATOR);
     }
@@ -1127,7 +1129,7 @@ bool ChatHandler::HandleReloadLuauCommand(char* /*args*/)
 bool ChatHandler::HandleReloadDbScriptStringCommand(char* /*args*/)
 {
     sLog.outString("Re-Loading Script strings from `db_script_string`...");
-    sScriptMgr.LoadDbScriptStrings();
+    sDbScripts.LoadDbScriptStrings();
     SendGlobalSysMessage("DB table `db_script_string` reloaded.", SEC_MODERATOR);
     return true;
 }
@@ -1140,7 +1142,7 @@ bool ChatHandler::HandleReloadDbScriptStringCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadDBScriptsOnGossipCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1152,7 +1154,7 @@ bool ChatHandler::HandleReloadDBScriptsOnGossipCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_GOSSIP]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);
+    sDbScripts.LoadDbScripts(DBS_ON_GOSSIP);
 
     if (*args != 'a')
     {
@@ -1170,7 +1172,7 @@ bool ChatHandler::HandleReloadDBScriptsOnGossipCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1182,7 +1184,7 @@ bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_SPELL]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_SPELL);
+    sDbScripts.LoadDbScripts(DBS_ON_SPELL);
 
     if (*args != 'a')
     {
@@ -1200,7 +1202,7 @@ bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
 // */
 //bool ChatHandler::HandleReloadDBScriptsOnCreatureSpellCommand(char* args)
 //{
-//    if (sScriptMgr.IsScriptScheduled())
+//    if (sDbScripts.IsScriptScheduled())
 //    {
 //        SendSysMessage("DB scripts used currently, please attempt reload later.");
 //        SetSentErrorMessage(true);
@@ -1212,7 +1214,7 @@ bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
 //        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_CREATURE_SPELL]`...");
 //    }
 //
-//    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_SPELL);
+//    sDbScripts.LoadDbScripts(DBS_ON_CREATURE_SPELL);
 //
 //    if (*args != 'a')
 //    {
@@ -1230,7 +1232,7 @@ bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnQuestStartCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1242,7 +1244,7 @@ bool ChatHandler::HandleReloadDBScriptsOnQuestStartCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_QUEST_START]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);
+    sDbScripts.LoadDbScripts(DBS_ON_QUEST_START);
 
     if (*args != 'a')
     {
@@ -1260,7 +1262,7 @@ bool ChatHandler::HandleReloadDBScriptsOnQuestStartCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnQuestEndCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1272,7 +1274,7 @@ bool ChatHandler::HandleReloadDBScriptsOnQuestEndCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_QUEST_END]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);
+    sDbScripts.LoadDbScripts(DBS_ON_QUEST_END);
 
     if (*args != 'a')
     {
@@ -1290,7 +1292,7 @@ bool ChatHandler::HandleReloadDBScriptsOnQuestEndCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnEventCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1302,7 +1304,7 @@ bool ChatHandler::HandleReloadDBScriptsOnEventCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_EVENT]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_EVENT);
+    sDbScripts.LoadDbScripts(DBS_ON_EVENT);
 
     if (*args != 'a')
     {
@@ -1320,7 +1322,7 @@ bool ChatHandler::HandleReloadDBScriptsOnEventCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnGoUseCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1332,8 +1334,8 @@ bool ChatHandler::HandleReloadDBScriptsOnGoUseCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_GO[_TEMPLATE]_USE]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);
-    sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);
+    sDbScripts.LoadDbScripts(DBS_ON_GO_USE);
+    sDbScripts.LoadDbScripts(DBS_ON_GOT_USE);
 
     if (*args != 'a')
     {
@@ -1351,7 +1353,7 @@ bool ChatHandler::HandleReloadDBScriptsOnGoUseCommand(char* args)
  */
 bool ChatHandler::HandleReloadDBScriptsOnCreatureDeathCommand(char* args)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    if (sDbScripts.IsScriptScheduled())
     {
         SendSysMessage("DB scripts used currently, please attempt reload later.");
         SetSentErrorMessage(true);
@@ -1363,7 +1365,7 @@ bool ChatHandler::HandleReloadDBScriptsOnCreatureDeathCommand(char* args)
         sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_CREATURE_DEATH]`...");
     }
 
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);
+    sDbScripts.LoadDbScripts(DBS_ON_CREATURE_DEATH);
 
     if (*args != 'a')
     {

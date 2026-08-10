@@ -62,7 +62,6 @@
 #include "SpellMgr.h"
 #include "Player.h"
 #include "GossipDef.h"
-#include "ScriptMgr.h"
 #include "Creature.h"
 #include "Pet.h"
 #include "Guild.h"

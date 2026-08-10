@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "Common/Locales.h"
 #include "ObjectMgr.h"
 #include "LivingWorldAnchorPolicy.h"
@@ -35,7 +33,7 @@
 #include "Log.h"
 #include "MapManager.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "SpellMgr.h"
 #include "UpdateMask.h"
 #include "World.h"
@@ -145,7 +143,7 @@ struct SQLItemLoader : public SQLStorageLoaderBase<SQLItemLoader, SQLStorage>
     template<class D>
     void convert_from_str(uint32 /*field_pos*/, char const* src, D& dst)
     {
-        dst = D(sScriptMgr.GetScriptId(src));
+        dst = D(sScriptBindings.GetScriptId(src));
     }
 };
 

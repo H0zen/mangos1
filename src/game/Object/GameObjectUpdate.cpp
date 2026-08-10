@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "GameObject.h"
 #include "QuestDef.h"
 #include "ObjectMgr.h"
@@ -47,7 +45,7 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
@@ -76,7 +74,7 @@ void GameObject::Update(uint32 update_diff, uint32 p_time)
 
     // Do not add a scripting event here. Driving a game object is a ROLE,
     // won at auction and delivered through the GameObjectAI the engine
-    // builds -- see ScriptMgr::GetGameObjectAI. A per-object per-tick call
+    // builds -- see scripting::ClaimGameObjectAI. A per-object per-tick call
     // through the global dispatch table would be slower and, worse, would
     // show every loaded engine a decision that belongs to one of them.
 

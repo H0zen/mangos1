@@ -31,7 +31,7 @@
 #include "Common/ServerDefines.h"
 #include "Common/TimeConstants.h"
 #include "DBCStructure.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "QuestDef.h"
 
 class Player;

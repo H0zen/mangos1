@@ -32,7 +32,6 @@
 #include "NullCreatureAI.h"
 #include "Policies/Singleton.h"
 #include "MovementGenerator.h"
-#include "ScriptMgr.h"
 #include "Pet.h"
 #include "Log.h"
 #include <string>

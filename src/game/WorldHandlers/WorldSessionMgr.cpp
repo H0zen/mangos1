@@ -67,7 +67,6 @@
 #include "LootMgr.h"
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
-#include "ScriptMgr.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"

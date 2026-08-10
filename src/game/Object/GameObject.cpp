@@ -46,7 +46,7 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
@@ -54,8 +54,6 @@
 #include <memory>
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
-
-
 
 /**
  * @brief Creates a game object instance with default runtime state.
@@ -1636,8 +1634,6 @@ bool GameObject::HasStaticDBSpawnData() const
     return sObjectMgr.GetGOData(GetGUIDLow()) != NULL;
 }
 
-
-
 /**
  * @brief Gets the bound script id for this game object.
  *
@@ -1645,7 +1641,7 @@ bool GameObject::HasStaticDBSpawnData() const
  */
 uint32 GameObject::GetScriptId()
 {
-    return sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) ? sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) : sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, GetEntry());
+    return sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) ? sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) : sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, GetEntry());
 }
 
 /**

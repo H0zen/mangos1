@@ -37,7 +37,6 @@
 #include "LivingWorldAnchorPolicy.h"
 #include "MotionGenerators/MotionMaster.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
 #include "SpellMgr.h"
 #include "Group.h"
 #include "ArenaTeam.h"

@@ -36,7 +36,7 @@
 #include "Player.h"
 #include "Log.h"
 #include "QuestDef.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "SpellAuras.h"
 #include "Spell.h"
 
@@ -173,10 +173,10 @@ namespace scripting
                     return NoBid;
                 }
 
-                uint32 const byGuid = sScriptMgr.GetBoundScriptId(
+                uint32 const byGuid = sScriptBindings.GetBoundScriptId(
                     SCRIPTED_GAMEOBJECT, -int32(guid.GetCounter()));
 
-                return (byGuid || sScriptMgr.GetBoundScriptId(
+                return (byGuid || sScriptBindings.GetBoundScriptId(
                             SCRIPTED_GAMEOBJECT, guid.GetEntry()))
                            ? BidStrong
                            : NoBid;
@@ -223,7 +223,7 @@ namespace scripting
                 // bids, the spell and map-event lookups -- needs it, so it is
                 // the first thing that happens.
                 sLog.outString("Loading all script bindings...");
-                sScriptMgr.LoadScriptBinding();
+                sScriptBindings.LoadScriptBinding();
                 break;
 
             case LoadPhase::Final:
@@ -245,7 +245,7 @@ namespace scripting
     {
         if (std::strcmp(table, "script_binding") == 0)
         {
-            sScriptMgr.LoadScriptBinding();
+            sScriptBindings.LoadScriptBinding();
             return true;
         }
 

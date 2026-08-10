@@ -23,15 +23,13 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "ObjectMgr.h"
 #include "Database/DatabaseEnv.h"
 #include "Policies/Singleton.h"
 #include "Log.h"
 #include "ProgressBar.h"
 #include "SQLStorages.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScriptStore.h"
 #include "GossipDef.h"
 #include "LivingWorldAnchorPolicy.h"
 #include "MotionGenerators/MotionMaster.h"
@@ -110,7 +108,7 @@ void ObjectMgr::LoadGossipMenu(std::set<uint32>& gossipScriptSet)
         // Check script-id
         if (gMenu.script_id)
         {
-            ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_GOSSIP);
+            ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_GOSSIP);
             if (!scm)
             {
                 continue;
@@ -338,7 +336,7 @@ void ObjectMgr::LoadGossipMenuItems(std::set<uint32>& gossipScriptSet)
 
         if (gMenuItem.action_script_id)
         {
-            ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_GOSSIP);
+            ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_GOSSIP);
             if (!scm)
             {
                 continue;
@@ -389,7 +387,7 @@ void ObjectMgr::LoadGossipMenuItems(std::set<uint32>& gossipScriptSet)
  */
 void ObjectMgr::LoadGossipMenus()
 {
-    ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_GOSSIP);
+    ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_GOSSIP);
     if (!scm)
     {
         return;

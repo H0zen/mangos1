@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "ScriptHost.h"
 #include <random>
 #include "Platform/Define.h"
@@ -62,7 +60,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScriptStore.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -448,7 +446,7 @@ void Spell::EffectTriggerSpellWithValue(SpellEffectIndex eff_idx)
     if (!spellInfo)
     {
         // No previous Effect might have started a script
-        bool startDBScript = unitTarget && ScriptMgr::CanSpellEffectStartDBScript(m_spellInfo, eff_idx);
+        bool startDBScript = unitTarget && DbScriptStore::CanSpellEffectStartDBScript(m_spellInfo, eff_idx);
         if (startDBScript)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerSpell", m_spellInfo->ID);

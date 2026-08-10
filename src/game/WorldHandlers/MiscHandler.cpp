@@ -68,7 +68,6 @@
 #include "UpdateData.h"
 #include "LootMgr.h"
 #include "Chat.h"
-#include "ScriptMgr.h"
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
 #include "Object.h"

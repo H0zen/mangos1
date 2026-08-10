@@ -23,126 +23,25 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-/**
- * @file ScriptMgr.cpp
- * @brief Script system manager implementation
- *
- * This file implements ScriptMgr which manages all game scripts:
- * - Creature AI scripts
- * - GameObject scripts
- * - Item scripts
- * - Area trigger scripts
- * - Spell scripts
- * - Quest scripts
- * - Instance scripts
- *
- * Scripts are loaded from script libraries and provide hooks for
- * customizing game behavior. The script manager routes events to
- * the appropriate script handlers.
- *
- * @see ScriptMgr for the manager class
- * @see ScriptedInstance for instance script base
- */
+// Loading the compiled script library, and the free-function facade over the
+// binding registry.
 
-#include "Utilities/Errors.h"
-#include "ScriptMgr.h"
-#include "ScriptHost.h"
-#include "Policies/Singleton.h"
+#include "ScriptBindings.h"
+
 #include "Log.h"
-#include "ProgressBar.h"
 #include "ObjectMgr.h"
-#include "WaypointManager.h"
-#include "World.h"
-#include <DBCStores.h>
-#include "GridNotifiers.h"
-#include "GridNotifiersImpl.h"
-#include "Cell.h"
-#include "CellImpl.h"
+#include "Policies/Singleton.h"
 #include "SQLStorages.h"
-#include "BattleGround/BattleGround.h"
-#include "OutdoorPvP/OutdoorPvP.h"
-#include "WaypointMovementGenerator.h"
-#include "Mail.h"
-#if defined(CLASSIC)
-#include "LFGMgr.h"
-#endif
-
+#include "World.h"
 
 #ifdef ENABLE_SD3
-#include "system/ScriptDevMgr.h"
+#include "engine/system/ScriptDevMgr.h"
 #endif
 
-#include <cstring> /* std::strcmp */
+#include <cstring>
 #include <set>
 
-
-ScriptMgr::ScriptMgr() : m_scheduledScripts(0)
-{
-    m_dbScripts.resize(DBS_END);
-
-    ScriptChainMap emptyMap;
-
-    for (int t = DBS_START; t < DBS_END; ++t)
-    {
-        m_dbScripts[t] = emptyMap;
-    }
-}
-
-ScriptMgr::~ScriptMgr()
-{
-    m_dbScripts.clear();
-}
-
-
-
-
-
-
-
-
-
-
-// /////////////////////////////////////////////////////////
-//              DB SCRIPT ENGINE
-// /////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+INSTANTIATE_SINGLETON_1(ScriptBindings);
 
 /**
  * @brief Loads or reloads the named script library.
@@ -150,7 +49,7 @@ ScriptMgr::~ScriptMgr()
  * @param libName The script library name.
  * @return ScriptLoadResult The library loading result.
  */
-ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
+ScriptLoadResult ScriptBindings::LoadScriptLibrary(const char* libName)
 {
 #ifdef ENABLE_SD3
     if (std::strcmp(libName, "mangosscript") == 0)
@@ -167,7 +66,7 @@ ScriptLoadResult ScriptMgr::LoadScriptLibrary(const char* libName)
 /**
  * @brief Unloads the currently active script library.
  */
-void ScriptMgr::UnloadScriptLibrary()
+void ScriptBindings::UnloadScriptLibrary()
 {
 #ifdef ENABLE_SD3
     SD3::FreeScriptLibrary();
@@ -181,7 +80,7 @@ void ScriptMgr::UnloadScriptLibrary()
  *
  * @param eventIds The set that receives discovered event ids.
  */
-void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
+void ScriptBindings::CollectPossibleEventIds(std::set<uint32>& eventIds)
 {
     // Load all possible script entries from gameobjects
     for (SQLStorageBase::SQLSIterator<GameObjectInfo> itr = sGOStorage.getDataBegin<GameObjectInfo>(); itr < sGOStorage.getDataEnd<GameObjectInfo>(); ++itr)
@@ -277,62 +176,10 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
 }
 
 // Starters for events
-bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool isStart/*=true*/, Unit* forwardToPvp/*=NULL*/)
-{
-    MANGOS_ASSERT(source);
 
-    // Handle PvP Calls
-    if (forwardToPvp && source->GetTypeId() == TYPEID_GAMEOBJECT)
-    {
-        BattleGround* bg = NULL;
-        OutdoorPvP* opvp = NULL;
-        if (forwardToPvp->GetTypeId() == TYPEID_PLAYER)
-        {
-            bg = ((Player*)forwardToPvp)->GetBattleGround();
-            if (!bg)
-            {
-                opvp = sOutdoorPvPMgr.GetScript(((Player*)forwardToPvp)->GetCachedZoneId());
-            }
-        }
-        else
-        {
-#if defined(CLASSIC)
-            if (map->IsBattleGround())
-#else
-            if (map->IsBattleGroundOrArena())
-#endif
-            {
-                bg = ((BattleGroundMap*)map)->GetBG();
-            }
-            else                                            // Use the go, because GOs don't move
-            {
-                GameObject const* go = static_cast<GameObject*>(source);
-                opvp = sOutdoorPvPMgr.GetScript(go->GetTerrain()->GetZoneId(
-                           go->Where().X(), go->Where().Y(), go->Where().Z()));
-            }
-        }
-
-        if (bg && bg->HandleEvent(id, static_cast<GameObject*>(source)))
-        {
-            return true;
-        }
-
-        if (opvp && opvp->HandleEvent(id, static_cast<GameObject*>(source)))
-        {
-            return true;
-        }
-    }
-
-    return scripting::Offer(map,
-               scripting::ServerEventRaised{ scripting::RefOf(source),
-                                             scripting::RefOf(target),
-                                             id, isStart });
-}
-
-// Wrappers
 uint32 GetScriptId(const char* name)
 {
-    return sScriptMgr.GetScriptId(name);
+    return sScriptBindings.GetScriptId(name);
 }
 
 /**
@@ -343,7 +190,7 @@ uint32 GetScriptId(const char* name)
  */
 char const* GetScriptName(uint32 id)
 {
-    return sScriptMgr.GetScriptName(id);
+    return sScriptBindings.GetScriptName(id);
 }
 
 /**
@@ -353,7 +200,7 @@ char const* GetScriptName(uint32 id)
  */
 uint32 GetScriptIdsCount()
 {
-    return sScriptMgr.GetScriptIdsCount();
+    return sScriptBindings.GetScriptIdsCount();
 }
 
 /**

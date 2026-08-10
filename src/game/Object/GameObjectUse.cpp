@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "ScriptHost.h"
 #include "WorldHooks.h"
 #include "Utilities/Errors.h"
@@ -52,7 +50,7 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"

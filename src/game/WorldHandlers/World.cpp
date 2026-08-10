@@ -71,7 +71,7 @@
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
 #include "DataIntegrity/DataManifest.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"
@@ -123,8 +123,6 @@
 #include <vector>
 #include "PlayerRegistry.h"
 #include "CorpseManager.h"
-
-
 
 // 0 == running. A stop sets STOP_BIT and the exit code together, in one publish.
 std::atomic<uint32> World::m_shutdownState = 0;
@@ -291,8 +289,6 @@ void World::CleanupsBeforeStop()
 }
 
 
-
-
 void
 World::AddSession_(WorldSession* s)
 {
@@ -377,8 +373,6 @@ World::AddSession_(WorldSession* s)
         DETAIL_LOG("Server Population (%f).", popu);
     }
 }
-
-
 
 
 
@@ -546,7 +540,7 @@ void World::SetInitialWorldSettings()
     sObjectMgr.LoadSpellTemplate();
 
     sLog.outString("Loading Script Names...");
-    sScriptMgr.LoadScriptNames();
+    sScriptBindings.LoadScriptNames();
 
     sLog.outString("Loading InstanceTemplate...");
     sObjectMgr.LoadInstanceTemplate();
@@ -2205,14 +2199,6 @@ void World::UpdateMaxSessionCounters()
     m_maxActiveSessionCount = std::max(m_maxActiveSessionCount, uint32(m_sessions.size() - m_QueuedSessions.size()));
     m_maxQueuedSessionCount = std::max(m_maxQueuedSessionCount, uint32(m_QueuedSessions.size()));
 }
-
-
-
-
-
-
-
-
 
 
 

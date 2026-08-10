@@ -33,7 +33,6 @@
 #include "WorldPacket.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "GossipDef.h"

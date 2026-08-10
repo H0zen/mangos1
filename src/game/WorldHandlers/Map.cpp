@@ -43,6 +43,8 @@
  */
 
 #include "ScriptHost.h"
+#include "dbscripts/DbScriptStore.h"
+#include "sd3/ScriptBindings.h"
 #include "Utilities/Errors.h"
 #include <vector>
 #include "Utilities/MathDefines.h"
@@ -109,7 +111,7 @@ Map::~Map()
 
     if (!m_scriptSchedule.empty())
     {
-        sScriptMgr.DecreaseScheduledScriptCount(m_scriptSchedule.size());
+        sDbScripts.DecreaseScheduledScriptCount(m_scriptSchedule.size());
     }
 
     if (m_persistentState)
@@ -2314,7 +2316,7 @@ void Map::CreateInstanceData(bool load)
             const char* data = fields[0].GetString();
             if (data)
             {
-                DEBUG_LOG("Loading instance data for `%s` (Map: %u Instance: %u)", sScriptMgr.GetScriptName(i_script_id), GetId(), i_InstanceId);
+                DEBUG_LOG("Loading instance data for `%s` (Map: %u Instance: %u)", sScriptBindings.GetScriptName(i_script_id), GetId(), i_InstanceId);
                 i_data->Load(data);
             }
             delete result;
@@ -2330,7 +2332,7 @@ void Map::CreateInstanceData(bool load)
     }
     else
     {
-        DEBUG_LOG("New instance data, \"%s\" ,initialized!", sScriptMgr.GetScriptName(i_script_id));
+        DEBUG_LOG("New instance data, \"%s\" ,initialized!", sScriptBindings.GetScriptName(i_script_id));
         i_data->Initialize();
     }
 }
@@ -2878,7 +2880,7 @@ bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* tar
     MANGOS_ASSERT(source);
 
     ///- Find the script chain map
-    ScriptChainMap const *scm = sScriptMgr.GetScriptChainMap(type);
+    ScriptChainMap const *scm = sDbScripts.GetScriptChainMap(type);
     if (!scm)
     {
         return false;
@@ -2917,7 +2919,7 @@ bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* tar
 
         m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + iter->delay), sa));
 
-        sScriptMgr.IncreaseScheduledScriptsCount();
+        sDbScripts.IncreaseScheduledScriptsCount();
     }
 
     return true;
@@ -2944,7 +2946,7 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
 
     m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + delay), sa));
 
-    sScriptMgr.IncreaseScheduledScriptsCount();
+    sDbScripts.IncreaseScheduledScriptsCount();
 }
 
 /// Process queued scripts
@@ -2978,7 +2980,7 @@ void Map::ScriptsProcess()
                 if (rmItr->second.IsSameScript(type, id, sourceGuid, targetGuid, ownerGuid))
                 {
                     m_scriptSchedule.erase(rmItr++);
-                    sScriptMgr.DecreaseScheduledScriptCount();
+                    sDbScripts.DecreaseScheduledScriptCount();
                 }
                 else
                 {
@@ -2990,7 +2992,7 @@ void Map::ScriptsProcess()
         {
             m_scriptSchedule.erase(iter);
 
-            sScriptMgr.DecreaseScheduledScriptCount();
+            sDbScripts.DecreaseScheduledScriptCount();
         }
         iter = m_scriptSchedule.begin();
     }

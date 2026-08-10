@@ -25,6 +25,7 @@
  */
 
 #include "precompiled.h"
+#include "sd3/ScriptBindings.h"
 #include "Config/Config.h"
 #include "SystemConfig.h"
 #include "Database/DatabaseEnv.h"
@@ -637,7 +638,7 @@ bool SD3::GOQuestRewarded(Player* pPlayer, GameObject* pGo, Quest const* pQuest)
  */
 bool SD3::AreaTrigger(Player* pPlayer, AreaTriggerEntry const* atEntry)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_AREATRIGGER, SD3_AreaTriggerId(atEntry))];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_AREATRIGGER, SD3_AreaTriggerId(atEntry))];
 
     if (!pTempScript || !pTempScript->ToAreaTriggerScript())
     {
@@ -676,7 +677,7 @@ bool SD3::NpcSpellClick(Player* pPlayer, Creature* pClickedCreature, uint32 uiSp
  */
 bool SD3::ProcessEvent(uint32 uiEventId, Object* pSource, Object* pTarget, bool bIsStart)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_MAPEVENT, uiEventId)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_MAPEVENT, uiEventId)];
 
     if (!pTempScript || !pTempScript->ToMapEventScript())
     {
@@ -796,7 +797,7 @@ bool SD3::ItemDelete(Player* pPlayer, Item* pItem)
  */
 bool SD3::EffectDummyUnit(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Unit* pTarget, ObjectGuid originalCasterGuid)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
 
     if (!pTempScript || !pTempScript->ToSpellScript())
     {
@@ -817,7 +818,7 @@ bool SD3::EffectDummyUnit(Unit* pCaster, uint32 spellId, SpellEffectIndex effInd
  */
 bool SD3::EffectDummyGameObject(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, GameObject* pTarget, ObjectGuid originalCasterGuid)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
 
     if (!pTempScript || !pTempScript->ToSpellScript())
     {
@@ -838,7 +839,7 @@ bool SD3::EffectDummyGameObject(Unit* pCaster, uint32 spellId, SpellEffectIndex 
  */
 bool SD3::EffectDummyItem(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Item* pTarget, ObjectGuid originalCasterGuid)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
 
     if (!pTempScript || !pTempScript->ToSpellScript())
     {
@@ -859,7 +860,7 @@ bool SD3::EffectDummyItem(Unit* pCaster, uint32 spellId, SpellEffectIndex effInd
  */
 bool SD3::EffectScriptEffectUnit(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Unit* pTarget, ObjectGuid originalCasterGuid)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_SPELL, spellId | effIndex << 24)];
 
     if (!pTempScript || !pTempScript->ToSpellScript())
     {
@@ -877,7 +878,7 @@ bool SD3::EffectScriptEffectUnit(Unit* pCaster, uint32 spellId, SpellEffectIndex
  */
 bool SD3::AuraDummy(Aura const* pAura, bool bApply)
 {
-    Script* pTempScript = m_scripts[sScriptMgr.GetBoundScriptId(SCRIPTED_AURASPELL, pAura->GetId() | pAura->GetEffIndex() << 24)];
+    Script* pTempScript = m_scripts[sScriptBindings.GetBoundScriptId(SCRIPTED_AURASPELL, pAura->GetId() | pAura->GetEffIndex() << 24)];
 
     if (!pTempScript || !pTempScript->ToAuraScript())
     {

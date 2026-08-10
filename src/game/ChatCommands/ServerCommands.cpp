@@ -35,6 +35,7 @@
  */
 
 #include "Chat.h"
+#include "sd3/ScriptBindings.h"
 #include "ObjectMgr.h"
 #include "World.h"
 #include "Config.h"
@@ -65,9 +66,9 @@ bool ChatHandler::HandleServerInfoCommand(char* /*args*/)
     full = GitRevision::GetProjectRevision();
     SendSysMessage(full);
 
-    if (sScriptMgr.IsScriptLibraryLoaded())
+    if (sScriptBindings.IsScriptLibraryLoaded())
     {
-        char const* ver = sScriptMgr.GetScriptLibraryVersion();
+        char const* ver = sScriptBindings.GetScriptLibraryVersion();
         if (ver && *ver)
         {
             PSendSysMessage(LANG_USING_SCRIPT_LIB, ver);

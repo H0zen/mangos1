@@ -49,7 +49,6 @@
 #include "Log.h"
 #include "Opcodes.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "Totem.h"
 #include "SpellAuras.h"
 

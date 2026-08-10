@@ -23,32 +23,19 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-/**
- * @file ScriptMgr.cpp
- * @brief Script system manager implementation
- *
- * This file implements ScriptMgr which manages all game scripts:
- * - Creature AI scripts
- * - GameObject scripts
- * - Item scripts
- * - Area trigger scripts
- * - Spell scripts
- * - Quest scripts
- * - Instance scripts
- *
- * Scripts are loaded from script libraries and provide hooks for
- * customizing game behavior. The script manager routes events to
- * the appropriate script handlers.
- *
- * @see ScriptMgr for the manager class
- * @see ScriptedInstance for instance script base
- */
+// Running one step of a DB script chain.
+//
+// A chain is queued on a map with a delay per command and runs later, on
+// that map, from its own schedule -- so everything here starts by turning
+// the guids it was queued with back into objects, and gives up quietly
+// when one of them has gone. That is not defensive coding: the delay is
+// the point of the engine, and anything can die inside it.
 
 
 
 #include <algorithm>
 #include "Utilities/MathDefines.h"
-#include "ScriptMgr.h"
+#include "DbScriptStore.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "GridNotifiers.h"

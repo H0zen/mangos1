@@ -33,7 +33,7 @@
 #include "WorldPacket.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "SpellMgr.h"
@@ -1680,8 +1680,6 @@ void Creature::SaveToDB(uint32 mapid, uint8 spawnMask)
 }
 
 
-
-
 /**
  * @brief Lowers the remaining player damage requirement for loot eligibility.
  *
@@ -2953,10 +2951,6 @@ Unit* Creature::SelectAttackingTarget(AttackingTarget target, uint32 position, S
 
 
 
-
-
-
-
 /**
  * @brief Checks whether the creature is currently evading back home.
  *
@@ -3141,7 +3135,7 @@ std::string Creature::GetAIName() const
  */
 std::string Creature::GetScriptName() const
 {
-    return sScriptMgr.GetScriptName(GetScriptId());
+    return sScriptBindings.GetScriptName(GetScriptId());
 }
 
 /**
@@ -3152,12 +3146,8 @@ std::string Creature::GetScriptName() const
 uint32 Creature::GetScriptId() const
 {
     // scripts bound to DB guid have priority over ones bound to creature entry
-    return sScriptMgr.GetBoundScriptId(SCRIPTED_UNIT, -int32(GetGUIDLow())) ? sScriptMgr.GetBoundScriptId(SCRIPTED_UNIT, -int32(GetGUIDLow())) : sScriptMgr.GetBoundScriptId(SCRIPTED_UNIT, GetEntry());
+    return sScriptBindings.GetBoundScriptId(SCRIPTED_UNIT, -int32(GetGUIDLow())) ? sScriptBindings.GetBoundScriptId(SCRIPTED_UNIT, -int32(GetGUIDLow())) : sScriptBindings.GetBoundScriptId(SCRIPTED_UNIT, GetEntry());
 }
-
-
-
-
 
 
 
@@ -3432,10 +3422,6 @@ void Creature::SetVirtualItemRaw(VirtualItemSlot slot, uint32 display_id, uint32
     SetUInt32Value(UNIT_VIRTUAL_ITEM_INFO + (slot * 2) + 0, info0);
     SetUInt32Value(UNIT_VIRTUAL_ITEM_INFO + (slot * 2) + 1, info1);
 }
-
-
-
-
 
 
 

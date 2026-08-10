@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "ScriptHost.h"
 #include "WorldHooks.h"
 #include <iterator>
@@ -66,7 +64,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScriptStore.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -2221,7 +2219,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
     }
 
     // Previous effect might have started script
-    if (!ScriptMgr::CanSpellEffectStartDBScript(m_spellInfo, eff_idx))
+    if (!DbScriptStore::CanSpellEffectStartDBScript(m_spellInfo, eff_idx))
     {
         return;
     }

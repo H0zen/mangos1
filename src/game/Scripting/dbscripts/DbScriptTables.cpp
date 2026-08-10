@@ -23,30 +23,18 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-/**
- * @file ScriptMgr.cpp
- * @brief Script system manager implementation
- *
- * This file implements ScriptMgr which manages all game scripts:
- * - Creature AI scripts
- * - GameObject scripts
- * - Item scripts
- * - Area trigger scripts
- * - Spell scripts
- * - Quest scripts
- * - Instance scripts
- *
- * Scripts are loaded from script libraries and provide hooks for
- * customizing game behavior. The script manager routes events to
- * the appropriate script handlers.
- *
- * @see ScriptMgr for the manager class
- * @see ScriptedInstance for instance script base
- */
+// Reading the ten dbscripts_on_* tables.
+//
+// Each row is checked as it loads against the world data it names -- a
+// creature entry, a spell id, a quest -- which is why LoadDbScripts is
+// called once per phase rather than once, and why the order inside a
+// phase is not free. DbScriptEngine::LoadData states those dependencies;
+// this file is what they constrain.
 
 
 
-#include "ScriptMgr.h"
+#include "DbScriptStore.h"
+#include "ScriptBindings.h"
 #include "Log.h"
 #include "ProgressBar.h"
 #include "ObjectMgr.h"
@@ -79,7 +67,7 @@
  * @param type The database script type.
  * @return ScriptChainMap const* The corresponding script chain map, or NULL for unsupported types.
  */
-ScriptChainMap const* ScriptMgr::GetScriptChainMap(DBScriptType type)
+ScriptChainMap const* DbScriptStore::GetScriptChainMap(DBScriptType type)
 {
     std::lock_guard<std::mutex> _guard(m_lock);
     if ((type != DBS_INTERNAL) && type < DBS_END)
@@ -146,7 +134,7 @@ uint8 GetSpellStartDBScriptPriority(SpellEntry const* spellinfo, SpellEffectInde
 }
 
 // Priorize: SCRIPT_EFFECT before DUMMY before Non-Existing triggered spell, for same priority the first effect with the priority triggers
-bool ScriptMgr::CanSpellEffectStartDBScript(SpellEntry const* spellinfo, SpellEffectIndex effIdx)
+bool DbScriptStore::CanSpellEffectStartDBScript(SpellEntry const* spellinfo, SpellEffectIndex effIdx)
 {
     uint8 priority = GetSpellStartDBScriptPriority(spellinfo, effIdx);
     if (!priority)
@@ -179,7 +167,7 @@ bool ScriptMgr::CanSpellEffectStartDBScript(SpellEntry const* spellinfo, SpellEf
  *
  * @param type The database script type to load.
  */
-void ScriptMgr::LoadScripts(DBScriptType type)
+void DbScriptStore::LoadScripts(DBScriptType type)
 {
     if (IsScriptScheduled())                                // function don't must be called in time scripts use.
     {
@@ -890,7 +878,7 @@ void ScriptMgr::LoadScripts(DBScriptType type)
  *
  * @param t The database script type to load.
  */
-void ScriptMgr::LoadDbScripts(DBScriptType t)
+void DbScriptStore::LoadDbScripts(DBScriptType t)
 {
     std::set<uint32> eventIds;                              // Store possible event ids
 
@@ -982,7 +970,7 @@ void ScriptMgr::LoadDbScripts(DBScriptType t)
 /**
  * @brief Loads db_script_string records and checks their usage from scripts and waypoints.
  */
-void ScriptMgr::LoadDbScriptStrings()
+void DbScriptStore::LoadDbScriptStrings()
 {
     sObjectMgr.LoadMangosStrings(WorldDatabase, "db_script_string", MIN_DB_SCRIPT_STRING_ID, MAX_DB_SCRIPT_STRING_ID, true);
 
@@ -1010,7 +998,7 @@ void ScriptMgr::LoadDbScriptStrings()
  *
  * @param ids The set of loaded string ids that will be trimmed as usages are found.
  */
-void ScriptMgr::CheckScriptTexts(std::set<int32>& ids)
+void DbScriptStore::CheckScriptTexts(std::set<int32>& ids)
 {
     for (int t = DBS_START; t < DBS_END; ++t)
     {

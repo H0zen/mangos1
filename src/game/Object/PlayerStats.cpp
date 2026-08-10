@@ -66,7 +66,6 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"

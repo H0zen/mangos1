@@ -55,7 +55,6 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
 #include "Geometry/Vector3.h"
 #include <random>
 

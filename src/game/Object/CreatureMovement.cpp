@@ -32,7 +32,6 @@
 #include "Database/DatabaseEnv.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "SpellMgr.h"

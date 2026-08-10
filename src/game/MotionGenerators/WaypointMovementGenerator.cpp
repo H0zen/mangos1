@@ -35,7 +35,6 @@
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Player.h"
-#include "ScriptMgr.h"
 #include "Timer.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"

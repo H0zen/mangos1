@@ -24,6 +24,7 @@
  */
 
 #include "Utilities/Errors.h"
+#include "sd3/ScriptBindings.h"
 #include "Item.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -1141,5 +1142,5 @@ void Item::SetLootState(ItemLootUpdateState state)
  */
 uint32 Item::GetScriptId() const
 {
-    return sScriptMgr.GetBoundScriptId(SCRIPTED_ITEM, GetEntry());
+    return sScriptBindings.GetBoundScriptId(SCRIPTED_ITEM, GetEntry());
 }

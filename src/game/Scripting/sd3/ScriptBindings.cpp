@@ -23,31 +23,13 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-/**
- * @file ScriptMgr.cpp
- * @brief Script system manager implementation
- *
- * This file implements ScriptMgr which manages all game scripts:
- * - Creature AI scripts
- * - GameObject scripts
- * - Item scripts
- * - Area trigger scripts
- * - Spell scripts
- * - Quest scripts
- * - Instance scripts
- *
- * Scripts are loaded from script libraries and provide hooks for
- * customizing game behavior. The script manager routes events to
- * the appropriate script handlers.
- *
- * @see ScriptMgr for the manager class
- * @see ScriptedInstance for instance script base
- */
+// The script_binding table: which compiled script drives which entry.
+//
 
 
 
 #include <shared_mutex>
-#include "ScriptMgr.h"
+#include "ScriptBindings.h"
 #include "Log.h"
 #include "ProgressBar.h"
 #include "ObjectMgr.h"
@@ -74,7 +56,7 @@
 // /////////////////////////////////////////////////////////
 //              Scripting Library Hooks
 // /////////////////////////////////////////////////////////
-void ScriptMgr::LoadScriptBinding()
+void ScriptBindings::LoadScriptBinding()
 {
 #ifdef ENABLE_SD3
     for (int i = 0; i < SCRIPTED_MAX_TYPE; ++i)
@@ -207,7 +189,7 @@ void ScriptMgr::LoadScriptBinding()
  *
  * @return true if bindings were reloaded; otherwise false.
  */
-bool ScriptMgr::ReloadScriptBinding()
+bool ScriptBindings::ReloadScriptBinding()
 {
 #ifdef _DEBUG
     std::unique_lock<std::shared_mutex> guard(m_bindMutex);
@@ -221,7 +203,7 @@ bool ScriptMgr::ReloadScriptBinding()
 /**
  * @brief Loads and sorts the distinct script names referenced by script bindings.
  */
-void ScriptMgr::LoadScriptNames()
+void ScriptBindings::LoadScriptNames()
 {
     m_scriptNames.push_back("");
     QueryResult* result = WorldDatabase.Query("SELECT DISTINCT(`ScriptName`) FROM `script_binding`");
@@ -259,7 +241,7 @@ void ScriptMgr::LoadScriptNames()
  * @param name The script name to search for.
  * @return uint32 The resolved script id, or 0 if not found.
  */
-uint32 ScriptMgr::GetScriptId(const char* name) const
+uint32 ScriptBindings::GetScriptId(const char* name) const
 {
     // use binary search to find the script name in the sorted vector
     // assume "" is the first element
@@ -286,7 +268,7 @@ uint32 ScriptMgr::GetScriptId(const char* name) const
  * @param entry The object entry or binding key.
  * @return uint32 The bound script id, or 0 if none exists.
  */
-uint32 ScriptMgr::GetBoundScriptId(ScriptedObjectType entity, int32 entry)
+uint32 ScriptBindings::GetBoundScriptId(ScriptedObjectType entity, int32 entry)
 {
 #ifdef _DEBUG
     // Only debug builds can reload the bindings at runtime (ReloadScriptBinding), so
@@ -314,7 +296,7 @@ uint32 ScriptMgr::GetBoundScriptId(ScriptedObjectType entity, int32 entry)
  *
  * @return char const* The script library version, or NULL when unavailable.
  */
-char const* ScriptMgr::GetScriptLibraryVersion() const
+char const* ScriptBindings::GetScriptLibraryVersion() const
 {
 #ifdef ENABLE_SD3
     return SD3::GetScriptLibraryVersion();

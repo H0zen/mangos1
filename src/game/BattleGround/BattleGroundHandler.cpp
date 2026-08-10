@@ -52,7 +52,6 @@
 #include "BattleGround.h"
 #include "ArenaTeam.h"
 #include "Language.h"
-#include "ScriptMgr.h"
 #include "World.h"
 #include "DisableMgr.h"
 #include "GameTime.h"

@@ -56,7 +56,6 @@
 #include "GossipDef.h"
 #include "QuestDef.h"
 #include "PlayerRegistry.h"
-#include "ScriptMgr.h"
 #include "Group.h"
 
 void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)

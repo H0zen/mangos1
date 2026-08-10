@@ -38,7 +38,7 @@
 // so there is one list and it is this one.
 //
 #include "system/ScriptDevMgr.h"
-#include "ScriptMgr.h"
+
 #include "Object.h"
 #include "ObjectGuid.h"
 #include "Unit.h"
