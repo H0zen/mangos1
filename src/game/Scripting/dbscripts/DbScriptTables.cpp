@@ -34,7 +34,8 @@
 
 
 #include "DbScriptStore.h"
-#include "ScriptBindings.h"
+#include "EventIds.h"
+#include "sd3/ScriptBindings.h"
 #include "Log.h"
 #include "ProgressBar.h"
 #include "ObjectMgr.h"

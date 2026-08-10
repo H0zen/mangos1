@@ -30,6 +30,7 @@
 
 #include <shared_mutex>
 #include "ScriptBindings.h"
+#include "EventIds.h"
 #include "Log.h"
 #include "ProgressBar.h"
 #include "ObjectMgr.h"

@@ -133,8 +133,6 @@ class ScriptBindings
         }
 
     private:
-        void CollectPossibleEventIds(std::set<uint32>& eventIds);
-
         typedef std::vector<std::string> ScriptNameMap;
         typedef std::unordered_map<int32, uint32> EntryToScriptIdMap;
 

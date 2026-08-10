@@ -28,6 +28,10 @@
 
 #include "DbScriptStore.h"
 
+// StartEvents_Event raises an event, so this file is a call site like
+// any other.
+#include "ScriptHost.h"
+
 #include "Log.h"
 #include "Map.h"
 #include "Object.h"
@@ -37,8 +41,6 @@
 
 #include "BattleGround/BattleGround.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-
-INSTANTIATE_SINGLETON_1(DbScriptStore);
 
 DbScriptStore::DbScriptStore() : m_scheduledScripts(0)
 {

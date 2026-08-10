@@ -32,6 +32,7 @@
 #include "ObjectMgr.h"
 #include "Policies/Singleton.h"
 #include "SQLStorages.h"
+#include "WaypointManager.h"
 #include "World.h"
 
 #ifdef ENABLE_SD3
@@ -40,8 +41,6 @@
 
 #include <cstring>
 #include <set>
-
-INSTANTIATE_SINGLETON_1(ScriptBindings);
 
 /**
  * @brief Loads or reloads the named script library.
@@ -75,105 +74,6 @@ void ScriptBindings::UnloadScriptLibrary()
 #endif
 }
 
-/**
- * @brief Collects event ids that can legally start database event scripts.
- *
- * @param eventIds The set that receives discovered event ids.
- */
-void ScriptBindings::CollectPossibleEventIds(std::set<uint32>& eventIds)
-{
-    // Load all possible script entries from gameobjects
-    for (SQLStorageBase::SQLSIterator<GameObjectInfo> itr = sGOStorage.getDataBegin<GameObjectInfo>(); itr < sGOStorage.getDataEnd<GameObjectInfo>(); ++itr)
-    {
-        switch (itr->type)
-        {
-            case GAMEOBJECT_TYPE_GOOBER:
-                eventIds.insert(itr->goober.eventId);
-                break;
-            case GAMEOBJECT_TYPE_CHEST:
-                eventIds.insert(itr->chest.eventId);
-                break;
-            case GAMEOBJECT_TYPE_CAMERA:
-                eventIds.insert(itr->camera.eventID);
-                break;
-            case GAMEOBJECT_TYPE_CAPTURE_POINT:
-                eventIds.insert(itr->capturePoint.neutralEventID1);
-                eventIds.insert(itr->capturePoint.neutralEventID2);
-                eventIds.insert(itr->capturePoint.contestedEventID1);
-                eventIds.insert(itr->capturePoint.contestedEventID2);
-                eventIds.insert(itr->capturePoint.progressEventID1);
-                eventIds.insert(itr->capturePoint.progressEventID2);
-                eventIds.insert(itr->capturePoint.winEventID1);
-                eventIds.insert(itr->capturePoint.winEventID2);
-                break;
-#if defined(WOTLK) || defined (CATA) || defined (MISTS)
-            case GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING:
-                eventIds.insert(itr->destructibleBuilding.damagedEvent);
-                eventIds.insert(itr->destructibleBuilding.destroyedEvent);
-                eventIds.insert(itr->destructibleBuilding.intactEvent);
-                eventIds.insert(itr->destructibleBuilding.rebuildingEvent);
-                break;
-#endif
-            default:
-                break;
-        }
-    }
-
-    // Load all possible script entries from spells
-    for (uint32 i = 1; i < sSpellStore.GetNumRows(); ++i)
-    {
-        SpellEntry const* spell = sSpellStore.LookupEntry(i);
-        if (spell)
-        {
-            for (int j = 0; j < MAX_EFFECT_INDEX; ++j)
-            {
-#if defined (CATA)
-                SpellEffectEntry const* spellEffect = spell->GetSpellEffect(SpellEffectIndex(j));
-                if (!spellEffect)
-                {
-                    continue;
-                }
-
-                if (spellEffect->Effect == SPELL_EFFECT_SEND_EVENT)
-                {
-                    if (spellEffect->EffectMiscValue)
-                    {
-                        eventIds.insert(spellEffect->EffectMiscValue);
-                    }
-                }
-#else
-                if (spell->Effect[j] == SPELL_EFFECT_SEND_EVENT)
-                {
-                    if (spell->EffectMiscValue[j])
-                    {
-                        eventIds.insert(spell->EffectMiscValue[j]);
-                    }
-                }
-#endif
-            }
-        }
-    }
-#if defined(TBC) || defined (WOTLK) || defined (CATA)
-    // Load all possible event entries from taxi path nodes
-    for (size_t path_idx = 0; path_idx < sTaxiPathNodesByPath.size(); ++path_idx)
-    {
-        for (size_t node_idx = 0; node_idx < sTaxiPathNodesByPath[path_idx].size(); ++node_idx)
-        {
-            TaxiPathNodeEntry const& node = sTaxiPathNodesByPath[path_idx][node_idx];
-
-            if (node.ArrivalEventID)
-            {
-                eventIds.insert(node.ArrivalEventID);
-            }
-
-            if (node.DepartureEventID)
-            {
-                eventIds.insert(node.DepartureEventID);
-            }
-        }
-    }
-#endif
-}
 
 // Starters for events
 
