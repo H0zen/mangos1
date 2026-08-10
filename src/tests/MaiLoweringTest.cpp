@@ -40,6 +40,7 @@
 #include "TestHarness.h"
 
 #include "mai/MaiLowering.h"
+#include "mai/MaiTargeting.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -244,4 +245,101 @@ TEST(MaiLowering_ChainsSortByTime)
     }
 
     CHECK(sequence.Duration() == 5000);
+}
+
+// ---- who a step acts on -----------------------------------------------------
+//
+// The four rearranging flags, enumerated. This is the part of the DB scripts
+// most likely to be reimplemented subtly wrong, because each flag acts on the
+// result of the one before it and no combination is exercised by a test today
+// -- only by a server, and only for the combinations that happen to be in the
+// tables.
+//
+// The expected values below are read off the original GetScriptProcessTargets
+// in ScriptAction.cpp, by hand, and are the specification here: if MAI and it
+// disagree, this is the file that says which one is wrong.
+
+namespace
+{
+    enum Actor { None = 0, Src = 1, Tgt = 2, Bud = 3 };
+
+    struct Expected
+    {
+        uint8 flags;
+        Actor buddy;        ///< what the search found, if anything
+        Actor source;       ///< what the step should end up acting AS
+        Actor target;       ///< and ON
+    };
+}
+
+TEST(MaiTargeting_FlagsRearrangeExactlyAsTheDbScriptsDo)
+{
+    static Expected const cases[] =
+    {
+        // No buddy: the flags still rearrange source and target.
+        { 0,                                        None, Src, Tgt },
+        { mai::ReverseDirection,                    None, Tgt, Src },
+        { mai::SourceTargetsSelf,                   None, Src, Src },
+        { mai::ReverseDirection |
+          mai::SourceTargetsSelf,                   None, Tgt, Tgt },
+
+        // A buddy, and no flag saying what to do with it: it REPLACES the
+        // source. This is the default and the commonest row shape there is --
+        // "have that creature over there do this".
+        { 0,                                        Bud,  Bud, Tgt },
+        { mai::ReverseDirection,                    Bud,  Tgt, Bud },
+        { mai::SourceTargetsSelf,                   Bud,  Bud, Bud },
+
+        // BuddyAsTarget: the source keeps acting, but on the buddy.
+        { mai::BuddyAsTarget,                       Bud,  Src, Bud },
+        { mai::BuddyAsTarget |
+          mai::ReverseDirection,                    Bud,  Bud, Src },
+        { mai::BuddyAsTarget |
+          mai::SourceTargetsSelf,                   Bud,  Src, Src },
+
+        // All three at once, which is where an order mistake would show.
+        // Reverse runs before self-target, so the source is the buddy and the
+        // target follows it -- not the other way round.
+        { mai::BuddyAsTarget |
+          mai::ReverseDirection |
+          mai::SourceTargetsSelf,                   Bud,  Bud, Bud },
+
+        // The flags that select HOW the buddy is found must not rearrange
+        // anything on their own.
+        { mai::BuddyByGuid,                         Bud,  Bud, Tgt },
+        { mai::BuddyIsPet | mai::BuddyIsDespawned,  Bud,  Bud, Tgt },
+        { mai::CommandAdditional,                   Bud,  Bud, Tgt },
+    };
+
+    for (Expected const& want : cases)
+    {
+        mai::Cast<int> cast;
+        cast.source = Src;
+        cast.target = Tgt;
+        cast.buddy = want.buddy;
+
+        int source = 0;
+        int target = 0;
+        mai::Redirect(want.flags, cast, source, target);
+
+        CHECK_EQ(source, int(want.source));
+        CHECK_EQ(target, int(want.target));
+    }
+}
+
+TEST(MaiTargeting_ABuddyThatWasNotFoundLeavesTheSourceAlone)
+{
+    // Not the same as having no buddy flag: a search that found nothing must
+    // fall back to the original source rather than acting on nothing.
+    mai::Cast<int> cast;
+    cast.source = Src;
+    cast.target = Tgt;
+    cast.buddy = None;
+
+    int source = 0;
+    int target = 0;
+    mai::Redirect(0, cast, source, target);
+
+    CHECK_EQ(source, int(Src));
+    CHECK_EQ(target, int(Tgt));
 }
