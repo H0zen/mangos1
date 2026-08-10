@@ -105,6 +105,36 @@ namespace scripting
             return nullptr;
         }
 
+        // -- the engine's own data. Also not events: a table being read is
+        //    not something that happened in the world, and the world has no
+        //    business knowing which tables exist.
+
+        /**
+         * Read whatever of this engine's data @a phase makes readable.
+         *
+         * Called once per phase, in order, for every engine. An engine with
+         * nothing to do in a phase does nothing; an engine whose tables all
+         * depend on the same world data reads them in one phase.
+         */
+        virtual void LoadData(LoadPhase phase)
+        {
+            (void)phase;
+        }
+
+        /**
+         * Re-read the table @a table names, at an administrator's request.
+         *
+         * @return true when this engine owns that table. The name comes from
+         *         a human typing a reload command, so it is matched, not
+         *         dispatched: exactly one engine should recognise it, and an
+         *         unrecognised name is reported rather than silently ignored.
+         */
+        virtual bool ReloadData(char const* table)
+        {
+            (void)table;
+            return false;
+        }
+
         // -- lifetime. Not events, and deliberately not in the manifest: an
         //    engine having its own timers pumped, or being told a state is
         //    gone, is not something that happened in the world. Modelling

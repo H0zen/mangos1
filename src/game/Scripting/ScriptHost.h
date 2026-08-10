@@ -274,6 +274,24 @@ namespace scripting
      */
     void Tick(Context const& ctx, uint32 diff);
     void RetireState(Context const& ctx);
+
+    /**
+     * Tell the engines the world has reached @a phase, so they can read
+     * whatever of their own data that makes readable.
+     *
+     * The world says where it has got to; it does not say what to load. What
+     * `creature_ai_scripts` needs in place before it can be checked is a fact
+     * about EventAI, and it now lives in EventAI.
+     */
+    void LoadData(LoadPhase phase);
+
+    /**
+     * Re-read the table @a table names.
+     *
+     * @return false when no engine owns that name, which is a reportable
+     *         mistake by whoever typed it rather than a silent no-op.
+     */
+    bool ReloadData(char const* table);
 }
 
 #endif //MANGOS_SCRIPT_HOST_H

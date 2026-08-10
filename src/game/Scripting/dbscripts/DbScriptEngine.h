@@ -62,6 +62,9 @@ namespace scripting
 
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
+
+        void LoadData(LoadPhase phase) override;
+        bool ReloadData(char const* table) override;
     };
 }
 

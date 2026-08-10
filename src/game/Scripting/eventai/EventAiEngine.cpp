@@ -26,8 +26,13 @@
 #include "EventAiEngine.h"
 
 #include "Creature.h"
-#include "CreatureEventAI.h"
+#include "Log.h"
 #include "Map.h"
+
+#include "engine/CreatureEventAI.h"
+#include "engine/CreatureEventAIMgr.h"
+
+#include <cstring>
 
 namespace scripting
 {
@@ -104,5 +109,58 @@ namespace scripting
         // drives the creature with no events, which is what an AIName pointing
         // at a table with nothing in it has always produced.
         return new CreatureEventAI(creature);
+    }
+
+    void EventAiEngine::LoadData(LoadPhase phase)
+    {
+        // Everything at the end, together, and the order inside is not free:
+        // the texts and the summons are loaded WITHOUT checking that anything
+        // uses them, because the check needs the scripts, and the scripts are
+        // what say which text and which summon is used. So the two go first
+        // unchecked and LoadCreatureEventAI_Scripts audits all three.
+        //
+        // That is one fact, about three tables that belong to one engine, and
+        // it used to be three lines and two explanatory comments in World.cpp.
+        if (phase != LoadPhase::Final)
+        {
+            return;
+        }
+
+        sLog.outString("Loading CreatureEventAI Texts...");
+        sEventAIMgr.LoadCreatureEventAI_Texts(false);
+
+        sLog.outString("Loading CreatureEventAI Summons...");
+        sEventAIMgr.LoadCreatureEventAI_Summons(false);
+
+        sLog.outString("Loading CreatureEventAI Scripts...");
+        sEventAIMgr.LoadCreatureEventAI_Scripts();
+    }
+
+    bool EventAiEngine::ReloadData(char const* table)
+    {
+        // Reloading one table on its own is not the same operation as loading
+        // all three, and the difference is the `true` here: on a reload the
+        // scripts already exist, so a text or a summon that nothing uses can
+        // be reported straight away instead of waiting for an audit that is
+        // not going to run.
+        if (std::strcmp(table, "creature_ai_texts") == 0)
+        {
+            sEventAIMgr.LoadCreatureEventAI_Texts(true);
+            return true;
+        }
+
+        if (std::strcmp(table, "creature_ai_summons") == 0)
+        {
+            sEventAIMgr.LoadCreatureEventAI_Summons(true);
+            return true;
+        }
+
+        if (std::strcmp(table, "creature_ai_scripts") == 0)
+        {
+            sEventAIMgr.LoadCreatureEventAI_Scripts();
+            return true;
+        }
+
+        return false;
     }
 }

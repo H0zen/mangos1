@@ -62,7 +62,6 @@
 #include "AccountMgr.h"
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
-#include "CreatureEventAIMgr.h"
 #include "GuildMgr.h"
 #include "SpellMgr.h"
 #include "Chat.h"
@@ -742,10 +741,8 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Tavern Area Triggers...");
     sObjectMgr.LoadTavernAreaTriggers();
 
-#ifdef ENABLE_SD3
-    sLog.outString("Loading all script bindings...");
-    sScriptMgr.LoadScriptBinding();
-#endif /* ENABLE_SD3 */
+    ///- Nothing world-specific is needed yet; an engine may bind script names.
+    scripting::LoadData(scripting::LoadPhase::Bindings);
 
     sLog.outString("Loading Graveyard-zone links...");
     sObjectMgr.LoadGraveyardZones();
@@ -809,8 +806,9 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Skill Fishing base level requirements...");
     sObjectMgr.LoadFishingBaseSkillLevel();
 
-    sLog.outString("Loading Gossip scripts...");
-    sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);                 // must be before gossip menu options
+    ///- The gossip menus are next, and they are checked against whatever the
+    ///  engines have bound to them, so the engines read first.
+    scripting::LoadData(scripting::LoadPhase::BeforeGossip);
 
     sObjectMgr.LoadGossipMenus();
 
@@ -822,8 +820,8 @@ void World::SetInitialWorldSettings()
     sObjectMgr.LoadTrainerTemplates();                      // must be after load CreatureTemplate
     sObjectMgr.LoadTrainers();                              // must be after load CreatureTemplate, TrainerTemplate
 
-    sLog.outString("Loading Waypoint scripts...");          // before loading from creature_movement
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_MOVEMENT);
+    ///- Same again for the waypoint paths.
+    scripting::LoadData(scripting::LoadPhase::AfterWaypoints);
 
     sLog.outString("Loading Waypoints...");
     sWaypointMgr.Load();
@@ -897,16 +895,10 @@ void World::SetInitialWorldSettings()
     sLog.outString("Scripts");
 
 
-    ///- Load and initialize DBScripts Engine
-    sLog.outString("Loading DB-Scripts Engine...");
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);           // must be after load Creature/Gameobject(Template/Data) and QuestTemplate
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);             // must be after load Creature/Gameobject(Template/Data) and QuestTemplate
-    sScriptMgr.LoadDbScripts(DBS_ON_SPELL);                 // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);                // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);               // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_EVENT);                 // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);        // must be after load Creature/Gameobject(Template/Data)
-    sLog.outString(">>> DB Scripts loaded");
+    ///- The creature and gameobject templates, their spawn data and the
+    ///  quests are all in place now, which is what most scripted data has to
+    ///  be checked against.
+    scripting::LoadData(scripting::LoadPhase::AfterTemplates);
     sLog.outString();
 
     if (StartupAborted("script libraries"))
@@ -914,40 +906,15 @@ void World::SetInitialWorldSettings()
         return;
     }
 
-    sLog.outString("Loading Scripts text locales...");      // must be after Load*Scripts calls
-    sScriptMgr.LoadDbScriptStrings();
+    ///- Every world table is in place; the engines read their own.
+    ///
+    /// WHICH tables those are, and what each needs loaded before it can be
+    /// checked, is the engine's business. This used to name them one at a
+    /// time -- three EventAI tables here, with the note about why two of them
+    /// load unchecked -- which made the world the keeper of every engine's
+    /// load order.
+    scripting::LoadData(scripting::LoadPhase::Final);
 
-    ///- Load and initialize EventAI Scripts
-    sLog.outString("Loading CreatureEventAI Texts...");
-    sEventAIMgr.LoadCreatureEventAI_Texts(false);           // false, will checked in LoadCreatureEventAI_Scripts
-
-    sLog.outString("Loading CreatureEventAI Summons...");
-    sEventAIMgr.LoadCreatureEventAI_Summons(false);         // false, will checked in LoadCreatureEventAI_Scripts
-
-    sLog.outString("Loading CreatureEventAI Scripts...");
-    sEventAIMgr.LoadCreatureEventAI_Scripts();
-
-    sLog.outString("Initializing Scripts...");
-#ifdef ENABLE_SD3
-    switch (sScriptMgr.LoadScriptLibrary("mangosscript"))
-    {
-        case SCRIPT_LOAD_OK:
-            sLog.outString("Scripting library loaded.");
-            break;
-        case SCRIPT_LOAD_ERR_NOT_FOUND:
-            sLog.outError("Scripting library not found or not accessible.");
-            break;
-        case SCRIPT_LOAD_ERR_WRONG_API:
-            sLog.outError("Scripting library has wrong list functions (outdated?).");
-            break;
-        case SCRIPT_LOAD_ERR_OUTDATED:
-            sLog.outError("Scripting library build for old mangosd revision. You need rebuild it.");
-            break;
-    }
-#else /* ENABLE_SD3 */
-    sLog.outError("SD3 was not included in compilation, not using it.");
-#endif /* ENABLE_SD3 */
-    sLog.outString();
 
     sLog.outString("World systems");
 

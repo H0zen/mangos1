@@ -41,7 +41,7 @@
 #include "World.h"
 #include "MapManager.h"
 #include "GridMap.h"                                        // sTerrainMgr
-#include "CreatureEventAIMgr.h"
+#include "ScriptHost.h"
 #include "BattleGroundMgr.h"
 #include "SkillExtraItems.h"
 #include "SkillDiscovery.h"
@@ -1049,8 +1049,13 @@ bool ChatHandler::HandleReloadBattleEventCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadEventAITextsCommand(char* /*args*/)
 {
-    sLog.outString("Re-Loading Texts from `creature_ai_texts`...");
-    sEventAIMgr.LoadCreatureEventAI_Texts(true);
+    sLog.outString("Re-Loading `creature_ai_texts`...");
+    if (!scripting::ReloadData("creature_ai_texts"))
+    {
+        SendSysMessage("No script engine owns `creature_ai_texts`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
     SendGlobalSysMessage("DB table `creature_ai_texts` reloaded.", SEC_MODERATOR);
     return true;
 }
@@ -1063,8 +1068,13 @@ bool ChatHandler::HandleReloadEventAITextsCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadEventAISummonsCommand(char* /*args*/)
 {
-    sLog.outString("Re-Loading Summons from `creature_ai_summons`...");
-    sEventAIMgr.LoadCreatureEventAI_Summons(true);
+    sLog.outString("Re-Loading `creature_ai_summons`...");
+    if (!scripting::ReloadData("creature_ai_summons"))
+    {
+        SendSysMessage("No script engine owns `creature_ai_summons`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
     SendGlobalSysMessage("DB table `creature_ai_summons` reloaded.", SEC_MODERATOR);
     return true;
 }
@@ -1077,8 +1087,13 @@ bool ChatHandler::HandleReloadEventAISummonsCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadEventAIScriptsCommand(char* /*args*/)
 {
-    sLog.outString("Re-Loading Scripts from `creature_ai_scripts`...");
-    sEventAIMgr.LoadCreatureEventAI_Scripts();
+    sLog.outString("Re-Loading `creature_ai_scripts`...");
+    if (!scripting::ReloadData("creature_ai_scripts"))
+    {
+        SendSysMessage("No script engine owns `creature_ai_scripts`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
     SendGlobalSysMessage("DB table `creature_ai_scripts` reloaded.", SEC_MODERATOR);
     return true;
 }

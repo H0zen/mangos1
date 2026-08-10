@@ -311,6 +311,30 @@ namespace scripting
     };
 
     /**
+     * How far the world has got with its own loading.
+     *
+     * An engine's tables are its own, but WHEN they can be read is not: most
+     * of them are checked against world data as they load, and a check can
+     * only run once the data it names exists. Those dependencies were spelled
+     * out as comments next to fifteen load calls in World.cpp -- "must be
+     * before gossip menu options", "must be after load Creature/Gameobject
+     * (Template/Data) and QuestTemplate" -- which made the world responsible
+     * for knowing the load order of every engine's tables.
+     *
+     * The world announces where it has got to instead. Each engine decides
+     * what that means for its own tables, and a new engine with a new
+     * dependency adds a case rather than a line in World.cpp.
+     */
+    enum class LoadPhase : uint8
+    {
+        Bindings,        ///< nothing world-specific yet; script names may bind
+        BeforeGossip,    ///< the gossip menus are about to be read
+        AfterWaypoints,  ///< waypoint paths exist
+        AfterTemplates,  ///< creature and gameobject templates, and quests
+        Final            ///< every world table is in place
+    };
+
+    /**
      * What the world does with a hook's answer.
      *
      * Three outcomes, because the single bool the engines return today means

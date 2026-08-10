@@ -34,12 +34,15 @@
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "Log.h"
 #include "QuestDef.h"
 #include "ScriptMgr.h"
 #include "SpellAuras.h"
 #include "Spell.h"
 
 #include "system/ScriptDevMgr.h"
+
+#include <cstring>
 
 namespace scripting
 {
@@ -207,6 +210,46 @@ namespace scripting
     {
         (void)ctx;
         return map ? SD3::CreateInstanceData(map) : nullptr;
+    }
+
+    void Sd3Engine::LoadData(LoadPhase phase)
+    {
+        switch (phase)
+        {
+            case LoadPhase::Bindings:
+                // script_binding maps a ScriptName to a script id, and that is
+                // all this engine's own binding is. It needs nothing else
+                // loaded, and everything that asks GetBoundScriptId() -- the
+                // bids, the spell and map-event lookups -- needs it, so it is
+                // the first thing that happens.
+                sLog.outString("Loading all script bindings...");
+                sScriptMgr.LoadScriptBinding();
+                break;
+
+            case LoadPhase::Final:
+                // Registering the scripts themselves. Free first: this is the
+                // same pair of calls the .loadscripts command makes, so the
+                // second time round there is a previous registry to drop.
+                sLog.outString("Registering the C++ scripts...");
+                SD3::FreeScriptLibrary();
+                SD3::InitScriptLibrary();
+                sLog.outString("%s", SD3::GetScriptLibraryVersion());
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    bool Sd3Engine::ReloadData(char const* table)
+    {
+        if (std::strcmp(table, "script_binding") == 0)
+        {
+            sScriptMgr.LoadScriptBinding();
+            return true;
+        }
+
+        return false;
     }
 
     Verdict Sd3Engine::Dispatch(Context const& ctx, EventId id, Arg* args,

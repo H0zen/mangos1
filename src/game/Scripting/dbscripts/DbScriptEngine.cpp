@@ -30,8 +30,11 @@
 #include "Object.h"
 #include "ObjectMgr.h"
 #include "QuestDef.h"
+#include "Log.h"
 #include "ScriptMgr.h"
 #include "WaypointManager.h"
+
+#include <cstring>
 
 namespace scripting
 {
@@ -371,5 +374,84 @@ namespace scripting
         }
 
         return started ? Verdict::Handled : Verdict::Continue;
+    }
+
+    void DbScriptEngine::LoadData(LoadPhase phase)
+    {
+        // Ten tables, and they cannot all be read at the same moment: each is
+        // checked as it loads against the world data it refers to, so it can
+        // only be read once that data exists. Those dependencies were spelled
+        // out as comments beside ten calls in World.cpp; they are stated here
+        // now, next to the engine they constrain.
+        switch (phase)
+        {
+            case LoadPhase::BeforeGossip:
+                // The gossip menu rows are validated against these, not the
+                // other way round, so this one goes in FIRST.
+                sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);
+                break;
+
+            case LoadPhase::AfterWaypoints:
+                // Read before creature_movement, which is checked against it.
+                sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_MOVEMENT);
+                break;
+
+            case LoadPhase::AfterTemplates:
+                // All seven need the creature and gameobject templates and
+                // their spawn data; the two quest ones also need the quests.
+                sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);
+                sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);
+                sScriptMgr.LoadDbScripts(DBS_ON_SPELL);
+                sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);
+                sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);
+                sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);
+                sScriptMgr.LoadDbScripts(DBS_ON_EVENT);
+                break;
+
+            case LoadPhase::Final:
+                // Last of all: the locale strings are checked against every
+                // script that references one, so every script must be in.
+                sLog.outString("Loading DB-script text locales...");
+                sScriptMgr.LoadDbScriptStrings();
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    bool DbScriptEngine::ReloadData(char const* table)
+    {
+        // The names an administrator types are the table names, and they map
+        // to the script type by the same table the loader uses.
+        static struct { char const* name; DBScriptType type; } const s_tables[] =
+        {
+            { "dbscripts_on_quest_start",      DBS_ON_QUEST_START      },
+            { "dbscripts_on_quest_end",        DBS_ON_QUEST_END        },
+            { "dbscripts_on_spell",            DBS_ON_SPELL            },
+            { "dbscripts_on_go_use",           DBS_ON_GO_USE           },
+            { "dbscripts_on_go_template_use",  DBS_ON_GOT_USE          },
+            { "dbscripts_on_event",            DBS_ON_EVENT            },
+            { "dbscripts_on_gossip",           DBS_ON_GOSSIP           },
+            { "dbscripts_on_creature_death",   DBS_ON_CREATURE_DEATH   },
+            { "dbscripts_on_creature_movement", DBS_ON_CREATURE_MOVEMENT },
+        };
+
+        for (auto const& entry : s_tables)
+        {
+            if (std::strcmp(table, entry.name) == 0)
+            {
+                sScriptMgr.LoadDbScripts(entry.type);
+                return true;
+            }
+        }
+
+        if (std::strcmp(table, "db_script_string") == 0)
+        {
+            sScriptMgr.LoadDbScriptStrings();
+            return true;
+        }
+
+        return false;
     }
 }

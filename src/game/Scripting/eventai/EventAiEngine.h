@@ -68,6 +68,9 @@ namespace scripting
 
         CreatureAI* MakeCreatureAI(Context const& ctx,
                                    Creature* creature) override;
+
+        void LoadData(LoadPhase phase) override;
+        bool ReloadData(char const* table) override;
     };
 }
 

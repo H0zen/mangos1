@@ -276,6 +276,42 @@ namespace scripting
         }
     }
 
+    void LoadData(LoadPhase phase)
+    {
+        if (!detail::g_scriptsEnabled)
+        {
+            return;
+        }
+
+        // No Context: loading is not something that happens on a map. It runs
+        // once, on the world thread, before any map exists.
+        for (std::unique_ptr<IEngine> const& engine : State().engines)
+        {
+            engine->LoadData(phase);
+        }
+    }
+
+    bool ReloadData(char const* table)
+    {
+        if (!detail::g_scriptsEnabled || !table)
+        {
+            return false;
+        }
+
+        // First match wins and the rest are not asked. Two engines claiming
+        // one table name would be a collision worth finding, but the chain
+        // cannot report it, so this stops at the owner and says so.
+        for (std::unique_ptr<IEngine> const& engine : State().engines)
+        {
+            if (engine->ReloadData(table))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void RetireState(Context const& ctx)
     {
         if (!detail::g_scriptsEnabled || ctx.scope == Context::Scope::None)

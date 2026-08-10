@@ -71,6 +71,9 @@ namespace scripting
         GameObjectAI* MakeGameObjectAI(Context const& ctx,
                                        GameObject* go) override;
         InstanceData* MakeInstanceData(Context const& ctx, Map* map) override;
+
+        void LoadData(LoadPhase phase) override;
+        bool ReloadData(char const* table) override;
     };
 }
 
