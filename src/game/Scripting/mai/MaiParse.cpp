@@ -51,7 +51,14 @@ namespace mai
         }
 
         /// The slot @a name occupies in @a spec, or the arity when it has none.
-        std::size_t SlotOf(ActionSpec const& spec, char const* name,
+        ///
+        /// Templated over the spec, and so is everything below it. ActionSpec
+        /// and RuleSpec are the same shape because ONE generator emits both --
+        /// id, name, params, arity, own, facets -- so a rule's parameters are
+        /// read by the very code that reads a step's rather than by a copy of
+        /// it that drifts.
+        template <class Spec>
+        std::size_t SlotOf(Spec const& spec, char const* name,
                            std::size_t length)
         {
             for (std::size_t slot = 0; slot < spec.arity; ++slot)
@@ -64,6 +71,110 @@ namespace mai
                 }
             }
             return spec.arity;
+        }
+
+        /// fills in is an operand array and a given mask, which is all a step
+        /// and a rule have in common -- and all this needs of either.
+        template <class Spec>
+        bool Fill(Spec const& spec, char const* params, Operand* operands,
+                  uint8& given, std::string& error)
+            {
+            char buffer[256];
+
+            char const* at = params ? params : "";
+            while (*at)
+            {
+                while (IsSpace(*at))
+                {
+                    ++at;
+                }
+                if (!*at)
+                {
+                    break;
+                }
+
+                char const* name = at;
+                while (*at && *at != '=' && !IsSpace(*at))
+                {
+                    ++at;
+                }
+                std::size_t const length = std::size_t(at - name);
+
+                if (*at != '=')
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "%s: '%.*s' has no value; the form is name=value",
+                                  spec.name, int(length), name);
+                    error = buffer;
+                    return false;
+                }
+                ++at;
+
+                char const* value = at;
+                while (*at && !IsSpace(*at))
+                {
+                    ++at;
+                }
+
+                std::size_t const slot = SlotOf(spec, name, length);
+                if (slot == spec.arity)
+                {
+                    // Refused, not ignored. An ignored name is a typo that becomes
+                    // a step quietly doing less than it says -- the failure mode
+                    // the six datalong columns had, and the reason for this format.
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "%s has no parameter '%.*s'",
+                                  spec.name, int(length), name);
+                    error = buffer;
+                    return false;
+                }
+
+                std::string const text(value, std::size_t(at - value));
+                ParamType const type = spec.params[slot].type;
+
+                char* end = nullptr;
+                if (type == ParamType::F32)
+                {
+                    operands[slot].f = float(std::strtod(text.c_str(), &end));
+                }
+                else if (type == ParamType::I32 || type == ParamType::Text)
+                {
+                    operands[slot].i = int32(std::strtol(text.c_str(), &end,
+                                                             10));
+                }
+                else
+                {
+                    operands[slot].u = uint32(std::strtoul(text.c_str(), &end,
+                                                               10));
+                }
+
+                if (end == text.c_str() || (end && *end))
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "%s.%s is '%s', which is not a number",
+                                  spec.name, spec.params[slot].name,
+                                  text.c_str());
+                    error = buffer;
+                    return false;
+                }
+
+                given |= uint8(1u << slot);
+            }
+
+            // A parameter the verb requires and the row did not give.
+            for (std::size_t slot = 0; slot < spec.arity; ++slot)
+            {
+                if (!spec.params[slot].optional && !(given & (1u << slot)))
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "%s needs %s and the row does not give it",
+                                  spec.name, spec.params[slot].name);
+                    error = buffer;
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -85,118 +196,59 @@ namespace mai
         return ActionId::None;
     }
 
+
     bool Parse(char const* action, char const* params, Step& out,
                std::string& error)
     {
-        char buffer[256];
-
         ActionId const id = ActionNamed(action);
         if (id == ActionId::None)
         {
+            char buffer[128];
             std::snprintf(buffer, sizeof(buffer),
-                          "'%s' is not an action MAI has",
-                          action ? action : "");
+                          "'%s' is not an action MAI has", action ? action : "");
             error = buffer;
             return false;
         }
 
-        ActionSpec const* spec = SpecOf(id);
         out = Step();
         out.action = id;
+        return Fill(*SpecOf(id), params, out.operands, out.given, error);
+    }
 
-        char const* at = params ? params : "";
-        while (*at)
+    RuleId RuleNamed(char const* name)
+    {
+        if (!name)
         {
-            while (IsSpace(*at))
-            {
-                ++at;
-            }
-            if (!*at)
-            {
-                break;
-            }
-
-            char const* name = at;
-            while (*at && *at != '=' && !IsSpace(*at))
-            {
-                ++at;
-            }
-            std::size_t const length = std::size_t(at - name);
-
-            if (*at != '=')
-            {
-                std::snprintf(buffer, sizeof(buffer),
-                              "%s: '%.*s' has no value; the form is name=value",
-                              spec->name, int(length), name);
-                error = buffer;
-                return false;
-            }
-            ++at;
-
-            char const* value = at;
-            while (*at && !IsSpace(*at))
-            {
-                ++at;
-            }
-
-            std::size_t const slot = SlotOf(*spec, name, length);
-            if (slot == spec->arity)
-            {
-                // Refused, not ignored. An ignored name is a typo that becomes
-                // a step quietly doing less than it says -- the failure mode
-                // the six datalong columns had, and the reason for this format.
-                std::snprintf(buffer, sizeof(buffer),
-                              "%s has no parameter '%.*s'",
-                              spec->name, int(length), name);
-                error = buffer;
-                return false;
-            }
-
-            std::string const text(value, std::size_t(at - value));
-            ParamType const type = spec->params[slot].type;
-
-            char* end = nullptr;
-            if (type == ParamType::F32)
-            {
-                out.operands[slot].f = float(std::strtod(text.c_str(), &end));
-            }
-            else if (type == ParamType::I32 || type == ParamType::Text)
-            {
-                out.operands[slot].i = int32(std::strtol(text.c_str(), &end,
-                                                         10));
-            }
-            else
-            {
-                out.operands[slot].u = uint32(std::strtoul(text.c_str(), &end,
-                                                           10));
-            }
-
-            if (end == text.c_str() || (end && *end))
-            {
-                std::snprintf(buffer, sizeof(buffer),
-                              "%s.%s is '%s', which is not a number",
-                              spec->name, spec->params[slot].name,
-                              text.c_str());
-                error = buffer;
-                return false;
-            }
-
-            out.given |= uint8(1u << slot);
+            return RuleId::None;
         }
 
-        // A parameter the verb requires and the row did not give.
-        for (std::size_t slot = 0; slot < spec->arity; ++slot)
+        for (RuleSpec const& spec : g_ruleSpecs)
         {
-            if (!spec->params[slot].optional && !out.Has(slot))
+            if (std::strcmp(spec.name, name) == 0)
             {
-                std::snprintf(buffer, sizeof(buffer),
-                              "%s needs %s and the row does not give it",
-                              spec->name, spec->params[slot].name);
-                error = buffer;
-                return false;
+                return spec.id;
             }
         }
 
-        return true;
+        return RuleId::None;
+    }
+
+    bool Parse(char const* trigger, char const* params, Rule& out,
+               std::string& error)
+    {
+        RuleId const id = RuleNamed(trigger);
+        if (id == RuleId::None)
+        {
+            char buffer[128];
+            std::snprintf(buffer, sizeof(buffer),
+                          "'%s' is not a trigger MAI has",
+                          trigger ? trigger : "");
+            error = buffer;
+            return false;
+        }
+
+        out = Rule();
+        out.trigger = id;
+        return Fill(*SpecOf(id), params, out.operands, out.given, error);
     }
 }

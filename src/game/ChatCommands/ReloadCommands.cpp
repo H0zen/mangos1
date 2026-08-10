@@ -103,7 +103,7 @@ bool ChatHandler::HandleReloadAllCommand(char* /*args*/)
 
     HandleReloadAllAreaCommand((char*)"");
     HandleReloadAutoBroadcastCommand((char*)"");
-    HandleReloadAllEventAICommand((char*)"");
+    HandleReloadMaiTextsCommand((char*)"");
     HandleReloadAllLootCommand((char*)"");
     HandleReloadAllNpcCommand((char*)"");
     HandleReloadAllQuestCommand((char*)"");
@@ -207,20 +207,6 @@ bool ChatHandler::HandleReloadAllScriptsCommand(char* /*args*/)
     //HandleReloadDBScriptsOnCreatureSpellCommand((char*)"a");
     SendGlobalSysMessage("DB tables `*_scripts` reloaded.", SEC_MODERATOR);
     HandleReloadDbScriptStringCommand((char*)"a");
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadAllEventAICommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadAllEventAICommand(char* /*args*/)
-{
-    HandleReloadEventAITextsCommand((char*)"a");
-    HandleReloadEventAISummonsCommand((char*)"a");
-    HandleReloadEventAIScriptsCommand((char*)"a");
     return true;
 }
 
@@ -1044,59 +1030,21 @@ bool ChatHandler::HandleReloadBattleEventCommand(char* /*args*/)
 }
 
 /**
- * @brief Handler for HandleReloadEventAITextsCommand command.
+ * @brief Handler for HandleReloadMaiTextsCommand command.
  *
  * @param args Command arguments.
  * @returns True if the command executed successfully, false otherwise.
  */
-bool ChatHandler::HandleReloadEventAITextsCommand(char* /*args*/)
+bool ChatHandler::HandleReloadMaiTextsCommand(char* /*args*/)
 {
-    sLog.outString("Re-Loading `creature_ai_texts`...");
-    if (!scripting::ReloadData("creature_ai_texts"))
+    sLog.outString("Re-Loading `mai_text`...");
+    if (!scripting::ReloadData("mai_text"))
     {
-        SendSysMessage("No script engine owns `creature_ai_texts`.");
+        SendSysMessage("No script engine owns `mai_text`.");
         SetSentErrorMessage(true);
         return false;
     }
-    SendGlobalSysMessage("DB table `creature_ai_texts` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadEventAISummonsCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadEventAISummonsCommand(char* /*args*/)
-{
-    sLog.outString("Re-Loading `creature_ai_summons`...");
-    if (!scripting::ReloadData("creature_ai_summons"))
-    {
-        SendSysMessage("No script engine owns `creature_ai_summons`.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-    SendGlobalSysMessage("DB table `creature_ai_summons` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadEventAIScriptsCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadEventAIScriptsCommand(char* /*args*/)
-{
-    sLog.outString("Re-Loading `creature_ai_scripts`...");
-    if (!scripting::ReloadData("creature_ai_scripts"))
-    {
-        SendSysMessage("No script engine owns `creature_ai_scripts`.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-    SendGlobalSysMessage("DB table `creature_ai_scripts` reloaded.", SEC_MODERATOR);
+    SendGlobalSysMessage("DB table `mai_text` reloaded.", SEC_MODERATOR);
     return true;
 }
 

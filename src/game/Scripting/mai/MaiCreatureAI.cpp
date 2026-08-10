@@ -140,11 +140,10 @@ namespace mai
 
             if (!rules->rules.empty() && m_armed.empty())
             {
-                sLog.outErrorEventAI("MAI: creature %u has rules but none of "
-                                     "them apply here (map %u, difficulty %u).",
-                                     m_creature->GetEntry(),
-                                     m_creature->GetMapId(),
-                                     m_creature->GetMap()->GetDifficulty());
+                sLog.outErrorDb("MAI: creature %u has rules but none of them "
+                                "apply here (map %u, difficulty %u).",
+                                m_creature->GetEntry(), m_creature->GetMapId(),
+                                m_creature->GetMap()->GetDifficulty());
             }
         }
 
@@ -182,9 +181,9 @@ namespace mai
             // An inverted pair disables the rule rather than picking one of
             // the two, which is the original's answer and the loud one: a rule
             // that silently repeated at `min` would look like it worked.
-            sLog.outErrorEventAI("MAI: creature %u rule %u has a repeat max "
-                                 "below its min. Repeating disabled.",
-                                 m_creature->GetEntry(), rule.id);
+            sLog.outErrorDb("MAI: creature %u rule %u has a repeat max below "
+                            "its min. Repeating disabled.",
+                            m_creature->GetEntry(), rule.id);
             armed.enabled = false;
             return false;
         }
@@ -519,10 +518,10 @@ namespace mai
             return true;
 
         default:
-            sLog.outErrorEventAI("MAI: creature %u rule %u has trigger %u, "
-                                 "which nothing here knows how to check.",
-                                 m_creature->GetEntry(), rule.id,
-                                 uint32(rule.trigger));
+            sLog.outErrorDb("MAI: creature %u rule %u has trigger %u, which "
+                            "nothing here knows how to check.",
+                            m_creature->GetEntry(), rule.id,
+                            uint32(rule.trigger));
             return true;
         }
     }

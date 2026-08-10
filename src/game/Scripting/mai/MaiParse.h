@@ -26,6 +26,7 @@
 #ifndef MANGOS_MAI_PARSE_H
 #define MANGOS_MAI_PARSE_H
 
+#include "MaiRule.h"
 #include "MaiScript.h"
 
 #include <string>
@@ -44,9 +45,19 @@ namespace mai
     /// The verb @a name names, or ActionId::None.
     ActionId ActionNamed(char const* name);
 
+    /// The trigger @a name names, or RuleId::None.
+    RuleId RuleNamed(char const* name);
+
     /// @return false with @a error naming what is wrong and where. Strict: an
     ///         unknown parameter is refused rather than ignored.
     bool Parse(char const* action, char const* params, Step& out,
+               std::string& error);
+
+    /// The same, for a rule's trigger and its parameters. One implementation
+    /// serves both: ActionSpec and RuleSpec are the same shape because one
+    /// generator emits them, so reading `percent_max=30` is the same operation
+    /// as reading `spell=11962`.
+    bool Parse(char const* trigger, char const* params, Rule& out,
                std::string& error);
 }
 

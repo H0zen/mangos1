@@ -105,13 +105,16 @@ namespace scripting
         bool Start(Map* map, uint32 type, uint32 id, WorldObject* source,
                    WorldObject* target, uint32 unique);
 
+        /// Everything anything says, from `mai_text`.
+        void LoadTexts();
+
         /// The sequences, lowered from `db_scripts`. Re-runnable: a reload
         /// clears the frames that point into them first.
         void LoadSequences();
 
-        /// The rules, converted from `creature_ai_scripts`. Called ONCE, from
-        /// LoadData's final phase, after the table it reads has been read --
-        /// never from a reload, because live AI objects point into the result.
+        /// The rules, from `mai_rule` and `mai_rule_step`. Called ONCE, from
+        /// LoadData's final phase -- never from a reload, because live AI
+        /// objects point into the result.
         void LoadRules();
 
         std::unordered_map<Key, mai::Sequence, KeyHash> m_sequences;

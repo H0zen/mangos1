@@ -28,14 +28,12 @@
 #include "mai/MaiCreatureAI.h"
 #include "mai/MaiExecute.h"
 #include "mai/MaiLowering.h"
-#include "mai/MaiRuleLowering.h"
+#include "mai/MaiParse.h"
 #include "mai/MaiRunner.h"
 #include "mai/MaiValidate.h"
 
-#include "eventai/engine/CreatureEventAI.h"
-#include "eventai/engine/CreatureEventAIMgr.h"
-
 #include "Creature.h"
+#include "Database/DatabaseEnv.h"
 #include "GameObject.h"
 #include "Log.h"
 #include "Map.h"
@@ -46,6 +44,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
+#include <memory>
+#include <utility>
 
 namespace scripting
 {
@@ -234,6 +235,7 @@ namespace scripting
             return;
         }
 
+        LoadTexts();
         LoadSequences();
 
         // ONCE, and never from a reload. Every live MaiCreatureAI holds
@@ -243,6 +245,23 @@ namespace scripting
         // The sequences above have no such problem because a reload clears the
         // frames that point into them first.
         LoadRules();
+    }
+
+    void MaiEngine::LoadTexts()
+    {
+        // `mai_text`, which is the three text tables merged with not one id
+        // changed -- their ranges were disjoint and stayed disjoint, so the
+        // merge is a union and every existing reference still points at what
+        // it pointed at.
+        //
+        // Only the creature-AI range is read here. `db_script_string` is still
+        // loaded by the DB-script store and `script_texts` by SD3, over ranges
+        // that do not overlap this one; both move here when those go, and
+        // loading a range twice is what this avoids in the meantime.
+        sLog.outString("Loading MAI texts...");
+        sObjectMgr.LoadMangosStrings(WorldDatabase, "mai_text",
+                                     MIN_CREATURE_AI_TEXT_STRING_ID,
+                                     MAX_CREATURE_AI_TEXT_STRING_ID, true);
     }
 
     void MaiEngine::LoadSequences()
@@ -298,12 +317,13 @@ namespace scripting
 
     void MaiEngine::LoadRules()
     {
-        // MIGRATION SCAFFOLDING, the twin of the lowering above: the rules are
-        // converted from `creature_ai_scripts` at start-up rather than read
-        // from `mai_rule`, so that the rule engine can be proved against the
-        // twenty thousand rows a live world already has. When the table is
-        // what gets read, this goes and the ordering dependency in
-        // ScriptHost.cpp goes with it.
+        // `mai_rule` and `mai_rule_step`, read as they are written: a trigger
+        // by name, its parameters as `name=value`, and the steps that follow.
+        //
+        // This used to convert `creature_ai_scripts` in memory at every
+        // start-up, which is what let the rule engine be built against twenty
+        // thousand rows before there was a table to hold them. The table holds
+        // them now.
         m_rules.clear();
 
         std::size_t creatures = 0;
@@ -311,48 +331,111 @@ namespace scripting
         std::size_t refused = 0;
         std::size_t refusedSteps = 0;
 
-        for (auto const& entry : sEventAIMgr.GetCreatureEventAIMap())
-        {
-            mai::RuleSet set;
-            set.creature = entry.first;
-            set.rules.reserve(entry.second.size());
+        // Ordered by creature so that a rule set is built in one pass, and by
+        // id so that two rules of one creature keep the order they were
+        // written in -- which is the order they fire in when both are due.
+        std::unique_ptr<QueryResult> result(WorldDatabase.Query(
+            "SELECT `creature`, `id`, `rule`, `params`, `phase_mask`, "
+            "`chance`, `flags` FROM `mai_rule` ORDER BY `creature`, `id`"));
 
-            for (CreatureEventAI_Event const& row : entry.second)
+        if (!result)
+        {
+            sLog.outString("MAI: `mai_rule` is empty; no creature is driven "
+                           "by rules.");
+            return;
+        }
+
+        // Every rule's steps, in one query rather than one per rule. Twenty
+        // thousand round trips at start-up is a minute of a server's life
+        // spent on something a single scan answers.
+        std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> steps;
+        {
+            std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
+                "SELECT `creature`, `rule`, `action`, `params`, `select`, "
+                "`buddy_flags` FROM `mai_rule_step` "
+                "ORDER BY `creature`, `rule`, `seq`"));
+
+            while (stepRows && stepRows->NextRow())
             {
-                mai::Rule rule;
+                Field* field = stepRows->Fetch();
+                uint32 const creature = field[0].GetUInt32();
+                uint32 const rule = field[1].GetUInt32();
+
+                mai::Step step;
                 std::string error;
-                if (!mai::Lower(row, rule, error))
+                if (!mai::Parse(field[2].GetString(), field[3].GetString(),
+                                step, error))
                 {
-                    // Named, not counted: every one of these is a question for
-                    // a manifest rather than a broken row, and a total with no
-                    // reasons is a number nobody can act on.
-                    sLog.outErrorDb("MAI: creature %u event %u: %s",
-                                    entry.first, row.event_id, error.c_str());
-                    ++refused;
+                    sLog.outErrorDb("MAI: creature %u rule %u: %s", creature,
+                                    rule, error.c_str());
+                    ++refusedSteps;
                     continue;
                 }
 
-                // Held up against the world exactly as a sequence is: a rule
-                // naming a spell this build does not have is refused now
-                // rather than logged every time the creature is pulled.
-                refusedSteps += mai::Validate(rule.steps);
+                // Neither is a parameter of the verb: both modify the step.
+                step.select = mai::Selector(field[4].GetUInt8());
+                step.buddy.flags = field[5].GetUInt8();
 
-                set.rules.push_back(std::move(rule));
-                ++rules;
+                if (step.select >= mai::SelectEnd)
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
+                                    "target selector", creature, rule,
+                                    uint32(step.select));
+                    ++refusedSteps;
+                    continue;
+                }
+
+                steps[std::make_pair(creature, rule)].push_back(step);
             }
+        }
 
-            if (set.rules.empty())
+        do
+        {
+            Field* field = result->Fetch();
+            uint32 const creature = field[0].GetUInt32();
+            uint32 const id = field[1].GetUInt32();
+
+            mai::Rule rule;
+            std::string error;
+            if (!mai::Parse(field[2].GetString(), field[3].GetString(), rule,
+                            error))
             {
+                sLog.outErrorDb("MAI: creature %u rule %u: %s", creature, id,
+                                error.c_str());
+                ++refused;
                 continue;
             }
 
-            ++creatures;
-            m_rules.emplace(entry.first, std::move(set));
-        }
+            rule.id = id;
+            rule.inversePhaseMask = field[4].GetUInt32();
+            rule.chance = field[5].GetUInt8();
+            rule.flags = field[6].GetUInt8();
 
-        sLog.outString("MAI: %u rule(s) over %u creature(s); %u row(s) the "
-                       "manifests cannot yet express, %u step(s) naming "
-                       "something this world does not have.",
+            auto found = steps.find(std::make_pair(creature, id));
+            if (found != steps.end())
+            {
+                rule.steps.steps = std::move(found->second);
+            }
+
+            rule.steps.id = id;
+
+            // Held up against the world exactly as a sequence is: a rule
+            // naming a spell this build does not have is refused now rather
+            // than logged every time the creature is pulled.
+            refusedSteps += mai::Validate(rule.steps);
+
+            mai::RuleSet& set = m_rules[creature];
+            set.creature = creature;
+            set.rules.push_back(std::move(rule));
+            ++rules;
+        }
+        while (result->NextRow());
+
+        creatures = m_rules.size();
+
+        sLog.outString("MAI: %u rule(s) over %u creature(s); %u refused, "
+                       "%u step(s) refused or naming something this world "
+                       "does not have.",
                        uint32(rules), uint32(creatures), uint32(refused),
                        uint32(refusedSteps));
     }
@@ -418,6 +501,7 @@ namespace scripting
             "dbscripts_on_gossip", "dbscripts_on_creature_death",
             "dbscripts_on_creature_movement", "db_script_string",
             "db_scripts",
+            "mai_text",
         };
 
         bool mine = false;
@@ -439,11 +523,19 @@ namespace scripting
         // the parallel map update already joined. A frame holds a pointer into
         // m_sequences, so rebuilding it while a map thread walked one would be
         // a use after free.
+        if (std::strcmp(table, "mai_text") == 0)
+        {
+            LoadTexts();
+            return true;
+        }
+
         m_frames.clear();
 
-        // The SEQUENCES only. The rules are deliberately not rebuilt here --
-        // see LoadData -- so a `db_scripts` reload cannot pull the ground out
-        // from under every creature currently running MAI.
+        // The SEQUENCES only. `mai_rule` is deliberately absent from the list
+        // above and cannot be reloaded at all: every live MaiCreatureAI holds
+        // pointers into the rule sets, so rebuilding them under a populated
+        // world is a use after free on every creature in it. Reloading rules
+        // needs the creatures rebuilt too, which is a restart.
         LoadSequences();
         return true;
     }

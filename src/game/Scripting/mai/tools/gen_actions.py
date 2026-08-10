@@ -31,11 +31,15 @@ RULES = os.path.join(MAI, 'rules.manifest')
 RULES_OUTPUT = os.path.join(MAI, 'MaiRules.gen.h')
 
 # EventAI's own union does NOT have the same shape, so its mapping cannot be
-# generic and has to be declared. It is declared once, here, because two things
-# in two languages need it -- the SQL conversion and the C++ lowering -- and two
-# copies of a fifty-row table drift silently. See eventai.map's own header.
+# generic and has to be declared. See eventai.map's own header.
+#
+# NOTHING IS EMITTED FROM IT ANY MORE. The C++ half went when the engine did:
+# the server reads `mai_rule` now, so the only reader left is the SQL
+# conversion. It is still PARSED here, and still checked against
+# actions.manifest, because that check is what fails when a parameter is
+# renamed -- and the conversion is the one thing that would otherwise notice
+# by writing the wrong column into twenty thousand rows.
 EVENTAI = os.path.join(MAI, 'eventai.map')
-EVENTAI_OUTPUT = os.path.join(MAI, 'MaiEventAiMap.gen.h')
 
 # The TargetFlags value that says the creature acts ON the selected unit rather
 # than the selected unit being the actor. Spelled out rather than imported:
@@ -248,100 +252,6 @@ def parse_map(path, known):
     return rows
 
 
-def emit_map(rows, known):
-    head = open(os.path.join(os.path.dirname(MAI), 'ScriptTypes.h'),
-                encoding='utf-8').read()
-    licence = head[:head.index('#ifndef')].rstrip()
-
-    out = [licence, '',
-           '// GENERATED FROM eventai.map -- DO NOT EDIT.',
-           '// Regenerate with: python src/game/Scripting/mai/tools/gen_actions.py',
-           '',
-           '#ifndef MANGOS_MAI_EVENTAI_MAP_GEN_H',
-           '#define MANGOS_MAI_EVENTAI_MAP_GEN_H',
-           '',
-           '#include "MaiActions.gen.h"',
-           '',
-           '#include <cstddef>',
-           '',
-           'namespace mai',
-           '{',
-           '    /// A column that is not one of the verb\'s parameters.',
-           '    enum : uint8',
-           '    {',
-           '        MapUnused = 0xFF,   ///< EventAI does not use this column',
-           '        MapSelect = 0xFE,   ///< this column is the target selector',
-           '        MapNoPin  = 0xFF    ///< the verb pins no parameter',
-           '    };',
-           '',
-           '    /// A shape no column mapping can express. Not composable: a',
-           '    /// verb has one of these or none.',
-           '    enum MapForm : uint8',
-           '    {']
-    for i, form in enumerate(FORMS):
-        out.append('        Form%-14s = %d,' % (camel(form), i))
-    out.append('    };')
-    out.append('')
-    out.append('    struct EventAiVerb')
-    out.append('    {')
-    out.append('        uint32      type;       ///< EventAI\'s action_type')
-    out.append('        ActionId    action;')
-    out.append('        uint8       slot[3];    ///< where param1..3 land')
-    out.append('        uint8       flags;      ///< TargetFlags for the step')
-    out.append('        uint8       pinSlot;')
-    out.append('        uint32      pinValue;')
-    out.append('        MapForm     form;')
-    out.append('        char const* refused;    ///< why, when it does not map')
-    out.append('    };')
-    out.append('')
-    out.append('    inline constexpr EventAiVerb g_eventAiVerbs[] =')
-    out.append('    {')
-
-    for kind, verb, slots, flags, pin_slot, pin_value, form, refused in rows:
-        if refused is not None:
-            out.append('        { %3d, ActionId::None, '
-                       '{ MapUnused, MapUnused, MapUnused }, 0, MapNoPin, 0,'
-                       % kind)
-            out.append('          FormPlain,')
-            out.append('          "%s" },' % refused.replace('"', '\\"'))
-            continue
-
-        cells = []
-        for slot in slots:
-            if slot is None:
-                cells.append('MapUnused')
-            elif slot == 'select':
-                cells.append('MapSelect')
-            else:
-                cells.append(str(slot))
-
-        out.append('        { %3d, ActionId::%s,' % (kind, known[verb][0]))
-        out.append('          { %s }, 0x%02X, %s, %d, Form%s, nullptr },'
-                   % (', '.join(cells), flags,
-                      'MapNoPin' if pin_slot is None else str(pin_slot),
-                      pin_value, camel(form)))
-
-    out.append('    };')
-    out.append('')
-    out.append('    /// How @a type maps, or nullptr when nothing says.')
-    out.append('    inline EventAiVerb const* EventAiVerbOf(uint32 type)')
-    out.append('    {')
-    out.append('        for (EventAiVerb const& verb : g_eventAiVerbs)')
-    out.append('        {')
-    out.append('            if (verb.type == type)')
-    out.append('            {')
-    out.append('                return &verb;')
-    out.append('            }')
-    out.append('        }')
-    out.append('')
-    out.append('        return nullptr;')
-    out.append('    }')
-    out.append('}')
-    out.append('')
-    out.append('#endif //MANGOS_MAI_EVENTAI_MAP_GEN_H')
-    return '\n'.join(out) + '\n', len(rows)
-
-
 def emit(facets, cats, what='Action', guard='ACTIONS', source='actions'):
     # Facets are the actions' own vocabulary and are declared in their header.
     # Nothing stops rules.manifest writing `facet`, so say why it cannot rather
@@ -480,14 +390,14 @@ def main():
         rules, rule_count = emit(rule_facets, rule_cats, 'Rule', 'RULES',
                                  'rules')
         known = shapes(facets, cats)
+        # Parsed for its own sake: nothing is emitted, but a parameter renamed
+        # in actions.manifest fails HERE rather than in the next conversion.
         mapping = parse_map(EVENTAI, known)
-        eventai, map_count = emit_map(mapping, known)
     except Bad as err:
         sys.stderr.write('error: %s\n' % err)
         return 1
 
-    written = ((OUTPUT, text), (RULES_OUTPUT, rules),
-               (EVENTAI_OUTPUT, eventai))
+    written = ((OUTPUT, text), (RULES_OUTPUT, rules))
 
     if '--check' in sys.argv:
         for path, wanted in written:
@@ -497,15 +407,15 @@ def main():
                 sys.stderr.write('error: %s is stale -- regenerate it\n'
                                  % path)
                 return 1
-        print('MaiActions.gen.h, MaiRules.gen.h and MaiEventAiMap.gen.h are '
-              'up to date')
+        print('MaiActions.gen.h and MaiRules.gen.h are up to date; '
+              'eventai.map names %d action type(s)' % len(mapping))
         return 0
 
     for path, wanted in written:
         open(path, 'w', encoding='utf-8', newline='\n').write(wanted)
     print('%s: %d categories, %d actions' % (MANIFEST, len(cats), count))
     print('%s: %d categories, %d rules' % (RULES, len(rule_cats), rule_count))
-    print('%s: %d action type(s) mapped' % (EVENTAI, map_count))
+    print('%s: %d action type(s) mapped' % (EVENTAI, len(mapping)))
     return 0
 
 
