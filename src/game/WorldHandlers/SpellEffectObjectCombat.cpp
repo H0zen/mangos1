@@ -475,7 +475,8 @@ void Spell::EffectActivateObject(SpellEffectIndex eff_idx)
 
             int32 delay_secs = m_spellInfo->CalculateSimpleValue(eff_idx);
 
-            gameObjTarget->GetMap()->ScriptCommandStart(activateCommand, delay_secs, m_caster, gameObjTarget);
+            gameObjTarget->GetMap()->ScriptCommandStart(activateCommand, delay_secs * 1000u, m_caster,
+                                               gameObjTarget);
             break;
         }
         case 3:                     // GO custom anim - found mostly in Lunar Fireworks spells

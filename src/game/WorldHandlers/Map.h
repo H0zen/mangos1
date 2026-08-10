@@ -312,7 +312,9 @@ class Map : public GridRefManager<NGridType>
             SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET = 0x03,   // Start Script only if not yet started (uniqueness identified by id, source and target)
         };
         bool ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams = SCRIPT_EXEC_PARAM_NONE);
-        void ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* source, Object* target);
+        /// @a delayMs is milliseconds, like every other duration a map
+        /// deals in. It was seconds, alone among them.
+        void ScriptCommandStart(ScriptInfo const& script, uint32 delayMs, Object* source, Object* target);
 
         // must called with AddToWorld
         void AddToActive(WorldObject* obj);
@@ -551,7 +553,28 @@ class Map : public GridRefManager<NGridType>
 
         std::set<WorldObject*> i_objectsToRemove;
 
-        typedef std::multimap<time_t, ScriptAction> ScriptScheduleMap;
+        /**
+         * Queued DB-script steps, keyed by the SIMULATED MILLISECOND they are
+         * due at.
+         *
+         * It was a time_t of whole seconds, and that was the resolution the
+         * whole DB-script system ran at: a row's `delay` column is in seconds
+         * because it was added straight to sWorld.GetGameTime(), a fact
+         * visible here and nowhere near the column. Two consequences followed
+         * from it. A script could not express a pause shorter than a second --
+         * so a line of dialogue and the emote that belongs with it were either
+         * simultaneous or a second apart, with nothing in between. And every
+         * step fired on the first tick of its second, so a chain's timing
+         * drifted by up to a tick against everything else in the world.
+         *
+         * Simulation::Now() is the clock the rest of the map already runs on:
+         * simulated milliseconds, monotonic, advanced once per tick by
+         * MapManager before any map updates. Keying on it costs nothing, makes
+         * the existing tables mean exactly what they meant (their seconds are
+         * multiplied on the way in), and lets a script written from here on
+         * ask for 250ms.
+         */
+        typedef std::multimap<uint64, ScriptAction> ScriptScheduleMap;
         ScriptScheduleMap m_scriptSchedule;
 
         InstanceData* i_data;

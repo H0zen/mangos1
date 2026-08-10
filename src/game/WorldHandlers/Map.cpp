@@ -43,6 +43,7 @@
  */
 
 #include "ScriptHost.h"
+#include "Time/SimulationTime.h"
 #include "dbscripts/DbScriptStore.h"
 #include "sd3/ScriptBindings.h"
 #include "Utilities/Errors.h"
@@ -2917,7 +2918,9 @@ bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* tar
     {
         ScriptAction sa(type, this, sourceGuid, targetGuid, ownerGuid, &(*iter));
 
-        m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + iter->delay), sa));
+        // The column is in seconds; the schedule is in milliseconds.
+        m_scriptSchedule.insert(ScriptScheduleMap::value_type(
+            Simulation::Now() + uint64(iter->delay) * 1000u, sa));
 
         sDbScripts.IncreaseScheduledScriptsCount();
     }
@@ -2929,11 +2932,11 @@ bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* tar
  * @brief Queues an internally generated script command for delayed execution.
  *
  * @param script The script command data to execute.
- * @param delay The execution delay in seconds.
+ * @param delayMs The execution delay in milliseconds.
  * @param source The source object associated with the command.
  * @param target The optional target object associated with the command.
  */
-void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* source, Object* target)
+void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delayMs, Object* source, Object* target)
 {
     // NOTE: script record _must_ exist until command executed
 
@@ -2944,7 +2947,8 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
 
     ScriptAction sa(DBS_INTERNAL, this, sourceGuid, targetGuid, ownerGuid, &script);
 
-    m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + delay), sa));
+    m_scriptSchedule.insert(ScriptScheduleMap::value_type(
+        Simulation::Now() + delayMs, sa));
 
     sDbScripts.IncreaseScheduledScriptsCount();
 }
@@ -2964,7 +2968,7 @@ void Map::ScriptsProcess()
     ///- Process overdue queued scripts
     ScriptScheduleMap::iterator iter = m_scriptSchedule.begin();
     // ok as multimap is a *sorted* associative container
-    while (!m_scriptSchedule.empty() && (iter->first <= sWorld.GetGameTime()))
+    while (!m_scriptSchedule.empty() && (iter->first <= Simulation::Now()))
     {
         if (iter->second.HandleScriptStep())
         {

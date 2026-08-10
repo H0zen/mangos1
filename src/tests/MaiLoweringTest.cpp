@@ -492,79 +492,84 @@ TEST(MaiRunner_AnEmptyOrAbsentSequenceIsFinishedAndAsksForNoTicks)
 
 // ---- the differential -------------------------------------------------------
 //
-// The point of the whole exercise: MAI must do what the DB script schedule
-// does, on the DB script schedule's own data, before it is allowed to replace
-// it. So the schedule is modelled here from the code that implements it --
+// The point of the whole exercise: MAI must do what Map's schedule does, on
+// the schedule's own data, before it is allowed to replace it.
 //
-//     Map::ScriptsStart:   m_scriptSchedule.insert(gameTime + row.delay, action)
-//     Map::ScriptsProcess: fire while (iter->first <= gameTime)
+// Both are simulated here, from the same tick stream, against the same chains.
+// The schedule is modelled from the code that implements it --
 //
-// -- which is a multimap keyed by whole seconds, so steps at the same delay
-// keep the order they were inserted in, and everything due at or before now
-// fires in one pass. That is the reference. MAI's runner is driven over the
-// same chains with an awkward, uneven tick stream and must agree with it.
+//     Map::ScriptsStart:   insert(Simulation::Now() + delay * 1000, action)
+//     Map::ScriptsProcess: fire while (due <= Simulation::Now())
 //
-// What is NOT asserted is that they agree to the millisecond. They cannot:
-// the schedule has one-second resolution because game time is a time_t, and
-// MAI has a tick's. A step due at 5s fires in the same second in both, and
-// sooner within that second in MAI, which is the improvement rather than the
-// discrepancy.
+// -- a multimap keyed by the millisecond a step is due, insertion order kept
+// among equal keys, everything due at or before now firing in one pass.
+//
+// Now that the schedule counts in milliseconds too, the comparison is exact:
+// same steps, same order, same TICK. It used to be same second, because the
+// schedule could not offer better; making the core agree with the clock the
+// rest of the map already runs on is what turned an approximate check into a
+// strict one.
 
 namespace
 {
-    /// One firing: which step, and the second it happened in.
+    /// One firing: which step, and the tick it happened on.
     struct Fired
     {
         std::size_t step;
-        uint32      second;
+        std::size_t tick;
     };
 
-    /// What Map's schedule would do with a chain: sorted by delay, insertion
-    /// order kept within a delay, every step firing in its own second.
+    /// A tick stream chosen to be hostile: primes, so no tick lands on a step
+    /// boundary and every crossing has to be handled by the comparison rather
+    /// than by luck.
+    uint32 TickAt(std::size_t index)
+    {
+        static uint32 const ticks[] = { 37, 401, 1103, 53, 2999, 7, 5003 };
+        return ticks[index % (sizeof(ticks) / sizeof(*ticks))];
+    }
+
+    /// What Map::m_scriptSchedule would do, simulated.
     std::vector<Fired> ScheduleTrace(ScriptChain const& chain)
     {
-        std::vector<std::pair<uint32, std::size_t>> order;
+        std::multimap<uint64, std::size_t> schedule;
         for (std::size_t i = 0; i < chain.size(); ++i)
         {
-            order.push_back(std::make_pair(chain[i].delay, i));
+            schedule.insert(std::make_pair(uint64(chain[i].delay) * 1000u, i));
         }
-        std::stable_sort(order.begin(), order.end(),
-            [](std::pair<uint32, std::size_t> const& a,
-               std::pair<uint32, std::size_t> const& b)
-            { return a.first < b.first; });
 
         std::vector<Fired> trace;
-        for (std::size_t i = 0; i < order.size(); ++i)
+        uint64 now = 0;
+        std::size_t index = 0;
+
+        for (std::size_t tick = 0; tick < 4000 && !schedule.empty(); ++tick)
         {
-            trace.push_back(Fired{ i, order[i].first });
+            now += TickAt(tick);
+            while (!schedule.empty() && schedule.begin()->first <= now)
+            {
+                trace.push_back(Fired{ index++, tick });
+                schedule.erase(schedule.begin());
+            }
         }
+
         return trace;
     }
 
-    /// What MAI does with the same chain, driven by a tick stream chosen to be
-    /// hostile: prime numbers of milliseconds, so no tick ever lands on a step
-    /// boundary and every crossing has to be handled by the elapsed-time
-    /// comparison rather than by luck.
+    /// What MAI does with the same chain and the same ticks.
     std::vector<Fired> MaiTrace(mai::Sequence const& sequence)
     {
-        static uint32 const ticks[] = { 37, 401, 1103, 53, 2999, 7, 5003 };
-
         mai::Frame frame;
         frame.sequence = &sequence;
 
         std::vector<Fired> trace;
-        std::size_t at = 0;
         std::size_t index = 0;
 
-        // Long enough to outlast the longest chain in the export by a wide
-        // margin; the loop stops as soon as the frame is finished.
-        for (int guard = 0; guard < 4000 && !frame.Finished(); ++guard)
+        for (std::size_t tick = 0; tick < 4000 && !frame.Finished(); ++tick)
         {
-            uint32 const diff = ticks[at++ % (sizeof(ticks) / sizeof(*ticks))];
-            mai::Runner run(frame, diff);
+            mai::Runner run(frame, TickAt(tick));
             while (mai::Step const* step = run.Next())
             {
-                trace.push_back(Fired{ index++, step->atMs / 1000 });
+                (void)step;
+                trace.push_back(Fired{ index++, tick });
             }
         }
 
@@ -611,7 +616,7 @@ TEST(MaiDifferential_MaiRunsTheLiveChainsExactlyAsTheScheduleWould)
         for (std::size_t i = 0; same && i < wanted.size(); ++i)
         {
             same = wanted[i].step == got[i].step &&
-                   wanted[i].second == got[i].second;
+                   wanted[i].tick == got[i].tick;
         }
 
         if (!same)
