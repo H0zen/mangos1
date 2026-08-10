@@ -38,11 +38,15 @@
 # Python it would fail this test on exactly the naive machine the paragraph
 # above is about, so the interpreter is asked to prove itself first.
 
-set(GENERATOR "${SOURCE_ROOT}/src/game/Scripting/tools/gen_events.py")
+set(GENERATORS
+    "${SOURCE_ROOT}/src/game/Scripting/tools/gen_events.py"
+    "${SOURCE_ROOT}/src/game/Scripting/mai/tools/gen_actions.py")
 
-if(NOT EXISTS "${GENERATOR}")
-    message(FATAL_ERROR "Event generator missing: ${GENERATOR}")
-endif()
+foreach(GENERATOR IN LISTS GENERATORS)
+    if(NOT EXISTS "${GENERATOR}")
+        message(FATAL_ERROR "Generator missing: ${GENERATOR}")
+    endif()
+endforeach()
 
 find_program(PYTHON_BIN NAMES python3 python)
 
@@ -62,17 +66,19 @@ if(NOT PYTHON_USABLE EQUAL 0)
     return()
 endif()
 
-execute_process(
-    COMMAND "${PYTHON_BIN}" "${GENERATOR}" --check
-    RESULT_VARIABLE GENERATOR_STATUS
-    OUTPUT_VARIABLE GENERATOR_OUTPUT
-    ERROR_VARIABLE GENERATOR_ERRORS)
+foreach(GENERATOR IN LISTS GENERATORS)
+    execute_process(
+        COMMAND "${PYTHON_BIN}" "${GENERATOR}" --check
+        RESULT_VARIABLE GENERATOR_STATUS
+        OUTPUT_VARIABLE GENERATOR_OUTPUT
+        ERROR_VARIABLE GENERATOR_ERRORS)
 
-if(NOT GENERATOR_STATUS EQUAL 0)
-    message(FATAL_ERROR
-        "events.manifest and its generated files disagree.\n"
-        "Run: python src/game/Scripting/tools/gen_events.py\n"
-        "${GENERATOR_OUTPUT}${GENERATOR_ERRORS}")
-endif()
+    if(NOT GENERATOR_STATUS EQUAL 0)
+        message(FATAL_ERROR
+            "A manifest and its generated files disagree.\n"
+            "Run: python ${GENERATOR}\n"
+            "${GENERATOR_OUTPUT}${GENERATOR_ERRORS}")
+    endif()
 
-message(STATUS "${GENERATOR_OUTPUT}")
+    message(STATUS "${GENERATOR_OUTPUT}")
+endforeach()

@@ -1,0 +1,112 @@
+# MAI action manifest -- the verbs a script can use, declared once.
+#
+# Generated from this file, never edited by hand:
+#     MaiActions.gen.h    the ActionId enum, the parameter tables, the accessors
+#     actions.md          the reference an author reads
+#
+# WHY THIS FILE EXISTS AT ALL. The DB scripts already had a data-driven action
+# set -- 47 commands with a tagged union of parameters -- and it worked. What it
+# did not have was a way to say what a parameter MEANS. Every one of them is a
+# `datalong`, so `cast_spell` and `play_sound` take the same type, and a typo
+# that puts a sound id where a spell id belongs loads without complaint and
+# fails silently at run time, once, in front of a player.
+#
+# Here a parameter has a semantic type. `spell` is checked against the spell
+# store when the script loads, `creature` against the creature templates,
+# `text` against the text tables. A script that names something that does not
+# exist is refused at load with the line that names it -- which is what EventAI
+# already does for its own tables, and the single largest reason to keep this
+# as data rather than move it into a general-purpose language.
+#
+# IDENTITY IS ABI. The ids below are the DB-script command numbers, unchanged,
+# so an existing `dbscripts_on_*` row lowers to the same verb by number and the
+# migration is mechanical. Holes are retired commands; never fill one in.
+#
+# types
+#     u32 i32 f32 bool          plain values
+#     ms                        a duration in milliseconds
+#     spell creature gameobject validated against the world's own tables, at
+#     item quest faction map    load, so a wrong id is a load error and not a
+#     emote sound movie taxi    silent no-op at run time
+#     mail area text
+#     field                     an update-field index; bounded by the object
+#     flags                     a bitmask, printed in hex
+#     trailing ?                optional; absent means the action's own default
+#
+# Every action also carries the three facets every DB-script row carried, and
+# they are declared once here rather than repeated per verb:
+#
+#     buddy       who the action really acts on, when it is not the source --
+#                 an entry to search for, a radius, and flags saying whether to
+#                 search by guid, from the target, or among the dead
+#     texts       up to four text ids, because TALK picks one at random
+#     at          a position, for the verbs that need one
+
+facet buddy   entry:creature? radius:f32? flags:flags?
+facet texts   text0:text? text1:text? text2:text? text3:text?
+facet at      x:f32? y:f32? z:f32? o:f32?
+
+category say = 0x01
+    talk                     0   texts
+    emote                    1   emote:emote
+    play_sound              16   sound:sound flags:flags?
+    play_movie              19   movie:movie
+
+category field = 0x02
+    field_set                2   field:field value:u32
+    flag_set                 4   field:field value:flags
+    flag_remove              5   field:field value:flags
+    morph_to_entry_or_model 23   entry:u32
+    mount_to_entry_or_model 24   entry:u32
+    change_entry            39   entry:creature
+    update_template         44   entry:creature faction:faction
+    set_equipment_slots     42   reset_default:bool
+    modify_npc_flags        29   flag:flags change:u32
+    set_faction             22   faction:faction flags:flags?
+
+category move = 0x03
+    move_to                  3   speed:u32? at
+    teleport_to              6   map:map at
+    movement                20   type:u32 wander_distance:u32?
+    set_run                 25   run:bool
+    turn_to                 36   target:u32
+    move_dynamic            37   max_dist:f32 min_dist:f32?
+    send_taxi_path          30   path:taxi
+    pause_waypoints         32   pause:bool
+    set_fly                 59   enable:bool
+    stand_state             28   state:u32
+
+category combat = 0x04
+    cast_spell              15   spell:spell flags:flags?
+    remove_aura             14   spell:spell
+    attack_start            26
+    despawn_self            18   delay:ms?
+    respawn                 41
+
+category world = 0x05
+    respawn_go               9   guid:u32 despawn_delay:ms?
+    despawn_go              40   guid:u32 respawn_time:ms?
+    open_door               11   guid:u32 reset_delay:ms?
+    close_door              12   guid:u32 reset_delay:ms?
+    activate_object         13
+    reset_go                43
+    go_lock_state           27   state:flags
+    temp_summon_creature    10   entry:creature despawn_delay:ms? at
+    set_activeobject        21   activate:bool
+
+category player = 0x06
+    quest_explored           7   quest:quest distance:f32?
+    kill_credit              8   entry:creature group_credit:bool?
+    create_item             17   item:item amount:u32?
+    send_mail               38   template:mail alt_sender:creature?
+    join_lfg                33   area:area
+    xp_user                 53   flags:flags
+
+category flow = 0x07
+    # The two that end a running sequence rather than doing something in the
+    # world. terminate_script stops when a named creature is (or is not) found
+    # nearby; terminate_cond stops on a condition, and may fail a quest as it
+    # goes.
+    terminate_script        31   entry:creature? search_dist:f32?
+    terminate_cond          34   condition:u32 fail_quest:quest?
+    send_ai_event_around    35   event:u32 radius:f32
