@@ -27,6 +27,7 @@
 
 #include "mai/MaiLowering.h"
 #include "mai/MaiRunner.h"
+#include "mai/MaiPerform.h"
 #include "mai/MaiTargeting.h"
 #include "mai/MaiValidate.h"
 
@@ -355,6 +356,24 @@ namespace scripting
             WorldObject* finalSource = nullptr;
             WorldObject* finalTarget = nullptr;
             mai::Redirect(step.buddy.flags, cast, finalSource, finalTarget);
+
+            // The native verbs first. A step MAI implements itself never
+            // reaches ScriptAction, which is what lets the borrowed bodies be
+            // retired one at a time: each verb that grows a native body simply
+            // stops falling through.
+            mai::Doing doing;
+            doing.map = map;
+            doing.source = finalSource;
+            doing.target = finalTarget;
+            doing.owner = frame.owner;
+            doing.actor = nullptr;  // a world-started sequence has no creature
+
+            bool handled = false;
+            bool const stop = mai::PerformNative(doing, step, handled);
+            if (handled)
+            {
+                return stop;
+            }
 
             ScriptAction action(DBScriptType(frame.sequence->origin), map,
                                 finalSource ? finalSource->GetObjectGuid()
