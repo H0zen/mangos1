@@ -90,7 +90,19 @@ namespace mai
         }
 
         out = Step();
-        out.atMs = row.delay;
+        // SECONDS to milliseconds. `delay` is added straight to
+        // sWorld.GetGameTime(), which is a time_t in seconds -- a fact visible
+        // only at the schedule's insertion in Map::ScriptsStart and nowhere
+        // near the column itself. Taken as milliseconds, as it was here until
+        // the differential test went looking, every DB script would have run a
+        // thousand times faster than it was written to: a five-second pause
+        // between two lines of dialogue becomes five milliseconds, which reads
+        // as both lines arriving at once.
+        //
+        // MAI keeps milliseconds because a sequence must be able to say
+        // `wait 250ms`, and because a tick is milliseconds. The conversion
+        // belongs here, at the boundary, and not in the runner.
+        out.atMs = row.delay * 1000;
         out.action = spec->id;
         out.origin = &row;
 

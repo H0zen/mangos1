@@ -46,7 +46,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <algorithm>
 #include <initializer_list>
+#include <map>
+#include <utility>
 #include <set>
 #include <sstream>
 #include <string>
@@ -154,7 +157,7 @@ TEST(MaiLowering_EveryLiveRowLowers)
             // rather than assuming: if it ever stopped being true, every
             // existing row would migrate to the wrong action silently.
             CHECK(uint32(step.action) == row.info.command);
-            CHECK(step.atMs == row.info.delay);
+            CHECK(step.atMs == row.info.delay * 1000);
 
             // The buddy search copies across whatever the verb is.
             CHECK(step.buddy.entry == row.info.buddyEntry);
@@ -227,8 +230,10 @@ TEST(MaiLowering_ChainsSortByTime)
     // A sequence must be walkable in order, because the runner stops at the
     // first step not yet due. An unsorted chain would silently drop everything
     // after the first row that arrived out of order.
+    // Delays in SECONDS, as the column is; the lowering turns them into the
+    // milliseconds the runner counts in.
     ScriptChain chain;
-    for (uint32 delay : { 5000u, 0u, 2000u, 0u })
+    for (uint32 delay : { 5u, 0u, 2u, 0u })
     {
         ScriptInfo row;
         row.delay = delay;
@@ -246,7 +251,7 @@ TEST(MaiLowering_ChainsSortByTime)
         CHECK(sequence.steps[i - 1].atMs <= sequence.steps[i].atMs);
     }
 
-    CHECK(sequence.Duration() == 5000);
+    CHECK(sequence.Duration() == 5000);   // 5 seconds, in ms
 }
 
 // ---- who a step acts on -----------------------------------------------------
@@ -483,4 +488,152 @@ TEST(MaiRunner_AnEmptyOrAbsentSequenceIsFinishedAndAsksForNoTicks)
     CHECK(frame.Finished());
     CHECK(Tick(frame, 10000).empty());
     CHECK(empty.Duration() == 0);
+}
+
+// ---- the differential -------------------------------------------------------
+//
+// The point of the whole exercise: MAI must do what the DB script schedule
+// does, on the DB script schedule's own data, before it is allowed to replace
+// it. So the schedule is modelled here from the code that implements it --
+//
+//     Map::ScriptsStart:   m_scriptSchedule.insert(gameTime + row.delay, action)
+//     Map::ScriptsProcess: fire while (iter->first <= gameTime)
+//
+// -- which is a multimap keyed by whole seconds, so steps at the same delay
+// keep the order they were inserted in, and everything due at or before now
+// fires in one pass. That is the reference. MAI's runner is driven over the
+// same chains with an awkward, uneven tick stream and must agree with it.
+//
+// What is NOT asserted is that they agree to the millisecond. They cannot:
+// the schedule has one-second resolution because game time is a time_t, and
+// MAI has a tick's. A step due at 5s fires in the same second in both, and
+// sooner within that second in MAI, which is the improvement rather than the
+// discrepancy.
+
+namespace
+{
+    /// One firing: which step, and the second it happened in.
+    struct Fired
+    {
+        std::size_t step;
+        uint32      second;
+    };
+
+    /// What Map's schedule would do with a chain: sorted by delay, insertion
+    /// order kept within a delay, every step firing in its own second.
+    std::vector<Fired> ScheduleTrace(ScriptChain const& chain)
+    {
+        std::vector<std::pair<uint32, std::size_t>> order;
+        for (std::size_t i = 0; i < chain.size(); ++i)
+        {
+            order.push_back(std::make_pair(chain[i].delay, i));
+        }
+        std::stable_sort(order.begin(), order.end(),
+            [](std::pair<uint32, std::size_t> const& a,
+               std::pair<uint32, std::size_t> const& b)
+            { return a.first < b.first; });
+
+        std::vector<Fired> trace;
+        for (std::size_t i = 0; i < order.size(); ++i)
+        {
+            trace.push_back(Fired{ i, order[i].first });
+        }
+        return trace;
+    }
+
+    /// What MAI does with the same chain, driven by a tick stream chosen to be
+    /// hostile: prime numbers of milliseconds, so no tick ever lands on a step
+    /// boundary and every crossing has to be handled by the elapsed-time
+    /// comparison rather than by luck.
+    std::vector<Fired> MaiTrace(mai::Sequence const& sequence)
+    {
+        static uint32 const ticks[] = { 37, 401, 1103, 53, 2999, 7, 5003 };
+
+        mai::Frame frame;
+        frame.sequence = &sequence;
+
+        std::vector<Fired> trace;
+        std::size_t at = 0;
+        std::size_t index = 0;
+
+        // Long enough to outlast the longest chain in the export by a wide
+        // margin; the loop stops as soon as the frame is finished.
+        for (int guard = 0; guard < 4000 && !frame.Finished(); ++guard)
+        {
+            uint32 const diff = ticks[at++ % (sizeof(ticks) / sizeof(*ticks))];
+            mai::Runner run(frame, diff);
+            while (mai::Step const* step = run.Next())
+            {
+                trace.push_back(Fired{ index++, step->atMs / 1000 });
+            }
+        }
+
+        return trace;
+    }
+}
+
+TEST(MaiDifferential_MaiRunsTheLiveChainsExactlyAsTheScheduleWould)
+{
+    std::ifstream file(FixturePath().c_str());
+    REQUIRE(file.is_open());
+
+    // Rebuild the chains as the loader would: rows grouped by (type, id).
+    std::map<std::pair<uint32, uint32>, ScriptChain> chains;
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+        {
+            continue;
+        }
+        Row row;
+        REQUIRE(ParseRow(line, row));
+        chains[std::make_pair(row.scriptType, row.id)].push_back(row.info);
+    }
+
+    REQUIRE(!chains.empty());
+
+    std::size_t compared = 0;
+    std::size_t steps = 0;
+    std::size_t disagreed = 0;
+
+    for (auto const& entry : chains)
+    {
+        mai::Sequence sequence;
+        std::string error;
+        REQUIRE(mai::Lower(entry.second, entry.first.second, "chain",
+                           sequence, error));
+
+        std::vector<Fired> const wanted = ScheduleTrace(entry.second);
+        std::vector<Fired> const got = MaiTrace(sequence);
+
+        bool same = wanted.size() == got.size();
+        for (std::size_t i = 0; same && i < wanted.size(); ++i)
+        {
+            same = wanted[i].step == got[i].step &&
+                   wanted[i].second == got[i].second;
+        }
+
+        if (!same)
+        {
+            ++disagreed;
+            if (disagreed == 1)
+            {
+                std::printf("  first disagreement: type %u id %u -- schedule "
+                            "%u step(s), MAI %u\n",
+                            entry.first.first, entry.first.second,
+                            uint32(wanted.size()), uint32(got.size()));
+            }
+        }
+
+        ++compared;
+        steps += wanted.size();
+    }
+
+    std::printf("  differential: %u chain(s), %u step(s), %u disagreement(s)\n",
+                uint32(compared), uint32(steps), uint32(disagreed));
+
+    CHECK(compared > 300);
+    CHECK(steps > 2000);
+    CHECK(disagreed == 0);
 }
