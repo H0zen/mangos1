@@ -27,9 +27,12 @@
 
 #ifdef ENABLE_LUAU
 
+#include "api/LuaApi.h"
+
 #include "Config/Config.h"
 #include "Log.h"
 #include "Map.h"
+#include "ObjectGuid.h"
 
 #include "Luau/Compiler.h"
 #include "lua.h"
@@ -48,78 +51,21 @@ namespace scripting
         /// The registry key under which a state keeps its handler table.
         char const HANDLERS[] = "mangos.handlers";
 
-        /// Metatable names for the three things that must not be numbers.
-        char const MT_GUID[]   = "mangos.guid";
-        char const MT_HANDLE[] = "mangos.handle";
-        char const MT_BORROW[] = "mangos.borrow";
-
-        struct BoxedHandle { Handle value; };
-        struct BoxedBorrow { Borrow value; };
-
         /**
-         * Push @a raw as an opaque guid.
+         * One slot, as a Lua value.
          *
-         * Not lua_pushnumber. A Lua number is a double and an ObjectGuid is 64
-         * bits, so a guid above 2^53 would come back changed and every use of
-         * it would be wrong in a way no error ever names.
+         * The boxes themselves belong to the API layer, because that is what
+         * gives them methods: a guid's metatable carries both the equality
+         * this engine needs and the __index the API installs, and two files
+         * each creating "the" guid metatable would be two metatables.
+         *
+         * @a owner is the guid of the player who owns whatever item is in
+         * this payload, and 0 elsewhere. An item is the one object in this
+         * core with no global registry -- only Player::GetItemByGuid -- so an
+         * item guid alone is not resolvable, and the box carries the owner
+         * that makes it so.
          */
-        void PushGuid(lua_State* L, uint64 raw)
-        {
-            if (!raw)
-            {
-                lua_pushnil(L);
-                return;
-            }
-
-            void* box = lua_newuserdata(L, sizeof(uint64));
-            std::memcpy(box, &raw, sizeof(raw));
-            luaL_getmetatable(L, MT_GUID);
-            lua_setmetatable(L, -2);
-        }
-
-        void PushHandle(lua_State* L, Handle const& handle)
-        {
-            if (handle.IsEmpty())
-            {
-                lua_pushnil(L);
-                return;
-            }
-
-            void* box = lua_newuserdata(L, sizeof(BoxedHandle));
-            new (box) BoxedHandle{ handle };
-            luaL_getmetatable(L, MT_HANDLE);
-            lua_setmetatable(L, -2);
-        }
-
-        void PushBorrow(lua_State* L, Borrow const& borrow)
-        {
-            if (borrow.IsEmpty())
-            {
-                lua_pushnil(L);
-                return;
-            }
-
-            void* box = lua_newuserdata(L, sizeof(BoxedBorrow));
-            new (box) BoxedBorrow{ borrow };
-            luaL_getmetatable(L, MT_BORROW);
-            lua_setmetatable(L, -2);
-        }
-
-        uint64 GuidOf(lua_State* L, int index)
-        {
-            void* box = lua_touserdata(L, index);
-            if (!box)
-            {
-                return 0;
-            }
-
-            uint64 raw = 0;
-            std::memcpy(&raw, box, sizeof(raw));
-            return raw;
-        }
-
-        /// One slot, as a Lua value.
-        void PushArg(lua_State* L, Arg const& arg)
+        void PushArg(lua_State* L, Arg const& arg, uint64 owner)
         {
             switch (arg.GetKind())
             {
@@ -136,13 +82,18 @@ namespace scripting
                     lua_pushboolean(L, arg.AsFlag() ? 1 : 0);
                     break;
                 case Arg::Kind::Entity:
-                    PushGuid(L, arg.AsEntity().guid);
+                {
+                    uint64 const raw = arg.AsEntity().guid;
+                    bool const isItem =
+                        ObjectGuid(raw).GetHigh() == HIGHGUID_ITEM;
+                    api::PushOwnedGuid(L, raw, isItem ? owner : 0);
                     break;
+                }
                 case Arg::Kind::Named:
-                    PushHandle(L, arg.AsNamed());
+                    api::PushRawHandle(L, arg.AsNamed());
                     break;
                 case Arg::Kind::Lent:
-                    PushBorrow(L, arg.AsLent());
+                    api::PushRawBorrow(L, arg.AsLent());
                     break;
                 case Arg::Kind::Text:
                     lua_pushstring(L, arg.AsText().c_str());
@@ -200,7 +151,7 @@ namespace scripting
                         return true;
                     }
                     if (!lua_isuserdata(L, index)) { return false; }
-                    arg = Arg::FromEntity(Ref{ GuidOf(L, index) });
+                    arg = Arg::FromEntity(Ref{ api::RawGuidAt(L, index) });
                     return true;
 
                 default:
@@ -245,50 +196,6 @@ namespace scripting
             return 0;
         }
 
-        int Lua_GuidToString(lua_State* L)
-        {
-            char text[24];
-            std::snprintf(text, sizeof(text), "guid:%llu",
-                          (unsigned long long)GuidOf(L, 1));
-            lua_pushstring(L, text);
-            return 1;
-        }
-
-        int Lua_GuidEquals(lua_State* L)
-        {
-            lua_pushboolean(L, GuidOf(L, 1) == GuidOf(L, 2) ? 1 : 0);
-            return 1;
-        }
-
-        /// A borrow answers one question honestly: am I still usable?
-        int Lua_BorrowAlive(lua_State* L)
-        {
-            BoxedBorrow const* box =
-                static_cast<BoxedBorrow const*>(lua_touserdata(L, 1));
-            lua_pushboolean(L,
-                (box && detail::IsBorrowLive(box->value)) ? 1 : 0);
-            return 1;
-        }
-
-        void RegisterMetatable(lua_State* L, char const* name,
-                               lua_CFunction tostring, lua_CFunction eq)
-        {
-            luaL_newmetatable(L, name);
-            if (tostring)
-            {
-                lua_pushcfunction(L, tostring, "__tostring");
-                lua_setfield(L, -2, "__tostring");
-            }
-            if (eq)
-            {
-                lua_pushcfunction(L, eq, "__eq");
-                lua_setfield(L, -2, "__eq");
-            }
-            // Opaque: a script may hold one and compare it, and that is all.
-            lua_pushstring(L, name);
-            lua_setfield(L, -2, "__metatable");
-            lua_pop(L, 1);
-        }
     }
 
     LuauEngine::State::~State()
@@ -302,7 +209,7 @@ namespace scripting
     LuauEngine::LuauEngine() = default;
     LuauEngine::~LuauEngine() = default;
 
-    std::unique_ptr<LuauEngine::State> LuauEngine::OpenState() const
+    std::unique_ptr<LuauEngine::State> LuauEngine::OpenState(Map* map) const
     {
         std::unique_ptr<State> state(new State());
         state->L = luaL_newstate();
@@ -314,17 +221,10 @@ namespace scripting
         lua_State* L = state->L;
         luaL_openlibs(L);
 
-        RegisterMetatable(L, MT_GUID, Lua_GuidToString, Lua_GuidEquals);
-        RegisterMetatable(L, MT_HANDLE, nullptr, nullptr);
-        RegisterMetatable(L, MT_BORROW, nullptr, nullptr);
-
-        // IsLive() on a borrow, so a script can ask instead of guessing.
-        luaL_getmetatable(L, MT_BORROW);
-        lua_newtable(L);
-        lua_pushcfunction(L, Lua_BorrowAlive, "IsLive");
-        lua_setfield(L, -2, "IsLive");
-        lua_setfield(L, -2, "__index");
-        lua_pop(L, 1);
+        // The world API: the boxes, their metatables, every method a script
+        // can call and the globals. Everything below this line assumes it is
+        // already there.
+        api::RegisterApi(L, map);
 
         lua_newtable(L);
         lua_setfield(L, LUA_REGISTRYINDEX, HANDLERS);
@@ -486,7 +386,7 @@ namespace scripting
         // state runs the same bytecode, so whatever this one registers is
         // what all of them will, and Dispatch can then reject an unwanted
         // event without touching a state or a lock.
-        std::unique_ptr<State> global = OpenState();
+        std::unique_ptr<State> global = OpenState(nullptr);
         if (!global)
         {
             sLog.outError("Luau: could not create the script state.");
@@ -556,7 +456,7 @@ namespace scripting
             return found->second.get();
         }
 
-        std::unique_ptr<State> state = OpenState();
+        std::unique_ptr<State> state = OpenState(ctx.map);
         if (!state)
         {
             return nullptr;
@@ -604,6 +504,22 @@ namespace scripting
         int const handlers = lua_gettop(L);
         int const total = int(lua_objlen(L, handlers));
 
+        // The owner an item in this payload needs to be findable again. Every
+        // event that carries an item also carries the player holding it --
+        // gen_events.py refuses one that does not -- so this is a lookup by
+        // the manifest's own field name and not a guess about which of the
+        // guids present might be a player.
+        uint64 owner = 0;
+        for (std::size_t slot = 0; slot < count; ++slot)
+        {
+            if (args[slot].GetKind() == Arg::Kind::Entity &&
+                std::strcmp(spec->args[slot].name, "player") == 0)
+            {
+                owner = args[slot].AsEntity().guid;
+                break;
+            }
+        }
+
         for (int i = 1; i <= total; ++i)
         {
             lua_rawgeti(L, handlers, i);
@@ -612,7 +528,7 @@ namespace scripting
             lua_newtable(L);
             for (std::size_t slot = 0; slot < count; ++slot)
             {
-                PushArg(L, args[slot]);
+                PushArg(L, args[slot], owner);
                 lua_setfield(L, -2, spec->args[slot].name);
             }
 

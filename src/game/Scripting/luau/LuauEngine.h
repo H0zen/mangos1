@@ -107,7 +107,11 @@ namespace scripting
         };
 
         State* StateFor(Context const& ctx);
-        std::unique_ptr<State> OpenState() const;
+
+        /// @a map is the map this state answers for, and nullptr for the
+        /// world state. It is not decoration: it is how every guid a script
+        /// holds is turned back into an object.
+        std::unique_ptr<State> OpenState(Map* map) const;
 
         void Compile();
         void RecordSubscriptions(lua_State* L);
