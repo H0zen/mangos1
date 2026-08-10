@@ -93,7 +93,13 @@
  */
 Map::~Map()
 {
-    scripting::Notify(this, scripting::ServerMapDestroy{
+    // Global scope, not this map's, and the same for ServerMapCreate below.
+    // A map appearing or going away is a fact about the world rather than
+    // something that happened on the map -- and routing it to the map's own
+    // state made an engine BUILD that state from inside the destructor, only
+    // to have RetireState close it again on the next line. The payload carries
+    // the map either way.
+    scripting::Notify(scripting::GlobalContext(), scripting::ServerMapDestroy{
                                 scripting::HandleOf(scripting::Domain::Map,
                                                     GetId()) });
     scripting::RetireState(scripting::ContextOf(this));
@@ -200,7 +206,11 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
 
     m_weatherSystem = new WeatherSystem(this);
 
-    scripting::Notify(this, scripting::ServerMapCreate{
+    // Global scope: see the note in ~Map. Raised from a CONSTRUCTOR, so the
+    // reason is sharper here -- an engine given this map's scope would open a
+    // per-map script state and run script code against a `this` whose derived
+    // half (DungeonMap, BattleGroundMap) has not been constructed yet.
+    scripting::Notify(scripting::GlobalContext(), scripting::ServerMapCreate{
                                 scripting::HandleOf(scripting::Domain::Map,
                                                     GetId()) });
 }

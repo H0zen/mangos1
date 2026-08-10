@@ -80,8 +80,16 @@ if(NOT SCRIPT_LIB_SD3)
     list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/sd3/engine/")
 endif()
 
+# Luau is dropped whole too, and "whole" has to mean the API layer as well as
+# the VM. Excluding only engine/ left Scripting/luau/api/*.cpp in the build
+# while the Luau include roots below were NOT added, so five of those files
+# failed on `#include "lua.h"` and configuring the engine off broke the build
+# outright. LuauEngine.cpp is the one file that stays: it guards its own body
+# with ENABLE_LUAU and compiles to nothing, which is what keeps the seam the
+# same shape with the back end absent.
 if(NOT SCRIPT_LIB_LUAU)
     list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/luau/engine/")
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/luau/api/")
 endif()
 
 # The vendored Luau VM is third-party C++ that knows nothing about this core,

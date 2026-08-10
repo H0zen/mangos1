@@ -37,16 +37,65 @@
 #include "Object.h"
 #include "ObjectGuid.h"
 
+#include "lua.h"
+#include "lualib.h"
+
 namespace scripting
 {
     namespace api
     {
         namespace
         {
+            /**
+             * A field index this object actually has.
+             *
+             * EVERY accessor below asserts on an index past the end of the
+             * block -- MANGOS_ASSERT, which is live in a release build and
+             * takes the process with it -- so an index taken unchecked from a
+             * script was a way to stop the server from Lua, in one line, with
+             * no privilege beyond writing a script.
+             *
+             * The bound has to be the object's own and cannot be a constant:
+             * a Creature's block ends at UNIT_END and a Player's runs a long
+             * way past it, which is also why reading a PLAYER_ field off a
+             * creature is the same bug wearing a method name.
+             *
+             * @a span is how many consecutive uint32 the accessor touches --
+             * two for the 64-bit guid fields, which is the difference between
+             * `index < count` and `index + 1 < count`.
+             */
+            uint16 FieldAt(Api& a, Object const* obj, int narg, uint32 span = 1)
+            {
+                uint32 const index = a.Check<uint32>(narg);
+
+                // Widened, because the sum is the thing being bounded: an
+                // index of 0xFFFFFFFF plus a span of two wraps to 1 in 32 bits
+                // and sails past a check written at that width.
+                if (uint64(index) + span > uint64(obj->GetValuesCount()))
+                {
+                    luaL_argerror(a.L, narg, "field index is past the end of "
+                                             "this object's block");
+                }
+                return uint16(index);
+            }
+
+            /// The byte or half-word offset inside one field. Asserted too,
+            /// and for the same reason.
+            uint8 OffsetAt(Api& a, int narg, uint8 count)
+            {
+                uint8 const offset = a.Check<uint8>(narg);
+                if (offset >= count)
+                {
+                    luaL_argerror(a.L, narg, "offset does not fit inside a "
+                                             "field");
+                }
+                return offset;
+            }
+
             /// Returns true if the flag at @a index is set.
             int HasFlag(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 uint32 const flag = a.Check<uint32>(3);
                 a.Push(obj->HasFlag(index, flag));
                 return 1;
@@ -61,34 +110,34 @@ namespace scripting
 
             int GetInt32Value(Api& a, Object* obj)
             {
-                a.Push(obj->GetInt32Value(a.Check<uint16>(2)));
+                a.Push(obj->GetInt32Value(FieldAt(a, obj, 2)));
                 return 1;
             }
 
             int GetUInt32Value(Api& a, Object* obj)
             {
-                a.Push(obj->GetUInt32Value(a.Check<uint16>(2)));
+                a.Push(obj->GetUInt32Value(FieldAt(a, obj, 2)));
                 return 1;
             }
 
             int GetFloatValue(Api& a, Object* obj)
             {
-                a.Push(obj->GetFloatValue(a.Check<uint16>(2)));
+                a.Push(obj->GetFloatValue(FieldAt(a, obj, 2)));
                 return 1;
             }
 
             int GetByteValue(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
-                uint8 const offset = a.Check<uint8>(3);
+                uint16 const index = FieldAt(a, obj, 2);
+                uint8 const offset = OffsetAt(a, 3, 4);
                 a.Push(obj->GetByteValue(index, offset));
                 return 1;
             }
 
             int GetUInt16Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
-                uint8 const offset = a.Check<uint8>(3);
+                uint16 const index = FieldAt(a, obj, 2);
+                uint8 const offset = OffsetAt(a, 3, 2);
                 a.Push(obj->GetUInt16Value(index, offset));
                 return 1;
             }
@@ -105,7 +154,9 @@ namespace scripting
              */
             int GetGuidValue(Api& a, Object* obj)
             {
-                a.Push(obj->GetGuidValue(a.Check<uint16>(2)));
+                // Two fields wide: GetUInt64Value underneath asserts on
+                // index + 1, not on index.
+                a.Push(obj->GetGuidValue(FieldAt(a, obj, 2, 2)));
                 return 1;
             }
 
@@ -150,7 +201,7 @@ namespace scripting
 
             int SetFlag(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 uint32 const flag = a.Check<uint32>(3);
                 obj->SetFlag(index, flag);
                 return 0;
@@ -158,7 +209,7 @@ namespace scripting
 
             int RemoveFlag(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 uint32 const flag = a.Check<uint32>(3);
                 obj->RemoveFlag(index, flag);
                 return 0;
@@ -166,52 +217,52 @@ namespace scripting
 
             int SetInt32Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 obj->SetInt32Value(index, a.Check<int32>(3));
                 return 0;
             }
 
             int SetUInt32Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 obj->SetUInt32Value(index, a.Check<uint32>(3));
                 return 0;
             }
 
             int UpdateUInt32Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 obj->UpdateUInt32Value(index, a.Check<uint32>(3));
                 return 0;
             }
 
             int SetFloatValue(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2);
                 obj->SetFloatValue(index, a.Check<float>(3));
                 return 0;
             }
 
             int SetByteValue(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
-                uint8 const offset = a.Check<uint8>(3);
+                uint16 const index = FieldAt(a, obj, 2);
+                uint8 const offset = OffsetAt(a, 3, 4);
                 obj->SetByteValue(index, offset, a.Check<uint8>(4));
                 return 0;
             }
 
             int SetUInt16Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
-                uint8 const offset = a.Check<uint8>(3);
+                uint16 const index = FieldAt(a, obj, 2);
+                uint8 const offset = OffsetAt(a, 3, 2);
                 obj->SetUInt16Value(index, offset, a.Check<uint16>(4));
                 return 0;
             }
 
             int SetInt16Value(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
-                uint8 const offset = a.Check<uint8>(3);
+                uint16 const index = FieldAt(a, obj, 2);
+                uint8 const offset = OffsetAt(a, 3, 2);
                 obj->SetInt16Value(index, offset, a.Check<int16>(4));
                 return 0;
             }
@@ -219,7 +270,7 @@ namespace scripting
             /// See GetGuidValue for why there is no SetUInt64Value.
             int SetGuidValue(Api& a, Object* obj)
             {
-                uint16 const index = a.Check<uint16>(2);
+                uint16 const index = FieldAt(a, obj, 2, 2);
                 obj->SetGuidValue(index, a.Check<ObjectGuid>(3));
                 return 0;
             }

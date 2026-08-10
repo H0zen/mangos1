@@ -354,7 +354,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -372,7 +372,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -390,7 +390,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -408,7 +408,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -548,7 +548,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -584,7 +584,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -602,7 +602,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -620,7 +620,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -674,7 +674,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -692,7 +692,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -960,7 +960,7 @@ namespace scripting
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
-        Ref subject;    ///< placeholder; payload is empty
+        Ref            subject;    ///< placeholder; this event has no payload
 
         void Pack(Arg* args) const
         {
@@ -4605,6 +4605,26 @@ namespace scripting
         { "packet", Arg::Kind::Lent, Domain::Packet, false },
     };
 
+    inline constexpr ArgSpec g_argsServerNetworkStart[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerNetworkStop[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerSocketOpen[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerSocketClose[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
     inline constexpr ArgSpec g_argsServerPacketReceive[] =
     {
         { "session", Arg::Kind::Lent, Domain::Session, false },
@@ -4639,9 +4659,29 @@ namespace scripting
         { "mask", Arg::Kind::Number, Domain::None, false },
     };
 
+    inline constexpr ArgSpec g_argsServerShutdownCancel[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
     inline constexpr ArgSpec g_argsServerWorldUpdate[] =
     {
         { "diff", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWorldStartup[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWorldShutdown[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerLuaStateClose[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
     };
 
     inline constexpr ArgSpec g_argsServerMapCreate[] =
@@ -4652,6 +4692,16 @@ namespace scripting
     inline constexpr ArgSpec g_argsServerMapDestroy[] =
     {
         { "map", Arg::Kind::Named, Domain::Map, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapGridLoad[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapGridUnload[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
     };
 
     inline constexpr ArgSpec g_argsServerMapPlayerEnter[] =
@@ -4729,6 +4779,11 @@ namespace scripting
     inline constexpr ArgSpec g_argsServerWorldDeleteGameobject[] =
     {
         { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerLuaStateOpen[] =
+    {
+        { "subject", Arg::Kind::Entity, Domain::None, false },
     };
 
     inline constexpr ArgSpec g_argsServerGameStart[] =
@@ -5845,25 +5900,25 @@ namespace scripting
         { EventId::PacketReceive, "packet.on_receive", g_argsPacketReceive, 2, true, false },
         { EventId::PacketReceiveUnk, "packet.on_receive_unk", g_argsPacketReceiveUnk, 2, true, false },
         { EventId::PacketSend, "packet.on_send", g_argsPacketSend, 2, true, false },
-        { EventId::ServerNetworkStart, "server.on_network_start", nullptr, 0, false, false },
-        { EventId::ServerNetworkStop, "server.on_network_stop", nullptr, 0, false, false },
-        { EventId::ServerSocketOpen, "server.on_socket_open", nullptr, 0, false, false },
-        { EventId::ServerSocketClose, "server.on_socket_close", nullptr, 0, false, false },
+        { EventId::ServerNetworkStart, "server.on_network_start", g_argsServerNetworkStart, 1, false, false },
+        { EventId::ServerNetworkStop, "server.on_network_stop", g_argsServerNetworkStop, 1, false, false },
+        { EventId::ServerSocketOpen, "server.on_socket_open", g_argsServerSocketOpen, 1, false, false },
+        { EventId::ServerSocketClose, "server.on_socket_close", g_argsServerSocketClose, 1, false, false },
         { EventId::ServerPacketReceive, "server.on_packet_receive", g_argsServerPacketReceive, 2, true, false },
         { EventId::ServerPacketReceiveUnk, "server.on_packet_receive_unk", g_argsServerPacketReceiveUnk, 2, true, false },
         { EventId::ServerPacketSend, "server.on_packet_send", g_argsServerPacketSend, 2, true, false },
         { EventId::ServerOpenStateChange, "server.on_open_state_change", g_argsServerOpenStateChange, 1, false, false },
         { EventId::ServerConfigLoad, "server.on_config_load", g_argsServerConfigLoad, 1, false, false },
         { EventId::ServerShutdownInit, "server.on_shutdown_init", g_argsServerShutdownInit, 2, false, false },
-        { EventId::ServerShutdownCancel, "server.on_shutdown_cancel", nullptr, 0, false, false },
+        { EventId::ServerShutdownCancel, "server.on_shutdown_cancel", g_argsServerShutdownCancel, 1, false, false },
         { EventId::ServerWorldUpdate, "server.on_world_update", g_argsServerWorldUpdate, 1, false, false },
-        { EventId::ServerWorldStartup, "server.on_world_startup", nullptr, 0, false, false },
-        { EventId::ServerWorldShutdown, "server.on_world_shutdown", nullptr, 0, false, false },
-        { EventId::ServerLuaStateClose, "server.on_lua_state_close", nullptr, 0, false, false },
+        { EventId::ServerWorldStartup, "server.on_world_startup", g_argsServerWorldStartup, 1, false, false },
+        { EventId::ServerWorldShutdown, "server.on_world_shutdown", g_argsServerWorldShutdown, 1, false, false },
+        { EventId::ServerLuaStateClose, "server.on_lua_state_close", g_argsServerLuaStateClose, 1, false, false },
         { EventId::ServerMapCreate, "server.on_map_create", g_argsServerMapCreate, 1, false, false },
         { EventId::ServerMapDestroy, "server.on_map_destroy", g_argsServerMapDestroy, 1, false, false },
-        { EventId::ServerMapGridLoad, "server.on_map_grid_load", nullptr, 0, false, false },
-        { EventId::ServerMapGridUnload, "server.on_map_grid_unload", nullptr, 0, false, false },
+        { EventId::ServerMapGridLoad, "server.on_map_grid_load", g_argsServerMapGridLoad, 1, false, false },
+        { EventId::ServerMapGridUnload, "server.on_map_grid_unload", g_argsServerMapGridUnload, 1, false, false },
         { EventId::ServerMapPlayerEnter, "server.on_map_player_enter", g_argsServerMapPlayerEnter, 2, false, false },
         { EventId::ServerMapPlayerLeave, "server.on_map_player_leave", g_argsServerMapPlayerLeave, 2, false, false },
         { EventId::ServerMapUpdate, "server.on_map_update", g_argsServerMapUpdate, 2, false, false },
@@ -5876,7 +5931,7 @@ namespace scripting
         { EventId::ServerAddonMessage, "server.on_addon_message", g_argsServerAddonMessage, 7, true, false },
         { EventId::ServerWorldDeleteCreature, "server.on_world_delete_creature", g_argsServerWorldDeleteCreature, 1, false, false },
         { EventId::ServerWorldDeleteGameobject, "server.on_world_delete_gameobject", g_argsServerWorldDeleteGameobject, 1, false, false },
-        { EventId::ServerLuaStateOpen, "server.on_lua_state_open", nullptr, 0, false, false },
+        { EventId::ServerLuaStateOpen, "server.on_lua_state_open", g_argsServerLuaStateOpen, 1, false, false },
         { EventId::ServerGameStart, "server.on_game_start", g_argsServerGameStart, 1, false, false },
         { EventId::ServerGameStop, "server.on_game_stop", g_argsServerGameStop, 1, false, false },
         { EventId::ServerEventRaised, "server.on_event_raised", g_argsServerEventRaised, 4, false, true },

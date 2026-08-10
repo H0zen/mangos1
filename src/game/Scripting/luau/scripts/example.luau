@@ -52,3 +52,19 @@ local logins = 0
 OnEvent(EVENT.player_on_login, function()
     logins += 1
 end)
+
+-- Ask which map you are on INSIDE a handler, never at the top level. Every
+-- state runs this same file, and the engine takes one census of what got
+-- registered; a registration that depended on the map would be made in the map
+-- states and missed by the census, so the handler would never be called and
+-- nothing would say why. Asking during load is an error rather than a nil.
+OnEvent(EVENT.player_on_login, function(e)
+    local map = GetCurrentMap()      -- fine here; a hard error at file scope
+    if map then
+        PrintInfo("a login on some map")
+    end
+end)
+
+-- A handler runs on a budget: Luau.HandlerTimeMs bounds how long it may take
+-- and Luau.MemoryLimitMb how much it may allocate. Going over either is an
+-- ordinary script error -- the world does not wait, and does not stop.

@@ -66,6 +66,12 @@ namespace scripting
         None = 0,
 
         // Handle domains: a stable id that is simply not an ObjectGuid.
+        //
+        // AuctionHouse sits here by kind and is used as a BORROW by the
+        // manifest (`house:b.ahouse`), which is not a contradiction: an
+        // auction house object has no id worth handing out, only the entry in
+        // it does. The grouping describes what a domain names, not which of
+        // the two boxes a given event chose to put it in.
         Guild, Group, Quest, Map, BattleGround, Auction,
         AuctionHouse, ItemTemplate, SpellInfo, AreaTrigger, Weather,
 

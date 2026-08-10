@@ -44,6 +44,7 @@
 
 #include "Creature.h"
 #include "GameObject.h"
+#include "GridDefines.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Map.h"
@@ -67,6 +68,33 @@ namespace scripting
         {
             using Geometry::Placement;
             using Geometry::Vector3;
+
+            /**
+             * How far a search may reach.
+             *
+             * Every one of these methods ends in Cell::VisitAllObjects, whose
+             * cost is the area it is given: the radius decides how many grid
+             * cells are walked, and a script asking for a hundred thousand
+             * yards walks all of them on the map's own update thread. Nothing
+             * bounded that, so one line of Lua could stall a map for as long
+             * as it liked without ever writing a loop.
+             *
+             * One grid is the ceiling because one grid is what the searchers
+             * are built for -- it is already the default every caller here
+             * uses -- and going past it is refused rather than quietly clamped:
+             * a search that silently covers less ground than it was asked for
+             * returns a wrong answer that looks like a right one.
+             */
+            float SearchRange(Api& a, int narg)
+            {
+                float const range = a.Check<float>(narg, SIZE_OF_GRIDS);
+                if (range < 0.0f || range > SIZE_OF_GRIDS)
+                {
+                    luaL_argerror(a.L, narg, "a search range from 0 to one "
+                                             "grid is expected here");
+                }
+                return range;
+            }
 
             /// The point named by arguments @a narg onward, or the placement
             /// of the object given there. Every distance and angle method
@@ -413,7 +441,7 @@ namespace scripting
 
             int GetNearestPlayer(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
 
                 std::list<Player*> found;
                 InRange<Player> check{ obj, range, 0, false };
@@ -438,7 +466,7 @@ namespace scripting
 
             int GetNearestCreature(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
                 uint32 const entry = a.Check<uint32>(3, 0);
 
                 std::list<Creature*> found;
@@ -464,7 +492,7 @@ namespace scripting
 
             int GetNearestGameObject(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
                 uint32 const entry = a.Check<uint32>(3, 0);
 
                 std::list<GameObject*> found;
@@ -490,7 +518,7 @@ namespace scripting
 
             int GetPlayersInRange(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
 
                 std::list<Player*> found;
                 InRange<Player> check{ obj, range, 0, false };
@@ -504,7 +532,7 @@ namespace scripting
 
             int GetCreaturesInRange(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
                 uint32 const entry = a.Check<uint32>(3, 0);
                 bool const aliveOnly = a.Check<bool>(4, true);
 
@@ -520,7 +548,7 @@ namespace scripting
 
             int GetGameObjectsInRange(Api& a, WorldObject* obj)
             {
-                float const range = a.Check<float>(2, 533.33333f);
+                float const range = SearchRange(a, 2);
                 uint32 const entry = a.Check<uint32>(3, 0);
 
                 std::list<GameObject*> found;

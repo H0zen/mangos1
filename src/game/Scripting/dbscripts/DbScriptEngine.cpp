@@ -25,6 +25,7 @@
 
 #include "DbScriptEngine.h"
 
+#include "Creature.h"
 #include "GameObject.h"
 #include "Map.h"
 #include "Object.h"
@@ -56,6 +57,38 @@ namespace scripting
             }
 
             return ctx.map->GetWorldObject(ObjectGuid(ref.guid));
+        }
+
+        /**
+         * The subject of a case, as the type that case is about.
+         *
+         * A Ref is a guid and nothing more -- the seam erases the type on
+         * purpose -- so recovering it with static_cast is asking the compiler
+         * to take the payload's word for what a slot holds. It compiles for
+         * any guid at all, and a Ref that named a player instead of a creature
+         * would give a Creature* pointing at a Player and a GetEntry() reading
+         * whatever lies at that offset: undefined behaviour that no test would
+         * catch, because the payloads are right today.
+         *
+         * The map already knows how to answer this question by type, and
+         * answering null for the wrong one is what makes the recovery safe
+         * rather than merely correct-so-far. Sd3Engine next door has always
+         * done it this way.
+         */
+        Creature* CreatureOn(Context const& ctx, Ref ref)
+        {
+            // GetAnyTypeCreature, not GetCreature: a pet is a creature to the
+            // DB scripts exactly as it is to EventAI.
+            return (ref.IsEmpty() || !ctx.map)
+                       ? nullptr
+                       : ctx.map->GetAnyTypeCreature(ObjectGuid(ref.guid));
+        }
+
+        GameObject* GameObjectOn(Context const& ctx, Ref ref)
+        {
+            return (ref.IsEmpty() || !ctx.map)
+                       ? nullptr
+                       : ctx.map->GetGameObject(ObjectGuid(ref.guid));
         }
 
         /// Which of the two actors the dedup key is built from.
@@ -209,8 +242,7 @@ namespace scripting
             {
                 MANGOS_ASSERT(count == CreatureDied::Arity);
 
-                Creature const* victim = static_cast<Creature const*>(
-                    ObjectOn(ctx, args[0].AsEntity()));
+                Creature const* victim = CreatureOn(ctx, args[0].AsEntity());
                 if (!victim)
                 {
                     return Verdict::Continue;
@@ -227,8 +259,7 @@ namespace scripting
             {
                 MANGOS_ASSERT(count == GameobjectUse::Arity);
 
-                GameObject const* go = static_cast<GameObject const*>(
-                    ObjectOn(ctx, args[1].AsEntity()));
+                GameObject const* go = GameObjectOn(ctx, args[1].AsEntity());
                 if (!go)
                 {
                     return Verdict::Continue;
@@ -250,8 +281,7 @@ namespace scripting
             {
                 MANGOS_ASSERT(count == GameobjectActivate::Arity);
 
-                GameObject const* go = static_cast<GameObject const*>(
-                    ObjectOn(ctx, args[1].AsEntity()));
+                GameObject const* go = GameObjectOn(ctx, args[1].AsEntity());
                 if (!go)
                 {
                     return Verdict::Continue;
@@ -318,8 +348,7 @@ namespace scripting
             {
                 MANGOS_ASSERT(count == CreatureReachWp::Arity);
 
-                Creature const* creature = static_cast<Creature const*>(
-                    ObjectOn(ctx, args[0].AsEntity()));
+                Creature const* creature = CreatureOn(ctx, args[0].AsEntity());
 
                 type = DBS_ON_CREATURE_MOVEMENT;
                 scriptId = WaypointScriptId(

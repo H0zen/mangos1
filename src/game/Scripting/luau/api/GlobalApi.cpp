@@ -40,9 +40,30 @@ namespace scripting
     {
         namespace
         {
-            /// The map this state belongs to, or nil in the world state.
+            /**
+             * The map this state belongs to, or nil in the world state.
+             *
+             * Refused while the scripts are still loading, and that is the
+             * one place it must be. The engine takes a single census of which
+             * events anybody registered for, from the world state, because
+             * every state runs the same bytecode -- so
+             *
+             *     if GetCurrentMap() then OnEvent(...) end
+             *
+             * would register in every map state and in none of the census,
+             * and the handler would never be dispatched to, with nothing
+             * logged anywhere. Answering nil here would keep that silent; an
+             * error names the file and the line.
+             */
             int Lua_GetCurrentMap(lua_State* L)
             {
+                if (IsLoading(L))
+                {
+                    luaL_error(L, "GetCurrentMap is not answerable while the "
+                                  "scripts are loading: every state runs this "
+                                  "same code, so ask inside a handler");
+                }
+
                 Api api(L, BoundMapOf(L));
                 api.Push(api.BoundMap());
                 return 1;

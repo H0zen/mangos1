@@ -63,3 +63,33 @@ parallel in this core and a `lua_State` is not thread-safe, so a single shared
 VM would be a data race on every event raised from two maps at once. All of
 them run the same compiled bytecode: the scripts are one thing, only their live
 values are per map. A map going away closes its state.
+
+Because every state runs the same code, the engine takes **one census** of which
+events anybody registered for — from the world state — and an event nobody wants
+costs a single bit test. That is only sound if a script cannot register
+*differently* in different states, so the one value that differs, the bound map,
+refuses to answer while the scripts are loading: `GetCurrentMap()` at the top
+level of a file is an error, and belongs inside a handler.
+
+## Limits
+
+A `pcall` catches an error. It does not catch a script that never finishes, and
+"nothing from a script may unwind through the world tick" is worth nothing if
+`while true do end` can stop the tick instead. So:
+
+- **`Luau.HandlerTimeMs`** (default 200) bounds one handler, enforced at the
+  VM's own safepoints — it stops loops and recursion, not just returns.
+- **`Luau.MemoryLimitMb`** (default 64) bounds one state's heap. Hitting it is
+  an ordinary out-of-memory error inside the script, not inside the server.
+
+Either can be set to `0` to turn it off, which is a choice to prefer a hung or
+ballooning world over an interrupted script.
+
+## Order
+
+Scripts are loaded in **sorted path order**, and handlers run in registration
+order. This matters because the chain stops at the first refusal or claim, so
+load order decides which script gets to veto an action — left to the directory
+iterator that would be the file system's order, which differs between platforms
+and changes when an unrelated file is renamed. Name files so the order you want
+is the order you get.

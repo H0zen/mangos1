@@ -470,9 +470,42 @@ SD3ErrorLogFile              = "scriptdev3-errors.log"
 #
 #        Default: "scripts/luau"
 #
+#    Luau.HandlerTimeMs
+#        How long one script handler may run before it is stopped, in
+#        milliseconds.
+#
+#        A script error is caught and logged; a script that never finishes is
+#        not an error, and without this it would hold the thread it is running
+#        on for ever -- a map's own update thread, or at start-up the world
+#        thread. The limit is enforced at the VM's safepoints, so it stops
+#        loops and recursion, and it covers a handler plus anything the world
+#        does on its behalf before returning to it.
+#
+#        Generous by default: a handler that takes a fifth of a second is
+#        already doing something questionable, and one that takes longer is
+#        not going to be missed. Set 0 to remove the limit entirely, which is
+#        a choice to prefer a hung world over an interrupted script.
+#
+#        Default: 200
+#
+#    Luau.MemoryLimitMb
+#        The most memory one script state may hold, in megabytes.
+#
+#        There is one state per map plus one for world-scope events, and they
+#        are counted separately: this is the ceiling for each, not for all of
+#        them together. Reaching it is reported to the script as an ordinary
+#        out-of-memory error, which its own error handling catches like any
+#        other -- the alternative is the whole process running out instead.
+#
+#        Set 0 to remove the ceiling.
+#
+#        Default: 64
+#
 ################################################################################
 
 Luau.ScriptsPath             = "scripts/luau"
+Luau.HandlerTimeMs           = 200
+Luau.MemoryLimitMb           = 64
 
 ################################################################################
 # SERVER SETTINGS

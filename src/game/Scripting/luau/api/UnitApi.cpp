@@ -39,6 +39,7 @@
 #include "Chat.h"
 #include "Creature.h"
 #include "DBCStores.h"
+#include "GridDefines.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "Log.h"
@@ -84,6 +85,19 @@ namespace scripting
                     luaL_argerror(a.L, narg, "valid Powers expected");
                 }
                 return Powers(type);
+            }
+
+            /// See WorldObjectApi's SearchRange: a grid walk costs what it is
+            /// given, and what it is given came from a script.
+            float SearchRange(Api& a, int narg)
+            {
+                float const range = a.Check<float>(narg, SIZE_OF_GRIDS);
+                if (range < 0.0f || range > SIZE_OF_GRIDS)
+                {
+                    luaL_argerror(a.L, narg, "a search range from 0 to one "
+                                             "grid is expected here");
+                }
+                return range;
             }
 
             template <class Check>
@@ -261,6 +275,17 @@ namespace scripting
                 return 1;
             }
 
+            /**
+             * Spell power, which only a player has a field for.
+             *
+             * PLAYER_FIELD_MOD_DAMAGE_DONE_POS sits past UNIT_END, and a
+             * Creature's block ends AT UNIT_END -- so reading it off anything
+             * but a player tripped the MANGOS_ASSERT inside GetUInt32Value and
+             * took the process with it. The method is on Unit because that is
+             * where Eluna put it and where a ported script will look for it;
+             * what it cannot do is answer for a creature, and saying so is the
+             * whole of the fix.
+             */
             int GetBaseSpellPower(Api& a, Unit* u)
             {
                 uint32 const school = a.Check<uint32>(2);
@@ -268,8 +293,16 @@ namespace scripting
                 {
                     luaL_argerror(a.L, 2, "valid SpellSchool expected");
                 }
-                a.Push(u->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS +
-                                         school));
+
+                Player const* player = u->ToPlayer();
+                if (!player)
+                {
+                    luaL_error(a.L, "GetBaseSpellPower is a player's field; "
+                                    "this unit does not have one");
+                }
+
+                a.Push(player->GetUInt32Value(PLAYER_FIELD_MOD_DAMAGE_DONE_POS +
+                                              school));
                 return 1;
             }
 
@@ -339,14 +372,14 @@ namespace scripting
             int GetFriendlyUnitsInRange(Api& a, Unit* u)
             {
                 PushUnitsAround<MaNGOS::AnyFriendlyUnitInObjectRangeCheck>(
-                    a, u, a.Check<float>(2, SIZE_OF_GRIDS));
+                    a, u, SearchRange(a, 2));
                 return 1;
             }
 
             int GetUnfriendlyUnitsInRange(Api& a, Unit* u)
             {
                 PushUnitsAround<MaNGOS::AnyUnfriendlyUnitInObjectRangeCheck>(
-                    a, u, a.Check<float>(2, SIZE_OF_GRIDS));
+                    a, u, SearchRange(a, 2));
                 return 1;
             }
 
@@ -1075,6 +1108,17 @@ namespace scripting
                 return 0;
             }
 
+            /**
+             * Argument 3 is skipped, and deliberately.
+             *
+             * Eluna's signature is (msg, lang, receiver, bossWhisper) and the
+             * argument positions are kept so a script ported from it reads
+             * unchanged -- but a whisper from a unit is not spoken in a
+             * language in this core, MonsterWhisper takes none, and inventing
+             * one would be a parameter that silently does nothing. The gap is
+             * real; it is here so the next reader does not take it for a typo
+             * and "fix" it by shifting everything down one.
+             */
             int SendUnitWhisper(Api& a, Unit* u)
             {
                 std::string const msg = a.Check<std::string>(2);

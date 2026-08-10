@@ -17,13 +17,13 @@ export type PacketReceiveUnk = { player: Guid, packet: Borrow }
 -- packet.on_send (cancel)
 export type PacketSend = { player: Guid, packet: Borrow }
 -- server.on_network_start (broadcast)
-export type ServerNetworkStart = {}
+export type ServerNetworkStart = { subject: Guid }
 -- server.on_network_stop (broadcast)
-export type ServerNetworkStop = {}
+export type ServerNetworkStop = { subject: Guid }
 -- server.on_socket_open (broadcast)
-export type ServerSocketOpen = {}
+export type ServerSocketOpen = { subject: Guid }
 -- server.on_socket_close (broadcast)
-export type ServerSocketClose = {}
+export type ServerSocketClose = { subject: Guid }
 -- server.on_packet_receive (cancel)
 export type ServerPacketReceive = { session: Borrow, packet: Borrow }
 -- server.on_packet_receive_unk (cancel)
@@ -37,23 +37,23 @@ export type ServerConfigLoad = { reload: boolean }
 -- server.on_shutdown_init (broadcast)
 export type ServerShutdownInit = { code: number, mask: number }
 -- server.on_shutdown_cancel (broadcast)
-export type ServerShutdownCancel = {}
+export type ServerShutdownCancel = { subject: Guid }
 -- server.on_world_update (broadcast)
 export type ServerWorldUpdate = { diff: number }
 -- server.on_world_startup (broadcast)
-export type ServerWorldStartup = {}
+export type ServerWorldStartup = { subject: Guid }
 -- server.on_world_shutdown (broadcast)
-export type ServerWorldShutdown = {}
+export type ServerWorldShutdown = { subject: Guid }
 -- server.on_lua_state_close (broadcast)
-export type ServerLuaStateClose = {}
+export type ServerLuaStateClose = { subject: Guid }
 -- server.on_map_create (broadcast)
 export type ServerMapCreate = { map: Handle }
 -- server.on_map_destroy (broadcast)
 export type ServerMapDestroy = { map: Handle }
 -- server.on_map_grid_load (broadcast)
-export type ServerMapGridLoad = {}
+export type ServerMapGridLoad = { subject: Guid }
 -- server.on_map_grid_unload (broadcast)
-export type ServerMapGridUnload = {}
+export type ServerMapGridUnload = { subject: Guid }
 -- server.on_map_player_enter (broadcast)
 export type ServerMapPlayerEnter = { map: Handle, player: Guid }
 -- server.on_map_player_leave (broadcast)
@@ -79,7 +79,7 @@ export type ServerWorldDeleteCreature = { creature: Guid }
 -- server.on_world_delete_gameobject (broadcast)
 export type ServerWorldDeleteGameobject = { gameobject: Guid }
 -- server.on_lua_state_open (broadcast)
-export type ServerLuaStateOpen = {}
+export type ServerLuaStateOpen = { subject: Guid }
 -- server.on_game_start (broadcast)
 export type ServerGameStart = { eventId: number }
 -- server.on_game_stop (broadcast)

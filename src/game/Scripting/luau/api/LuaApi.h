@@ -235,6 +235,20 @@ namespace scripting
         /// given a lua_State.
         Map* BoundMapOf(lua_State* L);
 
+        /**
+         * Whether this state is still running its scripts' top level.
+         *
+         * The engine keeps ONE census of which events anybody registered for,
+         * taken from the world state, on the premise that every state runs the
+         * same bytecode and therefore registers the same handlers. Exactly one
+         * thing could falsify that premise -- a script branching at load time
+         * on the only value that differs between states, which is the bound
+         * map -- so during load there is no bound map to branch on and asking
+         * for one is an error rather than a silent nil.
+         */
+        void SetLoading(lua_State* L, bool loading);
+        bool IsLoading(lua_State* L);
+
         // ---- the three boxes ---------------------------------------------
         //
         // Owned here rather than by the engine because the API layer is what

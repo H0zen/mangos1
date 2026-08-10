@@ -29,6 +29,7 @@
 #include "IScriptEngine.h"
 
 #include <bitset>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -74,6 +75,14 @@ namespace scripting
      * script cannot believe it cancelled something that was never cancellable.
      * In/out slots are not returns: the handler mutates the payload table and
      * the engine reads the fields back.
+     *
+     * A SCRIPT RUNS ON A BUDGET. pcall catches an error; it does not catch a
+     * script that never finishes, and "nothing from a script may unwind
+     * through the world tick" is worth nothing if a `while true do end` can
+     * stop the tick instead. Every state therefore runs under a wall-clock
+     * deadline enforced at the VM's own safepoints and a ceiling on the heap
+     * it may own, both configurable and both able to be turned off by an
+     * operator who would rather have the hang than the interruption.
      */
     class LuauEngine : public IEngine
     {
@@ -90,6 +99,38 @@ namespace scripting
         bool ReloadData(char const* table) override;
         void RetireState(Context const& ctx) override;
 
+        /**
+         * What one state is allowed to spend.
+         *
+         * Reached from the VM through lua_callbacks()->userdata, so it must
+         * outlive every allocation the state makes -- which is why it is a
+         * member of State declared ahead of the lua_State, and why a State is
+         * only ever held behind a unique_ptr: the allocator keeps this
+         * address for the whole life of the VM, including the free that
+         * lua_close performs.
+         *
+         * Public only because the allocator and the interrupt are plain C
+         * callbacks the VM holds by pointer; nothing outside this engine has
+         * any reason to name it.
+         */
+        struct Budget
+        {
+            /// The heap this state has taken, and the most it may take.
+            /// Refusing an allocation is reported to the script as an ordinary
+            /// out-of-memory error, which pcall catches like any other.
+            std::size_t used = 0;
+            std::size_t limit = 0;      ///< 0 means no ceiling
+
+            /// How long one handler may run for. Checked at the VM's
+            /// safepoints, but not at every one of them: a clock read on every
+            /// loop back edge would cost more than the scripts do, so a
+            /// countdown decides when to look.
+            uint32 timeLimitMs = 0;     ///< 0 means no deadline
+            uint32 stepsLeft = 0;
+            bool   running = false;
+            std::chrono::steady_clock::time_point deadline{};
+        };
+
     private:
         /// One compiled script, kept as bytecode so every state shares the
         /// parse and only pays for its own closures.
@@ -102,6 +143,7 @@ namespace scripting
         /// A live VM plus what it has registered.
         struct State
         {
+            Budget     budget;          ///< declared first; see Budget
             lua_State* L = nullptr;
             ~State();
         };
@@ -117,6 +159,11 @@ namespace scripting
         void RecordSubscriptions(lua_State* L);
 
         std::vector<Chunk> m_chunks;
+
+        /// Read once when the scripts are compiled, and handed to every state
+        /// as it is opened.
+        uint32 m_timeLimitMs = 0;
+        std::size_t m_memoryLimit = 0;
 
         /// Which ids any script registered for. Read before anything else
         /// happens, and it is why an event nobody wants costs one bit test

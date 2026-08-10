@@ -58,10 +58,14 @@ namespace scripting
     {
         // Is there any engine at all in this build?
         //
-        // True while MakeHostState pushes at least one. With none built, every
-        // emit site in the world folds to this single test and never becomes a
-        // call. Whether a *state* exists for a given map stays a runtime
-        // question for the engine, which answers Continue when it has none.
+        // Constant today, and honestly so: DbScriptEngine and EventAiEngine
+        // are not behind an #ifdef, so MakeHostState always pushes at least
+        // two and there is no build of this server with nothing listening. The
+        // flag is the seam's promise rather than a live switch -- an emit site
+        // costs one test on it, and if the last engine ever became optional
+        // this is the one line that would have to change. Whether a *state*
+        // exists for a given map stays a runtime question for the engine,
+        // which answers Continue when it has none.
         bool g_scriptsEnabled = true;
     }
 

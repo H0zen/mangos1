@@ -50,6 +50,7 @@
 #include "lua.h"
 #include "lualib.h"
 
+#include <cmath>
 #include <cstring>
 #include <limits>
 
@@ -67,6 +68,7 @@ namespace scripting
             /// once per call at most and read clearly in a stack dump.
             char const REG_MAP[]     = "mangos.map";
             char const REG_CLASSES[] = "mangos.classes";
+            char const REG_LOADING[] = "mangos.loading";
 
             /**
              * A guid, and the owner it needs to be findable again.
@@ -78,9 +80,13 @@ namespace scripting
              * a first-class receiver instead of a value that only some call
              * sites can turn back into an object.
              *
-             * The manifest guarantees the owner is always available at the
-             * moment of pushing -- every event that carries an item also
-             * carries its player, and gen_events.py refuses one that does not.
+             * The owner is filled in whenever it can be. An Item pushed by a
+             * method knows its own owner and is always complete; one arriving
+             * in an event payload gets whichever player that payload carries,
+             * which is every item-bearing event but two -- item.on_dummy_effect
+             * and core.on_effect_dummy, whose target may be an item and which
+             * name no player. An item from those two resolves to nothing, and
+             * that is the honest answer rather than a wrong one.
              */
             struct GuidBox
             {
@@ -260,6 +266,20 @@ namespace scripting
             return map;
         }
 
+        void SetLoading(lua_State* L, bool loading)
+        {
+            lua_pushboolean(L, loading ? 1 : 0);
+            lua_setfield(L, LUA_REGISTRYINDEX, REG_LOADING);
+        }
+
+        bool IsLoading(lua_State* L)
+        {
+            lua_getfield(L, LUA_REGISTRYINDEX, REG_LOADING);
+            bool const loading = lua_toboolean(L, -1) != 0;
+            lua_pop(L, 1);
+            return loading;
+        }
+
         // ---- Api -----------------------------------------------------------
 
         int32 Api::BoundMapId() const
@@ -409,18 +429,32 @@ namespace scripting
             return lua_toboolean(L, narg) != 0;
         }
 
-        template <> float Api::Check<float>(int narg)
-        {
-            return float(luaL_checknumber(L, narg));
-        }
-
-        template <> double Api::Check<double>(int narg)
-        {
-            return luaL_checknumber(L, narg);
-        }
-
         namespace
         {
+            /**
+             * A real number, and actually a number.
+             *
+             * NaN and the infinities are perfectly ordinary Lua values -- 0/0
+             * produces one without a word of complaint -- and every one of
+             * them is a coordinate, a radius or a facing as far as this layer
+             * is concerned. A NaN reaching Placement or the grid is the
+             * corruption that never gets diagnosed, because every comparison
+             * made with it afterwards is false and nothing looks wrong.
+             *
+             * The integral path already refuses what it cannot represent; this
+             * is the same promise kept for the type that carries most of the
+             * spatial arguments in this API.
+             */
+            double CheckFinite(lua_State* L, int narg)
+            {
+                double const value = luaL_checknumber(L, narg);
+                if (!std::isfinite(value))
+                {
+                    luaL_argerror(L, narg, "a finite number is expected here");
+                }
+                return value;
+            }
+
             /**
              * A number, refused rather than folded when it does not fit.
              *
@@ -429,19 +463,36 @@ namespace scripting
              * an unsigned was. Casting quietly is how a script ends up
              * setting a health of 0 and nobody can say why, so the range is
              * checked and a script that is out of it is told so.
+             *
+             * The upper bound is `>=` and not `>`, which matters only at the
+             * two widest types and matters absolutely there: 2^63 and 2^64 are
+             * not representable as int64 and uint64, but they ARE exactly
+             * representable as doubles, and `double(max)` rounds up to them.
+             * Written with `>`, the one value that cannot be converted was the
+             * one value that passed, and the conversion is undefined.
              */
             template <typename T>
             T CheckIntegral(lua_State* L, int narg)
             {
-                double const value = luaL_checknumber(L, narg);
+                double const value = CheckFinite(L, narg);
                 if (value < double(std::numeric_limits<T>::min()) ||
-                    value > double(std::numeric_limits<T>::max()))
+                    value >= double(std::numeric_limits<T>::max()) + 1.0)
                 {
                     luaL_error(L, "argument %d is %f, which does not fit the "
                                   "range this method accepts", narg, value);
                 }
                 return T(value);
             }
+        }
+
+        template <> float Api::Check<float>(int narg)
+        {
+            return float(CheckFinite(L, narg));
+        }
+
+        template <> double Api::Check<double>(int narg)
+        {
+            return CheckFinite(L, narg);
         }
 
         template <> int8 Api::Check<int8>(int narg)     { return CheckIntegral<int8>(L, narg); }
@@ -497,12 +548,36 @@ namespace scripting
 
                     // The one type with no global registry. Its owner rides
                     // along in the box precisely so this line can exist.
-                    if (want == TypeClass::Item)
+                    //
+                    // Keyed on what the guid IS, not on what the caller asked
+                    // for, and that is the whole of it: ItemMethods is empty,
+                    // so every method an item answers is inherited from Object
+                    // and arrives here with want == Object. Testing `want`
+                    // sent all of them down the branch below, where
+                    // Map::GetWorldObject has no case for HIGHGUID_ITEM and
+                    // answers null -- which made every single method call on
+                    // an item fail with "no longer there", and made the owner
+                    // this box carries do nothing at all.
+                    if (guid.IsItem())
                     {
+                        if (want != TypeClass::Item &&
+                            want != TypeClass::Object)
+                        {
+                            return nullptr;
+                        }
+
                         WorldObject* holder =
                             api.Resolve(ObjectGuid(box->owner));
                         Player* owner = holder ? holder->ToPlayer() : nullptr;
-                        return owner ? owner->GetItemByGuid(guid) : nullptr;
+                        Item* item = owner ? owner->GetItemByGuid(guid)
+                                           : nullptr;
+
+                        // Object is a base of Item, and the upcast is spelt
+                        // out for the same reason it is spelt out below.
+                        return want == TypeClass::Object
+                                   ? static_cast<void*>(
+                                         static_cast<Object*>(item))
+                                   : static_cast<void*>(item);
                     }
 
                     WorldObject* obj = api.Resolve(guid);
@@ -693,12 +768,21 @@ namespace scripting
 
             /// Shared by the three metatables: find the receiver's class,
             /// then the method in that class's flattened table.
+            ///
+            /// A box whose domain has no class at all is told so by name. Most
+            /// of the manifest's domains have none yet -- a spellinfo, a
+            /// channel, a proc, a cast-target list all cross the seam as boxes
+            /// this layer cannot give methods to -- and answering nil made
+            /// every one of them fail four frames later as "attempt to call a
+            /// nil value", which names neither the value nor the reason. It is
+            /// the same argument the NotImplemented closure below is built on.
             int LookupIn(lua_State* L, TypeClass cls)
             {
                 if (cls == TypeClass::None)
                 {
-                    lua_pushnil(L);
-                    return 1;
+                    luaL_error(L, "this value carries no methods in this core; "
+                                  "it can be passed on and compared, not "
+                                  "called into");
                 }
 
                 lua_getfield(L, LUA_REGISTRYINDEX, REG_CLASSES);

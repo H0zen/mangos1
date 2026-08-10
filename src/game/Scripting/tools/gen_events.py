@@ -99,6 +99,24 @@ RUNTIME = {
 }
 
 
+# The slot a payload-less event still carries.
+#
+# An event with nothing to say about itself would want an arity of zero, and
+# C++ has no zero-length array to Pack into -- so the struct declares one slot
+# holding an empty Ref. The run-time table has to agree, and for a while it did
+# not: build() rounded the arity up to one and describe() left it at zero, so
+# LuauEngine's `spec->arity != count` rejected every payload-less event before
+# it reached a single handler. Both views are built from this one row now.
+SUBJECT = ('subject', 'Ref', 'FromEntity', 'AsEntity', False, False,
+           'Entity', 'None', 'Guid')
+
+
+def payload_args(payload, where):
+    """The declared slots, or the placeholder that stands in for none."""
+    args = [a for a in (parse_arg(spec, where) for spec in payload) if a]
+    return args if args else [SUBJECT]
+
+
 def parse_arg(spec, where):
     """(name, cxx, make, read, inout, is_text, kind, domain, luau)."""
     if spec in ('-', '?'):
@@ -218,24 +236,22 @@ def describe(cats):
             ident = camel(cat) + camel(name[3:] if name.startswith('on_')
                                        else name)
             where = '%s/%s' % (cat, name)
-            args = [a for a in (parse_arg(spc, where) for spc in payload) if a]
-            if args:
-                lines.append('    inline constexpr ArgSpec g_args%s[] =' % ident)
-                lines.append('    {')
-                for a in args:
-                    lines.append('        { "%s", Arg::Kind::%s, Domain::%s, %s },'
-                                 % (a[0], a[6], a[7],
-                                    'true' if a[4] else 'false'))
-                lines.append('    };')
-                lines.append('')
+            args = payload_args(payload, where)
+            lines.append('    inline constexpr ArgSpec g_args%s[] =' % ident)
+            lines.append('    {')
+            for a in args:
+                lines.append('        { "%s", Arg::Kind::%s, Domain::%s, %s },'
+                             % (a[0], a[6], a[7],
+                                'true' if a[4] else 'false'))
+            lines.append('    };')
+            lines.append('')
             rows.append((ident, '%s.%s' % (cat, name), len(args), policy))
 
     lines.append('    inline constexpr EventSpec g_eventSpecs[] =')
     lines.append('    {')
     for ident, full, arity, policy in rows:
-        lines.append('        { EventId::%s, "%s", %s, %d, %s, %s },'
-                     % (ident, full,
-                        ('g_args%s' % ident) if arity else 'nullptr', arity,
+        lines.append('        { EventId::%s, "%s", g_args%s, %d, %s, %s },'
+                     % (ident, full, ident, arity,
                         'true' if policy == 'cancel' else 'false',
                         'true' if policy == 'claim' else 'false'))
     lines.append('    };')
@@ -259,31 +275,30 @@ def describe(cats):
 
 def build(ident, policy, payload, cat, name):
     where = '%s/%s' % (cat, name)
-    args = [a for a in (parse_arg(s, where) for s in payload) if a]
+    args = payload_args(payload, where)
+    empty = args == [SUBJECT]
     lines = []
     lines.append('    /// %s: %s' % (where, policy))
     lines.append('    struct %s' % ident)
     lines.append('    {')
     lines.append('        static constexpr EventId Id = EventId::%s;' % ident)
-    lines.append('        static constexpr std::size_t Arity = %d;' % max(len(args), 1))
+    lines.append('        static constexpr std::size_t Arity = %d;' % len(args))
     lines.append('        static constexpr bool Cancellable = %s;'
                  % ('true' if policy == 'cancel' else 'false'))
     lines.append('        static constexpr bool Claimable = %s;'
                  % ('true' if policy == 'claim' else 'false'))
     lines.append('')
     for aname, cxx, _, _, inout, _, _, _, _ in args:
-        note = '    ///< in/out' if inout else ''
+        if empty:
+            note = '    ///< placeholder; this event has no payload'
+        else:
+            note = '    ///< in/out' if inout else ''
         lines.append('        %-14s %s;%s' % (cxx, aname, note))
-    if not args:
-        lines.append('        Ref subject;    ///< placeholder; payload is empty')
     lines.append('')
     lines.append('        void Pack(Arg* args) const')
     lines.append('        {')
-    if args:
-        for i, (aname, _, make, _, _, _, _, _, _) in enumerate(args):
-            lines.append('            args[%d] = Arg::%s(%s);' % (i, make, aname))
-    else:
-        lines.append('            args[0] = Arg::FromEntity(subject);')
+    for i, (aname, _, make, _, _, _, _, _, _) in enumerate(args):
+        lines.append('            args[%d] = Arg::%s(%s);' % (i, make, aname))
     lines.append('        }')
     lines.append('')
     writes = [(i, a) for i, a in enumerate(args) if a[4] and not a[5]]
@@ -331,11 +346,10 @@ def emit_luau(cats):
             ident = camel(cat) + camel(name[3:] if name.startswith('on_')
                                        else name)
             where = '%s/%s' % (cat, name)
-            args = [a for a in (parse_arg(spc, where) for spc in payload) if a]
+            args = payload_args(payload, where)
             fields = ', '.join('%s: %s' % (a[0], a[8]) for a in args)
             out.append('-- %s.%s (%s)' % (cat, name, policy))
-            out.append('export type %s = {%s}'
-                       % (ident, (' %s ' % fields) if fields else ''))
+            out.append('export type %s = { %s }' % (ident, fields))
             ids.append('%s_%s' % (cat, name))
     out.append('')
 
