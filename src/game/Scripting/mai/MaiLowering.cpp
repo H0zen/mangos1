@@ -45,8 +45,6 @@
 
 #include "MaiLowering.h"
 
-#include "Log.h"
-
 #include <algorithm>
 #include <cstdio>
 
