@@ -106,7 +106,6 @@ void AddSC_instance_naxxramas();
 #if defined (WOTLK) || defined (CATA) || defined(MISTS)
 void AddSC_ebon_hold();                              // scarlet_enclave
 #endif
-void AddSC_boss_arcanist_doan();                     // scarlet_monastery
 void AddSC_boss_herod();
 void AddSC_boss_mograine_and_whitemane();
 
@@ -125,7 +124,6 @@ void AddSC_boss_hummel();                            // shadowfang_keep
 #endif
 void AddSC_shadowfang_keep();                        // shadowfang_keep
 void AddSC_instance_shadowfang_keep();
-void AddSC_boss_cannon_master_willey();
 void AddSC_boss_baroness_anastari();
 void AddSC_boss_dathrohan_balnazzar();
 
@@ -308,7 +306,6 @@ void AddEasternKingdomsScripts()
     AddSC_boss_thaddius();
     AddSC_instance_naxxramas();
 #endif
-    AddSC_boss_arcanist_doan();                             // scarlet_monastery
     AddSC_boss_herod();
     AddSC_boss_mograine_and_whitemane();
 
@@ -326,7 +323,6 @@ void AddEasternKingdomsScripts()
 #endif
     AddSC_shadowfang_keep();                                // shadowfang_keep
     AddSC_instance_shadowfang_keep();
-    AddSC_boss_cannon_master_willey();
     AddSC_boss_baroness_anastari();
     AddSC_boss_dathrohan_balnazzar();
 
@@ -452,7 +448,6 @@ void AddSC_instance_culling_of_stratholme();
 #endif
 void AddSC_dire_maul();                              // dire_maul
 void AddSC_instance_dire_maul();
-void AddSC_boss_noxxion();                           // maraudon
 void AddSC_boss_onyxia();                            // onyxias_lair
 void AddSC_instance_onyxias_lair();
 void AddSC_npc_onyxian_warder();
@@ -541,7 +536,6 @@ void AddKalimdorScripts()
 #endif
     AddSC_dire_maul();                                      // dire_maul
     AddSC_instance_dire_maul();
-    AddSC_boss_noxxion();                                   // maraudon
     AddSC_boss_onyxia();                                    // onyxias_lair
     AddSC_instance_onyxias_lair();
     AddSC_npc_onyxian_warder();
