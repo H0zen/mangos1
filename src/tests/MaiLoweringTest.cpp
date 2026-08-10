@@ -41,10 +41,12 @@
 
 #include "mai/MaiLowering.h"
 #include "mai/MaiTargeting.h"
+#include "mai/MaiRunner.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <initializer_list>
 #include <set>
 #include <sstream>
 #include <string>
@@ -342,4 +344,143 @@ TEST(MaiTargeting_ABuddyThatWasNotFoundLeavesTheSourceAlone)
 
     CHECK_EQ(source, int(Src));
     CHECK_EQ(target, int(Tgt));
+}
+
+// ---- advancing a sequence through time --------------------------------------
+
+namespace
+{
+    /// A sequence whose steps fire at the given times, each a distinct verb-less
+    /// action so a trace can be compared by time alone.
+    mai::Sequence At(std::initializer_list<uint32> times)
+    {
+        mai::Sequence sequence;
+        sequence.name = "test";
+        for (uint32 at : times)
+        {
+            mai::Step step;
+            step.atMs = at;
+            step.action = mai::ActionId::AttackStart;
+            sequence.steps.push_back(step);
+        }
+        return sequence;
+    }
+
+    /// Every step a tick of @a diff hands out, as their times.
+    std::vector<uint32> Tick(mai::Frame& frame, uint32 diff)
+    {
+        std::vector<uint32> fired;
+        mai::Runner run(frame, diff);
+        while (mai::Step const* step = run.Next())
+        {
+            fired.push_back(step->atMs);
+        }
+        return fired;
+    }
+}
+
+TEST(MaiRunner_ALongTickRunsEverythingThatCameDueInIt)
+{
+    // The rule a naive loop breaks: one step per tick would stretch a sequence
+    // whose steps are 100ms apart to the length of the server's worst frame.
+    mai::Sequence sequence = At({ 0, 100, 200, 300 });
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<uint32> fired = Tick(frame, 400);
+    REQUIRE(fired.size() == 4);
+    CHECK_EQ(int(fired[0]), 0);
+    CHECK_EQ(int(fired[3]), 300);
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_StepsSharingATimeAllFireTogetherAndInOrder)
+{
+    mai::Sequence sequence = At({ 0, 0, 0, 500 });
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<uint32> fired = Tick(frame, 0);
+    CHECK(fired.size() == 3);
+    CHECK(!frame.Finished());
+
+    fired = Tick(frame, 500);
+    CHECK(fired.size() == 1);
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_TimeIsAbsoluteSoUnevenTicksDoNotDrift)
+{
+    // Elapsed accumulates and is compared against each step's own time. Written
+    // as a countdown to the next step, a tick longer than one gap would lose
+    // the remainder and every later step would drift by it -- which is how a
+    // timed encounter falls out of sync with its own dialogue on a busy server.
+    mai::Sequence sequence = At({ 1000, 1100, 1200 });
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    CHECK(Tick(frame, 999).empty());
+    CHECK(mai::UntilNextMs(frame) == 1);
+
+    // One awkward 250ms tick crosses all three.
+    std::vector<uint32> fired = Tick(frame, 250);
+    CHECK(fired.size() == 3);
+    CHECK(frame.elapsedMs == 1249);
+    CHECK(mai::UntilNextMs(frame) == mai::NeverMs);
+}
+
+TEST(MaiRunner_StoppingDropsTheRestOfTheSameTick)
+{
+    // terminate_script ends the run where it is, not at the end of the tick.
+    mai::Sequence sequence = At({ 0, 0, 0 });
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::size_t seen = 0;
+    mai::Runner run(frame, 0);
+    while (mai::Step const* step = run.Next())
+    {
+        (void)step;
+        ++seen;
+        if (seen == 2)
+        {
+            run.Stop();
+        }
+    }
+
+    CHECK(seen == 2);
+    CHECK(run.Stopped());
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_AnInterruptedLoopResumesAfterTheLastStepHandedOut)
+{
+    // Abandoning the loop mid-tick must not repeat a step that already ran.
+    mai::Sequence sequence = At({ 0, 0, 0 });
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    {
+        mai::Runner run(frame, 0);
+        REQUIRE(run.Next() != nullptr);
+        REQUIRE(run.Next() != nullptr);
+    }
+
+    CHECK(frame.next == 2);
+    CHECK(Tick(frame, 0).size() == 1);
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_AnEmptyOrAbsentSequenceIsFinishedAndAsksForNoTicks)
+{
+    mai::Frame nothing;
+    CHECK(nothing.Finished());
+    CHECK(mai::UntilNextMs(nothing) == mai::NeverMs);
+
+    mai::Sequence empty;
+    mai::Frame frame;
+    frame.sequence = &empty;
+    CHECK(frame.Finished());
+    CHECK(Tick(frame, 10000).empty());
+    CHECK(empty.Duration() == 0);
 }
