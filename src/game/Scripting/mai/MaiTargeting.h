@@ -59,6 +59,16 @@ namespace mai
         BuddyByGuid      = 0x10,    ///< the buddy field is a guid, not a search
         BuddyIsPet       = 0x20,
         BuddyIsDespawned = 0x40,    ///< look among the dead, not the living
+
+        /// Any one of them, not the nearest. The search already finds every
+        /// creature of an entry within a radius and then throws all but the
+        /// closest away; this keeps them and picks one.
+        ///
+        /// It is what "explode one of the adds" means, and the C++ that says
+        /// it reads a guid out of an instance's own list -- which looked like
+        /// MAI needing to read lists, and was really MAI needing to say
+        /// "any of them".
+        BuddyRandom      = 0x80,
     };
 
     /**

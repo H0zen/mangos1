@@ -53,7 +53,17 @@ category sight = 0x01
     # has always carried both. Declared with three, the second was dropped and
     # every condition that uses it silently became a different condition.
     received_emote          22   emote:emote condition:u32? value:u32? value2:u32?
-    received_ai_event       30   event:u32 sender:creature?
+    # `value` is the payload the sender chose, and a rule may insist on one:
+    # two rules on the same event, one per value, is how a creature that
+    # explodes differently depending on who asked says so. Absent means any,
+    # which is what all 20,732 converted rows get -- EventAI's own columns
+    # three and four were unused.
+    received_ai_event       30   event:u32 sender:creature? value:u32?
+
+    # Nobody of that entry is within range any more. The inverse of every
+    # other proximity question, and the shape of every "separation anxiety":
+    # an add that has been pulled away from the thing it belongs to.
+    away_from               33   creature:creature range:f32 repeat:ms? repeat_max:ms?
 
 category target = 0x02
     target_health_below     12   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?

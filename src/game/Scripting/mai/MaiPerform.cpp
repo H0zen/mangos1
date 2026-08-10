@@ -288,6 +288,36 @@ namespace mai
             return false;
         }
 
+        /**
+         * Tell ONE creature something.
+         *
+         * throw_ai_event shouts to everyone in a radius; this speaks to whoever
+         * the step's buddy search picked. Garr telling a single add to detonate
+         * is not the same instruction as telling every add within thirty yards
+         * to detonate, and only one of those is a fight.
+         *
+         * The value travels with it, so the receiving rule can be written
+         * against it: "explode with THIS spell" is a number the sender chooses
+         * rather than something the receiver has to infer from who asked.
+         */
+        bool SendAiEvent(Doing& doing, Step const& step)
+        {
+            Creature* self = doing.SourceCreature();
+            Creature* receiver = doing.target ? doing.target->ToCreature()
+                                              : nullptr;
+
+            if (!self || !self->AI() || !receiver)
+            {
+                sLog.outErrorDb("MAI: send_ai_event needs a creature to send "
+                                "and a creature to send to");
+                return false;
+            }
+
+            self->AI()->SendAIEvent(AIEventType(Given(step, 0)), receiver,
+                                    receiver, Given(step, 1));
+            return false;
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -778,6 +808,7 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::SendAiEvent:       return SendAiEvent(doing, step);
             case ActionId::TeleportToTarget:  return TeleportToTarget(doing, step);
             case ActionId::SetThrowMask:      return SetThrowMask(doing, step);
             case ActionId::ThrowAiEvent:      return ThrowAiEvent(doing, step);

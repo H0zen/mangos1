@@ -541,6 +541,31 @@ namespace mai
             return ReArm(armed, 1, 2);
         }
 
+        case RuleId::AwayFrom:
+        {
+            float const range = rule.Has(1) ? rule.operands[1].f : 0.0f;
+
+            // Nobody of that entry within range. The inverse of every other
+            // proximity question, and the only one that is true when the
+            // search finds NOTHING -- which is why it cannot be written as a
+            // buddy: a buddy that is not found stops the step.
+            // Not called `near`: windef.h defines that as a macro, and the
+            // error it produces names the line after the one that is wrong.
+            Creature* company = nullptr;
+            MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck check(
+                *m_creature, rule.Param(0), true, false, range, true);
+            MaNGOS::CreatureLastSearcher<
+                MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck>
+                    search(company, check);
+            Cell::VisitGridObjects(m_creature, search, range);
+
+            if (company)
+            {
+                return false;
+            }
+            return ReArm(armed, 2, 3);
+        }
+
         case RuleId::KilledUnit:
             return ReArm(armed, 0, 1);
 
@@ -987,7 +1012,7 @@ namespace mai
     }
 
     void MaiCreatureAI::ReceiveAIEvent(AIEventType type, Creature* sender,
-                                       Unit* invoker, uint32 /*misc*/)
+                                       Unit* invoker, uint32 misc)
     {
         if (!sender)
         {
@@ -1005,6 +1030,14 @@ namespace mai
             // A rule may name which creature it will listen to.
             uint32 const from = armed.rule->Param(1);
             if (from && from != sender->GetEntry())
+            {
+                continue;
+            }
+
+            // And may insist on the value the sender chose. Absent means any,
+            // which is what every converted row has -- EventAI's own third and
+            // fourth columns on this event were unused.
+            if (armed.rule->Has(2) && armed.rule->Param(2) != misc)
             {
                 continue;
             }

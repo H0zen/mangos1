@@ -158,6 +158,7 @@ namespace mai
         SetInvincibility           = 109,
         SetHealth                  = 128,
         ThrowAiEvent               = 110,
+        SendAiEvent                = 130,
         SetThrowMask               = 111,
 
         // random
@@ -507,6 +508,12 @@ namespace mai
         { "radius", ParamType::F32, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsSendAiEvent[] =
+    {
+        { "event", ParamType::U32, false },
+        { "value", ParamType::U32, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsSetThrowMask[] =
     {
         { "mask", ParamType::Flags, false },
@@ -694,6 +701,7 @@ namespace mai
         { ActionId::SetInvincibility, "set_invincibility", g_actionParamsSetInvincibility, 2, 2, 0 },
         { ActionId::SetHealth, "set_health", g_actionParamsSetHealth, 1, 1, 0 },
         { ActionId::ThrowAiEvent, "throw_ai_event", g_actionParamsThrowAiEvent, 2, 2, 0 },
+        { ActionId::SendAiEvent, "send_ai_event", g_actionParamsSendAiEvent, 2, 2, 0 },
         { ActionId::SetThrowMask, "set_throw_mask", g_actionParamsSetThrowMask, 1, 1, 0 },
         { ActionId::RandomSound, "random_sound", g_actionParamsRandomSound, 3, 3, 0 },
         { ActionId::RandomEmote, "random_emote", g_actionParamsRandomEmote, 3, 3, 0 },

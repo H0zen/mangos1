@@ -58,6 +58,9 @@
 #include "ObjectMgr.h"
 #include "dbscripts/DbScripts.h"
 
+#include <iterator>
+#include <list>
+
 namespace mai
 {
     namespace
@@ -143,6 +146,32 @@ namespace mai
                         MaNGOS::AllCreaturesOfEntryInRangeCheck>
                             search(found, check);
                     Cell::VisitGridObjects(searcher, search, radius);
+                }
+                else if (flags & BuddyRandom)
+                {
+                    // Every living one, then one of them. The nearest is the
+                    // wrong answer for an encounter that wants any of its
+                    // adds: it is always the same add.
+                    std::list<Creature*> all;
+                    MaNGOS::AllCreaturesOfEntryInRangeCheck check(
+                        searcher, step.buddy.entry, radius);
+                    MaNGOS::CreatureListSearcher<
+                        MaNGOS::AllCreaturesOfEntryInRangeCheck>
+                            search(all, check);
+                    Cell::VisitGridObjects(searcher, search, radius);
+
+                    for (std::list<Creature*>::iterator it = all.begin();
+                         it != all.end(); )
+                    {
+                        it = (*it)->IsAlive() ? ++it : all.erase(it);
+                    }
+
+                    if (!all.empty())
+                    {
+                        std::list<Creature*>::iterator pick = all.begin();
+                        std::advance(pick, urand(0, uint32(all.size() - 1)));
+                        found = *pick;
+                    }
                 }
                 else
                 {

@@ -160,6 +160,17 @@ category ai = 0x11
     # already knows.
     set_health              128   percent:u32
     throw_ai_event          110   event:u32 radius:f32?
+
+    # To ONE creature -- whoever the step's buddy search picked -- rather than
+    # to everyone in a radius. `throw_ai_event` shouts; this one speaks. Garr
+    # telling a single add to detonate is not the same instruction as telling
+    # every add within thirty yards to detonate, and only one of those is a
+    # fight.
+    #
+    # The value is the event's own payload: the receiving rule can be written
+    # against it, so "explode with THIS spell" is a number the sender chooses
+    # rather than something the receiver has to guess.
+    send_ai_event           130   event:u32 value:u32?
     set_throw_mask          111   mask:flags
 
 # The randomness EventAI expressed by having three columns. `talk` needed no

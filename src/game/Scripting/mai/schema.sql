@@ -192,6 +192,14 @@ CREATE TABLE `mai_rule_step`
     `action`   VARCHAR(48) NOT NULL,
     `params`   VARCHAR(512) NOT NULL DEFAULT '',
 
+    -- The buddy search, the same one `mai_step` has had since the DB scripts:
+    -- find a creature of this entry within this range and let the step act on
+    -- it. Absent from rules until now, and that was inherited rather than
+    -- designed -- EventAI had no buddy, so the rule tables grew without one.
+    -- "Detonate one of the adds" is a buddy search with `random` set.
+    `buddy_entry` INT UNSIGNED NOT NULL DEFAULT 0,
+    `buddy_range` INT UNSIGNED NOT NULL DEFAULT 0,
+
     -- WHO the step acts on, asked at the moment it runs. Not part of `params`
     -- for the same reason the buddy is not: it modifies the step rather than
     -- being an argument of the verb. EventAI declared it as a parameter, which

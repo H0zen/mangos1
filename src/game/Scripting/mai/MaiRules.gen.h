@@ -61,6 +61,7 @@ namespace mai
         ReachedHome                = 21,
         ReceivedEmote              = 22,
         ReceivedAiEvent            = 30,
+        AwayFrom                   = 33,
 
         // target
         TargetHealthBelow          = 12,
@@ -194,6 +195,15 @@ namespace mai
     {
         { "event", ParamType::U32, false },
         { "sender", ParamType::Creature, true },
+        { "value", ParamType::U32, true },
+    };
+
+    inline constexpr ParamSpec g_ruleParamsAwayFrom[] =
+    {
+        { "creature", ParamType::Creature, false },
+        { "range", ParamType::F32, false },
+        { "repeat", ParamType::Ms, true },
+        { "repeat_max", ParamType::Ms, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsTargetHealthBelow[] =
@@ -386,7 +396,8 @@ namespace mai
         { RuleId::ReachedWaypoint, "reached_waypoint", g_ruleParamsReachedWaypoint, 2, 2, 0 },
         { RuleId::ReachedHome, "reached_home", nullptr, 0, 0, 0 },
         { RuleId::ReceivedEmote, "received_emote", g_ruleParamsReceivedEmote, 4, 4, 0 },
-        { RuleId::ReceivedAiEvent, "received_ai_event", g_ruleParamsReceivedAiEvent, 2, 2, 0 },
+        { RuleId::ReceivedAiEvent, "received_ai_event", g_ruleParamsReceivedAiEvent, 3, 3, 0 },
+        { RuleId::AwayFrom, "away_from", g_ruleParamsAwayFrom, 4, 4, 0 },
         { RuleId::TargetHealthBelow, "target_health_below", g_ruleParamsTargetHealthBelow, 4, 4, 0 },
         { RuleId::TargetCasting, "target_casting", g_ruleParamsTargetCasting, 2, 2, 0 },
         { RuleId::TargetManaBelow, "target_mana_below", g_ruleParamsTargetManaBelow, 4, 4, 0 },

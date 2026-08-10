@@ -79,7 +79,6 @@ void AddSC_instance_magisters_terrace();
 void AddSC_magisters_terrace();
 #endif
 
-void AddSC_boss_garr();
 void AddSC_boss_majordomo();
 void AddSC_boss_ragnaros();
 void AddSC_instance_molten_core();
@@ -284,7 +283,6 @@ void AddEasternKingdomsScripts()
     AddSC_magisters_terrace();
 #endif
 
-    AddSC_boss_garr();
     AddSC_boss_majordomo();
     AddSC_boss_ragnaros();
     AddSC_instance_molten_core();
