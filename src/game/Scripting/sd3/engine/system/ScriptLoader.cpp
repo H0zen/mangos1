@@ -80,9 +80,7 @@ void AddSC_instance_magisters_terrace();
 void AddSC_magisters_terrace();
 #endif
 
-void AddSC_boss_gehennas();
 void AddSC_boss_garr();
-void AddSC_boss_baron_geddon();
 void AddSC_boss_shazzrah();
 void AddSC_boss_sulfuron();
 void AddSC_boss_majordomo();
@@ -291,9 +289,7 @@ void AddEasternKingdomsScripts()
     AddSC_magisters_terrace();
 #endif
 
-    AddSC_boss_gehennas();
     AddSC_boss_garr();
-    AddSC_boss_baron_geddon();
     AddSC_boss_shazzrah();
     AddSC_boss_sulfuron();
     AddSC_boss_majordomo();
