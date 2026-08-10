@@ -185,3 +185,89 @@ CREATE TABLE `mai_rule_step`
         FOREIGN KEY (`creature`, `rule`) REFERENCES `mai_rule` (`creature`, `id`)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAI: what a rule does';
+
+-- ---------------------------------------------------------------------------
+-- TEXT. One table, and the ids do not change.
+--
+-- There were three: creature_ai_texts for EventAI, script_texts for SD3,
+-- db_script_string for the DB scripts. Identical in every column but one --
+-- entry, content_default, nine locales, sound, type, language, emote, comment
+-- -- and differing only in which system was allowed to read them.
+--
+-- The obvious fear is that merging them means renumbering, and renumbering
+-- means rewriting every one of the 27,561 references that point at a text. It
+-- does not, and this is measured rather than hoped:
+--
+--     creature_ai_texts     -2,005        ..            -1     1,015 rows
+--     script_texts          -1,999,926    ..    -1,000,000     2,474 rows
+--     db_script_string       2,000,000,001 .. 2,000,006,007      537 rows
+--
+--     rows sharing an entry between any two of them:  0
+--
+-- Three disjoint ranges, chosen to be disjoint by whoever laid them out, and
+-- still disjoint after a decade of edits. So the merge is a union with the ids
+-- kept verbatim, every existing reference keeps pointing at what it pointed
+-- at, and nothing in the 686 + 5,822 converted files has to be touched.
+--
+-- `entry` is INT rather than the MEDIUMINT two of the three used, because the
+-- DB-script range needs it. That is the only column that changes at all.
+--
+-- The guard at the bottom is the point of writing the ranges down: if the
+-- three ever DO collide, this refuses to merge rather than silently keeping
+-- whichever row happened to be inserted last -- which would give a creature
+-- someone else's line and be found by a player, not by us.
+
+DROP TABLE IF EXISTS `mai_text`;
+
+CREATE TABLE `mai_text`
+(
+    `entry`           INT NOT NULL,
+    `content_default` TEXT NOT NULL,
+    `content_loc1`    TEXT,
+    `content_loc2`    TEXT,
+    `content_loc3`    TEXT,
+    `content_loc4`    TEXT,
+    `content_loc5`    TEXT,
+    `content_loc6`    TEXT,
+    `content_loc7`    TEXT,
+    `content_loc8`    TEXT,
+    `sound`           MEDIUMINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- say, yell, text emote, boss emote, whisper, boss whisper. The same
+    -- meanings in all three tables, checked: every row in every one of them
+    -- uses a value in 0..6.
+    `type`            TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `language`        TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    `emote`           SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    `comment`         TEXT,
+
+    PRIMARY KEY (`entry`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAI: everything anything says';
+
+-- Refuse to merge if the ranges have started to overlap. A duplicate entry
+-- would otherwise be resolved by insertion order, which is to say by accident.
+DELIMITER //
+CREATE PROCEDURE `mai_merge_texts`()
+BEGIN
+    DECLARE clashes INT DEFAULT 0;
+
+    SELECT COUNT(*) INTO clashes FROM (
+        SELECT entry FROM `creature_ai_texts`
+        UNION ALL SELECT entry FROM `script_texts`
+        UNION ALL SELECT entry FROM `db_script_string`
+    ) all_texts GROUP BY entry HAVING COUNT(*) > 1 LIMIT 1;
+
+    IF clashes > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+            'mai_text: the three text tables share an entry; merging would '
+            'give something someone else''s line. Renumber before merging.';
+    END IF;
+
+    INSERT INTO `mai_text` SELECT * FROM `creature_ai_texts`;
+    INSERT INTO `mai_text` SELECT * FROM `script_texts`;
+    INSERT INTO `mai_text` SELECT * FROM `db_script_string`;
+END //
+DELIMITER ;
+
+CALL `mai_merge_texts`();
+DROP PROCEDURE `mai_merge_texts`;
