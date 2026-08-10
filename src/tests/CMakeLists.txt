@@ -72,6 +72,7 @@ set(SRC_GRP_TESTS
     # and this file needs none of it.
     MaiLoweringTest.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiLowering.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiParse.cpp
 )
 
 # The socket tests. Off unless asked for -- see the note above.

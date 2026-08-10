@@ -42,6 +42,7 @@
 #include "mai/MaiLowering.h"
 #include "mai/MaiTargeting.h"
 #include "mai/MaiRunner.h"
+#include "mai/MaiParse.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -168,10 +169,19 @@ TEST(MaiLowering_EveryLiveRowLowers)
             REQUIRE(spec != nullptr);
             CHECK(spec->arity <= mai::MaxOperands);
 
-            // The verb's own parameters are the two datalongs, in order.
+            // The verb's own parameters are the two datalongs, in order --
+            // converted where the manifest declares a float, because a DB row
+            // keeps a distance in a uint32 like everything else.
             for (std::size_t i = 0; i < spec->own && i < 2; ++i)
             {
-                CHECK(step.operands[i].u == row.info.raw.data[i]);
+                if (spec->params[i].type == mai::ParamType::F32)
+                {
+                    CHECK(step.operands[i].f == float(row.info.raw.data[i]));
+                }
+                else
+                {
+                    CHECK(step.operands[i].u == row.info.raw.data[i]);
+                }
             }
 
             // A position, when the verb takes one, is the row's own.
@@ -641,4 +651,198 @@ TEST(MaiDifferential_MaiRunsTheLiveChainsExactlyAsTheScheduleWould)
     CHECK(compared > 300);
     CHECK(steps > 2000);
     CHECK(disagreed == 0);
+}
+
+// ---- the round trip ---------------------------------------------------------
+//
+// 686 SQL files were generated from db_scripts. This is the proof that they
+// say the same thing: every converted step is parsed back through the manifest
+// and compared, field by field, against the step the original row lowers to.
+//
+// It closes the gap the conversion would otherwise leave. The lowering is
+// tested, the runner is tested, the schedule is tested against the runner --
+// and none of that says a word about whether the text in `params` means what
+// the datalongs meant. A conversion nobody checks is a rewrite with extra
+// steps.
+
+TEST(MaiConversion_TheGeneratedSqlSaysWhatTheRowsSaid)
+{
+    // What the original rows lower to, keyed the way the converter groups them.
+    std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> expected;
+    {
+        std::ifstream file(FixturePath().c_str());
+        REQUIRE(file.is_open());
+
+        std::map<std::pair<uint32, uint32>, ScriptChain> chains;
+        std::string line;
+        while (std::getline(file, line))
+        {
+            if (line.empty())
+            {
+                continue;
+            }
+            Row row;
+            REQUIRE(ParseRow(line, row));
+            chains[std::make_pair(row.scriptType, row.id)].push_back(row.info);
+        }
+
+        for (auto const& entry : chains)
+        {
+            mai::Sequence sequence;
+            std::string error;
+            REQUIRE(mai::Lower(entry.second, entry.first.second, "chain",
+                               sequence, error));
+            expected[entry.first] = sequence.steps;
+        }
+    }
+
+    // The kinds, in the order the converter numbers them.
+    static char const* const kinds[] =
+    {
+        "quest_start", "quest_end", "spell", "go_use", "go_template_use",
+        "creature_death", "creature_movement", "gossip", "event", "internal"
+    };
+
+    std::string const path = std::string(std::getenv("MANGOS_TEST_DATA")
+                                             ? std::getenv("MANGOS_TEST_DATA")
+                                             : "data") + "/mai_converted.tsv";
+    std::ifstream file(path.c_str());
+    REQUIRE(file.is_open());
+
+    std::size_t rows = 0;
+    std::size_t mismatched = 0;
+    std::size_t unparsed = 0;
+    std::string firstError;
+
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+        {
+            continue;
+        }
+
+        std::istringstream stream(line);
+        std::string cell;
+        std::vector<std::string> cells;
+        while (std::getline(stream, cell, '\t'))
+        {
+            cells.push_back(cell);
+        }
+        REQUIRE(cells.size() == 9);
+        ++rows;
+
+        uint32 kind = 0;
+        for (uint32 i = 0; i < uint32(sizeof(kinds) / sizeof(*kinds)); ++i)
+        {
+            if (cells[0] == kinds[i])
+            {
+                kind = i;
+                break;
+            }
+        }
+
+        uint32 const id = uint32(std::strtoul(cells[1].c_str(), nullptr, 10));
+        std::size_t const seq = std::size_t(std::strtoul(cells[2].c_str(),
+                                                         nullptr, 10));
+        uint32 const atMs = uint32(std::strtoul(cells[3].c_str(), nullptr, 10));
+
+        mai::Step parsed;
+        std::string error;
+        if (!mai::Parse(cells[4].c_str(), cells[5].c_str(), parsed, error))
+        {
+            ++unparsed;
+            if (firstError.empty())
+            {
+                firstError = cells[0] + " " + cells[1] + ": " + error;
+            }
+            continue;
+        }
+
+        parsed.atMs = atMs;
+        parsed.buddy.entry = uint32(std::strtoul(cells[6].c_str(), nullptr, 10));
+        parsed.buddy.guidOrRadius =
+            uint32(std::strtoul(cells[7].c_str(), nullptr, 10));
+        parsed.buddy.flags = uint8(std::strtoul(cells[8].c_str(), nullptr, 10));
+
+        auto const& want = expected[std::make_pair(kind, id)];
+        REQUIRE(seq < want.size());
+        mai::Step const& original = want[seq];
+
+        bool same = parsed.action == original.action &&
+                    parsed.atMs == original.atMs &&
+                    parsed.buddy.entry == original.buddy.entry &&
+                    parsed.buddy.guidOrRadius == original.buddy.guidOrRadius &&
+                    parsed.buddy.flags == original.buddy.flags;
+
+        // Only the operands the ORIGINAL gave are compared. The conversion
+        // drops a zero it never had to write down -- an unset datalong and an
+        // absent parameter are the same thing -- so requiring the converted
+        // row to carry it back would be demanding it invent one.
+        mai::ActionSpec const* spec = mai::SpecOf(original.action);
+        REQUIRE(spec != nullptr);
+        for (std::size_t slot = 0; same && slot < spec->arity; ++slot)
+        {
+            if (!original.Has(slot))
+            {
+                continue;
+            }
+            if (spec->params[slot].type == mai::ParamType::F32)
+            {
+                same = parsed.operands[slot].f == original.operands[slot].f;
+            }
+            else
+            {
+                same = parsed.operands[slot].u == original.operands[slot].u;
+            }
+        }
+
+        if (!same)
+        {
+            ++mismatched;
+            if (firstError.empty())
+            {
+                firstError = cells[0] + " " + cells[1] + " step " + cells[2]
+                             + ": " + cells[4] + " " + cells[5];
+            }
+        }
+    }
+
+    std::printf("  conversion: %u step(s), %u unparsed, %u mismatched\n",
+                uint32(rows), uint32(unparsed), uint32(mismatched));
+    if (!firstError.empty())
+    {
+        std::printf("  first: %s\n", firstError.c_str());
+    }
+
+    CHECK(rows > 2000);
+    CHECK(unparsed == 0);
+    CHECK(mismatched == 0);
+}
+
+TEST(MaiParse_RefusesWhatItCannotUnderstand)
+{
+    mai::Step step;
+    std::string error;
+
+    // A verb that does not exist.
+    CHECK(!mai::Parse("cast_spel", "spell=133", step, error));
+
+    // A parameter the verb does not have. Refused, not ignored: an ignored
+    // name is a typo that becomes a step quietly doing less than it says.
+    CHECK(!mai::Parse("cast_spell", "spel=133", step, error));
+
+    // A value that is not a number.
+    CHECK(!mai::Parse("cast_spell", "spell=fireball", step, error));
+
+    // A required parameter left out.
+    CHECK(!mai::Parse("cast_spell", "flags=1", step, error));
+
+    // And the shape that is right.
+    REQUIRE(mai::Parse("cast_spell", "spell=133 flags=2", step, error));
+    CHECK(step.action == mai::ActionId::CastSpell);
+    CHECK(step.operands[0].u == 133);
+    CHECK(step.operands[1].u == 2);
+    CHECK(step.Has(0));
+    CHECK(step.Has(1));
 }

@@ -119,7 +119,22 @@ namespace mai
         uint32 const raw[2] = { row.raw.data[0], row.raw.data[1] };
         for (std::size_t i = 0; i < spec->own && i < 2; ++i, ++slot)
         {
-            out.operands[slot].u = raw[i];
+            // Stored as the manifest declares it, not as the column holds it.
+            // A DB row keeps every parameter in a uint32, including the ones
+            // that are distances -- `quest_explored.distance`,
+            // `send_ai_event_around.radius`. Copying the bits across and
+            // calling the slot a float leaves a number that is not the one the
+            // row meant and is not obviously wrong either: read as a float,
+            // the integer 10 is 1.4e-44. The round-trip test found thirty of
+            // them; nothing else would have.
+            if (spec->params[slot].type == ParamType::F32)
+            {
+                out.operands[slot].f = float(raw[i]);
+            }
+            else
+            {
+                out.operands[slot].u = raw[i];
+            }
             if (Supplied(raw[i]) || !spec->params[slot].optional)
             {
                 out.given |= uint8(1u << slot);

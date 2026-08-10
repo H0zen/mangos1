@@ -115,3 +115,73 @@ CREATE TABLE `mai_step`
         FOREIGN KEY (`kind`, `script`) REFERENCES `mai_script` (`kind`, `id`)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAI: one row per action';
+
+-- ---------------------------------------------------------------------------
+-- RULES. What a sequence starts FROM.
+--
+-- A sequence says what happens and when, counted from its own start. A rule
+-- says when it starts. That is the whole difference between the two systems
+-- folded together here, and each of them spent real effort faking the other:
+--
+--   EventAI faked sequences with timers. A creature that says one line, waits
+--   three seconds and says another is three rows, a phase field and two
+--   timers, because there is nowhere to write "then".
+--
+--   The DB scripts faked rules by having ten tables. `dbscripts_on_quest_end`
+--   IS a rule -- "when a quest ends" -- expressed as a table name, and unable
+--   to carry a condition or a chance.
+--
+-- THE THREE ACTION SLOTS ARE GONE. EventAI gave every row exactly three, not
+-- because three is a natural number of things to do but because a table needs
+-- a fixed width; a creature doing four things on aggro was two rows with the
+-- same trigger, the second a fiction told to get more columns. A rule's steps
+-- are rows now, and the fourth costs one.
+--
+-- PSEUDOCODE
+--
+--   rule  := creature, id, trigger, params, phase_mask, chance, flags
+--   step  := creature, rule, seq, action, params
+--
+-- Phases stay a bitmask, deliberately. They are EventAI's whole notion of
+-- state and deserve to become named states -- but not in the same change that
+-- moves twenty thousand rows, because a conversion has to be checkable against
+-- what it converted and "the same, but better" is not checkable.
+
+DROP TABLE IF EXISTS `mai_rule_step`;
+DROP TABLE IF EXISTS `mai_rule`;
+
+CREATE TABLE `mai_rule`
+(
+    `creature`   INT UNSIGNED NOT NULL,
+    `id`         INT UNSIGNED NOT NULL,
+
+    `rule`       VARCHAR(48) NOT NULL,
+    `params`     VARCHAR(512) NOT NULL DEFAULT '',
+
+    -- The phases this rule does NOT fire in. Inverted, as EventAI had it, and
+    -- kept inverted so a converted row means what it meant.
+    `phase_mask` INT UNSIGNED NOT NULL DEFAULT 0,
+    `chance`     TINYINT UNSIGNED NOT NULL DEFAULT 100,
+    `flags`      INT UNSIGNED NOT NULL DEFAULT 0,
+    `comment`    VARCHAR(255) NOT NULL DEFAULT '',
+
+    PRIMARY KEY (`creature`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAI: when a sequence starts';
+
+CREATE TABLE `mai_rule_step`
+(
+    `creature` INT UNSIGNED NOT NULL,
+    `rule`     INT UNSIGNED NOT NULL,
+    `seq`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- No at_ms yet. A rule's steps run together, as EventAI's three slots did;
+    -- giving them times is the improvement that comes after the conversion is
+    -- proved, not during it.
+    `action`   VARCHAR(48) NOT NULL,
+    `params`   VARCHAR(512) NOT NULL DEFAULT '',
+
+    PRIMARY KEY (`creature`, `rule`, `seq`),
+    CONSTRAINT `mai_rule_step_belongs_to_a_rule`
+        FOREIGN KEY (`creature`, `rule`) REFERENCES `mai_rule` (`creature`, `id`)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MAI: what a rule does';

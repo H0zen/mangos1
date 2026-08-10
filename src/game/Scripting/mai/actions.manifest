@@ -113,3 +113,58 @@ category flow = 0x07
     terminate_script        31   entry:creature? search_dist:f32?
     terminate_cond          34   condition:u32 fail_quest:quest?
     send_ai_event_around    35   event:u32 radius:f32
+
+# ---------------------------------------------------------------------------
+# What EventAI could say and the DB scripts could not.
+#
+# The two action sets overlap by more than half -- both cast, both talk, both
+# morph, both change faction -- and where they agree they use the SAME verb
+# here. An EventAI row converts by naming a verb, not by number, so there is no
+# collision with the DB-script ids above and no second vocabulary to learn.
+#
+# What follows is only the difference: the things a creature's AI needs and a
+# queued command list never did. Numbering continues from 0x60 so the origin of
+# a verb is visible in its id.
+# ---------------------------------------------------------------------------
+
+category threat = 0x10
+    threat_change            96   percent:i32 all:bool?
+    call_for_help            97   radius:f32
+    flee_for_assist          98
+    zone_combat_pulse        99
+
+category ai = 0x11
+    # Phases are EventAI's whole notion of state: a bitmask a rule can be
+    # restricted to. They become named states in due course; converted
+    # faithfully first, so the conversion can be checked before it is improved.
+    set_phase               100   phase:u32
+    inc_phase               101   by:i32
+    random_phase            102   a:u32 b:u32? c:u32?
+    auto_attack             103   enable:bool
+    combat_movement         104   enable:bool melee:bool?
+    ranged_movement         105   distance:f32 angle:f32?
+    change_movement         106   type:u32 wander_distance:f32?
+    evade                   107
+    die                     108
+    set_invincibility       109   hp:u32 percent:bool?
+    throw_ai_event          110   event:u32 radius:f32?
+    set_throw_mask          111   mask:flags
+
+category instance = 0x12
+    set_instance_data       112   field:u32 value:u32
+    # Two halves, not a u64: an operand is one 32-bit cell, and widening every
+    # one of them for the single verb that wants eight bytes -- a verb the live
+    # world calls zero times -- is the wrong trade.
+    set_instance_data64     113   field:u32 low:u32 high:u32?
+
+category unit = 0x13
+    set_unit_field          114   field:field value:u32
+    set_unit_flag           115   value:flags
+    remove_unit_flag        116   value:flags
+    set_sheath              117   state:u32
+    emote_target            118   emote:emote
+
+category quest = 0x14
+    quest_event             119   quest:quest all:bool?
+    cast_event              120   creature:creature spell:spell all:bool?
+    killed_monster          121   creature:creature

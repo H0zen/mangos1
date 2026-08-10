@@ -1,0 +1,2076 @@
+creature_death	25650	0	0	teleport_to	map=530 x=-589.976 y=4078.31 z=143.258 o=4.48305	0	0	0
+creature_death	25650	1	0	teleport_to	map=530 x=-593.429 y=4077.95 z=93.8245 o=5.32893	0	0	0
+creature_death	25652	0	0	teleport_to	map=530 x=-594 y=4079.26 z=93.85 o=5.28	0	0	0
+creature_death	25652	1	0	teleport_to	map=530 x=-589.976 y=4078.31 z=143.258 o=4.48305	0	0	0
+creature_death	31550	0	0	despawn_self		0	0	0
+creature_death	37751	0	0	field_set	field=159 value=9	0	0	0
+creature_death	37751	1	1000	flag_set	field=46 value=33554434	0	0	0
+creature_death	37752	0	0	emote	emote=0	0	0	0
+creature_death	37752	1	1000	emote	emote=26	0	0	0
+creature_death	37752	2	1000	flag_remove	field=46 value=33554434	0	0	0
+creature_death	38530	0	0	remove_aura	spell=38495	0	0	0
+creature_death	39844	0	0	kill_credit	entry=0	0	0	0
+creature_death	39844	1	1000	despawn_self		0	0	0
+creature_movement	11881	0	0	open_door	guid=11875 reset_delay=20	0	0	0
+creature_movement	11894	0	0	open_door	guid=11876 reset_delay=300	0	0	0
+creature_movement	12148	0	0	open_door	guid=30084 reset_delay=15	0	0	0
+creature_movement	12164	0	1000	cast_spell	spell=5	17886	63584	7
+creature_movement	12166	0	1000	cast_spell	spell=5	17886	63583	7
+creature_movement	12168	0	1000	cast_spell	spell=5	17886	63582	7
+creature_movement	12173	0	1000	cast_spell	spell=5	17886	63585	7
+creature_movement	12609	0	2000	temp_summon_creature	entry=12369 despawn_delay=300000 x=251.381 y=2962.47 z=2.76527 o=0.860446	0	0	0
+creature_movement	15351	0	0	open_door	guid=15640 reset_delay=7200	0	0	0
+creature_movement	15351	1	0	close_door	guid=15576 reset_delay=7200	0	0	0
+creature_movement	15351	2	0	open_door	guid=15639 reset_delay=10	0	0	0
+creature_movement	15351	3	0	open_door	guid=15352 reset_delay=7200	0	0	0
+creature_movement	16775	0	1000	move_to	x=-4680.1 y=-1439.24 z=-50.49 o=5.77704	10992	20	0
+creature_movement	16775	1	2000	set_faction	faction=16 flags=49	10992	20	0
+creature_movement	21608	0	5000	temp_summon_creature	entry=15083 despawn_delay=900000 x=-11901.3 y=-1906.52 z=65.36 o=0.87	0	0	0
+creature_movement	21609	0	5000	temp_summon_creature	entry=15084 despawn_delay=900000 x=-11901.3 y=-1906.52 z=65.36 o=0.87	0	0	0
+creature_movement	21610	0	5000	temp_summon_creature	entry=15085 despawn_delay=900000 x=-11901.3 y=-1906.52 z=65.36 o=0.87	0	0	0
+creature_movement	24397	0	0	open_door	guid=25826 reset_delay=10	0	0	0
+creature_movement	24398	0	0	open_door	guid=24141 reset_delay=15	0	0	0
+creature_movement	25980	0	0	open_door	guid=25083 reset_delay=15	0	0	0
+creature_movement	26188	0	0	open_door	guid=30533 reset_delay=15	0	0	0
+creature_movement	26192	0	0	open_door	guid=26182 reset_delay=15	0	0	0
+creature_movement	26197	0	0	open_door	guid=26185 reset_delay=15	0	0	0
+creature_movement	26206	0	0	open_door	guid=30534 reset_delay=300	0	0	0
+creature_movement	28704	0	5000	temp_summon_creature	entry=15082 despawn_delay=900000 x=-11901.3 y=-1906.52 z=65.36 o=0.87	0	0	0
+creature_movement	32260	0	0	open_door	guid=32250 reset_delay=15	0	0	0
+creature_movement	32378	0	0	open_door	guid=32373 reset_delay=15	0	0	0
+creature_movement	32442	0	0	open_door	guid=32445 reset_delay=15	0	0	0
+creature_movement	32443	0	0	open_door	guid=20835 reset_delay=15	0	0	0
+creature_movement	32444	0	0	open_door	guid=32446 reset_delay=120	0	0	0
+creature_movement	32480	0	0	open_door	guid=33241 reset_delay=120	0	0	0
+creature_movement	34006	0	0	open_door	guid=33219 reset_delay=15	0	0	0
+creature_movement	35843	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3496.26 y=-3295.4 z=130.98 o=5.34	0	0	0
+creature_movement	35843	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3503.16 y=-3294.9 z=131.09 o=4.28	0	0	0
+creature_movement	35843	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=34.93 y=-3300.28 z=130.47 o=0.07	0	0	0
+creature_movement	35844	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3568.5 y=-3356.91 z=131.06 o=2.07	0	0	0
+creature_movement	35844	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3570.91 y=-3351.01 z=130.57 o=2.71	0	0	0
+creature_movement	35844	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3562.79 y=-3353.38 z=130.78 o=0.81	0	0	0
+creature_movement	35845	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3659.46 y=-3634.96 z=138.33 o=1.28	0	0	0
+creature_movement	35845	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3656.25 y=-3635.08 z=138.36 o=1.02	0	0	0
+creature_movement	35845	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3661.24 y=-3621 z=138.4 o=3.58	0	0	0
+creature_movement	35846	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3657.14 y=-3475.36 z=138.7 o=4.91	0	0	0
+creature_movement	35846	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3669.61 y=-3478.49 z=137.49 o=3.39	0	0	0
+creature_movement	35846	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3651.67 y=-3477.88 z=138.05 o=5.59	0	0	0
+creature_movement	35847	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3675.35 y=-3395.92 z=132.86 o=5.83	0	0	0
+creature_movement	35847	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3679.93 y=-3408.58 z=133.18 o=1.04	0	0	0
+creature_movement	35847	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3687.89 y=-3410.59 z=133.04 o=1.64	0	0	0
+creature_movement	35848	0	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3644.62 y=-3168.25 z=128.52 o=5.93	0	0	0
+creature_movement	35848	1	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3656.82 y=-3160.63 z=129.03 o=4.84	0	0	0
+creature_movement	35848	2	2000	temp_summon_creature	entry=11142 despawn_delay=900000 x=3664.55 y=-3176.47 z=126.42 o=2.2	0	0	0
+creature_movement	43177	0	0	open_door	guid=43178 reset_delay=7200	0	0	0
+creature_movement	43208	0	0	close_door	guid=18892 reset_delay=600	0	0	0
+creature_movement	43208	1	5000	temp_summon_creature	entry=10506 despawn_delay=900000 x=309.65 y=93.47 z=101.66 o=0.03	0	0	0
+creature_movement	44809	0	0	open_door	guid=15012 reset_delay=15	0	0	0
+creature_movement	44811	0	0	open_door	guid=15013 reset_delay=15	0	0	0
+creature_movement	45625	0	0	open_door	guid=45626 reset_delay=15	0	0	0
+creature_movement	47301	0	10000	temp_summon_creature	entry=22920 despawn_delay=300000 x=3989.02 y=6071.37 z=266.41 o=3.72	0	0	0
+creature_movement	50029	0	0	move_to	x=-4514.79 y=753.332 z=60.4589 o=0	7997	50062	16
+creature_movement	50029	1	0	move_to	x=-4516.79 y=756.357 z=60.3792 o=0	7997	50063	16
+creature_movement	50029	2	0	move_to	x=-4515.79 y=754.357 z=60.3792 o=0	7997	50064	16
+creature_movement	50029	3	0	move_to	x=-4515.64 y=756.607 z=60.3453 o=0	7997	50065	16
+creature_movement	50029	4	0	move_to	x=-4517.23 y=755.28 z=60.3972 o=0	7997	50066	16
+creature_movement	50029	5	0	move_to	x=-4517.08 y=750.508 z=60.4589 o=0	7997	50067	16
+creature_movement	50029	6	0	move_to	x=-4556.03 y=786.234 z=48.3795 o=0	7997	50068	16
+creature_movement	50029	7	0	move_to	x=-4554.98 y=784.931 z=48.3029 o=0	7997	50069	16
+creature_movement	50029	8	0	move_to	x=-4626.63 y=831.622 z=57.141 o=0	7997	50070	16
+creature_movement	50029	9	0	move_to	x=-4523.55 y=831.25 z=57.4991 o=0	7997	50071	16
+creature_movement	50029	10	0	move_to	x=-4521.78 y=829.74 z=57.5191 o=0	7997	50072	16
+creature_movement	50029	11	0	move_to	x=-4523.55 y=832.25 z=57.4991 o=0	7997	50073	16
+creature_movement	50029	12	23000	quest_explored	quest=2969	0	0	0
+creature_movement	50029	13	23000	despawn_self	delay=5	7997	50062	16
+creature_movement	50029	14	23000	despawn_self	delay=5	7997	50063	16
+creature_movement	50029	15	23000	despawn_self	delay=5	7997	50064	16
+creature_movement	50029	16	23000	despawn_self	delay=5	7997	50065	16
+creature_movement	50029	17	23000	despawn_self	delay=5	7997	50066	16
+creature_movement	50029	18	23000	despawn_self	delay=5	7997	50067	16
+creature_movement	50029	19	23000	despawn_self	delay=5	7997	50068	16
+creature_movement	50029	20	23000	despawn_self	delay=5	7997	50069	16
+creature_movement	50029	21	23000	despawn_self	delay=5	7997	50070	16
+creature_movement	50029	22	23000	despawn_self	delay=5	7997	50071	16
+creature_movement	50029	23	23000	despawn_self	delay=5	7997	50072	16
+creature_movement	50029	24	23000	despawn_self	delay=5	7997	50073	16
+creature_movement	55359	0	1000	open_door	guid=55351	0	0	0
+creature_movement	55359	1	2000	set_run	run=1	14020	70	0
+creature_movement	55359	2	3000	move_to	x=-7484.91 y=-1072.98 z=476.55 o=2.18	14020	70	0
+event	259	0	2000	temp_summon_creature	entry=1770 despawn_delay=300000 x=881.63 y=1230.37 z=47.83 o=3.1	0	0	0
+event	264	0	3000	temp_summon_creature	entry=2044 despawn_delay=300000 x=-9548.42 y=-1440.2 z=62.29 o=2.19	0	0	0
+event	313	0	1000	talk	text0=2000005078	2238	10	4
+event	313	1	3000	talk	text0=2000005079	2238	10	4
+event	364	0	5000	temp_summon_creature	entry=2624 despawn_delay=900000 x=-12179.4 y=644.22 z=-67.1 o=5.18	0	0	0
+event	415	0	3000	temp_summon_creature	entry=2569 despawn_delay=300000 x=-1777.64 y=-1513.58 z=75.51 o=5.28	0	0	0
+event	415	1	3000	temp_summon_creature	entry=2570 despawn_delay=300000 x=-1778.46 y=-1510.57 z=75.17 o=5.22	0	0	0
+event	416	0	3000	temp_summon_creature	entry=2569 despawn_delay=300000 x=-1797.32 y=-1504.7 z=99.39 o=5.14	0	0	0
+event	416	1	3000	temp_summon_creature	entry=2570 despawn_delay=300000 x=-1789.8 y=-1499.9 z=99.38 o=4.6	0	0	0
+event	417	0	3000	temp_summon_creature	entry=2569 despawn_delay=300000 x=-1772.93 y=-1505.9 z=91.87 o=5.7	0	0	0
+event	417	1	3000	temp_summon_creature	entry=2570 despawn_delay=300000 x=-1774.76 y=-1495.07 z=90.6 o=5.27	0	0	0
+event	420	0	0	temp_summon_creature	entry=2755 despawn_delay=3000000 x=-931.73 y=-3111.81 z=48.517 o=3.27404	0	0	0
+event	452	0	0	temp_summon_creature	entry=2937 despawn_delay=3000000 x=-2360.55 y=-4102.38 z=6.93 o=2.25	0	0	0
+event	498	0	3000	temp_summon_creature	entry=3129 despawn_delay=300000 x=-228.09 y=-5115.08 z=49.32 o=1.28	0	0	0
+event	619	0	3000	temp_summon_creature	entry=634 despawn_delay=300000 x=-18.44 y=-617.46 z=14.12 o=0.08	0	0	0
+event	664	0	3000	temp_summon_creature	entry=3946 despawn_delay=60000 x=-11142.5 y=-1151.78 z=43.61 o=5.28	0	0	0
+event	727	0	0	temp_summon_creature	entry=4504 despawn_delay=3000000 x=264.94 y=-264.13 z=145.03 o=3.41	0	0	0
+event	747	0	5000	temp_summon_creature	entry=4100 despawn_delay=900000 x=-5587.69 y=-1571.45 z=11.21 o=6.14	0	0	0
+event	747	1	25000	temp_summon_creature	entry=4100 despawn_delay=900000 x=-5587.69 y=-1571.45 z=11.21 o=6.14	0	0	0
+event	747	2	25000	temp_summon_creature	entry=4100 despawn_delay=900000 x=-5589.63 y=-1575.89 z=11.75 o=6.02	0	0	0
+event	747	3	40000	temp_summon_creature	entry=4100 despawn_delay=900000 x=-5587.69 y=-1571.45 z=11.21 o=6.14	0	0	0
+event	747	4	40000	temp_summon_creature	entry=4490 despawn_delay=900000 x=-5589.63 y=-1575.89 z=11.75 o=6.02	0	0	0
+event	1033	0	0	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1126.97 y=2901.03 z=194.33 o=3.45	0	0	0
+event	1033	1	0	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1123.14 y=2892.65 z=194.96 o=3.11	0	0	0
+event	1033	2	40000	temp_summon_creature	entry=6070 despawn_delay=3000000 x=-1129.04 y=2895.67 z=195.7 o=3.11	0	0	0
+event	1033	3	40000	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1130.01 y=2901.11 z=195.35 o=3.35	0	0	0
+event	1033	4	40000	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1125.46 y=2890.14 z=195.27 o=2.9	0	0	0
+event	1033	5	100000	temp_summon_creature	entry=5402 despawn_delay=3000000 x=-1129.9 y=2896.08 z=195.91 o=3.15	0	0	0
+event	1033	6	100000	temp_summon_creature	entry=6070 despawn_delay=3000000 x=-1130.26 y=2894.02 z=196.27 o=3.15	0	0	0
+event	1033	7	100000	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1134.43 y=2902.35 z=196.56 o=3.85	0	0	0
+event	1033	8	100000	temp_summon_creature	entry=6069 despawn_delay=3000000 x=-1131.98 y=2886.77 z=197.59 o=2.55	0	0	0
+event	1131	0	0	temp_summon_creature	entry=5676 despawn_delay=180000 x=-8973.05 y=1043.72 z=52.8631 o=2	0	0	0
+event	1134	0	0	temp_summon_creature	entry=5677 despawn_delay=180000 x=-8973.05 y=1043.72 z=52.8631 o=2	0	0	0
+event	1370	0	0	temp_summon_creature	entry=6239 despawn_delay=300000 x=332.821 y=-1473.05 z=42.2658 o=3.99963	0	0	0
+event	1449	0	0	temp_summon_creature	entry=6268 despawn_delay=180000 x=-767.591 y=-3721.71 z=42.3617 o=2.79602	0	0	0
+event	1785	0	0	temp_summon_creature	entry=5676 despawn_delay=180000 x=1704.61 y=41.9147 z=-63.8433 o=0.435896	0	0	0
+event	1786	0	0	temp_summon_creature	entry=5677 despawn_delay=180000 x=1704.61 y=41.9147 z=-63.8433 o=0.435896	0	0	0
+event	1787	0	0	temp_summon_creature	entry=5676 despawn_delay=180000 x=1806.13 y=-4372.67 z=-17.4888 o=4.41785	0	0	0
+event	1788	0	0	temp_summon_creature	entry=5677 despawn_delay=180000 x=1806.13 y=-4372.67 z=-17.4888 o=4.41785	0	0	0
+event	2048	0	0	temp_summon_creature	entry=3456 despawn_delay=3000000 x=-3592.45 y=-1872.06 z=91.62 o=0.19	0	0	0
+event	2153	0	5000	temp_summon_creature	entry=7167 despawn_delay=900000 x=-1456.55 y=-3959.53 z=0.24 o=1.99	0	0	0
+event	2313	0	0	temp_summon_creature	entry=7411 despawn_delay=3000000 x=9600.86 y=2495.87 z=1334.94 o=3.91	0	0	0
+event	2488	0	2000	temp_summon_creature	entry=7273 despawn_delay=300000 x=1665.56 y=1187.32 z=6.64 o=3.9	0	0	0
+event	2609	0	0	open_door	guid=27089 reset_delay=9000000	0	0	0
+event	2609	1	0	open_door	guid=27090 reset_delay=9000000	0	0	0
+event	2609	2	0	open_door	guid=27091 reset_delay=9000000	0	0	0
+event	2609	3	0	open_door	guid=27092 reset_delay=9000000	0	0	0
+event	2609	4	0	open_door	guid=27093 reset_delay=9000000	0	0	0
+event	2609	5	0	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1902.83 y=1223.41 z=8.96 o=3.95	0	0	0
+event	2609	6	0	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1894.64 y=1206.29 z=8.87 o=2.22	0	0	0
+event	2609	7	0	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1874.45 y=1204.44 z=8.87 o=0.88	0	0	0
+event	2609	8	0	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1874.18 y=1221.24 z=9.21 o=0.84	0	0	0
+event	2609	9	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1879.02 y=1223.06 z=9.12 o=5.91	0	0	0
+event	2609	10	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1882.07 y=1225.7 z=9.32 o=5.69	0	0	0
+event	2609	11	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1886.97 y=1225.86 z=9.85 o=5.79	0	0	0
+event	2609	12	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1892.28 y=1225.49 z=9.57 o=5.63	0	0	0
+event	2609	13	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1894.72 y=1221.91 z=8.87 o=2.34	0	0	0
+event	2609	14	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1890.08 y=1218.68 z=8.87 o=1.59	0	0	0
+event	2609	15	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1883.5 y=1218.25 z=8.9 o=0.67	0	0	0
+event	2609	16	0	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1886.93 y=1221.4 z=8.94 o=1.6	0	0	0
+event	2609	17	0	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1883.76 y=1222.3 z=9.11 o=6.26	0	0	0
+event	2609	18	0	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1889.82 y=1222.51 z=9.03 o=0.97	0	0	0
+event	2609	19	0	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1898.23 y=1217.97 z=8.87 o=3.42	0	0	0
+event	2609	20	0	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1877.4 y=1216.41 z=8.97 o=0.37	0	0	0
+event	2609	21	0	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1893.07 y=1215.26 z=8.87 o=3.08	0	0	0
+event	2609	22	0	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1878.57 y=1214.16 z=8.87 o=3.12	0	0	0
+event	2609	23	0	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1889.94 y=1212.21 z=8.87 o=1.59	0	0	0
+event	2609	24	0	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1883.74 y=1212.35 z=8.87 o=1.59	0	0	0
+event	2609	25	0	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1877 y=1207.27 z=8.87 o=3.8	0	0	0
+event	2609	26	0	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1873.63 y=1204.65 z=8.87 o=0.61	0	0	0
+event	2609	27	0	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1896.46 y=1205.62 z=8.87 o=5.72	0	0	0
+event	2609	28	0	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1899.63 y=1202.52 z=8.87 o=2.46	0	0	0
+event	2609	29	300000	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1902.83 y=1223.41 z=8.96 o=3.95	0	0	0
+event	2609	30	300000	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1894.64 y=1206.29 z=8.87 o=2.22	0	0	0
+event	2609	31	300000	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1874.45 y=1204.44 z=8.87 o=0.88	0	0	0
+event	2609	32	300000	temp_summon_creature	entry=7789 despawn_delay=9000000 x=1874.18 y=1221.24 z=9.21 o=0.84	0	0	0
+event	2609	33	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1879.02 y=1223.06 z=9.12 o=5.91	0	0	0
+event	2609	34	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1882.07 y=1225.7 z=9.32 o=5.69	0	0	0
+event	2609	35	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1886.97 y=1225.86 z=9.85 o=5.79	0	0	0
+event	2609	36	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1892.28 y=1225.49 z=9.57 o=5.63	0	0	0
+event	2609	37	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1894.72 y=1221.91 z=8.87 o=2.34	0	0	0
+event	2609	38	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1890.08 y=1218.68 z=8.87 o=1.59	0	0	0
+event	2609	39	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1883.5 y=1218.25 z=8.9 o=0.67	0	0	0
+event	2609	40	300000	temp_summon_creature	entry=7787 despawn_delay=9000000 x=1886.93 y=1221.4 z=8.94 o=1.6	0	0	0
+event	2609	41	300000	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1883.76 y=1222.3 z=9.11 o=6.26	0	0	0
+event	2609	42	300000	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1889.82 y=1222.51 z=9.03 o=0.97	0	0	0
+event	2609	43	300000	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1898.23 y=1217.97 z=8.87 o=3.42	0	0	0
+event	2609	44	300000	temp_summon_creature	entry=8876 despawn_delay=9000000 x=1877.4 y=1216.41 z=8.97 o=0.37	0	0	0
+event	2609	45	300000	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1893.07 y=1215.26 z=8.87 o=3.08	0	0	0
+event	2609	46	300000	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1878.57 y=1214.16 z=8.87 o=3.12	0	0	0
+event	2609	47	300000	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1889.94 y=1212.21 z=8.87 o=1.59	0	0	0
+event	2609	48	300000	temp_summon_creature	entry=7788 despawn_delay=9000000 x=1883.74 y=1212.35 z=8.87 o=1.59	0	0	0
+event	2609	49	300000	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1877 y=1207.27 z=8.87 o=3.8	0	0	0
+event	2609	50	300000	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1873.63 y=1204.65 z=8.87 o=0.61	0	0	0
+event	2609	51	300000	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1896.46 y=1205.62 z=8.87 o=5.72	0	0	0
+event	2609	52	300000	temp_summon_creature	entry=8877 despawn_delay=9000000 x=1899.63 y=1202.52 z=8.87 o=2.46	0	0	0
+event	2609	53	300000	temp_summon_creature	entry=7275 despawn_delay=9000000 x=1889.23 y=1207.72 z=8.87 o=1.47	0	0	0
+event	2609	54	300000	temp_summon_creature	entry=7796 despawn_delay=9000000 x=1879.77 y=1207.96 z=8.87 o=1.55	0	0	0
+event	2609	55	600000	open_door	guid=27086 reset_delay=9000000	0	0	0
+event	2648	0	0	temp_summon_creature	entry=2707 despawn_delay=9000000 x=-407 y=-2862 z=77.31 o=5.87	0	0	0
+event	2980	0	0	temp_summon_creature	entry=3475 despawn_delay=180000 x=436.258 y=-3058 z=92.434 o=3.952	0	0	0
+event	2998	0	0	temp_summon_creature	entry=3257 despawn_delay=180000 x=-435 y=-3428 z=91.75 o=5.323	0	0	0
+event	3084	0	0	temp_summon_creature	entry=8392 despawn_delay=9000000 x=2249 y=-7221.97 z=13.82 o=1.02	0	0	0
+event	3201	0	2000	respawn_go	guid=16736 despawn_delay=600	0	0	0
+event	3201	1	2000	respawn_go	guid=16741 despawn_delay=600	0	0	0
+event	3202	0	2000	respawn_go	guid=16737 despawn_delay=600	0	0	0
+event	3202	1	2000	respawn_go	guid=16742 despawn_delay=600	0	0	0
+event	3203	0	2000	respawn_go	guid=16738 despawn_delay=600	0	0	0
+event	3203	1	2000	respawn_go	guid=16743 despawn_delay=600	0	0	0
+event	3204	0	2000	respawn_go	guid=16735 despawn_delay=600	0	0	0
+event	3204	1	2000	respawn_go	guid=16740 despawn_delay=600	0	0	0
+event	3241	0	5000	temp_summon_creature	entry=8581 despawn_delay=600000 x=4279.11 y=-6295.57 z=95.56 o=0.05	0	0	0
+event	3241	1	20000	temp_summon_creature	entry=8578 despawn_delay=900000 x=4279.11 y=-6295.57 z=95.56 o=0.05	0	0	0
+event	3301	0	2000	temp_summon_creature	entry=7664 despawn_delay=900000 x=-11234.4 y=-2842.68 z=157.92 o=1.42	0	0	0
+event	3708	0	3000	temp_summon_creature	entry=9453 despawn_delay=300000 x=-8170.74 y=-5078.13 z=15.83 o=4.83	0	0	0
+event	3718	0	10000	open_door	guid=17428 reset_delay=180000	0	0	0
+event	3839	0	0	temp_summon_creature	entry=9598 despawn_delay=3000000 x=5998.7 y=-1208 z=377.75 o=0.36	0	0	0
+event	3938	0	0	temp_summon_creature	entry=10373 despawn_delay=3000000 x=6881.64 y=-506.63 z=40.14 o=2.02	0	0	0
+event	3973	0	0	temp_summon_creature	entry=8075 despawn_delay=9000000 x=-2764.68 y=2623.21 z=70.4204 o=2.33578	0	0	0
+event	3980	0	0	respawn_go	guid=27142 despawn_delay=180	0	0	0
+event	3981	0	0	temp_summon_creature	entry=9684 despawn_delay=3000000 x=-7196.45 y=-2405.63 z=-217.28 o=4.8	0	0	0
+event	4338	0	0	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7968.53 y=-1097.05 z=-327.09 o=3.3	0	0	0
+event	4338	1	0	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7979.87 y=-1095.38 z=-327.55 o=5.94	0	0	0
+event	4338	2	40000	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7976.31 y=-1101.03 z=-328.11 o=6.1	0	0	0
+event	4338	3	40000	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7969.05 y=-1102.24 z=-329.02 o=3.36	0	0	0
+event	4338	4	40000	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7987.08 y=-1096.74 z=-329.16 o=5.55	0	0	0
+event	4338	5	90000	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7977.93 y=-1079.71 z=-329.1 o=4.5	0	0	0
+event	4338	6	90000	temp_summon_creature	entry=10040 despawn_delay=3000000 x=-7963.49 y=-1081.18 z=-328.64 o=4.32	0	0	0
+event	4338	7	90000	temp_summon_creature	entry=10041 despawn_delay=3000000 x=-7969.74 y=-1077.94 z=-328.73 o=4.54	0	0	0
+event	4845	0	0	temp_summon_creature	entry=10584 despawn_delay=300000 x=-13.62 y=-395.96 z=48.73 o=2.61	0	0	0
+event	4884	0	0	temp_summon_creature	entry=9816 despawn_delay=9000000 x=144.32 y=-258.16 z=96.32 o=5.11	0	0	0
+event	4975	0	0	temp_summon_creature	entry=10737 despawn_delay=3000000 x=8072.38 y=-3833.81 z=690.03 o=4.56	0	0	0
+event	4975	1	1000	quest_explored	quest=5056	0	0	0
+event	5225	0	5000	temp_summon_creature	entry=11058 despawn_delay=900000 x=3487.05 y=-3289.75 z=131.79 o=4.69	0	0	0
+event	5246	0	0	temp_summon_creature	entry=12319 despawn_delay=3000000 x=331.5 y=-2272.41 z=241.82 o=5.23	0	0	0
+event	5300	0	5000	temp_summon_creature	entry=11121 despawn_delay=900000 x=3818.7 y=-3730.37 z=141.88 o=1.86	0	0	0
+event	5301	0	5000	temp_summon_creature	entry=11120 despawn_delay=900000 x=3589.51 y=-2991.87 z=125.18 o=3.35	0	0	0
+event	5618	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=254.232 y=0.3417 z=84.8407 o=0	0	0	0
+event	5618	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=257.713 y=4.0226 z=84.8407 o=0	0	0	0
+event	5618	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=258.67 y=-2.60656 z=84.8407 o=0	0	0	0
+event	5619	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=177.962 y=-68.2389 z=84.952 o=3.22886	0	0	0
+event	5619	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=183.771 y=-61.4349 z=84.9242 o=5.14872	0	0	0
+event	5619	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=184.704 y=-77.748 z=84.9242 o=4.66003	0	0	0
+event	5620	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=100.94 y=-1.8016 z=85.2289 o=0	0	0	0
+event	5620	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=101.373 y=0.4882 z=85.2289 o=0	0	0	0
+event	5620	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=101.46 y=-4.474 z=85.2289 o=0	0	0	0
+event	5621	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=245.372 y=0.628038 z=72.7388 o=0.017453	0	0	0
+event	5621	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=240.992 y=3.40565 z=72.7388 o=6.14356	0	0	0
+event	5621	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=240.954 y=-3.18294 z=72.7388 o=0.226893	0	0	0
+event	5622	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=184.052 y=-73.5649 z=70.7734 o=0	0	0	0
+event	5622	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=179.595 y=-73.7045 z=70.7734 o=0	0	0	0
+event	5622	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=180.645 y=-78.2143 z=70.7734 o=0	0	0	0
+event	5622	3	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=183.227 y=-78.1518 z=70.7734 o=0	0	0	0
+event	5623	0	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=115.395 y=-1.5555 z=75.3663 o=0	0	0	0
+event	5623	1	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=117.713 y=1.8066 z=75.3663 o=0	0	0	0
+event	5623	2	0	temp_summon_creature	entry=16119 despawn_delay=300000 x=118.67 y=-5.1001 z=75.3663 o=0	0	0	0
+event	5759	0	2000	temp_summon_creature	entry=11886 despawn_delay=600000 x=1571.63 y=-3276 z=88.88 o=6.05	0	0	0
+event	5759	1	6000	temp_summon_creature	entry=11887 despawn_delay=600000 x=1569.4 y=-3272 z=88.15 o=0.28	0	0	0
+event	5759	2	6000	temp_summon_creature	entry=11887 despawn_delay=600000 x=1572.08 y=-3278 z=89.31 o=0.34	0	0	0
+event	5759	3	6000	temp_summon_creature	entry=11887 despawn_delay=600000 x=1576.6 y=-3275 z=89.08 o=0.16	0	0	0
+event	5991	0	0	temp_summon_creature	entry=12138 despawn_delay=180000 x=6331.9 y=93.3575 z=21.4216 o=1.1349	0	0	0
+event	6028	0	0	temp_summon_creature	entry=12138 despawn_delay=180000 x=-2500.89 y=-1628.45 z=91.7042 o=6.01041	0	0	0
+event	6138	0	0	temp_summon_creature	entry=2179 despawn_delay=3000000 x=6873.65 y=-659.95 z=84.16 o=0.76	0	0	0
+event	6138	1	0	temp_summon_creature	entry=12321 despawn_delay=3000000 x=6881.62 y=-651.81 z=84.59 o=1.05	0	0	0
+event	6721	0	5000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2202.16 y=-1544.48 z=87.796 o=0	0	0	0
+event	6721	1	5000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2237.48 y=-1524.45 z=89.7827 o=0	0	0	0
+event	6721	2	25000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2260.9 y=-1547.91 z=89.1733 o=0	0	0	0
+event	6721	3	25000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2235.44 y=-1578.43 z=86.4944 o=0	0	0	0
+event	6721	4	25000	temp_summon_creature	entry=3750 despawn_delay=180000 x=2208.93 y=-1567.59 z=87.2283 o=0	0	0	0
+event	6721	5	55000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2202.16 y=-1544.48 z=87.796 o=0	0	0	0
+event	6721	6	55000	temp_summon_creature	entry=3750 despawn_delay=180000 x=2237.48 y=-1524.45 z=89.7827 o=0	0	0	0
+event	6721	7	75000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2260.9 y=-1547.91 z=89.1733 o=0	0	0	0
+event	6721	8	75000	temp_summon_creature	entry=3750 despawn_delay=180000 x=2235.44 y=-1578.43 z=86.4944 o=0	0	0	0
+event	6721	9	75000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2208.93 y=-1567.59 z=87.2283 o=0	0	0	0
+event	6721	10	105000	temp_summon_creature	entry=3750 despawn_delay=180000 x=2202.16 y=-1544.48 z=87.796 o=0	0	0	0
+event	6721	11	105000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2237.48 y=-1524.45 z=89.7827 o=0	0	0	0
+event	6721	12	125000	temp_summon_creature	entry=3750 despawn_delay=180000 x=2260.9 y=-1547.91 z=89.1733 o=0	0	0	0
+event	6721	13	125000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2235.44 y=-1578.43 z=86.4944 o=0	0	0	0
+event	6721	14	125000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2208.93 y=-1567.59 z=87.2283 o=0	0	0	0
+event	6721	15	155000	temp_summon_creature	entry=3743 despawn_delay=180000 x=2202.16 y=-1544.48 z=87.796 o=0	0	0	0
+event	6721	16	155000	temp_summon_creature	entry=3749 despawn_delay=180000 x=2237.48 y=-1524.45 z=89.7827 o=0	0	0	0
+event	6721	17	180000	temp_summon_creature	entry=12918 despawn_delay=180000 x=2208.93 y=-1567.59 z=87.2283 o=0	0	0	0
+event	8175	0	5000	temp_summon_creature	entry=14351 despawn_delay=900000 x=588.44 y=606.87 z=-4.75 o=5.62	0	0	0
+event	8328	0	0	temp_summon_creature	entry=14467 despawn_delay=3000000 x=5803.74 y=-986 z=409.76 o=3.08	0	0	0
+event	8420	0	0	temp_summon_creature	entry=14500 despawn_delay=60000 x=-38.8 y=812.69 z=-29.53 o=0	0	0	0
+event	8420	1	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-46.09 y=835.36 z=-29.53 o=0	0	0	0
+event	8420	2	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-42.93 y=836.33 z=-29.53 o=0	0	0	0
+event	8420	3	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-38.99 y=836.11 z=-29.53 o=0	0	0	0
+event	8420	4	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-34.41 y=835.52 z=-29.53 o=0	0	0	0
+event	8420	5	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-18.06 y=824.63 z=-29.53 o=0	0	0	0
+event	8420	6	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	7	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-14.66 y=817.02 z=-29.53 o=0	0	0	0
+event	8420	8	5000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-15.42 y=812.75 z=-29.53 o=0	0	0	0
+event	8420	9	8000	respawn_go	guid=99782 despawn_delay=900	0	0	0
+event	8420	10	10000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-61.79 y=816.85 z=-29.53 o=0	0	0	0
+event	8420	11	10000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-60.93 y=820.51 z=-29.53 o=0	0	0	0
+event	8420	12	10000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.12 y=824.9 z=-29.53 o=0	0	0	0
+event	8420	13	10000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	14	30000	respawn_go	guid=99781 despawn_delay=900	0	0	0
+event	8420	15	30000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	16	40000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-49.92 y=799.51 z=-29.53 o=0	0	0	0
+event	8420	17	40000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-53.75 y=794.28 z=-29.53 o=0	0	0	0
+event	8420	18	40000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-56.91 y=797.55 z=-29.53 o=0	0	0	0
+event	8420	19	40000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.82 y=800.75 z=-29.53 o=0	0	0	0
+event	8420	20	100000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	21	110000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-14.66 y=817.02 z=-29.53 o=0	0	0	0
+event	8420	22	110000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-15.42 y=812.75 z=-29.53 o=0	0	0	0
+event	8420	23	110000	respawn_go	guid=99780 despawn_delay=900	0	0	0
+event	8420	24	120000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-38.99 y=836.11 z=-29.53 o=0	0	0	0
+event	8420	25	120000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-34.41 y=835.52 z=-29.53 o=0	0	0	0
+event	8420	26	120000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-18.06 y=824.63 z=-29.53 o=0	0	0	0
+event	8420	27	120000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	28	160000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.12 y=824.9 z=-29.53 o=0	0	0	0
+event	8420	29	160000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	30	160000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-46.09 y=835.36 z=-29.53 o=0	0	0	0
+event	8420	31	160000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-42.93 y=836.33 z=-29.53 o=0	0	0	0
+event	8420	32	180000	respawn_go	guid=99779 despawn_delay=900	0	0	0
+event	8420	33	200000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	34	210000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.82 y=800.75 z=-29.53 o=0	0	0	0
+event	8420	35	210000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-61.79 y=816.85 z=-29.53 o=0	0	0	0
+event	8420	36	210000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-60.93 y=820.51 z=-29.53 o=0	0	0	0
+event	8420	37	260000	respawn_go	guid=99778 despawn_delay=900	0	0	0
+event	8420	38	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	39	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-14.66 y=817.02 z=-29.53 o=0	0	0	0
+event	8420	40	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-15.42 y=812.75 z=-29.53 o=0	0	0	0
+event	8420	41	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-49.92 y=799.51 z=-29.53 o=0	0	0	0
+event	8420	42	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-53.75 y=794.28 z=-29.53 o=0	0	0	0
+event	8420	43	270000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-56.91 y=797.55 z=-29.53 o=0	0	0	0
+event	8420	44	300000	respawn_go	guid=99777 despawn_delay=900	0	0	0
+event	8420	45	300000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-18.06 y=824.63 z=-29.53 o=0	0	0	0
+event	8420	46	310000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-46.09 y=835.36 z=-29.53 o=0	0	0	0
+event	8420	47	310000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-42.93 y=836.33 z=-29.53 o=0	0	0	0
+event	8420	48	310000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-38.99 y=836.11 z=-29.53 o=0	0	0	0
+event	8420	49	310000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-34.41 y=835.52 z=-29.53 o=0	0	0	0
+event	8420	50	310000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	51	370000	respawn_go	guid=99776 despawn_delay=900	0	0	0
+event	8420	52	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-49.92 y=799.51 z=-29.53 o=0	0	0	0
+event	8420	53	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-53.75 y=794.28 z=-29.53 o=0	0	0	0
+event	8420	54	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-56.91 y=797.55 z=-29.53 o=0	0	0	0
+event	8420	55	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.82 y=800.75 z=-29.53 o=0	0	0	0
+event	8420	56	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-61.79 y=816.85 z=-29.53 o=0	0	0	0
+event	8420	57	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-60.93 y=820.51 z=-29.53 o=0	0	0	0
+event	8420	58	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.12 y=824.9 z=-29.53 o=0	0	0	0
+event	8420	59	380000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	60	460000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-18.06 y=824.63 z=-29.53 o=0	0	0	0
+event	8420	61	460000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-16.21 y=820.88 z=-29.53 o=0	0	0	0
+event	8420	62	460000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-14.66 y=817.02 z=-29.53 o=0	0	0	0
+event	8420	63	460000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-42.93 y=836.33 z=-29.53 o=0	0	0	0
+event	8420	64	460000	respawn_go	guid=99775 despawn_delay=900	0	0	0
+event	8420	65	460000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-15.42 y=812.75 z=-29.53 o=0	0	0	0
+event	8420	66	520000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-42.93 y=836.33 z=-29.53 o=0	0	0	0
+event	8420	67	520000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-38.99 y=836.11 z=-29.53 o=0	0	0	0
+event	8420	68	520000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-34.41 y=835.52 z=-29.53 o=0	0	0	0
+event	8420	69	530000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-46.09 y=835.36 z=-29.53 o=0	0	0	0
+event	8420	70	530000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	71	550000	temp_summon_creature	entry=14483 despawn_delay=3000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	72	600000	respawn_go	guid=99774 despawn_delay=900	0	0	0
+event	8420	73	620000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-57.25 y=827.99 z=-29.53 o=0	0	0	0
+event	8420	74	630000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.12 y=824.9 z=-29.53 o=0	0	0	0
+event	8420	75	640000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-60.93 y=820.51 z=-29.53 o=0	0	0	0
+event	8420	76	650000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-61.79 y=816.85 z=-29.53 o=0	0	0	0
+event	8420	77	660000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-59.82 y=800.75 z=-29.53 o=0	0	0	0
+event	8420	78	660000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-56.91 y=797.55 z=-29.53 o=0	0	0	0
+event	8420	79	660000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-53.75 y=794.28 z=-29.53 o=0	0	0	0
+event	8420	80	660000	temp_summon_creature	entry=14482 despawn_delay=1000000 x=-49.92 y=799.51 z=-29.53 o=0	0	0	0
+event	8420	81	750000	respawn_go	guid=99784 despawn_delay=900	0	0	0
+event	8420	82	750000	respawn_go	guid=99896 despawn_delay=900	0	0	0
+event	8428	0	0	respawn_go	guid=99783 despawn_delay=15	0	0	0
+event	8428	1	10000	temp_summon_creature	entry=14502 despawn_delay=9000000 x=-35.712 y=796.486 z=-29.5359 o=1.90495	0	0	0
+event	8436	0	3000	temp_summon_creature	entry=14514 despawn_delay=3000000 x=145.4 y=184.14 z=94.31 o=4.19	0	0	0
+event	8436	1	3000	temp_summon_creature	entry=14514 despawn_delay=3000000 x=150.32 y=172.59 z=93.7 o=3.12	0	0	0
+event	8436	2	20000	temp_summon_creature	entry=14518 despawn_delay=3000000 x=144.35 y=159.2 z=93.07 o=2.36	0	0	0
+event	8436	3	60000	temp_summon_creature	entry=14513 despawn_delay=3000000 x=145.4 y=184.14 z=94.31 o=4.19	0	0	0
+event	8436	4	60000	temp_summon_creature	entry=14513 despawn_delay=3000000 x=150.32 y=172.59 z=93.7 o=3.12	0	0	0
+event	8436	5	80000	temp_summon_creature	entry=14520 despawn_delay=3000000 x=144.35 y=159.2 z=93.07 o=2.36	0	0	0
+event	8436	6	120000	temp_summon_creature	entry=14512 despawn_delay=3000000 x=145.4 y=184.14 z=94.31 o=4.19	0	0	0
+event	8436	7	120000	temp_summon_creature	entry=14512 despawn_delay=3000000 x=150.32 y=172.59 z=93.7 o=3.12	0	0	0
+event	8436	8	140000	temp_summon_creature	entry=14519 despawn_delay=3000000 x=144.35 y=159.2 z=93.07 o=2.36	0	0	0
+event	8436	9	200000	temp_summon_creature	entry=14511 despawn_delay=3000000 x=145.4 y=184.14 z=94.31 o=4.19	0	0	0
+event	8436	10	200000	temp_summon_creature	entry=14511 despawn_delay=3000000 x=150.32 y=172.59 z=93.7 o=3.12	0	0	0
+event	8436	11	200000	temp_summon_creature	entry=14511 despawn_delay=3000000 x=144.35 y=159.2 z=93.07 o=2.36	0	0	0
+event	8436	12	230000	temp_summon_creature	entry=14521 despawn_delay=3000000 x=144.35 y=159.2 z=93.07 o=2.36	0	0	0
+event	8436	13	300000	temp_summon_creature	entry=14516 despawn_delay=9000000 x=135.46 y=155.2 z=92.21 o=2.49	0	0	0
+event	8438	0	0	temp_summon_creature	entry=14500 despawn_delay=180000 x=38.62 y=161.78 z=83.5456 o=4.69993	0	0	0
+event	8502	0	0	temp_summon_creature	entry=8443 despawn_delay=9000000 x=-466.86 y=272.31 z=-90.74 o=3.52	0	0	0
+event	8605	0	2000	temp_summon_creature	entry=14748 despawn_delay=600000 x=421.52 y=-4811.76 z=12.03 o=4.35	0	0	0
+event	8605	1	2000	temp_summon_creature	entry=14748 despawn_delay=600000 x=414.5 y=-4812.67 z=12.54 o=4.48	0	0	0
+event	8605	2	2000	temp_summon_creature	entry=14748 despawn_delay=600000 x=417.09 y=-4817.01 z=12.06 o=4.58	0	0	0
+event	9066	0	10000	temp_summon_creature	entry=14515 despawn_delay=900000 x=-11540.7 y=-1627.71 z=41.27 o=0.1	0	0	0
+event	9104	0	0	temp_summon_creature	entry=15114 despawn_delay=9000000 x=-11685.9 y=-1781.48 z=12.59 o=1.43	0	0	0
+event	9208	0	0	temp_summon_creature	entry=14862 despawn_delay=9000000 x=-7276.38 y=852.34 z=3.64 o=0.5	0	0	0
+event	9527	0	5000	temp_summon_creature	entry=15554 despawn_delay=3000000 x=5100.93 y=-5104.51 z=924.57 o=2.69	0	0	0
+event	9542	0	0	temp_summon_creature	entry=15571 despawn_delay=9000000 x=3483 y=-6692.79 z=-2.43 o=0.8	0	0	0
+event	9571	0	0	temp_summon_creature	entry=15623 despawn_delay=3000000 x=6724.96 y=-5275.13 z=778.23 o=1.82	0	0	0
+event	9980	0	2000	temp_summon_creature	entry=16292 despawn_delay=900000 x=7941.15 y=-7636.45 z=116.19 o=5.66	0	0	0
+event	10015	0	0	temp_summon_creature	entry=16387 despawn_delay=9000000 x=3644 y=-3473.77 z=138.56 o=4.47	0	0	0
+event	10346	0	0	temp_summon_creature	entry=16994 despawn_delay=3000000 x=106.73 y=3504.38 z=63.6 o=2.21	0	0	0
+event	10346	1	0	temp_summon_creature	entry=16996 despawn_delay=3000000 x=104.05 y=3504.84 z=63.66 o=2.21	0	0	0
+event	10346	2	0	temp_summon_creature	entry=16996 despawn_delay=3000000 x=106.65 y=3508.66 z=63.35 o=2.21	0	0	0
+event	10362	0	0	temp_summon_creature	entry=17000 despawn_delay=30000 x=426.15 y=3461.03 z=63.4 o=3.14	0	0	0
+event	10554	0	0	temp_summon_creature	entry=17207 despawn_delay=3000000 x=-12150.4 y=918.29 z=1.2 o=0.44	0	0	0
+event	10561	0	0	temp_summon_creature	entry=17233 despawn_delay=9000000 x=972.67 y=-1829.82 z=81.52 o=1.05	0	0	0
+event	10591	0	0	temp_summon_creature	entry=17225 despawn_delay=3000000 x=-11003.7 y=-1760.19 z=140.25 o=0.29	0	0	0
+event	10608	0	0	temp_summon_creature	entry=5676 despawn_delay=180000 x=7931.42 y=-6174.3 z=40.92 o=3.54	0	0	0
+event	10626	0	2000	temp_summon_creature	entry=17206 despawn_delay=900000 x=-5027.5 y=-10964.4 z=20.69 o=2.18	0	0	0
+event	10675	0	0	temp_summon_creature	entry=17318 despawn_delay=103000 x=-5114.89 y=-11259.6 z=2.77615 o=0.38	0	0	0
+event	10675	1	0	temp_summon_creature	entry=17243 despawn_delay=100000 x=-5047.26 y=-11258.7 z=6.20032 o=2.9	0	0	0
+event	10675	2	1000	modify_npc_flags	flag=1 change=2	17243	200	0
+event	10675	3	20000	talk	text0=2000005418	17243	50	0
+event	10675	4	21000	talk	text0=2000005419	17318	50	0
+event	10675	5	23000	emote	emote=1	17243	50	0
+event	10675	6	26000	emote	emote=5	17243	50	0
+event	10675	7	26000	talk	text0=2000005420	17243	50	0
+event	10675	8	28000	emote	emote=1	17243	50	0
+event	10675	9	33000	talk	text0=2000005421	17243	50	0
+event	10675	10	44000	talk	text0=2000005422	17318	50	0
+event	10675	11	44000	emote	emote=1	17318	50	0
+event	10675	12	50000	emote	emote=1	17243	50	0
+event	10675	13	50000	talk	text0=2000005423	17243	50	0
+event	10675	14	53000	emote	emote=5	17243	50	0
+event	10675	15	57000	talk	text0=2000005424	17243	50	0
+event	10675	16	57000	emote	emote=1	17243	50	0
+event	10675	17	60000	emote	emote=25	17243	50	0
+event	10675	18	65000	emote	emote=1	17318	50	0
+event	10675	19	65000	talk	text0=2000005425	17318	50	0
+event	10675	20	65000	kill_credit	entry=17243 group_credit=1	0	0	0
+event	10685	0	2000	temp_summon_creature	entry=17359 despawn_delay=900000 x=-1624.67 y=-10913.4 z=58.52 o=3.18	0	0	0
+event	10685	1	5000	temp_summon_creature	entry=6748 despawn_delay=900000 x=-1646.68 y=-10917.9 z=58.91 o=0.99	0	0	0
+event	10685	2	5000	temp_summon_creature	entry=6748 despawn_delay=900000 x=-1651.37 y=-10910.9 z=58.71 o=6.01	0	0	0
+event	10691	0	0	temp_summon_creature	entry=17635 x=2526.22 y=-4758.52 z=101.056 o=2.17	0	0	8
+event	10691	1	0	temp_summon_creature	entry=17647 x=2532.45 y=-4760.14 z=102.408 o=2.17	0	0	8
+event	10691	2	0	temp_summon_creature	entry=17647 x=2535.06 y=-4757.15 z=102.219 o=2.17	0	0	8
+event	10691	3	0	temp_summon_creature	entry=17647 x=2526.3 y=-4764.44 z=102.36 o=2.17	0	0	8
+event	10691	4	0	temp_summon_creature	entry=17647 x=2522.43 y=-4767.05 z=102.552 o=2.17	0	0	8
+event	10692	0	0	temp_summon_creature	entry=17995 x=2526.22 y=-4758.52 z=101.056 o=2.17	0	0	8
+event	10692	1	0	temp_summon_creature	entry=17996 x=2532.45 y=-4760.14 z=102.408 o=2.17	0	0	8
+event	10692	2	0	temp_summon_creature	entry=17996 x=2535.06 y=-4757.15 z=102.219 o=2.17	0	0	8
+event	10692	3	0	temp_summon_creature	entry=17996 x=2526.3 y=-4764.44 z=102.36 o=2.17	0	0	8
+event	10692	4	0	temp_summon_creature	entry=17996 x=2522.43 y=-4767.05 z=102.552 o=2.17	0	0	8
+event	10700	0	0	temp_summon_creature	entry=17209 x=2987.5 y=-3049.11 z=120.126 o=5.75959	0	0	8
+event	10701	0	0	temp_summon_creature	entry=17209 x=2987.5 y=-3049.11 z=120.126 o=5.75959	0	0	8
+event	11027	0	2000	temp_summon_creature	entry=17715 despawn_delay=900000 x=-1953.43 y=-12887.1 z=86.1 o=0.86	0	0	0
+event	11087	0	3000	temp_summon_creature	entry=17592 despawn_delay=150000 x=-1062.92 y=-12594 z=110.761 o=0.492833	0	0	0
+event	11206	0	0	temp_summon_creature	entry=17913 despawn_delay=3000000 x=3668.67 y=-3615.04 z=137.77 o=4.54	0	0	0
+event	11206	1	1000	respawn_go	guid=50455 despawn_delay=1200	0	0	0
+event	11206	2	1000	respawn_go	guid=50456 despawn_delay=1200	0	0	0
+event	11206	3	1000	respawn_go	guid=50457 despawn_delay=1200	0	0	0
+event	11206	4	1000	respawn_go	guid=50459 despawn_delay=1200	0	0	0
+event	11206	5	1000	respawn_go	guid=50460 despawn_delay=1200	0	0	0
+event	11206	6	1000	respawn_go	guid=50461 despawn_delay=1200	0	0	0
+event	11206	7	1000	respawn_go	guid=50462 despawn_delay=1200	0	0	0
+event	11206	8	1000	respawn_go	guid=50463 despawn_delay=1200	0	0	0
+event	11206	9	1000	respawn_go	guid=50464 despawn_delay=1200	0	0	0
+event	11206	10	1000	respawn_go	guid=50465 despawn_delay=1200	0	0	0
+event	11206	11	1000	respawn_go	guid=50466 despawn_delay=1200	0	0	0
+event	11206	12	1000	respawn_go	guid=50467 despawn_delay=1200	0	0	0
+event	11206	13	1000	respawn_go	guid=50468 despawn_delay=1200	0	0	0
+event	11206	14	1000	respawn_go	guid=50469 despawn_delay=1200	0	0	0
+event	11206	15	1000	respawn_go	guid=50470 despawn_delay=900	0	0	0
+event	11206	16	1000	respawn_go	guid=50471 despawn_delay=900	0	0	0
+event	11206	17	1000	respawn_go	guid=50472 despawn_delay=900	0	0	0
+event	11206	18	2000	temp_summon_creature	entry=17911 despawn_delay=3000000 x=3664.94 y=-3614.78 z=137.49 o=5.08	0	0	0
+event	11206	19	4000	temp_summon_creature	entry=17910 despawn_delay=3000000 x=3661.42 y=-3616.55 z=137.46 o=5.35	0	0	0
+event	11206	20	6000	temp_summon_creature	entry=17914 despawn_delay=3000000 x=3657.86 y=-3618.3 z=137.4 o=5.7	0	0	0
+event	11206	21	8000	temp_summon_creature	entry=17912 despawn_delay=3000000 x=3657.63 y=-3621.24 z=137.74 o=5.97	0	0	0
+event	11225	0	0	quest_explored	quest=9718	0	0	0
+event	11225	1	0	morph_to_entry_or_model	entry=0	0	0	0
+event	11413	0	0	temp_summon_creature	entry=18185 despawn_delay=3000000 x=-301.42 y=7247.97 z=30.92 o=5.86	0	0	0
+event	11420	0	0	temp_summon_creature	entry=18182 despawn_delay=3000000 x=-879.8 y=8691 z=251.5 o=0.9	0	0	0
+event	11424	0	1000	respawn_go	guid=6781 despawn_delay=180	0	0	0
+event	11424	1	5000	kill_credit	entry=18152	0	0	0
+event	11424	2	5000	temp_summon_creature	entry=18152 despawn_delay=10800 x=1176.53 y=8130.83 z=20.13 o=1.86	0	0	0
+event	11424	3	5000	temp_summon_creature	entry=18152 despawn_delay=10800 x=1176.53 y=8130.83 z=20.13 o=1.86	0	0	0
+event	11424	4	5000	temp_summon_creature	entry=18152 despawn_delay=10800 x=1176.53 y=8130.83 z=20.13 o=1.86	0	0	0
+event	11424	5	5000	temp_summon_creature	entry=18152 despawn_delay=10800 x=1176.53 y=8130.83 z=20.13 o=1.86	0	0	0
+event	11503	0	0	temp_summon_creature	entry=18816 x=-1523.92 y=7951.76 z=-17.6942 o=3.51172	0	0	8
+event	11503	1	0	temp_summon_creature	entry=18821 x=-1527.75 y=7952.46 z=-17.6948 o=3.99317	0	0	8
+event	11503	2	0	temp_summon_creature	entry=21474 x=-1520.14 y=7927.11 z=-20.2527 o=3.39389	0	0	8
+event	11503	3	0	temp_summon_creature	entry=21484 x=-1524.84 y=7930.34 z=-20.182 o=3.6405	0	0	8
+event	11503	4	0	temp_summon_creature	entry=21483 x=-1570.01 y=7993.8 z=-22.4505 o=5.02655	0	0	8
+event	11503	5	0	temp_summon_creature	entry=18192 x=-1654.06 y=8000.46 z=-26.59 o=3.37	0	0	8
+event	11503	6	0	temp_summon_creature	entry=18192 x=-1487.18 y=7899.1 z=-19.53 o=0.954	0	0	8
+event	11503	7	0	temp_summon_creature	entry=18192 x=-1480.88 y=7908.79 z=-19.19 o=4.485	0	0	8
+event	11503	8	0	temp_summon_creature	entry=18192 x=-1540.56 y=7995.44 z=-20.45 o=0.947	0	0	8
+event	11503	9	0	temp_summon_creature	entry=18192 x=-1546.95 y=8000.85 z=-20.72 o=6.035	0	0	8
+event	11503	10	0	temp_summon_creature	entry=18192 x=-1595.31 y=7860.53 z=-21.51 o=3.747	0	0	8
+event	11503	11	0	temp_summon_creature	entry=18192 x=-1642.31 y=7995.59 z=-25.8 o=3.317	0	0	8
+event	11503	12	0	temp_summon_creature	entry=18192 x=-1545.46 y=7995.35 z=-20.63 o=1.094	0	0	8
+event	11503	13	0	temp_summon_creature	entry=18192 x=-1487.58 y=7907.99 z=-19.27 o=5.567	0	0	8
+event	11503	14	0	temp_summon_creature	entry=18192 x=-1651.54 y=7988.56 z=-26.52 o=2.984	0	0	8
+event	11503	15	0	temp_summon_creature	entry=18192 x=-1602.46 y=7866.43 z=-22.11 o=4.747	0	0	8
+event	11503	16	0	temp_summon_creature	entry=18192 x=-1591.22 y=7875.29 z=-22.35 o=4.345	0	0	8
+event	11503	17	0	temp_summon_creature	entry=18192 x=-1550.6 y=7944.45 z=-21.63 o=3.559	0	0	8
+event	11503	18	0	temp_summon_creature	entry=18192 x=-1545.57 y=7935.83 z=-21.13 o=3.448	0	0	8
+event	11503	19	0	temp_summon_creature	entry=18192 x=-1550.86 y=7937.56 z=-21.7 o=3.801	0	0	8
+event	11504	0	0	temp_summon_creature	entry=18817 x=-1591.18 y=8020.39 z=-22.2042 o=4.59022	0	0	8
+event	11504	1	0	temp_summon_creature	entry=18822 x=-1588.12 y=8019.44 z=-22.2042 o=4.06662	0	0	8
+event	11504	2	0	temp_summon_creature	entry=21485 x=-1521.93 y=7927.37 z=-20.2299 o=3.24631	0	0	8
+event	11504	3	0	temp_summon_creature	entry=21487 x=-1540.33 y=7971.95 z=-20.7186 o=3.07178	0	0	8
+event	11504	4	0	temp_summon_creature	entry=21488 x=-1570.01 y=7993.8 z=-22.4505 o=5.02655	0	0	8
+event	11504	5	0	temp_summon_creature	entry=18256 x=-1654.06 y=8000.46 z=-26.59 o=3.37	0	0	8
+event	11504	6	0	temp_summon_creature	entry=18256 x=-1487.18 y=7899.1 z=-19.53 o=0.954	0	0	8
+event	11504	7	0	temp_summon_creature	entry=18256 x=-1480.88 y=7908.79 z=-19.19 o=4.485	0	0	8
+event	11504	8	0	temp_summon_creature	entry=18256 x=-1540.56 y=7995.44 z=-20.45 o=0.947	0	0	8
+event	11504	9	0	temp_summon_creature	entry=18256 x=-1546.95 y=8000.85 z=-20.72 o=6.035	0	0	8
+event	11504	10	0	temp_summon_creature	entry=18256 x=-1595.31 y=7860.53 z=-21.51 o=3.747	0	0	8
+event	11504	11	0	temp_summon_creature	entry=18256 x=-1642.31 y=7995.59 z=-25.8 o=3.317	0	0	8
+event	11504	12	0	temp_summon_creature	entry=18256 x=-1545.46 y=7995.35 z=-20.63 o=1.094	0	0	8
+event	11504	13	0	temp_summon_creature	entry=18256 x=-1487.58 y=7907.99 z=-19.27 o=5.567	0	0	8
+event	11504	14	0	temp_summon_creature	entry=18256 x=-1651.54 y=7988.56 z=-26.52 o=2.984	0	0	8
+event	11504	15	0	temp_summon_creature	entry=18256 x=-1602.46 y=7866.43 z=-22.11 o=4.747	0	0	8
+event	11504	16	0	temp_summon_creature	entry=18256 x=-1591.22 y=7875.29 z=-22.35 o=4.345	0	0	8
+event	11504	17	0	temp_summon_creature	entry=18256 x=-1603.75 y=8000.36 z=-24.18 o=4.516	0	0	8
+event	11504	18	0	temp_summon_creature	entry=18256 x=-1585.73 y=7994.68 z=-23.29 o=4.439	0	0	8
+event	11504	19	0	temp_summon_creature	entry=18256 x=-1595.5 y=7991.27 z=-23.53 o=4.738	0	0	8
+event	11669	0	1000	kill_credit	entry=18388	0	0	0
+event	12307	0	1000	temp_summon_creature	entry=19055 despawn_delay=900000 x=-2413.4 y=6914.48 z=25.01 o=3.67	0	0	0
+event	12530	0	0	temp_summon_creature	entry=19456 despawn_delay=120000 x=8216.55 y=-6335.38 z=64.5098 o=3.48	0	0	0
+event	12607	0	1000	kill_credit	entry=19547	0	0	0
+event	12608	0	1000	kill_credit	entry=19549	0	0	0
+event	12609	0	1000	kill_credit	entry=19548	0	0	0
+event	12610	0	1000	kill_credit	entry=19550	0	0	0
+event	12650	0	10000	temp_summon_creature	entry=19616 despawn_delay=5000 x=-2667.76 y=4377.76 z=36.07 o=3.95	0	0	0
+event	12823	0	2000	temp_summon_creature	entry=19862 despawn_delay=180000 x=-1175.41 y=2264.59 z=53.1733 o=3.15905	0	0	0
+event	12823	1	2000	temp_summon_creature	entry=20137 despawn_delay=180000 x=-1190.11 y=2258.2 z=46.6871 o=1.36136	0	0	0
+event	12823	2	2000	temp_summon_creature	entry=20137 despawn_delay=180000 x=-1196.75 y=2264.76 z=47.9826 o=6.19592	0	0	0
+event	12823	3	2000	temp_summon_creature	entry=20137 despawn_delay=180000 x=-1193.53 y=2259.04 z=47.484 o=0.820305	0	0	0
+event	12823	4	2000	temp_summon_creature	entry=20137 despawn_delay=180000 x=-1190.24 y=2269.2 z=46.0973 o=4.97419	0	0	0
+event	12823	5	2000	temp_summon_creature	entry=19864 despawn_delay=180000 x=-1199.33 y=2279.09 z=47.89 o=5.63257	0	0	0
+event	12857	0	0	temp_summon_creature	entry=19938 despawn_delay=3000000 x=2248.43 y=2227.97 z=138.56 o=2.48121	0	0	0
+event	12857	1	1000	quest_explored	quest=10256 distance=10	0	0	0
+event	12890	0	0	temp_summon_creature	entry=21468 despawn_delay=3000000 x=1611.07 y=6937.03 z=159.18 o=5.34	0	0	0
+event	12925	0	0	temp_summon_creature	entry=18544 despawn_delay=3000000 x=3805.75 y=1455.59 z=-141.49 o=0.13	0	0	0
+event	12930	0	0	temp_summon_creature	entry=20518 despawn_delay=300000 x=4006.81 y=1517.19 z=-115.9 o=-1.6057	0	0	0
+event	13008	0	0	temp_summon_creature	entry=19493 despawn_delay=9000000 x=2766.21 y=3199.86 z=150.73 o=2.41	0	0	0
+event	13021	0	1000	talk	text0=2000000633	20239	71935	19
+event	13037	0	0	temp_summon_creature	entry=19599 despawn_delay=3000000 x=-1239.64 y=1358.05 z=5.44 o=1.09	0	0	0
+event	13037	1	0	temp_summon_creature	entry=19599 despawn_delay=3000000 x=-1227.52 y=1353.46 z=4.29 o=1.36	0	0	0
+event	13037	2	0	temp_summon_creature	entry=16939 despawn_delay=3000000 x=-1232.51 y=1357.32 z=5.81 o=1.14	0	0	0
+event	13256	0	0	temp_summon_creature	entry=19305 despawn_delay=9000000 x=158.85 y=4832.04 z=80.3605 o=2.99085	0	0	0
+event	13666	0	0	respawn_go	guid=28288 despawn_delay=600	0	0	0
+event	13666	1	8000	temp_summon_creature	entry=19991 despawn_delay=3000000 x=1718.86 y=6304.43 z=-0.33 o=1.11	0	0	0
+event	13666	2	8000	temp_summon_creature	entry=19991 despawn_delay=3000000 x=1717.2 y=6301.02 z=-0.33 o=1.11	0	0	0
+event	13666	3	50000	temp_summon_creature	entry=19952 despawn_delay=3000000 x=1718.86 y=6304.43 z=-0.33 o=1.11	0	0	0
+event	13666	4	50000	temp_summon_creature	entry=21238 despawn_delay=3000000 x=1717.2 y=6301.02 z=-0.33 o=1.11	0	0	0
+event	13666	5	50000	temp_summon_creature	entry=21238 despawn_delay=3000000 x=1716.45 y=6299.46 z=-0.36 o=1.11	0	0	0
+event	13666	6	130000	temp_summon_creature	entry=19956 despawn_delay=3000000 x=1718.86 y=6304.43 z=-0.33 o=1.11	0	0	0
+event	13666	7	130000	temp_summon_creature	entry=21294 despawn_delay=3000000 x=1717.2 y=6301.02 z=-0.33 o=1.11	0	0	0
+event	13666	8	130000	temp_summon_creature	entry=21294 despawn_delay=3000000 x=1716.45 y=6299.46 z=-0.36 o=1.11	0	0	0
+event	13666	9	180000	temp_summon_creature	entry=20116 despawn_delay=3000000 x=1716.33 y=6299.22 z=-0.36 o=1.11	0	0	0
+event	13685	0	1000	temp_summon_creature	entry=21319 despawn_delay=900000 x=1316 y=6686.37 z=-18.5993 o=0.236579	0	0	0
+event	13685	1	2000	talk	text0=2000006001	21319	5	3
+event	13685	2	7000	set_faction	faction=1781 flags=1	21319	3	0
+event	13685	3	7000	talk	text0=2000006002	21319	5	3
+event	13685	4	7000	attack_start		21319	5	3
+event	13894	0	0	temp_summon_creature	entry=18707 despawn_delay=9000000 x=-3030.75 y=5598.43 z=-1.61 o=4.49	0	0	0
+event	13961	0	3000	temp_summon_creature	entry=21181 despawn_delay=300000 x=-3587.79 y=1805.4 z=39.66 o=1.65	0	0	0
+event	13980	0	0	temp_summon_creature	entry=21735 despawn_delay=3000000 x=-3334.9 y=2136.57 z=-2.54 o=2.85	0	0	0
+event	14029	0	0	temp_summon_creature	entry=21767 despawn_delay=9000000 x=3211 y=5348.21 z=144.53 o=5.54	0	0	0
+event	14092	0	0	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4509.67 y=1047.06 z=26.4582 o=3.78736	0	0	0
+event	14092	1	0	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4551.17 y=1044.11 z=16.521 o=5.21853	0	0	0
+event	14092	2	0	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4504.67 y=1020.56 z=33.0728 o=2.93215	0	0	0
+event	14092	3	0	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4515.91 y=1020.08 z=23.6738 o=2.72271	0	0	0
+event	14092	4	1000	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4523.75 y=1062.35 z=24.3041 o=4.43314	0	0	0
+event	14092	5	1000	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4537.54 y=1049.36 z=18.7409 o=4.41568	0	0	0
+event	14092	6	2000	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4525 y=1045.41 z=19.8945 o=4.15388	0	0	0
+event	14092	7	2000	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4524.73 y=1009.76 z=21.3249 o=2.02458	0	0	0
+event	14092	8	3000	temp_summon_creature	entry=21876 despawn_delay=360000 x=-4515.17 y=1033.11 z=20.7127 o=3.1765	0	0	0
+event	14139	0	0	temp_summon_creature	entry=21894 despawn_delay=360000 x=568.418 y=8653.05 z=19.9106 o=1.18595	0	0	0
+event	14143	0	5000	respawn_go	guid=21611 despawn_delay=60	0	0	0
+event	14274	0	2000	temp_summon_creature	entry=22114 despawn_delay=3000000 x=2673.71 y=5555.71 z=-5.86 o=5.42	0	0	0
+event	14376	0	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3755.66 y=4737.93 z=-19.8168 o=4.3861	0	0	0
+event	14376	1	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3760.43 y=4736.39 z=-20.2451 o=4.01068	0	0	0
+event	14376	2	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3729.4 y=4706.81 z=-16.1222 o=3.61561	0	0	0
+event	14376	3	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3729.91 y=4701.97 z=-16.1335 o=3.04384	0	0	0
+event	14376	4	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3731.43 y=4697.39 z=-16.1774 o=2.74225	0	0	0
+event	14376	5	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3772.36 y=4724.78 z=-21.3002 o=5.81195	0	0	0
+event	14376	6	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3767.97 y=4731.29 z=-20.9252 o=4.03171	0	0	0
+event	14376	7	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3770.51 y=4728.37 z=-21.0502 o=0	0	0	0
+event	14376	8	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3764.99 y=4733.9 z=-20.6666 o=5.65487	0	0	0
+event	14376	9	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3733.74 y=4693.02 z=-16.24 o=2.487	0	0	0
+event	14376	10	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3736.77 y=4689.91 z=-16.3146 o=2.49721	0	0	0
+event	14376	11	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3739.15 y=4687.17 z=-16.4299 o=1.88145	0	0	0
+event	14376	12	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3742.75 y=4684.69 z=-16.6026 o=1.98513	0	0	0
+event	14376	13	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3746.76 y=4682.73 z=-16.8866 o=1.93172	0	0	0
+event	14376	14	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3751.6 y=4682.35 z=-17.3406 o=1.57044	0	0	0
+event	14376	15	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3756.1 y=4683.74 z=-17.9125 o=0.734772	0	0	0
+event	14376	16	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3760.22 y=4685.72 z=-18.5906 o=0.334227	0	0	0
+event	14376	17	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3763.69 y=4688.06 z=-19.2893 o=0.613044	0	0	0
+event	14376	18	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3767.46 y=4691.24 z=-20.1502 o=6.20901	0	0	0
+event	14376	19	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3769.89 y=4694.89 z=-20.7665 o=0.406484	0	0	0
+event	14376	20	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3772.26 y=4699.55 z=-21.3722 o=0.111175	0	0	0
+event	14376	21	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3773.9 y=4704.32 z=-21.7617 o=1.14319	0	0	0
+event	14376	22	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3774.08 y=4710.46 z=-21.7888 o=0.492878	0	0	0
+event	14376	23	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3773.85 y=4715.78 z=-21.6975 o=1.45735	0	0	0
+event	14376	24	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3773.46 y=4720.45 z=-21.5752 o=1.44792	0	0	0
+event	14376	25	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3744.9 y=4736.18 z=-18.717 o=2.8797	0	0	0
+event	14376	26	5000	temp_summon_creature	entry=22369 despawn_delay=900000 x=-3750.57 y=4737.88 z=-19.35 o=4.01853	0	0	0
+event	14379	0	2000	temp_summon_creature	entry=22374 despawn_delay=300000 x=-248.426 y=3032.92 z=-65.5952 o=1.309	0	0	0
+event	14379	1	2000	temp_summon_creature	entry=16878 despawn_delay=300000 x=-246.012 y=3027.31 z=-65.4702 o=1.309	0	0	0
+event	14379	2	2000	temp_summon_creature	entry=16878 despawn_delay=300000 x=-252.792 y=3030.24 z=-65.7743 o=1.309	0	0	0
+event	14400	0	0	terminate_script	entry=21514 search_dist=20	0	0	8
+event	14400	1	1000	temp_summon_creature	entry=10204 despawn_delay=30000 x=3605.5 y=7186.44 z=141.12 o=5.44456	0	0	0
+event	14400	2	3000	temp_summon_creature	entry=21514 despawn_delay=70000 x=3624.96 y=7165.36 z=141.485 o=2.24	0	0	0
+event	14400	3	3000	set_run	run=0	21514	40	0
+event	14400	4	3000	talk	text0=2000006007	10204	40	0
+event	14400	5	5000	talk	text0=2000006005	21514	40	0
+event	14400	6	7000	talk	text0=2000006006	21514	40	0
+event	14400	7	8000	move_to	x=3607.51 y=7184.14 z=139.596 o=2.24	21514	40	0
+event	14400	8	10000	move_to	x=3611.93 y=7192.39 z=139.486 o=3.82474	10204	40	0
+event	14400	9	11000	respawn_go	guid=573684 despawn_delay=60	0	0	0
+event	14400	10	11000	cast_spell	spell=39185	21514	40	12
+event	14400	11	12000	cast_spell	spell=38763	21514	40	12
+event	14400	12	12000	despawn_self	delay=15000	10204	40	4
+event	14400	13	12000	despawn_self	delay=60000	21514	40	1
+event	14444	0	1000	temp_summon_creature	entry=22452 despawn_delay=900000 x=-3361.84 y=5149.58 z=-8.26 o=1.52	0	0	0
+event	14484	0	0	temp_summon_creature	entry=22441 despawn_delay=9000000 x=-3418.21 y=4453.82 z=-7.96 o=0.8	0	0	0
+event	14484	1	1000	quest_explored	quest=10923	0	0	0
+event	14536	0	0	terminate_script	entry=21514 search_dist=20	0	0	8
+event	14536	1	3000	temp_summon_creature	entry=21514 despawn_delay=70000 x=3624.96 y=7165.36 z=141.485 o=2.24	0	0	0
+event	14536	2	3000	set_run	run=0	21514	40	0
+event	14536	3	5000	talk	text0=2000006005	21514	40	0
+event	14536	4	7000	talk	text0=2000006006	21514	40	0
+event	14536	5	8000	move_to	x=3607.51 y=7184.14 z=139.596 o=2.24	21514	40	0
+event	14536	6	11000	respawn_go	guid=573684 despawn_delay=60	0	0	0
+event	14536	7	11000	cast_spell	spell=39185	21514	40	12
+event	14536	8	12000	cast_spell	spell=38763	21514	40	12
+event	14536	9	12000	despawn_self	delay=60000	21514	40	1
+event	14592	0	2000	temp_summon_creature	entry=22890 despawn_delay=300000 x=-133.69 y=-528.23 z=17.07 o=1.67	0	0	0
+event	14593	0	2000	temp_summon_creature	entry=22891 despawn_delay=300000 x=13.49 y=-307.87 z=-66 o=3.12	0	0	0
+event	14595	0	2000	temp_summon_creature	entry=22892 despawn_delay=300000 x=312.72 y=-19.24 z=22.44 o=2.12	0	0	0
+event	14797	0	0	temp_summon_creature	entry=23035 despawn_delay=9900000 x=-78.3603 y=288.525 z=26.4832 o=3.21359	0	0	0
+event	15385	0	1000	respawn_go	guid=21607 despawn_delay=180	0	0	0
+event	15385	1	3000	temp_summon_creature	entry=23768 despawn_delay=180000 x=-3532.56 y=-4316.76 z=7.04 o=2.98	0	0	0
+event	15385	2	3000	temp_summon_creature	entry=23769 despawn_delay=180000 x=-3533.17 y=-4318.34 z=7.05 o=2.51	0	0	0
+event	15406	0	5000	temp_summon_creature	entry=23789 despawn_delay=300000 x=-4713.87 y=-3730.99 z=54.14 o=0.6	0	0	0
+event	15452	0	2000	temp_summon_creature	entry=23864 despawn_delay=3000000 x=-2975.16 y=-3868.61 z=33.59 o=6	0	0	0
+event	16547	0	0	temp_summon_creature	entry=24844 despawn_delay=300000 x=209.912 y=-318.697 z=14.005 o=1.181	0	0	0
+go_template_use	15264	0	1000	cast_spell	spell=10072	0	0	8
+go_template_use	15277	0	1000	cast_spell	spell=10061	0	0	8
+go_template_use	15338	0	1000	cast_spell	spell=10072	0	0	8
+go_template_use	15340	0	1000	cast_spell	spell=10061	0	0	8
+go_template_use	15355	0	1000	cast_spell	spell=10072	0	0	8
+go_template_use	17119	0	1000	movement	type=0	0	0	0
+go_template_use	17190	0	1000	terminate_cond	condition=1048	0	0	8
+go_template_use	17190	1	3000	temp_summon_creature	entry=17612 despawn_delay=120000 x=0 y=0 z=0 o=0	0	0	0
+go_template_use	17191	0	1000	terminate_cond	condition=1048	0	0	8
+go_template_use	17191	1	3000	temp_summon_creature	entry=17612 despawn_delay=120000 x=0 y=0 z=0 o=0	0	0	0
+go_template_use	17192	0	1000	terminate_cond	condition=1048	0	0	8
+go_template_use	17192	1	3000	temp_summon_creature	entry=17612 despawn_delay=120000 x=0 y=0 z=0 o=0	0	0	0
+go_template_use	17886	0	1000	terminate_script	entry=17886 search_dist=80	0	0	8
+go_template_use	17886	1	3000	go_lock_state	state=8	182026	60	0
+go_use	1	0	0	despawn_self		0	0	0
+go_use	1006	0	0	emote	emote=6	0	0	0
+go_use	1011	0	0	emote	emote=11	0	0	0
+go_use	1069	0	0	emote	emote=69	0	0	0
+go_use	3801	0	0	set_run	run=1	0	0	0
+go_use	3802	0	0	set_run	run=0	0	0	0
+go_use	3803	0	0	movement	type=1 wander_distance=5	0	0	0
+go_use	3803	1	20000	movement	type=2	0	0	0
+go_use	3804	0	1000	terminate_script	entry=38 search_dist=10	0	0	0
+go_use	3804	1	2000	emote	emote=1	38	80151	23
+go_use	3804	2	6000	emote	emote=1	0	0	0
+go_use	3805	0	1000	terminate_script	entry=38 search_dist=10	0	0	0
+go_use	3805	1	2000	emote	emote=1	38	80185	23
+go_use	3805	2	6000	emote	emote=1	0	0	0
+go_use	3806	0	1000	terminate_script	entry=38 search_dist=10	0	0	0
+go_use	3806	1	2000	emote	emote=1	38	80189	23
+go_use	3806	2	6000	emote	emote=1	0	0	0
+go_use	3807	0	1000	terminate_script	entry=38 search_dist=10	0	0	0
+go_use	3807	1	2000	emote	emote=1	38	80200	23
+go_use	3807	2	6000	emote	emote=1	0	0	0
+go_use	9615	0	0	pause_waypoints	pause=1	0	0	0
+go_use	9616	0	0	talk	text0=2000006004	0	0	0
+go_use	14241	0	1000	emote	emote=35	0	0	0
+go_use	14241	1	6000	emote	emote=35	0	0	0
+go_use	14241	2	9000	open_door	guid=112873	0	0	0
+go_use	14241	3	14000	stand_state	state=7	0	0	0
+go_use	14241	4	25000	despawn_self		0	0	0
+go_use	14241	5	25000	set_activeobject	activate=0	0	0	0
+go_use	41202	0	0	talk	text0=2000000161 text1=2000000162	0	0	0
+go_use	41203	0	0	movement	type=0	0	0	0
+go_use	55001	0	5000	set_run	run=550	0	0	0
+go_use	55001	1	8000	talk	text0=2000005407	0	0	0
+go_use	55002	0	0	set_run	run=550	0	0	0
+go_use	55003	0	4000	talk	text0=2000005408	0	0	0
+go_use	137001	0	0	talk	text0=2000005123	0	0	0
+go_use	137002	0	0	talk	text0=2000005124	0	0	0
+go_use	137003	0	0	talk	text0=2000005125	0	0	0
+go_use	137004	0	0	talk	text0=2000005126	0	0	0
+go_use	137005	0	0	talk	text0=2000005127	0	0	0
+go_use	137006	0	0	talk	text0=2000005128	0	0	0
+go_use	137007	0	0	talk	text0=2000005129	0	0	0
+go_use	137008	0	0	talk	text0=2000005130	0	0	0
+go_use	137009	0	0	talk	text0=2000005131	0	0	0
+go_use	143301	0	1000	talk	text0=2000000141 text1=2000000142	0	0	0
+go_use	143302	0	5000	talk	text0=2000000143 text1=2000000144	0	0	0
+go_use	143303	0	0	talk	text0=2000000145 text1=2000000146	1427	10	1
+go_use	143303	1	5000	talk	text0=2000000147 text1=2000000148	1427	10	4
+go_use	143303	2	10000	talk	text0=2000000149 text1=2000000150	0	0	0
+go_use	143303	3	40000	talk	text0=2000000151	0	0	0
+go_use	143304	0	0	talk	text0=2000000152 text1=2000000153	0	0	0
+go_use	143304	1	5000	talk	text0=2000000154 text1=2000000155	483	10	4
+go_use	143304	2	10000	talk	text0=2000000156	0	0	0
+go_use	143304	3	15000	talk	text0=2000000157	0	0	0
+go_use	143304	4	40000	talk	text0=2000000158	0	0	0
+go_use	143305	0	0	talk	text0=2000000159	0	0	0
+go_use	150201	0	0	attack_start		1736	20	1
+go_use	150201	1	0	set_faction	faction=21 flags=1	1502	5	0
+go_use	150202	0	0	movement	type=1	1502	5	0
+go_use	150202	1	45000	movement	type=2	1502	5	0
+go_use	153301	0	0	movement	type=1	1533	5	0
+go_use	153301	1	175000	movement	type=2	1533	5	0
+go_use	253301	0	0	set_run	run=1	2533	5	0
+go_use	253301	1	1000	talk	text0=2000005059	2533	15	4
+go_use	253301	2	3000	talk	text0=2000005063	2532	15	4
+go_use	253302	0	1000	talk	text0=2000005057	2533	15	4
+go_use	253302	1	3000	talk	text0=2000005062	2532	15	4
+go_use	253303	0	1000	talk	text0=2000005058	2533	15	4
+go_use	253303	1	3000	talk	text0=2000005062	2532	15	4
+go_use	253304	0	1000	talk	text0=2000005059	2533	15	4
+go_use	253304	1	3000	talk	text0=2000005063	2532	15	4
+go_use	253305	0	1000	talk	text0=2000005060	2533	15	4
+go_use	253305	1	3000	talk	text0=2000005062	2532	15	4
+go_use	253306	0	1000	talk	text0=2000005061	2533	15	4
+go_use	253306	1	3000	talk	text0=2000005062	2532	15	4
+go_use	298301	0	2000	talk	text0=2000000168	0	0	0
+go_use	298302	0	2000	talk	text0=2000000169	0	0	0
+go_use	362701	0	0	talk	text0=2000005185	0	0	0
+go_use	362702	0	0	talk	text0=2000005186	0	0	0
+go_use	362703	0	0	talk	text0=2000005187	0	0	0
+go_use	362704	0	0	talk	text0=2000005188	0	0	0
+go_use	362705	0	0	talk	text0=2000005189	0	0	0
+go_use	362706	0	0	talk	text0=2000005190	0	0	0
+go_use	362707	0	0	talk	text0=2000005191	0	0	0
+go_use	362708	0	0	talk	text0=2000005192	0	0	0
+go_use	362709	0	0	talk	text0=2000005193	0	0	0
+go_use	362710	0	0	talk	text0=2000005194	0	0	0
+go_use	362711	0	0	talk	text0=2000005195	0	0	0
+go_use	362712	0	0	talk	text0=2000005196	0	0	0
+go_use	362713	0	0	talk	text0=2000005197	0	0	0
+go_use	362714	0	0	talk	text0=2000005198	0	0	0
+go_use	362715	0	0	talk	text0=2000005199	0	0	0
+go_use	406801	0	2000	talk	text0=2000000214	0	0	0
+go_use	406801	1	8000	talk	text0=2000000215	0	3419	4
+go_use	566101	0	1000	emote	emote=1	0	0	0
+go_use	566101	1	1000	talk	text0=2000005071	0	0	0
+go_use	566101	2	7000	emote	emote=1	0	0	0
+go_use	566101	3	7000	talk	text0=2000005072	0	0	0
+go_use	566101	4	9000	temp_summon_creature	entry=5681 despawn_delay=20000 x=1737.65 y=379.267 z=-62.2903 o=3.68948	0	0	0
+go_use	566101	5	9000	temp_summon_creature	entry=5680 despawn_delay=20000 x=1736.28 y=380.898 z=-62.2912 o=3.80641	0	0	0
+go_use	566101	6	28000	cast_spell	spell=7162	5653	40	1
+go_use	566101	7	33000	talk	text0=2000005073	0	0	0
+go_use	566101	8	33000	emote	emote=1	0	0	0
+go_use	566101	9	39000	talk	text0=2000005074	0	0	0
+go_use	566101	10	39000	emote	emote=1	0	0	0
+go_use	566101	11	41000	temp_summon_creature	entry=5685 despawn_delay=30000 x=1736.28 y=380.898 z=-62.2912 o=3.80641	0	0	0
+go_use	566101	12	41000	temp_summon_creature	entry=5686 despawn_delay=30000 x=1737.65 y=379.267 z=-62.2903 o=3.68948	0	0	0
+go_use	566101	13	67000	cast_spell	spell=7162	5653	40	1
+go_use	566101	14	70000	talk	text0=2000005075	0	0	0
+go_use	566101	15	70000	emote	emote=1	0	0	0
+go_use	566101	16	76000	talk	text0=2000005076	0	0	0
+go_use	566101	17	76000	emote	emote=11	0	0	0
+go_use	566101	18	79000	temp_summon_creature	entry=5687 despawn_delay=60000 x=1735.34 y=378.212 z=-62.2618 o=3.76033	0	0	0
+go_use	566101	19	126000	cast_spell	spell=7162	5653	40	1
+go_use	566101	20	130000	talk	text0=2000005077	0	0	0
+go_use	566101	21	130000	emote	emote=1	0	0	0
+go_use	566201	0	1000	talk	text0=2000005068 text1=2000005069	0	0	0
+go_use	566201	1	1000	emote	emote=25	0	0	0
+go_use	566201	2	6000	talk	text0=2000005070	0	0	0
+go_use	566201	3	6000	emote	emote=1	0	0	0
+go_use	566601	0	2000	emote	emote=2	0	0	0
+go_use	566601	1	2000	talk	text0=2000000208	0	0	0
+go_use	566601	2	7000	talk	text0=2000000209	0	0	0
+go_use	568001	0	0	cast_spell	spell=36400	0	0	4
+go_use	568001	1	3000	attack_start		5653	20	0
+go_use	568101	0	0	cast_spell	spell=36400	0	0	4
+go_use	568101	1	3000	attack_start		5654	20	0
+go_use	568501	0	0	cast_spell	spell=36400	0	0	4
+go_use	568501	1	3000	attack_start		5653	20	0
+go_use	568601	0	0	cast_spell	spell=36400	0	0	4
+go_use	568601	1	3000	attack_start		5654	20	0
+go_use	568701	0	0	cast_spell	spell=36400	0	0	4
+go_use	568701	1	3000	attack_start		5653	20	0
+go_use	568701	2	5000	attack_start		5654	20	0
+go_use	570201	0	1000	talk	text0=2000005367	0	0	0
+go_use	570201	1	1000	emote	emote=1	0	0	0
+go_use	570201	2	13000	talk	text0=2000005368	0	0	0
+go_use	570201	3	13000	emote	emote=1	0	0	0
+go_use	570201	4	22000	cast_spell	spell=7794	0	0	0
+go_use	570201	5	24000	temp_summon_creature	entry=5730 despawn_delay=20000 x=1793.21 y=128.592 z=-63.8433 o=4.31986	0	0	0
+go_use	570201	6	25000	cast_spell	spell=7791	5730	40	4
+go_use	570201	7	27000	talk	text0=2000005369	0	0	0
+go_use	570201	8	27000	emote	emote=1	0	0	0
+go_use	570201	9	42000	cast_spell	spell=7794	0	0	0
+go_use	570201	10	42000	cast_spell	spell=7791	5730	40	4
+go_use	570201	11	48000	talk	text0=2000005370	0	0	0
+go_use	570201	12	48000	emote	emote=1	0	0	0
+go_use	570201	13	55000	cast_spell	spell=7794	0	0	0
+go_use	570201	14	57000	temp_summon_creature	entry=5729 despawn_delay=30000 x=1793.21 y=128.592 z=-63.8433 o=4.31986	0	0	0
+go_use	570201	15	58000	cast_spell	spell=7791	5729	40	4
+go_use	570201	16	60000	talk	text0=2000005371	0	0	0
+go_use	570201	17	60000	emote	emote=1	0	0	0
+go_use	570201	18	85000	cast_spell	spell=7794	0	0	0
+go_use	570201	19	85000	cast_spell	spell=7791	5729	40	4
+go_use	570201	20	90000	talk	text0=2000005372	0	0	0
+go_use	570201	21	90000	emote	emote=1	0	0	0
+go_use	570201	22	95000	cast_spell	spell=7794	0	0	0
+go_use	570201	23	97000	temp_summon_creature	entry=5728 despawn_delay=30000 x=1793.21 y=128.592 z=-63.8433 o=4.31986	0	0	0
+go_use	570201	24	98000	cast_spell	spell=7791	5728	40	4
+go_use	570201	25	100000	talk	text0=2000005373	0	0	0
+go_use	570201	26	100000	emote	emote=1	0	0	0
+go_use	570201	27	125000	cast_spell	spell=7794	0	0	0
+go_use	570201	28	125000	cast_spell	spell=7791	5728	40	4
+go_use	570201	29	132000	talk	text0=2000005374	0	0	0
+go_use	570201	30	132000	emote	emote=1	0	0	0
+go_use	570201	31	140000	cast_spell	spell=7794	0	0	0
+go_use	570201	32	142000	temp_summon_creature	entry=5726 despawn_delay=30000 x=1793.21 y=128.592 z=-63.8433 o=4.31986	0	0	0
+go_use	570201	33	143000	cast_spell	spell=7791	5726	40	4
+go_use	570201	34	145000	talk	text0=2000005375	0	0	0
+go_use	570201	35	145000	emote	emote=1	0	0	0
+go_use	570201	36	170000	cast_spell	spell=7794	0	0	0
+go_use	570201	37	170000	cast_spell	spell=7791	5726	40	4
+go_use	570201	38	175000	talk	text0=2000005376	0	0	0
+go_use	570201	39	175000	emote	emote=1	0	0	0
+go_use	570201	40	183000	cast_spell	spell=7794	0	0	0
+go_use	570201	41	185000	temp_summon_creature	entry=5727 despawn_delay=20000 x=1793.21 y=128.592 z=-63.8433 o=4.31986	0	0	0
+go_use	570201	42	186000	cast_spell	spell=7791	5727	40	4
+go_use	570201	43	188000	talk	text0=2000005377	0	0	0
+go_use	570201	44	188000	emote	emote=1	0	0	0
+go_use	570201	45	203000	cast_spell	spell=7794	0	0	0
+go_use	570201	46	203000	cast_spell	spell=7791	5727	40	4
+go_use	570201	47	210000	talk	text0=2000005378	0	0	0
+go_use	570201	48	210000	emote	emote=1	0	0	0
+go_use	667001	0	3000	emote	emote=69	0	0	0
+go_use	667001	1	87000	emote	emote=0	0	0	0
+go_use	667002	0	3000	emote	emote=16	0	0	0
+go_use	1091901	0	0	emote	emote=10	0	0	0
+go_use	1119601	0	0	emote	emote=36	0	0	0
+go_use	1149201	0	0	cast_spell	spell=21157	0	0	0
+go_use	1149202	0	0	movement	type=1 wander_distance=5	0	0	8
+go_use	1149202	1	75000	movement	type=2	0	0	0
+go_use	1435401	0	0	pause_waypoints	pause=1	0	0	0
+go_use	1435401	1	0	set_run	run=1	0	0	0
+go_use	1435402	0	0	pause_waypoints	pause=1	0	0	0
+go_use	1435402	1	0	modify_npc_flags	flag=3 change=1	0	0	0
+go_use	1485001	0	3000	talk	text0=2000005314	14850	5	4
+go_use	1485001	1	8000	talk	text0=2000005315	14859	5	4
+go_use	1485001	2	12000	talk	text0=2000005316	14850	5	4
+go_use	1485002	0	3000	talk	text0=2000005317	14850	5	4
+go_use	1485002	1	7000	talk	text0=2000005318	14859	5	4
+go_use	1485002	2	12000	talk	text0=2000005319	14850	5	4
+go_use	1485003	0	0	movement	type=1	14850	5	0
+go_use	1485003	1	235000	movement	type=2	14850	5	0
+go_use	1485701	0	0	set_run	run=1	14857	5	0
+go_use	1485702	0	0	set_run	run=0	14857	5	0
+go_use	1485703	0	3000	talk	text0=2000005308	14857	5	4
+go_use	1485703	1	31000	talk	text0=2000005309	14857	5	4
+go_use	1485704	0	15000	talk	text0=2000005311	14857	5	4
+go_use	1485704	1	18000	set_run	run=1	14857	5	0
+go_use	1485705	0	0	set_run	run=0	14857	5	0
+go_use	1485705	1	3000	talk	text0=2000005312	14857	5	4
+go_use	1485705	2	8000	talk	text0=2000005313	14893	5	4
+go_use	1485705	3	9000	emote	emote=21	14893	5	0
+go_use	1485705	4	14000	emote	emote=7	14893	5	0
+go_use	1485705	5	14000	emote	emote=7	3501	5	0
+go_use	1485705	6	21000	talk	text0=2000005010	14857	5	4
+go_use	1485706	0	0	movement	type=1	14857	5	0
+go_use	1485706	1	235000	movement	type=2	14857	5	0
+go_use	1487301	0	0	set_run	run=1	14873	5	0
+go_use	1487301	1	5000	talk	text0=2000005320	14873	5	4
+go_use	1487301	2	13000	talk	text0=2000005321	5907	30	4
+go_use	1487301	3	20000	talk	text0=2000005322	14873	5	4
+go_use	1487302	0	0	set_run	run=0	14873	5	0
+go_use	1487303	0	0	set_run	run=1	14873	5	0
+go_use	1487304	0	0	movement	type=1	14873	5	0
+go_use	1487304	1	235000	movement	type=2	14873	5	0
+go_use	1490101	0	0	set_run	run=1	14901	5	0
+go_use	1490102	0	0	set_run	run=0	14901	5	0
+go_use	1490103	0	0	movement	type=1	14901	5	0
+go_use	1490103	1	120000	movement	type=2	14901	5	0
+go_use	1651601	0	1000	send_ai_event_around	event=5 radius=15	0	0	0
+go_use	1651601	1	3000	movement	type=0	0	0	0
+go_use	1652101	0	1000	terminate_script	entry=16521 search_dist=10	0	0	0
+go_use	1652101	1	2000	emote	emote=1	16521	10	7
+go_use	1652101	2	4000	emote	emote=1	0	0	0
+go_use	1652101	3	6000	terminate_script	entry=16521 search_dist=10	0	0	0
+go_use	1652101	4	7000	emote	emote=1	16521	10	7
+go_use	1652101	5	9000	emote	emote=1	0	0	0
+go_use	1652101	6	10000	terminate_script	entry=16521 search_dist=10	0	0	0
+go_use	1652101	7	11000	emote	emote=2	16521	10	7
+go_use	1652101	8	13000	emote	emote=2	0	0	0
+go_use	1658001	0	0	set_faction	faction=1760 flags=1	0	0	0
+go_use	1658201	0	0	set_faction	faction=1760 flags=1	0	0	0
+go_use	1683101	0	0	set_faction	faction=1756 flags=1	0	0	0
+go_use	1685601	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685601	1	3000	emote	emote=66	0	0	0
+go_use	1685601	2	6000	emote	emote=16	0	0	0
+go_use	1685601	3	7000	respawn_go	guid=21211 despawn_delay=180	0	0	0
+go_use	1685602	0	1000	move_to	x=0 y=0 z=0 o=2.76949	0	0	0
+go_use	1685602	1	3000	emote	emote=69	0	0	0
+go_use	1685602	2	7000	emote	emote=0	0	0	0
+go_use	1685602	3	8000	emote	emote=66	0	0	0
+go_use	1685603	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685603	1	3000	emote	emote=66	0	0	0
+go_use	1685603	2	6000	emote	emote=16	0	0	0
+go_use	1685603	3	7000	respawn_go	guid=21212 despawn_delay=180	0	0	0
+go_use	1685604	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685604	1	3000	emote	emote=66	0	0	0
+go_use	1685604	2	6000	emote	emote=16	0	0	0
+go_use	1685604	3	7000	respawn_go	guid=21213 despawn_delay=180	0	0	0
+go_use	1685605	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685605	1	3000	emote	emote=66	0	0	0
+go_use	1685605	2	6000	emote	emote=16	0	0	0
+go_use	1685605	3	7000	respawn_go	guid=21214 despawn_delay=180	0	0	0
+go_use	1685606	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685606	1	3000	emote	emote=18	0	0	0
+go_use	1685606	2	6000	emote	emote=16	0	0	0
+go_use	1685606	3	7000	respawn_go	guid=21215 despawn_delay=180	0	0	0
+go_use	1685607	0	1000	move_to	x=0 y=0 z=0 o=2.75976	0	0	0
+go_use	1685607	1	3000	emote	emote=66	0	0	0
+go_use	1685607	2	6000	emote	emote=16	0	0	0
+go_use	1685607	3	7000	respawn_go	guid=21210 despawn_delay=180	0	0	0
+go_use	1707101	0	2000	emote	emote=69	0	0	0
+go_use	1707101	1	28000	emote	emote=0	0	0	0
+go_use	1711901	0	1000	set_activeobject	activate=1	0	0	0
+go_use	1711901	1	2000	talk	text0=2000000486	0	0	0
+go_use	1711901	2	3000	set_run	run=1	0	0	0
+go_use	1711901	3	4000	stand_state	state=0	0	0	0
+go_use	1711902	0	1000	terminate_script	entry=5184 search_dist=30	0	0	0
+go_use	1711902	1	2000	talk	text0=2000000487	5184	35	7
+go_use	1711903	0	1000	movement	type=0	0	0	0
+go_use	1711903	1	1000	set_activeobject	activate=0	0	0	0
+go_use	1711903	2	2000	despawn_self		0	0	4
+go_use	1719001	0	1000	movement	type=1 wander_distance=10	0	0	12
+go_use	1719101	0	1000	movement	type=1 wander_distance=10	0	0	12
+go_use	1719201	0	1000	movement	type=1 wander_distance=10	0	0	12
+go_use	1719202	0	1000	movement	type=1 wander_distance=5	0	0	12
+go_use	1721201	0	1000	emote	emote=0	17228	63770	23
+go_use	1721201	1	3000	turn_to	target=0	17228	63770	19
+go_use	1721201	2	4000	turn_to	target=0	17228	63770	17
+go_use	1721201	3	6000	talk	text0=2000000663	17228	63770	19
+go_use	1721201	4	10000	talk	text0=2000000664	17228	63770	19
+go_use	1721201	5	13000	turn_to	target=6	17228	63770	23
+go_use	1721201	6	15000	emote	emote=234	17228	63770	23
+go_use	1721202	0	1000	emote	emote=0	17228	63770	23
+go_use	1721202	1	3000	turn_to	target=0	17228	63770	19
+go_use	1721202	2	4000	turn_to	target=0	17228	63770	17
+go_use	1721202	3	6000	talk	text0=2000000662	17228	63770	19
+go_use	1721202	4	10000	turn_to	target=6	17228	63770	23
+go_use	1721202	5	13000	emote	emote=234	17228	63770	23
+go_use	1721203	0	1000	emote	emote=0	17228	63770	23
+go_use	1721203	1	3000	move_to	x=-4160.31 y=-12458.7 z=44.5919 o=2.08552	17228	63770	23
+go_use	1721203	2	6000	turn_to	target=0	17228	63770	17
+go_use	1721203	3	9000	talk	text0=2000000665	17228	63770	19
+go_use	1721203	4	12000	move_to	x=-4149.24 y=-12465 z=45.3466 o=5.67608	17228	63770	23
+go_use	1721203	5	19000	emote	emote=234	17228	63770	23
+go_use	1722201	0	1000	talk	text0=2000000645	0	0	0
+go_use	1722201	1	3000	emote	emote=1	0	0	0
+go_use	1722202	0	3000	talk	text0=2000000646	0	0	0
+go_use	1722203	0	3000	talk	text0=2000000647	0	0	0
+go_use	1722203	1	8000	talk	text0=2000000648	0	0	0
+go_use	1722204	0	3000	talk	text0=2000000649	0	0	0
+go_use	1722205	0	3000	talk	text0=2000000650	0	0	0
+go_use	1722205	1	4000	emote	emote=1	0	0	0
+go_use	1722205	2	10000	emote	emote=274	0	0	0
+go_use	1722601	0	0	set_run	run=1	0	0	0
+go_use	1722601	1	1000	set_run	run=1	17230	61963	23
+go_use	1722601	2	1000	talk	text0=2000000389	0	0	0
+go_use	1722601	3	5000	talk	text0=2000000390	0	0	0
+go_use	1722601	4	7000	talk	text0=2000000391	0	0	0
+go_use	1722601	5	9000	set_activeobject	activate=0	0	0	0
+go_use	1722601	6	11000	move_to	x=-723.602 y=4123.29 z=49.3491 o=4.60652	17230	61963	23
+go_use	1722601	7	17000	despawn_self		17230	61963	23
+go_use	1722602	0	0	despawn_self		0	0	0
+go_use	1723001	0	0	set_run	run=1	0	0	0
+go_use	1723002	0	0	set_run	run=0	0	0	0
+go_use	1723002	1	0	terminate_script	entry=16793 search_dist=20	0	0	0
+go_use	1723002	2	1000	talk	text0=2000000404 text1=2000000405	16793	20	7
+go_use	1723003	0	0	terminate_script	entry=17282 search_dist=20	0	0	0
+go_use	1723003	1	1000	talk	text0=2000000406	17282	62075	23
+go_use	1737501	0	1000	set_activeobject	activate=0	0	0	0
+go_use	1737501	1	1000	movement	type=0	0	0	0
+go_use	1737501	2	2000	despawn_self		0	0	0
+go_use	1737901	0	1000	set_run	run=1	0	0	0
+go_use	1737902	0	3000	turn_to	target=0	17361	50	1
+go_use	1737902	1	5000	talk	text0=2000000667	0	0	0
+go_use	1737902	2	10000	cast_spell	spell=30428	0	0	4
+go_use	1737902	3	10000	set_activeobject	activate=0	0	0	0
+go_use	1737902	4	11000	despawn_self		0	0	4
+go_use	1739301	0	1000	set_run	run=1	0	0	0
+go_use	1739302	0	1000	talk	text0=2000000678	0	0	0
+go_use	1739302	1	1000	movement	type=0	0	0	0
+go_use	1739302	2	5000	set_activeobject	activate=0	0	0	0
+go_use	1739302	3	6000	despawn_self		0	0	4
+go_use	1761001	0	0	terminate_script	entry=17609 search_dist=20	0	0	0
+go_use	1761001	1	1000	emote	emote=1	17609	20	7
+go_use	1761001	2	6000	emote	emote=1	0	0	0
+go_use	1761002	0	4000	terminate_script	entry=17609 search_dist=20	0	0	0
+go_use	1761002	1	5000	emote	emote=274	17609	20	7
+go_use	1761002	2	9000	emote	emote=273	0	0	0
+go_use	1761003	0	4000	terminate_script	entry=17610 search_dist=20	0	0	0
+go_use	1761003	1	5000	emote	emote=274	17610	20	7
+go_use	1761003	2	9000	emote	emote=273	0	0	0
+go_use	1763501	0	4000	mount_to_entry_or_model	entry=2410	0	0	8
+go_use	1763502	0	0	movement	type=0	0	0	0
+go_use	1766301	0	40000	talk	text0=2000000831	0	0	0
+go_use	1766401	0	0	terminate_script	entry=17607 search_dist=20	0	0	0
+go_use	1766401	1	1000	stand_state	state=0	17607	20	7
+go_use	1766401	2	2000	move_to	x=0 y=0 z=0 o=3.40747	17607	20	7
+go_use	1766401	3	3000	emote	emote=66	17607	20	7
+go_use	1766401	4	6000	emote	emote=66	0	0	0
+go_use	1770301	0	1000	talk	text0=2000000827 text1=2000000828 text2=2000000829 text3=2000000830	0	0	0
+go_use	1786601	0	2000	cast_spell	spell=31411	17889	63610	9
+go_use	1786601	1	3000	movement	type=0	0	0	0
+go_use	1786602	0	2000	cast_spell	spell=31412	17889	151433	9
+go_use	1786602	1	3000	movement	type=0	0	0	0
+go_use	1786603	0	2000	cast_spell	spell=31413	17889	63611	9
+go_use	1786603	1	3000	movement	type=0	0	0	0
+go_use	1786604	0	2000	cast_spell	spell=31414	17889	63609	9
+go_use	1786604	1	3000	movement	type=0	0	0	0
+go_use	1788701	0	0	set_run	run=1	0	0	0
+go_use	1788702	0	1000	movement	type=1 wander_distance=30	0	0	8
+go_use	1799501	0	0	movement	type=0	0	0	0
+go_use	1803801	0	1000	set_activeobject	activate=1	0	0	0
+go_use	1803802	0	1000	set_activeobject	activate=0	0	0	0
+go_use	1897701	0	0	cast_spell	spell=7741	0	0	4
+go_use	1897702	0	0	despawn_self		0	0	0
+go_use	1944501	0	0	emote	emote=6	19446	15	0
+go_use	1944501	1	0	talk	text0=2000005412	19446	10	0
+go_use	1944502	0	2000	move_to	x=0 y=0 z=0 o=2.42158	0	0	0
+go_use	1944502	1	5000	talk	text0=2000005413	0	0	0
+go_use	1944502	2	14000	talk	text0=2000005414	19446	10	0
+go_use	1944503	0	0	emote	emote=93	0	0	0
+go_use	1944503	1	3000	emote	emote=5	19446	15	0
+go_use	1944503	2	4000	talk	text0=2000005415	19446	15	0
+go_use	1944503	3	10000	talk	text0=2000005416	0	0	0
+go_use	1944503	4	14000	emote	emote=0	0	0	0
+go_use	1944503	5	14000	cast_spell	spell=7	0	0	0
+go_use	1944503	6	17000	emote	emote=16	19446	15	0
+go_use	1944503	7	18000	talk	text0=2000005417	19446	15	0
+go_use	1944701	0	15000	talk	text0=2000005411	0	0	0
+go_use	1944701	1	30000	stand_state	state=8	0	0	0
+go_use	1944701	2	31000	talk	text0=2000005409	0	0	0
+go_use	1944701	3	150000	stand_state	state=0	0	0	0
+go_use	1944702	0	15000	talk	text0=2000005410	0	0	0
+go_use	1944702	1	30000	stand_state	state=8	0	0	0
+go_use	1944702	2	31000	talk	text0=2000005409	0	0	0
+go_use	1944702	3	150000	stand_state	state=0	0	0	0
+go_use	1945501	0	4000	stand_state	state=8	0	0	0
+go_use	1945501	1	10000	stand_state	state=0	0	0	0
+go_use	1954301	0	0	set_faction	faction=35 flags=1	19543	40	0
+go_use	1954401	0	0	set_faction	faction=35 flags=1	19544	40	0
+go_use	1954501	0	0	set_faction	faction=35 flags=1	19545	40	0
+go_use	1954601	0	0	set_faction	faction=35 flags=1	19546	40	0
+go_use	1956901	0	20000	emote	emote=133	0	0	0
+go_use	1956901	1	39000	emote	emote=0	0	0	0
+go_use	1956901	2	40000	talk	text0=2000005064	0	0	0
+go_use	1956901	3	40000	emote	emote=5	0	0	0
+go_use	1956902	0	20000	emote	emote=133	0	0	0
+go_use	1956902	1	39000	emote	emote=0	0	0	0
+go_use	1956902	2	40000	talk	text0=2000005065	0	0	0
+go_use	1956902	3	40000	emote	emote=5	0	0	0
+go_use	1956903	0	20000	emote	emote=133	0	0	0
+go_use	1956903	1	39000	emote	emote=0	0	0	0
+go_use	1956903	2	40000	talk	text0=2000005066	0	0	0
+go_use	1956903	3	40000	emote	emote=5	0	0	0
+go_use	1956904	0	20000	emote	emote=133	0	0	0
+go_use	1956904	1	39000	emote	emote=0	0	0	0
+go_use	1956904	2	40000	talk	text0=2000005067	0	0	0
+go_use	1956904	3	40000	emote	emote=5	0	0	0
+go_use	1961601	0	0	set_run	run=1	0	0	0
+go_use	1961602	0	5000	talk	text0=2000000224	0	0	0
+go_use	1961602	1	8000	talk	text0=2000000225	0	0	0
+go_use	1961602	2	12000	emote	emote=2	18384	10	0
+go_use	1961602	3	12000	talk	text0=2000000226	18384	10	4
+go_use	1961602	4	15000	despawn_self	delay=1	0	0	0
+go_use	1963501	0	1000	emote	emote=1	0	0	0
+go_use	1963501	1	4000	emote	emote=1	18853	5	0
+go_use	1966701	0	0	cast_spell	spell=34427	0	0	4
+go_use	1966702	0	1000	talk	text0=2000005362 text1=2000005363	0	0	0
+go_use	1966702	1	2000	move_to	x=-2087.02 y=8562.94 z=22.0969 o=0.66592	18265	15	4
+go_use	1966702	2	7000	talk	text0=2000005364 text1=2000005365	18265	15	4
+go_use	1966702	3	10000	set_run	run=1	0	0	0
+go_use	1966702	4	12000	talk	text0=2000005366	0	0	0
+go_use	1966702	5	13000	move_to	x=-2087.02 y=8562.94 z=22.0969 o=2.51327	18265	15	4
+go_use	1966703	0	1000	cast_spell	spell=34427	0	0	4
+go_use	1966703	1	3000	despawn_self		0	0	4
+go_use	1984701	0	1000	talk	text0=2000000488	0	0	0
+go_use	1984701	1	2000	talk	text0=2000000489 text1=2000000490 text2=2000000491 text3=2000000492	0	0	0
+go_use	1984701	2	10000	talk	text0=2000000488	0	0	0
+go_use	1984701	3	11000	talk	text0=2000000491 text1=2000000492 text2=2000000489 text3=2000000490	0	0	0
+go_use	2010001	0	1000	set_activeobject	activate=1	0	0	0
+go_use	2010001	1	2000	cast_spell	spell=14915	0	0	4
+go_use	2010001	2	3000	stand_state	state=3	0	0	0
+go_use	2010001	3	14000	remove_aura	spell=14915	0	0	4
+go_use	2010001	4	15000	stand_state	state=1	0	0	0
+go_use	2010001	5	16000	talk	text0=2000000467	0	0	0
+go_use	2010001	6	21000	talk	text0=2000000468	0	0	0
+go_use	2010001	7	26000	emote	emote=22	0	0	0
+go_use	2010001	8	32000	talk	text0=2000000469	20098	71601	23
+go_use	2010001	9	37000	talk	text0=2000000470	0	0	0
+go_use	2010001	10	40000	talk	text0=2000000471	20098	71601	23
+go_use	2010001	11	43000	cast_spell	spell=14915	0	0	4
+go_use	2010001	12	44000	stand_state	state=3	0	0	0
+go_use	2010001	13	46000	set_activeobject	activate=0	0	0	0
+go_use	2023701	0	0	set_run	run=20237	0	0	0
+go_use	2023801	0	0	set_run	run=1	0	0	0
+go_use	2023802	0	0	set_run	run=0	0	0	0
+go_use	2104601	0	2000	stand_state	state=8	0	0	0
+go_use	2104601	1	22000	stand_state	state=0	0	0	0
+go_use	2104602	0	2000	stand_state	state=1	0	0	0
+go_use	2104602	1	52000	stand_state	state=0	0	0	0
+go_use	2104701	0	2000	stand_state	state=1	0	0	0
+go_use	2104701	1	52000	stand_state	state=0	0	0	0
+go_use	2104702	0	2000	stand_state	state=8	0	0	0
+go_use	2104702	1	22000	stand_state	state=0	0	0	0
+go_use	2104703	0	5000	emote	emote=1	0	0	0
+go_use	2104703	1	15000	emote	emote=1	0	0	0
+go_use	2104703	2	25000	emote	emote=1	0	0	0
+go_use	2111701	0	5000	cast_spell	spell=28892	0	0	4
+go_use	2111701	1	58000	cast_spell	spell=6273	0	0	4
+go_use	2130801	0	1000	cast_spell	spell=36555	0	0	0
+go_use	2384301	0	0	modify_npc_flags	flag=2 change=2	23843	5	0
+go_use	2384302	0	3000	emote	emote=381	0	0	0
+go_use	2384302	1	4000	respawn_go	guid=55031 despawn_delay=45	0	0	0
+go_use	2384302	2	6000	emote	emote=0	0	0	0
+go_use	2384302	3	8000	talk	text0=2000005328	0	0	0
+go_use	2384302	4	8000	emote	emote=1	0	0	0
+go_use	2384302	5	14000	talk	text0=2000005329	0	0	0
+go_use	2384302	6	14000	emote	emote=25	0	0	0
+go_use	2384302	7	19000	talk	text0=2000005330	0	0	0
+go_use	2384302	8	25000	talk	text0=2000005331	4792	10	4
+go_use	2384302	9	25000	emote	emote=6	4792	10	0
+go_use	2384302	10	30000	talk	text0=2000005332	0	0	0
+go_use	2384302	11	30000	emote	emote=1	0	0	0
+go_use	2384302	12	36000	talk	text0=2000005333	4792	10	4
+go_use	2384302	13	36000	emote	emote=1	4792	10	0
+go_use	2384302	14	41000	talk	text0=2000005334	0	0	0
+go_use	2384302	15	41000	emote	emote=5	0	0	0
+go_use	2384302	16	49000	emote	emote=381	0	0	0
+go_use	2384302	17	53000	emote	emote=0	0	0	0
+go_use	2384303	0	0	modify_npc_flags	flag=2 change=1	23843	5	0
+go_use	2399501	0	3000	talk	text0=2000005015	23579	10	1
+go_use	2399501	1	3000	emote	emote=6	0	0	0
+go_use	2399501	2	10000	talk	text0=2000005306	23579	10	4
+go_use	2399501	3	10000	emote	emote=1	23579	10	0
+go_use	2399501	4	17000	talk	text0=2000005016	23579	10	1
+go_use	2399501	5	17000	emote	emote=6	0	0	0
+go_use	2399501	6	24000	talk	text0=2000005014	23579	10	4
+go_use	2399501	7	25000	emote	emote=1	23579	10	0
+go_use	2399501	8	31000	talk	text0=2000005017	23579	10	1
+go_use	2399501	9	31000	emote	emote=6	0	0	0
+go_use	5683901	0	0	set_run	run=1	0	0	0
+go_use	6883501	0	0	talk	text0=2000005302 text1=2000005303	0	0	0
+go_use	9710301	0	0	talk	text0=2000005304 text1=2000005305	0	0	0
+go_use	9711001	0	0	set_run	run=1	0	0	0
+go_use	9711002	0	0	play_sound	sound=10836	0	0	0
+go_use	9711003	0	0	play_sound	sound=10837	0	0	0
+go_use	9838901	0	0	despawn_self	delay=744000	0	0	0
+go_use	9839501	0	0	despawn_self	delay=744000	0	0	0
+gossip	175944	0	0	temp_summon_creature	entry=10882 despawn_delay=30000 x=-5008.08 y=-2115.23 z=83.6999 o=1.02974	0	0	0
+gossip	176581	0	0	temp_summon_creature	entry=11876 despawn_delay=30000 x=0 y=0 z=0 o=0	0	0	0
+gossip	179804	0	1000	temp_summon_creature	entry=14605 despawn_delay=60000 x=0 y=0 z=0 o=0	0	0	2
+gossip	179985	0	1000	temp_summon_creature	entry=15041 despawn_delay=60000 x=0 y=0 z=0 o=0	0	0	2
+gossip	181714	0	1000	terminate_script	entry=17375 search_dist=10	0	0	0
+gossip	181714	1	2000	talk	text0=2000000680 text1=2000000681 text2=2000000682 text3=2000000683	17375	10	3
+gossip	181714	2	2000	set_run	run=1	17375	10	7
+gossip	181714	3	3000	kill_credit	entry=17375	0	0	0
+gossip	181714	4	3000	set_activeobject	activate=1	17375	10	7
+gossip	181714	5	4000	movement	type=2	17375	10	7
+gossip	181956	0	0	temp_summon_creature	entry=17716 despawn_delay=30000 x=8094.63 y=-7542.74 z=151.568 o=0.287	0	0	0
+gossip	182267	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182267	1	0	send_taxi_path	path=520	0	0	0
+gossip	182280	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182280	1	0	send_taxi_path	path=523	0	0	0
+gossip	182281	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182281	1	0	send_taxi_path	path=522	0	0	0
+gossip	182282	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182282	1	0	send_taxi_path	path=524	0	0	0
+gossip	182301	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182301	1	0	send_taxi_path	path=520	0	0	0
+gossip	182302	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182302	1	0	send_taxi_path	path=523	0	0	0
+gossip	182303	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182303	1	0	send_taxi_path	path=522	0	0	0
+gossip	182304	0	0	create_item	item=24538 amount=10	0	0	0
+gossip	182304	1	0	send_taxi_path	path=524	0	0	0
+gossip	184588	0	0	temp_summon_creature	entry=20787 despawn_delay=12000 x=3916.4 y=2511.83 z=105.016 o=3.964	0	0	0
+gossip	184588	1	0	despawn_self		20825	10	1
+gossip	184588	2	2000	talk	text0=2000006003	20787	10	3
+gossip	184715	0	1000	temp_summon_creature	entry=21308 despawn_delay=4000 x=-967.271 y=2174.77 z=15.8136 o=3.94127	0	0	0
+gossip	185547	0	2000	temp_summon_creature	entry=22993 despawn_delay=600000 x=-2623.6 y=4573.66 z=138.827 o=1.64381	0	0	0
+quest_end	21	0	2000	talk	text0=2000000059	0	0	0
+quest_end	21	1	2000	emote	emote=113	0	0	0
+quest_end	63	0	0	respawn_go	guid=15175 despawn_delay=30	0	0	0
+quest_end	63	1	15000	respawn_go	guid=15176 despawn_delay=180	0	0	0
+quest_end	63	2	15000	temp_summon_creature	entry=5895 despawn_delay=180000 x=417.05 y=1822.39 z=13.007 o=0.035	0	0	0
+quest_end	67	0	0	temp_summon_creature	entry=2044 despawn_delay=300000 x=-10953.3 y=1568.47 z=46.978 o=3.392	0	0	0
+quest_end	231	0	0	temp_summon_creature	entry=3301 despawn_delay=30000 x=-10238 y=353.657 z=50.951 o=2.7	0	0	0
+quest_end	231	1	5000	talk	text0=2000005546	3301	10	0
+quest_end	231	2	5000	emote	emote=1	3301	10	0
+quest_end	231	3	11000	talk	text0=2000005547	3301	10	0
+quest_end	231	4	11000	emote	emote=1	3301	10	0
+quest_end	231	5	17000	stand_state	state=8	3301	10	0
+quest_end	254	0	1000	temp_summon_creature	entry=314 despawn_delay=3000000 x=-10267 y=52.52 z=42.54 o=2.5	0	0	0
+quest_end	308	0	0	talk	text0=2000000077	0	0	0
+quest_end	308	1	0	move_to	x=-5601.64 y=-541.38 z=392.42 o=0.5	0	0	0
+quest_end	308	2	2000	move_to	x=-5597.94 y=-542.04 z=392.42 o=5.5	0	0	0
+quest_end	308	3	3000	move_to	x=-5597.95 y=-548.43 z=395.48 o=4.7	0	0	0
+quest_end	308	4	7000	move_to	x=-5605.31 y=-549.33 z=399.09 o=3.1	0	0	0
+quest_end	308	5	10000	move_to	x=-5607.55 y=-546.63 z=399.09 o=1.5	0	0	0
+quest_end	308	6	12000	respawn_go	guid=35875 despawn_delay=30	0	0	0
+quest_end	308	7	14000	move_to	x=-5597.52 y=-538.75 z=399.09 o=1.5	0	0	0
+quest_end	308	8	18000	move_to	x=-5597.62 y=-530.24 z=399.65 o=3	0	0	0
+quest_end	308	9	21000	move_to	x=-5603.67 y=-529.91 z=399.65 o=4.2	0	0	0
+quest_end	308	10	25000	talk	text0=2000000056	0	0	0
+quest_end	308	11	36000	move_to	x=-5603.67 y=-529.91 z=399.65 o=4.2	0	0	0
+quest_end	308	12	39000	move_to	x=-5597.62 y=-530.24 z=399.65 o=3	0	0	0
+quest_end	308	13	42000	move_to	x=-5597.52 y=-538.75 z=399.09 o=1.5	0	0	0
+quest_end	308	14	45000	move_to	x=-5607.55 y=-546.63 z=399.09 o=1.5	0	0	0
+quest_end	308	15	48000	move_to	x=-5605.31 y=-549.33 z=399.09 o=3.1	0	0	0
+quest_end	308	16	51000	move_to	x=-5597.95 y=-548.43 z=395.48 o=4.7	0	0	0
+quest_end	308	17	54000	move_to	x=-5597.94 y=-542.04 z=392.42 o=5.5	0	0	0
+quest_end	308	18	55000	talk	text0=2000000078	0	0	0
+quest_end	308	19	58000	move_to	x=-5601.64 y=-541.38 z=392.42 o=0.5	0	0	0
+quest_end	308	20	60000	move_to	x=-5605.96 y=-544.45 z=392.43 o=0.9	0	0	0
+quest_end	308	21	62000	talk	text0=2000000079	0	0	0
+quest_end	349	0	2000	temp_summon_creature	entry=1511 despawn_delay=300000 x=-13743.7 y=-23.97 z=45.14 o=5.7	0	0	0
+quest_end	349	1	30000	temp_summon_creature	entry=1516 despawn_delay=300000 x=-13743.7 y=-23.97 z=45.14 o=5.7	0	0	0
+quest_end	349	2	50000	temp_summon_creature	entry=1514 despawn_delay=300000 x=-13743.7 y=-23.97 z=45.14 o=5.7	0	0	0
+quest_end	410	0	5000	temp_summon_creature	entry=1946 despawn_delay=180000 x=2468.28 y=15.26 z=23.89 o=0.37	0	0	0
+quest_end	411	0	2000	cast_spell	spell=7673	0	0	4
+quest_end	411	1	7000	temp_summon_creature	entry=5666 despawn_delay=23000 x=1768.58 y=55.4891 z=-46.3198 o=2.28248	0	0	0
+quest_end	411	2	23000	talk	text0=2000000210	5666	10	0
+quest_end	411	3	23000	emote	emote=2	5666	10	0
+quest_end	411	4	30000	talk	text0=2000000211	1498	10	0
+quest_end	489	0	1000	field_set	field=152 value=901	0	0	0
+quest_end	489	1	3000	talk	text0=2000000047	0	0	0
+quest_end	489	2	60000	field_set	field=152 value=10035	0	0	0
+quest_end	502	0	2000	talk	text0=2000000087	0	0	0
+quest_end	502	1	10000	despawn_self		0	0	0
+quest_end	502	2	10000	temp_summon_creature	entry=2275 despawn_delay=300000 x=-353.534 y=21.4088 z=54.6594 o=3.68102	0	0	0
+quest_end	502	3	11000	set_faction	faction=44 flags=1	2275	30	0
+quest_end	619	0	3000	temp_summon_creature	entry=1494 despawn_delay=300000 x=-14611.6 y=142.68 z=-1.47 o=2.7	0	0	0
+quest_end	652	0	1000	temp_summon_creature	entry=2763 despawn_delay=60000 x=-1517 y=-2168 z=17.366 o=2.676	0	0	0
+quest_end	779	0	2000	temp_summon_creature	entry=2759 despawn_delay=300000 x=-6703 y=-4094 z=264.235 o=2.83	0	0	0
+quest_end	779	1	2000	temp_summon_creature	entry=2757 despawn_delay=300000 x=-6718 y=-4125 z=263.889 o=2.683	0	0	0
+quest_end	795	0	2000	temp_summon_creature	entry=2759 despawn_delay=300000 x=-6703 y=-4094 z=264.235 o=2.83	0	0	0
+quest_end	795	1	2000	temp_summon_creature	entry=2757 despawn_delay=300000 x=-6718 y=-4125 z=263.889 o=2.683	0	0	0
+quest_end	806	0	0	talk	text0=2000000065	0	0	0
+quest_end	930	0	0	move_to	x=9505.03 y=719.358 z=1256.22 o=2.5643	0	0	0
+quest_end	930	1	5000	emote	emote=16	0	0	0
+quest_end	930	2	6000	move_to	x=9505.83 y=712.352 z=1255.89 o=0.533	0	0	0
+quest_end	930	3	7000	temp_summon_creature	entry=3569 despawn_delay=1000 x=9506.93 y=721.033 z=1256.13 o=3.9766	0	0	0
+quest_end	930	4	8000	temp_summon_creature	entry=3569 despawn_delay=1000 x=9506.93 y=721.033 z=1256.13 o=3.9766	0	0	0
+quest_end	930	5	9000	temp_summon_creature	entry=3569 despawn_delay=1000 x=9506.93 y=721.033 z=1256.13 o=3.9766	0	0	0
+quest_end	931	0	5000	move_to	x=9504.74 y=717.48 z=1256.45 o=2.57	0	0	0
+quest_end	931	1	7000	emote	emote=28	0	0	0
+quest_end	931	2	8000	emote	emote=28	0	0	0
+quest_end	931	3	9000	emote	emote=28	0	0	0
+quest_end	931	4	10000	respawn_go	guid=30276 despawn_delay=600	0	0	0
+quest_end	931	5	12000	move_to	x=9506.92 y=713.766 z=1255.89 o=0.279253	0	0	0
+quest_end	943	0	0	temp_summon_creature	entry=3582 despawn_delay=40000 x=-3809 y=-839 z=16.94 o=2.16	0	0	0
+quest_end	943	1	0	talk	text0=2000000060	0	0	0
+quest_end	943	2	1000	move_to	x=-3811.99 y=-835.09 z=16.94 o=5.21	0	0	0
+quest_end	943	3	25000	talk	text0=2000000061	0	0	0
+quest_end	943	4	30000	move_to	x=-3819 y=-821 z=16.94 o=4.7	0	0	0
+quest_end	963	0	1000	temp_summon_creature	entry=3843 despawn_delay=41000 x=6426.84 y=603.166 z=9.46655 o=4.14031	0	0	0
+quest_end	963	1	4000	talk	text0=2000005336	0	0	0
+quest_end	963	2	4000	emote	emote=18	0	0	0
+quest_end	963	3	9000	talk	text0=2000005337	3843	10	4
+quest_end	963	4	9000	emote	emote=1	3843	10	0
+quest_end	963	5	15000	talk	text0=2000005338	0	0	0
+quest_end	963	6	15000	emote	emote=1	0	0	0
+quest_end	963	7	20000	talk	text0=2000005339	0	0	0
+quest_end	963	8	20000	emote	emote=6	0	0	0
+quest_end	963	9	25000	talk	text0=2000005340	3843	10	4
+quest_end	963	10	25000	emote	emote=1	3843	10	0
+quest_end	963	11	30000	talk	text0=2000005341	3843	10	4
+quest_end	963	12	30000	emote	emote=1	3843	10	0
+quest_end	963	13	35000	talk	text0=2000005342	0	0	0
+quest_end	963	14	35000	emote	emote=6	0	0	0
+quest_end	963	15	39000	talk	text0=2000005343	3843	10	4
+quest_end	963	16	42000	talk	text0=2000005344	0	0	0
+quest_end	963	17	47000	talk	text0=2000005345	0	0	0
+quest_end	963	18	51000	emote	emote=18	0	0	0
+quest_end	970	0	1000	talk	text0=2000000077	0	0	0
+quest_end	970	1	2000	move_to	x=3185.46 y=189.38 z=4.7517 o=2.28164	0	0	8
+quest_end	970	2	3000	emote	emote=36	0	0	0
+quest_end	970	3	4000	respawn_go	guid=21191 despawn_delay=5	0	0	0
+quest_end	970	4	6000	talk	text0=2000000078	0	0	0
+quest_end	970	5	10000	temp_summon_creature	entry=4509 despawn_delay=54000 x=3184.06 y=190.81 z=4.61263 o=5.55407	0	0	0
+quest_end	970	6	11000	talk	text0=2000000081	4509	10	4
+quest_end	970	7	11000	emote	emote=1	4509	10	0
+quest_end	970	8	18000	talk	text0=2000000082	4509	10	4
+quest_end	970	9	18000	emote	emote=1	4509	10	0
+quest_end	970	10	25000	talk	text0=2000000083	4509	10	4
+quest_end	970	11	25000	emote	emote=1	4509	10	0
+quest_end	970	12	32000	talk	text0=2000000084	4509	10	4
+quest_end	970	13	32000	emote	emote=1	4509	10	0
+quest_end	970	14	39000	talk	text0=2000000085	4509	10	4
+quest_end	970	15	39000	emote	emote=1	4509	10	0
+quest_end	970	16	47000	talk	text0=2000000079	0	0	0
+quest_end	970	17	47000	emote	emote=6	0	0	0
+quest_end	970	18	56000	talk	text0=2000000086	4509	10	4
+quest_end	970	19	56000	emote	emote=1	4509	10	0
+quest_end	970	20	64000	talk	text0=2000000080	0	0	0
+quest_end	970	21	65000	move_to	x=3185.46 y=189.38 z=4.7517 o=0.471239	0	0	8
+quest_end	993	0	0	temp_summon_creature	entry=3695 despawn_delay=15000 x=6435.25 y=368.004 z=13.9412 o=0	0	0	0
+quest_end	993	1	5000	talk	text0=2000000050	0	0	0
+quest_end	993	2	7000	talk	text0=2000000051	0	0	0
+quest_end	993	3	9000	talk	text0=2000000052	0	0	0
+quest_end	993	4	11000	talk	text0=2000000053	0	0	0
+quest_end	993	5	14000	talk	text0=2000000054	0	0	0
+quest_end	997	0	0	move_to	x=9505.03 y=719.358 z=1256.22 o=2.5643	0	0	0
+quest_end	997	1	0	talk	text0=2000000048	0	0	0
+quest_end	997	2	5000	emote	emote=16	0	0	0
+quest_end	997	3	9000	talk	text0=2000000049	0	0	0
+quest_end	997	4	10000	emote	emote=2	0	0	0
+quest_end	997	5	11000	move_to	x=9505.83 y=712.352 z=1255.89 o=0.533	0	0	0
+quest_end	1103	0	0	respawn_go	guid=15175 despawn_delay=30	0	0	0
+quest_end	1103	1	15000	respawn_go	guid=15176 despawn_delay=180	0	0	0
+quest_end	1103	2	15000	temp_summon_creature	entry=5895 despawn_delay=180000 x=417.05 y=1822.39 z=13.007 o=0.035	0	0	0
+quest_end	1112	0	1000	talk	text0=2000005080	0	0	0
+quest_end	1112	1	2000	respawn_go	guid=93887 despawn_delay=10	0	0	0
+quest_end	1112	2	4000	talk	text0=2000005081	0	0	0
+quest_end	1112	3	8000	talk	text0=2000005082	0	0	0
+quest_end	1191	0	0	move_to	x=-6273.41 y=-3841.7 z=-58.75 o=1.9	0	0	0
+quest_end	1191	1	30000	respawn_go	guid=13621 despawn_delay=600	0	0	0
+quest_end	1191	2	35000	move_to	x=-6224 y=-3945 z=-58.75 o=0.75	0	0	0
+quest_end	1521	0	0	talk	text0=2000000066	0	0	0
+quest_end	2946	0	5000	temp_summon_creature	entry=7918 despawn_delay=300000 x=-9619 y=-2815 z=11.21 o=0.43	0	0	0
+quest_end	2966	0	5000	temp_summon_creature	entry=7918 despawn_delay=300000 x=-9619 y=-2815 z=11.21 o=0.43	0	0	0
+quest_end	3118	0	0	emote	emote=1	0	0	0
+quest_end	3321	0	0	talk	text0=2000000076	0	0	0
+quest_end	3364	0	2000	talk	text0=2000000045	0	0	0
+quest_end	3364	1	6000	emote	emote=7	0	0	0
+quest_end	3364	2	8000	talk	text0=2000000046	0	0	0
+quest_end	3908	0	1000	modify_npc_flags	flag=3 change=2	9298	10	0
+quest_end	3908	1	1000	talk	text0=2000005094	0	0	0
+quest_end	3908	2	2000	move_to	x=6384.54 y=-2527.25 z=538.736 o=2.52438	0	0	0
+quest_end	3908	3	8000	move_to	x=6370.12 y=-2525.52 z=532.268 o=2.82283	0	0	0
+quest_end	3908	4	15000	talk	text0=2000005095	0	0	0
+quest_end	3908	5	20000	emote	emote=61	0	0	0
+quest_end	3908	6	21000	talk	text0=2000005096	0	0	0
+quest_end	3908	7	23000	move_to	x=6364.25 y=-2524 z=527.058 o=2.9265	0	0	0
+quest_end	3908	8	26000	talk	text0=2000005097	0	0	0
+quest_end	3908	9	27000	emote	emote=16	0	0	0
+quest_end	3908	10	30000	talk	text0=2000005098	0	0	0
+quest_end	3908	11	31000	move_to	x=6370.3 y=-2524.19 z=532.27 o=6.26836	0	0	0
+quest_end	3908	12	34000	move_to	x=6385.99 y=-2529.26 z=539.03 o=5.66753	0	0	0
+quest_end	3908	13	42000	move_to	x=6395.57 y=-2536.75 z=541.548 o=5.66753	0	0	0
+quest_end	3908	14	47000	move_to	x=0 y=0 z=0 o=2.86475	0	0	0
+quest_end	3908	15	48000	talk	text0=2000005335	0	0	0
+quest_end	3908	16	49000	modify_npc_flags	flag=3 change=1	9298	10	0
+quest_end	3922	0	0	talk	text0=2000000096	0	0	0
+quest_end	3922	1	0	respawn_go	guid=6579 despawn_delay=7	0	0	0
+quest_end	3922	2	1000	move_to	x=858.317 y=-2347.74 z=91.8282 o=6.06139	0	0	0
+quest_end	3922	3	2000	emote	emote=173	0	0	0
+quest_end	3922	4	6000	cast_spell	spell=13727	0	0	4
+quest_end	3922	5	6000	emote	emote=0	0	0	0
+quest_end	3922	6	7000	move_to	x=858.14 y=-2347.64 z=91.92 o=2.72271	0	0	0
+quest_end	3922	7	8000	talk	text0=2000000097	0	0	0
+quest_end	4512	0	0	pause_waypoints	pause=0	0	0	0
+quest_end	4974	0	1000	talk	text0=2000005090	0	0	0
+quest_end	4974	1	1000	emote	emote=5	0	0	0
+quest_end	4974	2	5000	cast_spell	spell=16609	0	0	0
+quest_end	4974	3	6000	talk	text0=2000005091	0	0	0
+quest_end	4974	4	6000	emote	emote=1	0	0	0
+quest_end	5058	0	2000	temp_summon_creature	entry=10816 despawn_delay=300000 x=1926.55 y=-1627.94 z=60.42 o=2.24	0	0	0
+quest_end	5059	0	2000	temp_summon_creature	entry=10836 despawn_delay=300000 x=1943.38 y=-1654.68 z=59.69 o=6.19	0	0	0
+quest_end	5158	0	0	flag_set	field=46 value=33554432	0	0	0
+quest_end	5158	1	1000	move_to	x=-1345.16 y=-4065.02 z=-0.49 o=4.73	0	0	0
+quest_end	5158	2	6000	temp_summon_creature	entry=11256 despawn_delay=30000 x=-1346.59 y=-4076.39 z=-1.23 o=1.6	0	0	0
+quest_end	5158	3	8000	field_set	field=159 value=8	0	0	0
+quest_end	5158	4	10000	talk	text0=2000000057	0	0	0
+quest_end	5158	5	22000	talk	text0=2000000058	0	0	0
+quest_end	5158	6	23000	field_set	field=159 value=0	0	0	0
+quest_end	5158	7	24000	move_to	x=-1345 y=-4048 z=6.09 o=4.34	0	0	0
+quest_end	5158	8	30000	flag_remove	field=46 value=33554432	0	0	0
+quest_end	5341	0	1000	talk	text0=2000005092	0	0	0
+quest_end	5341	1	1000	emote	emote=1	0	0	0
+quest_end	7642	0	2000	talk	text0=2000000063	0	0	0
+quest_end	7642	1	5000	move_to	x=-8393.09 y=687.41 z=95.27 o=3.72	0	0	0
+quest_end	7642	2	8000	move_to	x=-8400.51 y=681.85 z=95.96 o=5	0	0	0
+quest_end	7642	3	11000	move_to	x=-8388.72 y=646.85 z=94.82 o=3.92	0	0	0
+quest_end	7642	4	20000	move_to	x=-8422.25 y=618.12 z=95.46 o=3.2	0	0	0
+quest_end	7642	5	33000	emote	emote=69	0	0	0
+quest_end	7642	6	39000	emote	emote=0	0	0	0
+quest_end	7642	7	40000	move_to	x=-8421.99 y=617.93 z=95.45 o=5.34	0	0	0
+quest_end	7642	8	42000	emote	emote=233	0	0	0
+quest_end	7642	9	48000	emote	emote=0	0	0	0
+quest_end	7642	10	48000	talk	text0=2000000064	0	0	0
+quest_end	7642	11	52000	move_to	x=-8388.72 y=646.85 z=94.82 o=3.92	0	0	0
+quest_end	7642	12	63000	move_to	x=-8400.51 y=681.85 z=95.96 o=5	0	0	0
+quest_end	7642	13	73000	move_to	x=-8393.09 y=687.41 z=95.27 o=3.72	0	0	0
+quest_end	7642	14	76000	move_to	x=-8387 y=685.2 z=95.35 o=2.28	0	0	0
+quest_end	7786	0	0	temp_summon_creature	entry=14435 despawn_delay=180000 x=-6255 y=1706.59 z=6.137 o=1.323	0	0	0
+quest_end	9294	0	1000	modify_npc_flags	flag=3 change=2	0	0	0
+quest_end	9294	1	1000	talk	text0=2000000634	0	0	0
+quest_end	9294	2	3000	talk	text0=2000000635	20227	84586	23
+quest_end	9294	3	6000	emote	emote=133	20227	84586	23
+quest_end	9294	4	9000	emote	emote=0	20227	84586	23
+quest_end	9294	5	9000	activate_object		181370	20	2
+quest_end	9294	6	10000	move_to	x=-4055.89 y=-13714.2 z=73.0501 o=100	16516	151432	23
+quest_end	9294	7	13000	move_to	x=0 y=0 z=0 o=4.46927	20227	84586	23
+quest_end	9294	8	13000	movement	type=0	16516	151432	23
+quest_end	9294	9	14000	talk	text0=2000000636	20227	84586	23
+quest_end	9294	10	15000	emote	emote=133	20227	84586	23
+quest_end	9294	11	19000	emote	emote=0	20227	84586	23
+quest_end	9294	12	19000	cast_spell	spell=35068	16516	151432	23
+quest_end	9294	13	21000	talk	text0=2000000637	20227	84586	23
+quest_end	9294	14	21000	move_to	x=-4050.97 y=-13711.8 z=73.7115 o=1.35348	16516	151432	23
+quest_end	9294	15	23000	move_to	x=-4049.35 y=-13698.3 z=72.7258 o=1.15871	16516	151432	23
+quest_end	9294	16	25000	move_to	x=0 y=0 z=0 o=3.26976	20227	84586	23
+quest_end	9294	17	26000	modify_npc_flags	flag=3 change=1	0	0	0
+quest_end	9294	18	26000	despawn_self		16516	151432	23
+quest_end	9312	0	1000	modify_npc_flags	flag=3 change=2	0	0	0
+quest_end	9312	1	1000	emote	emote=0	0	0	0
+quest_end	9312	2	1000	move_to	x=-4184.55 y=-13733.1 z=74.1389 o=1.91986	0	0	0
+quest_end	9312	3	1000	activate_object		181286	50	2
+quest_end	9312	4	2000	temp_summon_creature	entry=16550 despawn_delay=47000 x=-4187.71 y=-13738.7 z=75.6549 o=1.85005	0	0	0
+quest_end	9312	5	4000	move_to	x=0 y=0 z=0 o=3.92457	0	0	0
+quest_end	9312	6	4000	turn_to	target=0	16550	50	3
+quest_end	9312	7	4000	talk	text0=2000005548	16550	50	7
+quest_end	9312	8	5000	movement	type=0	0	0	0
+quest_end	9312	9	5000	emote	emote=70	0	0	0
+quest_end	9312	10	12000	turn_to	target=0	16550	50	0
+quest_end	9312	11	15000	talk	text0=2000005549	16550	50	0
+quest_end	9312	12	29000	talk	text0=2000005550	16550	50	0
+quest_end	9312	13	46000	move_to	x=0 y=0 z=0 o=1.91986	0	0	0
+quest_end	9312	14	49000	talk	text0=2000005551	0	0	0
+quest_end	9312	15	50000	movement	type=2	0	0	0
+quest_end	9312	16	50000	modify_npc_flags	flag=3 change=1	0	0	0
+quest_end	9473	0	1000	modify_npc_flags	flag=3 change=2	0	0	0
+quest_end	9473	1	2000	move_to	x=-4191.78 y=-12474 z=45.8086 o=3.92804	0	0	0
+quest_end	9473	2	4000	move_to	x=-4196.96 y=-12475.7 z=45.72 o=2.56773	0	0	0
+quest_end	9473	3	6000	move_to	x=-4200.02 y=-12472.6 z=45.6286 o=1.87579	0	0	0
+quest_end	9473	4	8000	talk	text0=2000000655	0	0	0
+quest_end	9473	5	11000	emote	emote=0	0	0	0
+quest_end	9473	6	13000	emote	emote=16	0	0	0
+quest_end	9473	7	16000	talk	text0=2000000656	0	0	0
+quest_end	9473	8	19000	talk	text0=2000000657	17117	84578	23
+quest_end	9473	9	22000	talk	text0=2000000658	17117	84578	23
+quest_end	9473	10	22000	stand_state	state=1	17117	84578	23
+quest_end	9473	11	24000	talk	text0=2000000659	17117	84578	23
+quest_end	9473	12	29000	talk	text0=2000000660	17117	84578	23
+quest_end	9473	13	32000	emote	emote=25	17117	84578	23
+quest_end	9473	14	38000	talk	text0=2000000661	17117	84578	23
+quest_end	9473	15	38000	stand_state	state=3	17117	84578	23
+quest_end	9473	16	38000	move_to	x=-4197.28 y=-12474.5 z=45.6484 o=0.101384	0	0	0
+quest_end	9473	17	40000	move_to	x=-4192.1 y=-12472.7 z=45.7121 o=0.999094	0	0	0
+quest_end	9473	18	42000	move_to	x=-4191.15 y=-12470 z=45.6375 o=1.24414	0	0	0
+quest_end	9473	19	45000	move_to	x=-4191.15 y=-12470 z=45.6375 o=3.80482	0	0	0
+quest_end	9473	20	45000	modify_npc_flags	flag=3 change=1	0	0	0
+quest_end	9483	0	0	modify_npc_flags	flag=3 change=2	0	0	0
+quest_end	9483	1	1000	set_activeobject	activate=1	0	0	0
+quest_end	9483	2	3000	stand_state	state=0	0	0	0
+quest_end	9483	3	6000	talk	text0=2000000388	0	0	0
+quest_end	9483	4	6000	pause_waypoints	pause=1	17230	61963	23
+quest_end	9483	5	7000	set_run	run=1	17230	61963	23
+quest_end	9483	6	8000	move_to	x=-656.13 y=4146.6 z=64.128 o=2.16845	0	0	0
+quest_end	9483	7	8000	move_to	x=-656.13 y=4146.6 z=64.128 o=2.16845	17230	61963	23
+quest_end	9483	8	11000	move_to	x=-682.265 y=4148.52 z=63.9026 o=1.87414	0	0	0
+quest_end	9483	9	18000	move_to	x=-682.265 y=4148.52 z=63.9026 o=1.87414	17230	61963	23
+quest_end	9483	10	19000	move_to	x=-699.983 y=4184.54 z=57.9007 o=2.85353	0	0	0
+quest_end	9483	11	20000	set_run	run=0	17230	61963	23
+quest_end	9483	12	21000	move_to	x=-699.983 y=4184.54 z=57.9007 o=2.85353	17230	61963	23
+quest_end	9483	13	30000	move_to	x=-718.249 y=4174.95 z=51.9827 o=4.24132	0	0	0
+quest_end	9483	14	31000	move_to	x=-718.249 y=4174.95 z=51.9827 o=4.24132	17230	61963	23
+quest_end	9483	15	36000	pause_waypoints	pause=1	0	0	0
+quest_end	9483	16	37000	move_to	x=-719.781 y=4168.6 z=51.2242 o=4.51228	0	0	0
+quest_end	9483	17	38000	move_to	x=-718.649 y=4170.65 z=51.8661 o=4.50951	17230	61963	23
+quest_end	9483	18	93000	terminate_script	entry=17230 search_dist=220	0	0	0
+quest_end	9483	19	94000	despawn_self		17230	61963	23
+quest_end	9483	20	94000	despawn_self		17226	61961	23
+quest_end	9514	0	1000	set_activeobject	activate=1	0	0	0
+quest_end	9514	1	1000	set_activeobject	activate=1	17242	84433	23
+quest_end	9514	2	2000	modify_npc_flags	flag=3 change=2	0	0	0
+quest_end	9514	3	4000	turn_to	target=0	17242	84433	17
+quest_end	9514	4	6000	talk	text0=2000000691	0	0	0
+quest_end	9514	5	8000	emote	emote=1	0	0	0
+quest_end	9514	6	9000	turn_to	target=0	17242	84433	19
+quest_end	9514	7	11000	talk	text0=2000000692	17242	84433	23
+quest_end	9514	8	13000	emote	emote=1	17242	84433	23
+quest_end	9514	9	16000	move_to	x=-4699.7 y=-12419.6 z=11.6882 o=2.37188	17242	84433	23
+quest_end	9514	10	19000	talk	text0=2000000693	17242	84433	23
+quest_end	9514	11	22000	talk	text0=2000000694	17242	84433	23
+quest_end	9514	12	26000	talk	text0=2000000695	17242	84433	23
+quest_end	9514	13	31000	talk	text0=2000000696	17242	84433	23
+quest_end	9514	14	34000	emote	emote=1	17242	84433	23
+quest_end	9514	15	37000	emote	emote=1	17242	84433	23
+quest_end	9514	16	40000	talk	text0=2000000697	17242	84433	23
+quest_end	9514	17	44000	talk	text0=2000000698	17242	84433	23
+quest_end	9514	18	48000	talk	text0=2000000699	0	0	0
+quest_end	9514	19	52000	turn_to	target=1	0	0	0
+quest_end	9514	20	52000	modify_npc_flags	flag=3 change=1	0	0	0
+quest_end	9514	21	53000	move_to	x=-4693.81 y=-12423.1 z=11.8935 o=6.26573	17242	84433	23
+quest_end	9514	22	57000	set_activeobject	activate=0	0	0	0
+quest_end	9514	23	57000	set_activeobject	activate=0	17242	84433	23
+quest_end	9542	0	1000	remove_aura	spell=30448	0	0	2
+quest_end	9542	1	3000	temp_summon_creature	entry=17410 despawn_delay=15000 x=-4489.97 y=-11645.7 z=11.577 o=2.5501	0	0	0
+quest_end	9542	2	6000	talk	text0=2000000679	17410	50	0
+quest_end	9565	0	2000	temp_summon_creature	entry=17189 despawn_delay=180000 x=-3128.49 y=-12540.2 z=-2.54 o=1.5	0	0	0
+quest_end	9565	1	2000	temp_summon_creature	entry=17189 despawn_delay=180000 x=-3105.36 y=-12549.2 z=-1.28 o=4.6	0	0	0
+quest_end	9663	0	1000	remove_aura	spell=31973	0	0	6
+quest_end	10109	0	1000	talk	text0=2000005093	0	0	0
+quest_end	10109	1	1000	emote	emote=1	0	0	0
+quest_end	10289	0	0	talk	text0=2000000055	0	0	0
+quest_end	10447	0	2000	talk	text0=2000000062	0	0	0
+quest_end	10526	0	0	temp_summon_creature	entry=21950 despawn_delay=900000 x=2272.95 y=5984.4 z=142.79 o=6.23	0	0	0
+quest_end	10526	1	0	temp_summon_creature	entry=21952 despawn_delay=900000 x=2273.26 y=5986.73 z=142.75 o=5.14	0	0	0
+quest_end	10526	2	0	temp_summon_creature	entry=21951 despawn_delay=900000 x=2270.95 y=5982.93 z=142.83 o=0.31	0	0	0
+quest_end	10526	3	0	temp_summon_creature	entry=21951 despawn_delay=900000 x=2271.17 y=5986.07 z=142.81 o=5.86	0	0	0
+quest_end	10850	0	0	remove_aura	spell=38757	0	0	0
+quest_end	10850	1	0	movement	type=1 wander_distance=15	0	0	0
+quest_end	10850	2	10000	kill_credit	entry=22293	0	0	0
+quest_end	10850	3	10000	stand_state	state=7	0	0	0
+quest_end	10850	4	10000	movement	type=0	0	0	0
+quest_end	10850	5	11000	despawn_self		0	0	4
+quest_end	10919	0	3000	move_to	x=-697.934 y=2612.59 z=89.4752 o=3.9	0	0	0
+quest_end	10919	1	10000	move_to	x=-688.665 y=2580.78 z=86.9841 o=5.16	0	0	0
+quest_end	10919	2	24000	move_to	x=-689.199 y=2588.81 z=87.446 o=0.8	0	0	0
+quest_end	10919	3	27000	move_to	x=-667.044 y=2611.74 z=85.7029 o=0.8	0	0	0
+quest_end	10919	4	35000	move_to	x=-649.407 y=2636.82 z=86.1539 o=0.88	0	0	0
+quest_end	10919	5	42000	move_to	x=-659.047 y=2651.34 z=87.048 o=2.14	0	0	0
+quest_end	10919	6	52000	move_to	x=-656.048 y=2652.06 z=86.5892 o=0.16	0	0	0
+quest_end	10919	7	54000	move_to	x=-656.055 y=2674.2 z=88.1354 o=1.52	0	0	0
+quest_end	10919	8	68000	move_to	x=-691.042 y=2652.45 z=92.1508 o=3.49	0	0	0
+quest_end	10919	9	80000	move_to	x=-688.807 y=2701.25 z=94.8354 o=1.51	0	0	0
+quest_end	10919	10	93000	move_to	x=-667.514 y=2716.08 z=94.4471 o=0.6	0	0	0
+quest_end	10919	11	103000	move_to	x=-688.593 y=2723.67 z=94.4145 o=2.75	0	0	0
+quest_end	10919	12	108000	move_to	x=-687.635 y=2743.1 z=93.9095 o=1.65	0	0	0
+quest_end	10919	13	115000	move_to	x=-697.062 y=2748.04 z=93.938 o=2.61	0	0	0
+quest_end	10919	14	125000	move_to	x=-687.635 y=2743.1 z=93.9095 o=1.65	0	0	0
+quest_end	10919	15	130000	move_to	x=-685.121 y=2689.01 z=93.8042 o=4.73	0	0	0
+quest_end	10919	16	145000	move_to	x=-688.862 y=2627.19 z=89.8591 o=4.66	0	0	0
+quest_end	10919	17	165000	move_to	x=-685.494 y=2626.74 z=89.2711 o=6.15	0	0	0
+quest_end	10964	0	0	field_set	field=168 value=0	0	0	0
+quest_end	10964	1	0	field_set	field=159 value=1	0	0	0
+quest_end	10964	2	1000	field_set	field=159 value=0	0	0	0
+quest_end	10964	3	1000	talk	text0=2000000067	0	0	0
+quest_end	10964	4	6000	emote	emote=5	0	0	0
+quest_end	10964	5	20000	talk	text0=2000000068	0	0	0
+quest_end	10964	6	30000	move_to	x=7453.25 y=-3116.29 z=439.604 o=5.534	0	0	0
+quest_end	10964	7	32000	move_to	x=7453.79 y=-3116.83 z=439.604 o=5.534	0	0	0
+quest_end	10964	8	35000	talk	text0=2000000069	0	0	0
+quest_end	10964	9	36000	field_set	field=159 value=1	0	0	0
+quest_end	10964	10	36000	field_set	field=168 value=2	0	0	0
+quest_end	10964	11	37000	field_set	field=159 value=0	0	0	0
+quest_end	10964	12	38000	field_set	field=159 value=3	0	0	0
+quest_end	10964	13	39000	move_to	x=7459.47 y=-3122.79 z=439.485 o=5.84588	0	0	0
+quest_end	10988	0	0	field_set	field=168 value=0	0	0	0
+quest_end	10988	1	1000	talk	text0=2000000070	0	0	0
+quest_end	10988	2	10000	move_to	x=3024.22 y=5510.91 z=146.033 o=4.63856	0	0	0
+quest_end	10988	3	11000	cast_spell	spell=39679	0	0	4
+quest_end	10988	4	11000	talk	text0=2000000071	0	0	0
+quest_end	10988	5	11000	emote	emote=1	0	0	0
+quest_end	10988	6	17000	talk	text0=2000000072	0	0	0
+quest_end	10988	7	17000	emote	emote=1	0	0	0
+quest_end	10988	8	30000	talk	text0=2000000073	0	0	0
+quest_end	10988	9	43000	talk	text0=2000000074	0	0	0
+quest_end	10988	10	43000	emote	emote=1	0	0	0
+quest_end	10988	11	56000	talk	text0=2000000075	0	0	0
+quest_end	10988	12	56000	field_set	field=168 value=2	0	0	0
+quest_end	10988	13	56000	move_to	x=3024.32 y=5511.29 z=146.051 o=2.31064	0	0	0
+quest_end	11392	0	0	temp_summon_creature	entry=23682 despawn_delay=1200000 x=1799.04 y=1377.62 z=18.8875 o=4.65	0	0	0
+quest_end	11401	0	0	temp_summon_creature	entry=23682 despawn_delay=1200000 x=1799.04 y=1377.62 z=18.8875 o=4.65	0	0	0
+quest_end	11404	0	0	temp_summon_creature	entry=23682 despawn_delay=1200000 x=1799.04 y=1377.62 z=18.8875 o=4.65	0	0	0
+quest_end	11405	0	0	temp_summon_creature	entry=23682 despawn_delay=1200000 x=1799.04 y=1377.62 z=18.8875 o=4.65	0	0	0
+quest_start	74	0	0	temp_summon_creature	entry=2044 despawn_delay=300000 x=-10953.3 y=988.509 z=98.984 o=5.349	0	0	0
+quest_start	114	0	0	talk	text0=2000000080	0	0	0
+quest_start	114	1	5000	talk	text0=2000000081	0	0	0
+quest_start	434	0	45000	quest_explored	quest=434	0	0	0
+quest_start	778	0	4000	cast_spell	spell=5001	0	0	4
+quest_start	778	1	5000	temp_summon_creature	entry=2919 despawn_delay=240000 x=-6666.27 y=-2728.12 z=243.136 o=6.28	0	0	0
+quest_start	778	2	5000	cast_spell	spell=5002	0	0	4
+quest_start	945	0	0	talk	text0=2000000018	0	0	0
+quest_start	945	1	1000	move_to	x=4520.4 y=420.235 z=33.5284 o=0	0	0	0
+quest_start	945	2	6000	move_to	x=4512.26 y=408.881 z=32.9308 o=0	0	0	0
+quest_start	945	3	11000	move_to	x=4507.94 y=396.47 z=32.9476 o=0	0	0	0
+quest_start	945	4	16000	move_to	x=4507.53 y=383.781 z=32.995 o=0	0	0	0
+quest_start	945	5	21000	move_to	x=4512.1 y=374.02 z=33.166 o=0	0	0	0
+quest_start	945	6	25000	move_to	x=4519.75 y=373.241 z=33.1574 o=0	0	0	0
+quest_start	945	7	28000	move_to	x=4592.41 y=369.127 z=31.4893 o=0	0	0	0
+quest_start	945	8	48000	move_to	x=4598.55 y=364.801 z=31.4947 o=0	0	0	0
+quest_start	945	9	51000	move_to	x=4602.76 y=357.649 z=32.9265 o=0	0	0	0
+quest_start	945	10	54000	move_to	x=4597.88 y=352.629 z=34.0317 o=0	0	0	0
+quest_start	945	11	57000	move_to	x=4590.23 y=350.9 z=36.2977 o=0	0	0	0
+quest_start	945	12	60000	move_to	x=4581.5 y=348.254 z=38.3878 o=0	0	0	0
+quest_start	945	13	63000	move_to	x=4572.05 y=348.059 z=42.3539 o=0	0	0	0
+quest_start	945	14	66000	move_to	x=4564.75 y=344.041 z=44.2463 o=0	0	0	0
+quest_start	945	15	69000	move_to	x=4556.63 y=341.003 z=47.6755 o=0	0	0	0
+quest_start	945	16	72000	move_to	x=4554.38 y=334.968 z=48.8003 o=0	0	0	0
+quest_start	945	17	74000	move_to	x=4557.63 y=329.783 z=49.9532 o=0	0	0	0
+quest_start	945	18	77000	move_to	x=4563.32 y=316.829 z=53.2409 o=0	0	0	0
+quest_start	945	19	81000	move_to	x=4566.09 y=303.127 z=55.0396 o=0	0	0	0
+quest_start	945	20	85000	move_to	x=4561.65 y=295.456 z=57.0984 o=0	0	0	0
+quest_start	945	21	88000	move_to	x=4551.03 y=293.333 z=57.1534 o=0	0	0	0
+quest_start	945	22	92000	talk	text0=2000000017	0	0	0
+quest_start	945	23	93000	move_to	x=-1 y=-1 z=-1 o=0	0	0	0
+quest_start	945	24	100000	move_to	x=4533.55 y=419.738 z=33.7429 o=0	0	0	0
+quest_start	975	0	10000	quest_explored	quest=975	0	0	0
+quest_start	986	0	0	temp_summon_creature	entry=6086 despawn_delay=10000 x=6435.25 y=368.004 z=13.9412 o=0	0	0	0
+quest_start	986	1	5000	talk	text0=2000000009	0	0	0
+quest_start	986	2	7000	talk	text0=2000000010	0	0	0
+quest_start	986	3	9000	talk	text0=2000000011	0	0	0
+quest_start	994	0	0	talk	text0=2000000012	0	0	0
+quest_start	994	1	1000	move_to	x=4606.61 y=2.96905 z=69.909 o=0	0	0	0
+quest_start	994	2	4000	move_to	x=4615.56 y=19.7957 z=70.7951 o=0	0	0	0
+quest_start	994	3	11000	talk	text0=2000000013	0	0	0
+quest_start	994	4	12000	move_to	x=4626.26 y=38.1105 z=69.0281 o=0	0	0	0
+quest_start	994	5	21000	move_to	x=4633.11 y=48.379 z=67.5631 o=0	0	0	0
+quest_start	994	6	27000	move_to	x=4637.2 y=71.7156 z=63.3412 o=0	0	0	0
+quest_start	994	7	38000	move_to	x=4645.39 y=88.5048 z=60.3851 o=0	0	0	0
+quest_start	994	8	47000	move_to	x=4660.2 y=104.218 z=58.4603 o=0	0	0	0
+quest_start	994	9	57000	move_to	x=4675.33 y=115.93 z=56.8969 o=0	0	0	0
+quest_start	994	10	66000	move_to	x=4688.21 y=131.397 z=55.5033 o=0	0	0	0
+quest_start	994	11	74000	move_to	x=4701.45 y=145.562 z=53.2203 o=0	0	0	0
+quest_start	994	12	83000	move_to	x=4709.21 y=155.279 z=52.0846 o=0	0	0	0
+quest_start	994	13	88000	move_to	x=4716.9 y=169.528 z=53.5005 o=0	0	0	0
+quest_start	994	14	95000	move_to	x=4725.44 y=180.07 z=54.7346 o=0	0	0	0
+quest_start	994	15	100000	move_to	x=4734.01 y=194.431 z=55.3888 o=0	0	0	0
+quest_start	994	16	106000	move_to	x=4747.92 y=209.436 z=53.1076 o=0	0	0	0
+quest_start	994	17	114000	talk	text0=2000000014	0	0	0
+quest_start	994	18	115000	talk	text0=2000000015	0	0	0
+quest_start	994	19	130000	move_to	x=-1 y=-1 z=-1 o=0	0	0	0
+quest_start	994	20	135000	move_to	x=4607.23 y=-5.78216 z=69.5633 o=0	0	0	0
+quest_start	995	0	0	talk	text0=2000000016	0	0	0
+quest_start	995	1	2000	field_set	field=145 value=11450	0	0	0
+quest_start	995	2	5000	move_to	x=4615.56 y=19.7957 z=70.7951 o=0	0	0	0
+quest_start	995	3	15000	move_to	x=-1 y=-1 z=-1 o=0	0	0	0
+quest_start	995	4	50000	move_to	x=4607.23 y=-5.78216 z=69.5633 o=0	0	0	0
+quest_start	1064	0	2000	talk	text0=2000000092	0	0	0
+quest_start	1064	1	4000	temp_summon_creature	entry=4068 despawn_delay=163000 x=-1067.22 y=-213.737 z=160.473 o=5.25037	0	0	0
+quest_start	1064	2	8000	talk	text0=2000000093	0	0	0
+quest_start	1064	3	8000	emote	emote=25	0	0	0
+quest_start	1149	0	0	talk	text0=2000000042	0	0	0
+quest_start	1447	0	1000	temp_summon_creature	entry=4969 despawn_delay=300000 x=-8672.33 y=442.88 z=99.98 o=3.5	0	0	0
+quest_start	1447	1	1000	temp_summon_creature	entry=4969 despawn_delay=300000 x=-8691.59 y=441.66 z=99.41 o=6.1	0	0	0
+quest_start	1713	0	2000	move_to	x=253.05 y=-1459.09 z=52.09 o=1.39	0	0	0
+quest_start	1713	1	2000	talk	text0=2000000029	0	0	0
+quest_start	1713	2	6000	move_to	x=256.87 y=-1440.35 z=50.09 o=0.78	0	0	0
+quest_start	1713	3	12000	move_to	x=273.74 y=-1433.18 z=50.29 o=6.17	0	0	0
+quest_start	1713	4	16000	move_to	x=297.77 y=-1436.7 z=46.96 o=6.14	0	0	0
+quest_start	1713	5	26000	move_to	x=329.59 y=-1442.08 z=40.31 o=5.1	0	0	0
+quest_start	1713	6	36000	move_to	x=332.73 y=-1455.6 z=42.24 o=4.23	0	0	0
+quest_start	1713	7	43000	move_to	x=323.83 y=-1468.92 z=42.24 o=5.8	0	0	0
+quest_start	1713	8	50000	talk	text0=2000000043	0	0	0
+quest_start	1713	9	50000	cast_spell	spell=8606	0	0	4
+quest_start	1713	10	70000	move_to	x=332.73 y=-1455.6 z=42.24 o=4.23	0	0	0
+quest_start	1713	11	77000	move_to	x=329.59 y=-1442.08 z=40.31 o=5.1	0	0	0
+quest_start	1713	12	84000	move_to	x=297.77 y=-1436.7 z=46.96 o=6.14	0	0	0
+quest_start	1713	13	94000	move_to	x=273.74 y=-1433.18 z=50.29 o=6.17	0	0	0
+quest_start	1713	14	104000	move_to	x=256.87 y=-1440.35 z=50.09 o=0.78	0	0	0
+quest_start	1713	15	110000	move_to	x=253.05 y=-1459.09 z=52.09 o=1.39	0	0	0
+quest_start	1713	16	120000	move_to	x=250.84 y=-1470.58 z=55.4491 o=1.39626	0	0	0
+quest_start	1957	0	1000	respawn_go	guid=28294 despawn_delay=600	0	0	0
+quest_start	1957	1	5000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.22 y=-3383.91 z=38.2265 o=2.7963	0	0	0
+quest_start	1957	2	5000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.99 y=-3394.54 z=38.5507 o=1.8342	0	0	0
+quest_start	1957	3	20000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4013.29 y=-3385.14 z=38.4656 o=2.3801	0	0	0
+quest_start	1957	4	20000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.22 y=-3383.91 z=38.2265 o=2.7963	0	0	0
+quest_start	1957	5	35000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4013.29 y=-3385.14 z=38.4656 o=2.3801	0	0	0
+quest_start	1957	6	35000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.99 y=-3394.54 z=38.5507 o=1.8342	0	0	0
+quest_start	1957	7	70000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4013.29 y=-3385.14 z=38.4656 o=2.3801	0	0	0
+quest_start	1957	8	70000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.99 y=-3394.54 z=38.5507 o=1.8342	0	0	0
+quest_start	1957	9	70000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.22 y=-3383.91 z=38.2265 o=2.7963	0	0	0
+quest_start	1957	10	120000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.22 y=-3383.91 z=38.2265 o=2.7963	0	0	0
+quest_start	1957	11	120000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4019.99 y=-3394.54 z=38.5507 o=1.8342	0	0	0
+quest_start	1957	12	120000	temp_summon_creature	entry=6550 despawn_delay=600000 x=-4013.29 y=-3385.14 z=38.4656 o=2.3801	0	0	0
+quest_start	2480	0	2000	move_to	x=-4.33 y=-900.68 z=57.54 o=1.54	0	0	0
+quest_start	2480	1	20000	talk	text0=2000000026	0	0	0
+quest_start	2480	2	30000	quest_explored	quest=2480	0	0	0
+quest_start	2480	3	31000	move_to	x=-4.66 y=-903.92 z=57.54 o=3.48	0	0	0
+quest_start	2608	0	1000	emote	emote=353	0	0	0
+quest_start	2608	1	3000	talk	text0=2000000020	0	0	0
+quest_start	2608	2	6000	talk	text0=2000000021	0	0	0
+quest_start	2608	3	10000	move_to	x=-8805.29 y=338.5 z=95.09 o=1.7	0	0	0
+quest_start	2608	4	17000	move_to	x=-8804.15 y=325.58 z=95.09 o=4.9	0	0	0
+quest_start	2608	5	25000	move_to	x=-8805.56 y=331.96 z=95.09 o=3.15	0	0	0
+quest_start	2608	6	28000	quest_explored	quest=2608	0	0	0
+quest_start	2701	0	0	respawn_go	guid=44732 despawn_delay=600	0	0	0
+quest_start	2701	1	0	respawn_go	guid=44733 despawn_delay=600	0	0	0
+quest_start	2702	0	1000	temp_summon_creature	entry=7750 despawn_delay=900000 x=-10630.3 y=-2987.05 z=28.96 o=4.54	0	0	0
+quest_start	2755	0	5000	emote	emote=10	0	0	0
+quest_start	2755	1	30000	emote	emote=0	0	0	0
+quest_start	2755	2	35000	quest_explored	quest=2755	0	0	0
+quest_start	2765	0	2000	move_to	x=-12033.3 y=-1009.85 z=49.87 o=5.42	0	0	0
+quest_start	2765	1	4000	emote	emote=16	0	0	0
+quest_start	2765	2	8000	move_to	x=-12040 y=-1006.27 z=49.62 o=2.55	0	0	0
+quest_start	2765	3	12000	emote	emote=28	0	0	0
+quest_start	2765	4	14000	emote	emote=28	0	0	0
+quest_start	2765	5	18000	move_to	x=-12037.8 y=-1004.74 z=49.53 o=2.18	0	0	0
+quest_start	2765	6	22000	emote	emote=16	0	0	0
+quest_start	2765	7	28000	move_to	x=-12040.7 y=-1009.02 z=49.42 o=3.63	0	0	0
+quest_start	2765	8	32000	emote	emote=28	0	0	0
+quest_start	2765	9	34000	emote	emote=28	0	0	0
+quest_start	2765	10	37000	move_to	x=-12035.4 y=-1006.07 z=49.5 o=3.78	0	0	0
+quest_start	2765	11	40000	quest_explored	quest=2765	0	0	0
+quest_start	2843	0	10000	quest_explored	quest=2843	0	0	0
+quest_start	3321	0	2000	move_to	x=-7197.78 y=-3765.41 z=8.79 o=1.19	0	0	0
+quest_start	3321	1	4000	emote	emote=28	0	0	0
+quest_start	3321	2	6000	emote	emote=28	0	0	0
+quest_start	3321	3	8000	emote	emote=28	0	0	0
+quest_start	3321	4	10000	emote	emote=28	0	0	0
+quest_start	3321	5	12000	move_to	x=-7197.94 y=-3767.04 z=8.77 o=5.03	0	0	0
+quest_start	3321	6	15000	quest_explored	quest=3321	0	0	0
+quest_start	3453	0	10000	cast_spell	spell=12511	0	0	4
+quest_start	3453	1	18000	cast_spell	spell=12511	0	0	4
+quest_start	3453	2	25000	cast_spell	spell=12511	0	0	4
+quest_start	3453	3	35000	talk	text0=2000000019	0	0	0
+quest_start	3453	4	40000	cast_spell	spell=12512	0	0	4
+quest_start	3453	5	41000	respawn_go	guid=24166 despawn_delay=180	0	0	0
+quest_start	3453	6	43000	respawn_go	guid=16762 despawn_delay=178	0	0	0
+quest_start	3453	7	50000	talk	text0=2000000044	0	0	0
+quest_start	3453	8	50000	quest_explored	quest=3453	0	0	0
+quest_start	3625	0	2000	move_to	x=-12040.5 y=-1008.7 z=49.4 o=3.66	0	0	0
+quest_start	3625	1	6000	emote	emote=28	0	0	0
+quest_start	3625	2	8000	emote	emote=28	0	0	0
+quest_start	3625	3	10000	emote	emote=28	0	0	0
+quest_start	3625	4	12000	emote	emote=28	0	0	0
+quest_start	3625	5	14000	move_to	x=-12033.3 y=-1004.47 z=49.78 o=3.96	0	0	0
+quest_start	3625	6	15000	quest_explored	quest=3625	0	0	0
+quest_start	4023	0	5000	temp_summon_creature	entry=9461 despawn_delay=60000 x=-7672.74 y=-2973.34 z=132.52 o=1.86749	0	0	0
+quest_start	4265	0	5000	temp_summon_creature	entry=9546 despawn_delay=25000 x=-5314.81 y=430.89 z=11.79 o=3.46	0	0	0
+quest_start	4265	1	30000	quest_explored	quest=4265	0	0	0
+quest_start	4321	0	6000	emote	emote=6	0	0	0
+quest_start	4321	1	10000	emote	emote=22	0	0	0
+quest_start	4321	2	10000	talk	text0=2000000030	0	0	0
+quest_start	4321	3	20000	quest_explored	quest=4321	0	0	0
+quest_start	4450	0	8000	respawn_go	guid=47578 despawn_delay=300	0	0	0
+quest_start	4961	0	0	talk	text0=2000000032	0	0	0
+quest_start	4961	1	2000	cast_spell	spell=9097	0	0	4
+quest_start	4975	0	10000	quest_explored	quest=4975 distance=25	0	0	0
+quest_start	6482	0	0	open_door	guid=48166 reset_delay=30	0	0	0
+quest_start	9539	0	1000	temp_summon_creature	entry=17379 despawn_delay=120000 x=-4178.3 y=-12515.1 z=44.3627 o=2.63132	0	0	0
+quest_start	9539	1	2000	set_activeobject	activate=1	17379	30	7
+quest_start	9539	2	4000	turn_to	target=0	17379	50	0
+quest_start	9539	3	5000	talk	text0=2000000666	17379	50	0
+quest_start	9539	4	6000	movement	type=2	17379	30	7
+quest_start	9540	0	1000	temp_summon_creature	entry=17391 despawn_delay=35000 x=-3922.01 y=-12746.9 z=96.767 o=2.11154	0	0	0
+quest_start	9540	1	2000	set_activeobject	activate=1	17391	30	7
+quest_start	9540	2	4000	turn_to	target=0	17391	50	0
+quest_start	9540	3	5000	talk	text0=2000000668	17391	50	0
+quest_start	9540	4	7000	move_to	x=-3925.63 y=-12752 z=97.7171 o=4.78528	17391	50	7
+quest_start	9540	5	9000	move_to	x=-3925.8 y=-12755.8 z=99.4512 o=4.87481	17391	50	7
+quest_start	9540	6	11000	move_to	x=-3924.27 y=-12761.5 z=101.829 o=4.9861	17391	50	7
+quest_start	9540	7	14000	talk	text0=2000000669	17391	50	0
+quest_start	9540	8	18000	cast_spell	spell=30424	17391	50	0
+quest_start	9540	9	21000	talk	text0=2000000670	17391	50	0
+quest_start	9540	10	23000	talk	text0=2000000671	17391	50	0
+quest_start	9540	11	24000	morph_to_entry_or_model	entry=17019	17391	50	15
+quest_start	9540	12	25000	change_entry	entry=1	17391	50	7
+quest_start	9540	13	27000	move_to	x=-3923.5 y=-12795 z=107.213 o=4.87004	17391	50	7
+quest_start	9540	14	32000	set_activeobject	activate=0	17391	100	7
+quest_start	9540	15	33000	despawn_self		17391	100	7
+quest_start	9541	0	1000	temp_summon_creature	entry=17392 despawn_delay=60000 x=-3875.88 y=-13125.3 z=6.75334 o=1.60905	0	0	0
+quest_start	9541	1	2000	set_activeobject	activate=1	17392	30	7
+quest_start	9541	2	2000	turn_to	target=0	17392	50	0
+quest_start	9541	3	2000	talk	text0=2000000672	17392	50	0
+quest_start	9541	4	3000	move_to	x=-3885.67 y=-13096.5 z=3.56423 o=1.65068	17392	50	7
+quest_start	9541	5	15000	talk	text0=2000000673	17392	50	0
+quest_start	9541	6	20000	cast_spell	spell=30430	17392	100	0
+quest_start	9541	7	22000	talk	text0=2000000674	17392	50	0
+quest_start	9541	8	24000	cast_spell	spell=30431	17392	100	7
+quest_start	9541	9	26000	move_to	x=-3913.36 y=-13055.2 z=-4.82595 o=2.28533	17392	100	7
+quest_start	9541	10	40000	move_to	x=-3951.4 y=-13033.9 z=-8.45508 o=2.61913	17392	100	7
+quest_start	9541	11	48000	set_activeobject	activate=0	17392	100	7
+quest_start	9541	12	49000	despawn_self		17392	100	7
+quest_start	9542	0	1000	temp_summon_creature	entry=17393 despawn_delay=360000 x=-4637.05 y=-13067.3 z=-13.5973 o=0.26767	0	0	0
+quest_start	9542	1	2000	set_activeobject	activate=1	17393	30	7
+quest_start	9542	2	2000	turn_to	target=0	17393	50	0
+quest_start	9542	3	2000	talk	text0=2000000675	17393	50	0
+quest_start	9542	4	3000	move_to	x=-4646.63 y=-13015.4 z=-1.38673 o=1.6751	17393	100	7
+quest_start	9542	5	26000	morph_to_entry_or_model	entry=16995	17393	100	15
+quest_start	9542	6	28000	move_to	x=-4679.14 y=-12985 z=0.5803 o=1.93085	17393	100	7
+quest_start	9542	7	43000	movement	type=0	17393	100	7
+quest_start	9542	8	44000	turn_to	target=0	17393	100	0
+quest_start	9542	9	47000	talk	text0=2000000676	17393	100	0
+quest_start	9542	10	50000	cast_spell	spell=30447	17393	100	7
+quest_start	9542	11	51000	cast_spell	spell=30448	17393	100	0
+quest_start	9542	12	53000	talk	text0=2000000677	17393	100	0
+quest_start	9542	13	58000	movement	type=2	17393	100	7
+quest_start	9544	0	1000	temp_summon_creature	entry=17410 despawn_delay=15000 x=-4489.97 y=-11645.7 z=11.577 o=2.5501	0	0	0
+quest_start	9544	1	3000	talk	text0=2000000679	17410	50	0
+quest_start	9579	0	0	temp_summon_creature	entry=17426 despawn_delay=11000 x=-2089.37 y=-11298.1 z=63.54 o=5.689	0	0	0
+quest_start	9579	1	0	turn_to	target=0	17426	50	0
+quest_start	9579	2	2000	talk	text0=2000000277	17426	5	0
+quest_start	9579	3	4000	talk	text0=2000000278	17426	5	0
+quest_start	9579	4	8000	talk	text0=2000000279	17426	5	0
+quest_start	9686	0	0	respawn_go	guid=23106 despawn_delay=60	0	0	0
+quest_start	9962	0	0	talk	text0=2000000001	0	0	0
+quest_start	9962	1	9000	talk	text0=2000000002	0	0	0
+quest_start	9962	2	13000	talk	text0=2000000003	0	0	0
+quest_start	9962	3	15000	temp_summon_creature	entry=18398 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9967	0	10000	temp_summon_creature	entry=18399 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9967	1	10000	temp_summon_creature	entry=18399 despawn_delay=180000 x=-708.076 y=7870.41 z=44.8457 o=1.59531	0	0	0
+quest_start	9970	0	10000	temp_summon_creature	entry=18400 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9972	0	10000	temp_summon_creature	entry=18401 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9973	0	10000	temp_summon_creature	entry=18402 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9977	0	10000	temp_summon_creature	entry=18069 despawn_delay=180000 x=-704.669 y=7871.08 z=45.0387 o=1.59531	0	0	0
+quest_start	9991	0	1000	send_taxi_path	path=532	0	0	0
+quest_start	9991	1	111000	quest_explored	quest=9991	0	0	0
+quest_start	10163	0	0	cast_spell	spell=33899	0	0	0
+quest_start	10346	0	0	cast_spell	spell=33899	0	0	0
+quest_start	10347	0	0	cast_spell	spell=33825	0	0	0
+quest_start	10406	0	0	cast_spell	spell=35679	0	0	6
+quest_start	10639	0	0	talk	text0=2000000031	0	0	0
+quest_start	10639	1	5000	temp_summon_creature	entry=21877 despawn_delay=30000 x=-4536.58 y=1028.76 z=8.8266 o=3.72963	0	0	0
+quest_start	10866	0	6000	temp_summon_creature	entry=11980 despawn_delay=300000 x=-4155.37 y=385.988 z=141.444 o=1.33962	0	0	0
+quest_start	10870	0	0	send_taxi_path	path=649	0	0	0
+quest_start	10879	0	5000	talk	text0=2000000022	0	0	0
+quest_start	10879	1	6000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1626.12 y=5402.47 z=-42.31 o=2.08131	0	0	0
+quest_start	10879	2	6000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1631.94 y=5400.56 z=-43.863 o=2.08131	0	0	0
+quest_start	10879	3	36000	talk	text0=2000000023	0	0	0
+quest_start	10879	4	36000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1631.94 y=5400.56 z=-43.863 o=2.08131	0	0	0
+quest_start	10879	5	36000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1626.12 y=5402.47 z=-42.31 o=2.08131	0	0	0
+quest_start	10879	6	66000	talk	text0=2000000024	0	0	0
+quest_start	10879	7	66000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1631.94 y=5400.56 z=-43.863 o=2.08131	0	0	0
+quest_start	10879	8	66000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1626.12 y=5402.47 z=-42.31 o=2.08131	0	0	0
+quest_start	10879	9	66000	temp_summon_creature	entry=22376 despawn_delay=60000 x=-1627.66 y=5403.44 z=-42.6365 o=2.08131	0	0	0
+quest_start	10879	10	96000	talk	text0=2000000025	0	0	0
+quest_start	10879	11	96000	temp_summon_creature	entry=22375 despawn_delay=60000 x=-1631.94 y=5400.56 z=-43.863 o=2.08131	0	0	0
+quest_start	10985	0	180000	quest_explored	quest=10985	0	0	0
+quest_start	11108	0	2000	talk	text0=2000000034	0	0	0
+quest_start	11108	1	3000	move_to	x=-5101.64 y=593.39 z=85.77 o=2.6	0	0	0
+quest_start	11108	2	8000	move_to	x=-5133.04 y=611.1 z=83.66 o=2.36	0	0	0
+quest_start	11108	3	10000	talk	text0=2000000035	0	0	0
+quest_start	11108	4	16000	move_to	x=-5153.43 y=632.62 z=80.89 o=2.2	0	0	0
+quest_start	11108	5	24000	talk	text0=2000000036	0	0	0
+quest_start	11108	6	30000	temp_summon_creature	entry=22083 despawn_delay=45000 x=-5154.37 y=648.36 z=79.04 o=4.51	0	0	0
+quest_start	11108	7	32000	talk	text0=2000000037	0	0	0
+quest_start	11108	8	40000	talk	text0=2000000038	0	0	0
+quest_start	11108	9	45000	talk	text0=2000000039	0	0	0
+quest_start	11108	10	75000	talk	text0=2000000040	0	0	0
+quest_start	11108	11	85000	talk	text0=2000000041	0	0	0
+quest_start	11108	12	90000	quest_explored	quest=11108	0	0	0
+quest_start	11108	13	95000	move_to	x=-5133.04 y=611.1 z=83.66 o=5.45	0	0	0
+quest_start	11108	14	102000	move_to	x=-5101.64 y=593.39 z=85.77 o=5.71	0	0	0
+quest_start	11108	15	108000	move_to	x=-5085 y=578.65 z=86.64 o=2.36	0	0	0
+quest_start	11198	0	2000	talk	text0=2000000033	0	0	0
+quest_start	11198	1	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3924.35 y=-4656.55 z=9.15409 o=5.80749	0	0	0
+quest_start	11198	2	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3917.6 y=-4648.53 z=9.32604 o=5.56795	0	0	0
+quest_start	11198	3	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3904.77 y=-4635.09 z=9.62735 o=5.49334	0	0	0
+quest_start	11198	4	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3890.48 y=-4620.7 z=9.55527 o=4.99383	0	0	0
+quest_start	11198	5	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3865.94 y=-4617.2 z=9.26262 o=4.16523	0	0	0
+quest_start	11198	6	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3856.59 y=-4622.45 z=9.24753 o=3.87856	0	0	0
+quest_start	11198	7	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3834.8 y=-4645.41 z=9.25827 o=3.61152	0	0	0
+quest_start	11198	8	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3826.61 y=-4655.32 z=9.21484 o=3.13243	0	0	0
+quest_start	11198	9	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3830.76 y=-4673.74 z=9.50962 o=2.70832	0	0	0
+quest_start	11198	10	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3843.65 y=-4687.59 z=9.6436 o=2.43735	0	0	0
+quest_start	11198	11	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3851.97 y=-4697.24 z=9.36834 o=2.33525	0	0	0
+quest_start	11198	12	5000	temp_summon_creature	entry=23900 despawn_delay=900000 x=-3858.49 y=-4703.49 z=9.17411 o=2.33525	0	0	0
+quest_start	11198	13	8000	temp_summon_creature	entry=23899 despawn_delay=900000 x=-3891.03 y=-4671.17 z=-1.52 o=0.74	0	0	0
+spell	5	0	0	cast_spell	spell=21100	0	0	0
+spell	7	0	0	cast_spell	spell=40632	0	0	4
+spell	8	0	0	cast_spell	spell=40642	0	0	4
+spell	9	0	0	cast_spell	spell=40640	0	0	4
+spell	10	0	0	cast_spell	spell=40644	0	0	4
+spell	21	0	0	quest_explored	quest=6981	0	0	0
+spell	321	0	0	cast_spell	spell=9268	0	0	0
+spell	342	0	0	cast_spell	spell=24751	0	0	0
+spell	576	0	0	quest_explored	quest=2278 distance=5	0	0	0
+spell	1045	0	0	cast_spell	spell=11512	0	0	4
+spell	1047	0	0	cast_spell	spell=11525	0	0	4
+spell	1049	0	0	cast_spell	spell=11528	0	0	4
+spell	1282	0	0	temp_summon_creature	entry=8391 despawn_delay=300000 x=-6460.42 y=-1267.62 z=180.785 o=3.15905	0	0	0
+spell	1288	0	1000	respawn_go	guid=112831 despawn_delay=10	0	0	0
+spell	1288	1	11000	respawn_go	guid=112832 despawn_delay=10	0	0	0
+spell	1288	2	22000	respawn_go	guid=112833 despawn_delay=10	0	0	0
+spell	1288	3	33000	respawn_go	guid=112834 despawn_delay=10	0	0	0
+spell	1288	4	44000	respawn_go	guid=112835 despawn_delay=10	0	0	0
+spell	1288	5	55000	respawn_go	guid=112836 despawn_delay=10	0	0	0
+spell	1321	0	0	quest_explored	quest=3441	0	0	0
+spell	1405	0	0	kill_credit	entry=8612	0	0	0
+spell	1405	1	2000	modify_npc_flags	flag=1 change=2	8612	5	0
+spell	1541	0	0	cast_spell	spell=12885	0	0	0
+spell	2177	0	0	quest_explored	quest=4285	0	0	0
+spell	2178	0	0	quest_explored	quest=4287	0	0	0
+spell	2179	0	0	quest_explored	quest=4288	0	0	0
+spell	2208	0	0	cast_spell	spell=15120	0	0	0
+spell	2208	1	0	talk	text0=2000000318	0	0	0
+spell	2465	0	0	cast_spell	spell=23122	0	0	0
+spell	2703	0	0	cast_spell	spell=16351	0	0	0
+spell	3049	0	0	quest_explored	quest=5126	0	0	0
+spell	3141	0	0	kill_credit	entry=11064 group_credit=1	0	0	0
+spell	3141	1	2000	modify_npc_flags	flag=1 change=2	11064	5	0
+spell	3142	0	0	cast_spell	spell=47043	0	0	0
+spell	3223	0	0	cast_spell	spell=17529	0	0	0
+spell	3421	0	0	create_item	item=12846 amount=1	0	0	0
+spell	3801	0	0	cast_spell	spell=17961	0	0	0
+spell	3884	0	1000	quest_explored	quest=5929 distance=5	0	0	0
+spell	3885	0	1000	quest_explored	quest=5930 distance=5	0	0	0
+spell	4041	0	0	send_taxi_path	path=315	0	0	0
+spell	4042	0	0	send_taxi_path	path=316	0	0	0
+spell	4781	0	0	cast_spell	spell=23059	0	0	0
+spell	5382	0	0	cast_spell	spell=10843	0	0	0
+spell	5383	0	0	cast_spell	spell=18631	0	0	0
+spell	5384	0	0	cast_spell	spell=18632	0	0	0
+spell	5602	0	3000	talk	text0=2000000195	0	0	0
+spell	5602	1	7000	movement	type=2	0	0	0
+spell	5602	2	7000	set_activeobject	activate=1	0	0	0
+spell	5704	0	0	create_item	item=19016 amount=1	0	0	0
+spell	5750	0	0	cast_spell	spell=25139	0	0	6
+spell	6092	0	0	cast_spell	spell=23490	0	0	0
+spell	6094	0	0	cast_spell	spell=23491	0	0	0
+spell	6211	0	0	cast_spell	spell=23765	0	0	0
+spell	6443	0	0	cast_spell	spell=24267	0	0	0
+spell	6540	0	1000	activate_object		180502	10	1
+spell	6545	0	0	kill_credit	entry=15222	0	0	0
+spell	6552	0	0	kill_credit	entry=15221	0	0	0
+spell	6668	0	0	create_item	item=21109 amount=1	0	0	0
+spell	6669	0	0	create_item	item=21107 amount=1	0	0	0
+spell	6670	0	0	create_item	item=21106 amount=1	0	0	0
+spell	6763	0	0	cast_spell	spell=25952	0	0	4
+spell	6763	1	7000	kill_credit	entry=15664 group_credit=5	0	0	0
+spell	6763	2	9000	despawn_self		0	0	0
+spell	7176	0	0	talk	text0=2000005544	0	0	0
+spell	7176	1	0	stand_state	state=0	0	0	0
+spell	7176	2	0	emote	emote=1	0	0	0
+spell	7176	3	0	modify_npc_flags	flag=1 change=2	0	0	0
+spell	7176	4	5000	set_run	run=1	0	0	0
+spell	7176	5	5000	movement	type=2	0	0	0
+spell	7176	6	10000	kill_credit	entry=16209 group_credit=1	0	0	0
+spell	7179	0	0	talk	text0=2000005543	0	0	0
+spell	7179	1	0	stand_state	state=0	0	0	0
+spell	7179	2	0	modify_npc_flags	flag=1 change=2	0	0	0
+spell	7179	3	1000	emote	emote=6	0	0	0
+spell	7179	4	5000	set_run	run=1	0	0	0
+spell	7179	5	5000	movement	type=2	0	0	0
+spell	7179	6	10000	kill_credit	entry=16208 group_credit=1	0	0	0
+spell	7186	0	0	talk	text0=2000005545	0	0	0
+spell	7186	1	0	stand_state	state=0	0	0	0
+spell	7186	2	0	emote	emote=1	0	0	0
+spell	7186	3	0	modify_npc_flags	flag=1 change=2	0	0	0
+spell	7186	4	5000	set_run	run=1	0	0	0
+spell	7186	5	5000	movement	type=2	0	0	0
+spell	7186	6	10000	kill_credit	entry=16206 group_credit=1	0	0	0
+spell	7370	0	0	kill_credit	entry=0	0	0	0
+spell	7371	0	1000	movement	type=2	0	0	0
+spell	7371	1	5000	kill_credit	entry=17119	0	0	0
+spell	7399	0	0	cast_spell	spell=30353	0	0	0
+spell	7585	0	0	create_item	item=24573 amount=1	0	0	0
+spell	7671	0	0	kill_credit	entry=18354	0	0	0
+spell	7676	0	0	quest_explored	quest=10108	0	0	0
+spell	7676	1	0	quest_explored	quest=10107	0	0	0
+spell	7722	0	0	cast_spell	spell=32431	0	0	0
+spell	7724	0	0	cast_spell	spell=32430	0	0	0
+spell	7729	0	0	set_faction	faction=45 flags=2	0	0	0
+spell	7729	1	1000	talk	text0=2000000196	0	0	0
+spell	7729	2	1000	attack_start		0	0	0
+spell	7730	0	0	set_faction	faction=45 flags=2	0	0	0
+spell	7730	1	1000	attack_start		0	0	0
+spell	7730	2	1000	talk	text0=2000000197	0	0	0
+spell	7731	0	0	set_faction	faction=14 flags=2	0	0	0
+spell	7731	1	1000	attack_start		0	0	0
+spell	7731	2	1000	talk	text0=2000000198	0	0	0
+spell	7755	0	0	kill_credit	entry=26465	0	0	0
+spell	7758	0	0	kill_credit	entry=26464	0	0	0
+spell	7761	0	0	kill_credit	entry=26466	0	0	0
+spell	7762	0	0	quest_explored	quest=10044 distance=5	0	0	0
+spell	7938	0	0	cast_spell	spell=34924	0	0	0
+spell	7939	0	0	cast_spell	spell=34907	0	0	0
+spell	7959	0	0	send_taxi_path	path=534	0	0	0
+spell	7976	0	0	quest_explored	quest=10172 distance=5	0	0	0
+spell	7999	0	0	talk	text0=2000000310	19606	10	0
+spell	7999	1	5000	emote	emote=15	19606	10	0
+spell	7999	2	6000	talk	text0=2000000311	19606	10	0
+spell	7999	3	6000	kill_credit	entry=19606 group_credit=1	0	0	0
+spell	8072	0	0	cast_spell	spell=34891	0	0	0
+spell	8082	0	0	cast_spell	spell=34905	0	0	0
+spell	8100	0	0	cast_spell	spell=35066	0	0	0
+spell	8161	0	0	kill_credit	entry=20679 group_credit=1	0	0	0
+spell	8161	1	0	talk	text0=2000000199	0	0	0
+spell	8162	0	0	kill_credit	entry=20677 group_credit=1	0	0	0
+spell	8162	1	0	talk	text0=2000000200	0	0	0
+spell	8163	0	0	kill_credit	entry=20678 group_credit=1	0	0	0
+spell	8163	1	0	talk	text0=2000000201	0	0	0
+spell	8229	0	0	send_taxi_path	path=627	0	0	0
+spell	8276	0	0	quest_explored	quest=10519	0	0	0
+spell	8301	0	0	create_item	item=30639 amount=1	0	0	0
+spell	8338	0	0	quest_explored	quest=10577	0	0	0
+spell	8356	0	0	create_item	item=30658 amount=1	0	0	0
+spell	8371	0	0	create_item	item=30659 amount=1	0	0	0
+spell	8396	0	0	quest_explored	quest=10646	0	0	0
+spell	8429	0	0	quest_explored	quest=10682 distance=5	0	0	0
+spell	8439	0	0	quest_explored	quest=10722	0	0	0
+spell	8497	0	0	quest_explored	quest=10814	0	0	0
+spell	8617	0	0	kill_credit	entry=22932	0	0	0
+spell	8697	0	0	quest_explored	quest=11082	0	0	0
+spell	8697	1	0	cast_spell	spell=41121	0	0	0
+spell	8718	0	0	cast_spell	spell=41278	0	0	6
+spell	8719	0	0	cast_spell	spell=41279	0	0	6
+spell	8761	0	0	cast_spell	spell=42169	0	0	0
+spell	8775	0	0	cast_spell	spell=42540	0	0	0
+spell	8782	0	0	cast_spell	spell=42295	0	0	0
+spell	8846	0	0	cast_spell	spell=42711	0	0	0
+spell	9205	0	0	cast_spell	spell=37778	0	0	6
+spell	9686	0	0	talk	text0=2000000163	0	0	0
+spell	10131	0	0	cast_spell	spell=46343	0	0	2
+spell	10219	0	0	temp_summon_creature	entry=17085 despawn_delay=180000 x=-1321.79 y=4043.8 z=116.24 o=1.25	0	0	8
+spell	20003	0	0	cast_spell	spell=36956	0	0	0
+spell	20004	0	0	cast_spell	spell=36957	0	0	0
+spell	20007	0	3000	quest_explored	quest=5727 distance=10	0	0	0
+spell	50232	0	0	create_item	item=7586 amount=1	0	0	0
+spell	80880	0	0	cast_spell	spell=34975	0	0	0
+spell	105001	0	0	cast_spell	spell=11545	0	0	4
+spell	132302	0	0	cast_spell	spell=19797	0	0	0
+spell	194501	0	0	cast_spell	spell=14894	0	0	0
+spell	194502	0	1000	respawn_go	guid=67871 despawn_delay=300	0	0	0
+spell	476301	0	0	cast_spell	spell=6766	0	0	0
+spell	476302	0	0	quest_explored	quest=6627 distance=5	0	0	0
+spell	476401	0	0	cast_spell	spell=6767	0	0	0
+spell	476402	0	0	quest_explored	quest=6628	0	0	0
+spell	570901	0	0	pause_waypoints	pause=0	0	0	0
+spell	570901	1	0	modify_npc_flags	flag=3 change=2	0	0	0
+spell	570901	2	1000	talk	text0=2000005460	0	0	0
+spell	570902	0	0	pause_waypoints	pause=0	0	0	0
+spell	570902	1	0	modify_npc_flags	flag=3 change=2	0	0	0
+spell	570902	2	1000	talk	text0=2000005461	0	0	0
+spell	570903	0	0	pause_waypoints	pause=0	0	0	0
+spell	570903	1	0	modify_npc_flags	flag=3 change=2	0	0	0
+spell	570903	2	1000	talk	text0=2000005462	0	0	0
+spell	570904	0	0	pause_waypoints	pause=0	0	0	0
+spell	570904	1	0	modify_npc_flags	flag=3 change=2	0	0	0
+spell	570904	2	1000	talk	text0=2000005463	0	0	0
+spell	570905	0	0	modify_npc_flags	flag=3 change=2	0	0	0
+spell	570905	1	1000	talk	text0=2000005464	0	0	0
+spell	570905	2	3000	temp_summon_creature	entry=13276 despawn_delay=120000 x=14.7965 y=-696.322 z=-12.6426 o=4.4823	0	0	0
+spell	570905	3	3000	temp_summon_creature	entry=13276 despawn_delay=120000 x=18.8891 y=-697.389 z=-12.6426 o=4.35271	0	0	0
+spell	570905	4	3000	temp_summon_creature	entry=13276 despawn_delay=120000 x=21.4274 y=-700.227 z=-12.6426 o=4.06997	0	0	0
+spell	570905	5	3000	temp_summon_creature	entry=13276 despawn_delay=120000 x=22.2017 y=-705.459 z=-12.6426 o=3.48092	0	0	0
+spell	570905	6	4000	cast_spell	spell=22735	0	0	0
+spell	570905	7	4000	set_faction	faction=90 flags=1	0	0	0
+spell	618701	0	0	cast_spell	spell=23768	0	0	0
+spell	618702	0	0	cast_spell	spell=23769	0	0	0
+spell	618703	0	0	cast_spell	spell=23767	0	0	0
+spell	620801	0	0	cast_spell	spell=23738	0	0	0
+spell	620802	0	0	cast_spell	spell=23766	0	0	0
+spell	620901	0	0	cast_spell	spell=23737	0	0	0
+spell	620902	0	0	cast_spell	spell=23735	0	0	0
+spell	620903	0	0	cast_spell	spell=23736	0	0	0
+spell	654301	0	0	cast_spell	spell=24785	0	0	4
+spell	654302	0	0	cast_spell	spell=24787	0	0	4
+spell	654303	0	0	cast_spell	spell=24792	0	0	4
+spell	654304	0	0	cast_spell	spell=24791	0	0	4
+spell	654305	0	0	cast_spell	spell=24793	0	0	4
+spell	737901	0	0	send_taxi_path	path=494	0	0	0
+spell	737902	0	0	send_taxi_path	path=495	0	0	0
+spell	737903	0	0	send_taxi_path	path=496	0	0	0
+spell	755900	0	0	kill_credit	entry=17900	0	0	0
+spell	755900	1	1000	cast_spell	spell=31808	0	0	8
+spell	755901	0	0	kill_credit	entry=17900	0	0	0
+spell	755901	1	1000	cast_spell	spell=31810	0	0	8
+spell	755902	0	0	kill_credit	entry=17900	0	0	0
+spell	755902	1	1000	cast_spell	spell=31811	0	0	8
+spell	755903	0	0	kill_credit	entry=17900	0	0	0
+spell	755903	1	1000	cast_spell	spell=31815	0	0	8
+spell	756000	0	0	kill_credit	entry=17901	0	0	0
+spell	756000	1	1000	cast_spell	spell=31807	0	0	8
+spell	756001	0	0	kill_credit	entry=17901	0	0	0
+spell	756001	1	1000	cast_spell	spell=31814	0	0	8
+spell	756002	0	0	kill_credit	entry=17901	0	0	0
+spell	756002	1	1000	cast_spell	spell=31813	0	0	8
+spell	756003	0	0	kill_credit	entry=17901	0	0	0
+spell	756003	1	1000	cast_spell	spell=31812	0	0	8
+spell	796701	0	0	cast_spell	spell=33825	0	0	0
+spell	796703	0	0	cast_spell	spell=33659	0	0	0
+spell	796704	0	0	cast_spell	spell=34578	0	0	0
+spell	797002	0	0	cast_spell	spell=35069	0	0	0
+spell	797003	0	0	cast_spell	spell=33768	0	0	0
+spell	809600	0	0	cast_spell	spell=35065	0	0	0
+spell	809601	0	0	cast_spell	spell=33899	0	0	0
+spell	906201	0	0	cast_spell	spell=45071	0	0	0
+spell	906202	0	0	cast_spell	spell=45113	0	0	0
+spell	914301	0	0	cast_spell	spell=45353	0	0	0
+spell	9839502	0	0	cast_spell	spell=17672	0	0	0

@@ -1,0 +1,93 @@
+# MAI rule manifest -- the moments a script can react to.
+#
+# A sequence says WHAT happens and WHEN, counted from its own start. A rule
+# says WHEN IT STARTS. That is the whole of the difference between the two
+# systems being folded together here: the DB scripts had sequences and no
+# rules, EventAI had rules and no sequences, and each spent enormous effort
+# faking the other.
+#
+#     EventAI faked sequences with timers. A creature that says one line, waits
+#     three seconds and says another is three rows, a phase field and two
+#     timers -- because there is nowhere to write "then".
+#
+#     The DB scripts faked rules by having ten tables. `dbscripts_on_quest_end`
+#     IS a rule: it is the rule "when a quest ends". Nine such rules, expressed
+#     as nine table names, none of them able to carry a condition.
+#
+# Written down once, a rule is: a trigger, an optional condition, a chance, and
+# the sequence to start.
+#
+# IDENTITY IS ABI, as everywhere else here: the numbers are EventAI's own event
+# types, unchanged, so a `creature_ai_scripts` row converts by number. The
+# DB-script kinds are at 0x40 and up because they were table names rather than
+# numbers and had none to keep.
+#
+# parameters
+#     Most triggers are parameterised -- "when health drops below X", "when hit
+#     by spell S of school M" -- and the names below are what a condition can
+#     be written against. The types are the action manifest's.
+#
+#     repeat:ms? repeat_max:ms?   a trigger that re-arms; EventAI wrote these
+#                                 as two more columns on every row, whether the
+#                                 event repeated or not
+
+category combat = 0x00
+    timer_in_combat          0   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+    timer_ooc                1   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+    health_below             2   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    mana_below               3   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    aggro                    4
+    killed_unit              5   repeat:ms? repeat_max:ms?
+    died                     6
+    evaded                   7
+    hit_by_spell             8   spell:spell? school:flags? repeat:ms? repeat_max:ms?
+    target_in_range          9   min:f32 max:f32 repeat:ms? repeat_max:ms?
+    energy_below            32   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+
+category sight = 0x01
+    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms?
+    spawned                 11   condition:u32? value:u32?
+    reached_waypoint        31   waypoint:u32? path:u32?
+    reached_home            21
+    received_emote          22   emote:emote condition:u32? value:u32?
+    received_ai_event       30   event:u32 sender:creature?
+
+category target = 0x02
+    target_health_below     12   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    target_casting          13   repeat:ms? repeat_max:ms?
+    target_mana_below       18   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    target_has_aura         24   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    target_missing_aura     28   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+
+category self = 0x03
+    has_aura                23   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    missing_aura            27   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    timer                   29   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+
+category friendly = 0x04
+    friendly_hurt           14   radius:f32 missing_hp:u32 repeat:ms? repeat_max:ms?
+    friendly_controlled     15   radius:f32 repeat:ms? repeat_max:ms?
+    friendly_missing_buff   16   radius:f32 spell:spell repeat:ms? repeat_max:ms?
+
+category summons = 0x05
+    summoned_unit           17   creature:creature? repeat:ms? repeat_max:ms?
+    summon_died             25   creature:creature? repeat:ms? repeat_max:ms?
+    summon_despawned        26   creature:creature? repeat:ms? repeat_max:ms?
+
+category quests = 0x06
+    quest_accepted          19   quest:quest
+    quest_completed         20   quest:quest
+
+# The DB-script tables, as what they always were: nine rules with no condition
+# and no chance, distinguished by which moment starts them. They keep no
+# numbers because they never had any -- they were table names.
+category world = 0x40
+    quest_started           64   quest:quest
+    quest_finished          65   quest:quest
+    spell_effect            66   spell:spell
+    gameobject_used         67   guid:u32
+    gameobject_template_used 68  entry:gameobject
+    creature_died           69   creature:creature
+    reached_movement_point  70   point:u32
+    gossip_option_chosen    71   menu:u32
+    event_raised            72   event:u32

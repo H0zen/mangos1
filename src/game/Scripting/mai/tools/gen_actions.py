@@ -24,9 +24,16 @@ MAI = os.path.dirname(HERE)
 MANIFEST = os.path.join(MAI, 'actions.manifest')
 OUTPUT = os.path.join(MAI, 'MaiActions.gen.h')
 
+# The rules use the same declaration shape -- name, number, typed parameters --
+# so they come out of the same generator rather than a second copy of it. Only
+# the names of the things emitted differ.
+RULES = os.path.join(MAI, 'rules.manifest')
+RULES_OUTPUT = os.path.join(MAI, 'MaiRules.gen.h')
+
 # manifest type -> (C++ storage, what the loader checks it against)
 TYPES = {
     'u32':        ('uint32', None),
+    'u64':        ('uint64', None),
     'i32':        ('int32', None),
     'f32':        ('float', None),
     'bool':       ('bool', None),
@@ -114,19 +121,20 @@ def parse(path):
     return facets, cats
 
 
-def emit(facets, cats):
+def emit(facets, cats, what='Action', guard='ACTIONS', source='actions'):
     head = open(os.path.join(os.path.dirname(MAI), 'ScriptTypes.h'),
                 encoding='utf-8').read()
     licence = head[:head.index('#ifndef')].rstrip()
 
     out = [licence, '',
-           '// GENERATED FROM actions.manifest -- DO NOT EDIT.',
+           '// GENERATED FROM %s.manifest -- DO NOT EDIT.' % source,
            '// Regenerate with: python src/game/Scripting/mai/tools/gen_actions.py',
            '',
-           '#ifndef MANGOS_MAI_ACTIONS_GEN_H',
-           '#define MANGOS_MAI_ACTIONS_GEN_H',
+           '#ifndef MANGOS_MAI_%s_GEN_H' % guard,
+           '#define MANGOS_MAI_%s_GEN_H' % guard,
            '',
-           '#include "Platform/Define.h"',
+           '#include "Platform/Define.h"' if what == 'Action'
+               else '#include "MaiActions.gen.h"',
            '',
            '#include <cstddef>',
            '',
@@ -149,7 +157,7 @@ def emit(facets, cats):
     out.append('')
     out.append('    /// The verbs. The numbers are the DB-script command ids,')
     out.append('    /// unchanged, so an existing row lowers by number.')
-    out.append('    enum class ActionId : uint16')
+    out.append('    enum class %sId : uint16' % what)
     out.append('    {')
     out.append('        None = 0xFFFF,')
     rows = []
@@ -168,7 +176,7 @@ def emit(facets, cats):
             full.extend(facets[facet])
         if not full:
             continue
-        out.append('    inline constexpr ParamSpec g_params%s[] =' % ident_name)
+        out.append('    inline constexpr ParamSpec g_%sParams%s[] =' % (what.lower(), ident_name))
         out.append('    {')
         for pname, kind, _cxx, _check, optional in full:
             out.append('        { "%s", ParamType::%s, %s },'
@@ -188,9 +196,9 @@ def emit(facets, cats):
         out.append('        Facet%-10s = 1 << %d,' % (camel(facet), i))
     out.append('    };')
     out.append('')
-    out.append('    struct ActionSpec')
+    out.append('    struct %sSpec' % what)
     out.append('    {')
-    out.append('        ActionId          id;')
+    out.append('        %-17s id;' % (what + 'Id'))
     out.append('        char const*       name;       ///< "cast_spell"')
     out.append('        ParamSpec const*  params;')
     out.append('        std::size_t       arity;      ///< own parameters + facets')
@@ -198,21 +206,21 @@ def emit(facets, cats):
     out.append('        uint8             facets;     ///< a mask of Facet')
     out.append('    };')
     out.append('')
-    out.append('    inline constexpr ActionSpec g_actionSpecs[] =')
+    out.append('    inline constexpr %sSpec g_%sSpecs[] =' % (what, what.lower()))
     out.append('    {')
     for ident_name, name, _id, params, used in rows:
         count = len(params) + sum(len(facets[f]) for f in used)
         mask = ' | '.join('Facet' + camel(f) for f in used) or '0'
-        out.append('        { ActionId::%s, "%s", %s, %d, %d, %s },'
-                   % (ident_name, name,
-                      ('g_params%s' % ident_name) if count else 'nullptr',
+        out.append('        { %sId::%s, "%s", %s, %d, %d, %s },'
+                   % (what, ident_name, name,
+                      ('g_%sParams%s' % (what.lower(), ident_name)) if count else 'nullptr',
                       count, len(params), mask))
     out.append('    };')
     out.append('')
     out.append('    /// The shape of @a id, or nullptr when nothing carries it.')
-    out.append('    inline ActionSpec const* SpecOf(ActionId id)')
+    out.append('    inline %sSpec const* SpecOf(%sId id)' % (what, what))
     out.append('    {')
-    out.append('        for (ActionSpec const& spec : g_actionSpecs)')
+    out.append('        for (%sSpec const& spec : g_%sSpecs)' % (what, what.lower()))
     out.append('        {')
     out.append('            if (spec.id == id)')
     out.append('            {')
@@ -222,12 +230,9 @@ def emit(facets, cats):
     out.append('')
     out.append('        return nullptr;')
     out.append('    }')
-    out.append('')
-    out.append('    /// The verb @a name names, or ActionId::None.')
-    out.append('    inline ActionId ActionNamed(char const* name);')
     out.append('}')
     out.append('')
-    out.append('#endif //MANGOS_MAI_ACTIONS_GEN_H')
+    out.append('#endif //MANGOS_MAI_%s_GEN_H' % guard)
     return '\n'.join(out) + '\n', len(rows)
 
 
@@ -235,21 +240,30 @@ def main():
     try:
         facets, cats = parse(MANIFEST)
         text, count = emit(facets, cats)
+        rule_facets, rule_cats = parse(RULES)
+        rules, rule_count = emit(rule_facets, rule_cats, 'Rule', 'RULES',
+                                 'rules')
     except Bad as err:
         sys.stderr.write('error: %s\n' % err)
         return 1
 
-    old = (open(OUTPUT, encoding='utf-8').read()
-           if os.path.exists(OUTPUT) else None)
+    written = ((OUTPUT, text), (RULES_OUTPUT, rules))
+
     if '--check' in sys.argv:
-        if old != text:
-            sys.stderr.write('error: %s is stale -- regenerate it\n' % OUTPUT)
-            return 1
-        print('MaiActions.gen.h is up to date')
+        for path, wanted in written:
+            old = (open(path, encoding='utf-8').read()
+                   if os.path.exists(path) else None)
+            if old != wanted:
+                sys.stderr.write('error: %s is stale -- regenerate it\n'
+                                 % path)
+                return 1
+        print('MaiActions.gen.h and MaiRules.gen.h are up to date')
         return 0
 
-    open(OUTPUT, 'w', encoding='utf-8', newline='\n').write(text)
+    for path, wanted in written:
+        open(path, 'w', encoding='utf-8', newline='\n').write(wanted)
     print('%s: %d categories, %d actions' % (MANIFEST, len(cats), count))
+    print('%s: %d categories, %d rules' % (RULES, len(rule_cats), rule_count))
     return 0
 
 
