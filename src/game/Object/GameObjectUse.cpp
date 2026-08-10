@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include <sstream>
 #include "Utilities/MathDefines.h"
@@ -87,7 +88,12 @@ void GameObject::Use(Unit* user)
     bool scriptReturnValue = user->GetTypeId() == TYPEID_PLAYER && sScriptMgr.OnGameObjectUse((Player*)user, this);
     if (!scriptReturnValue)
     {
-        GetMap()->ScriptsStart(DBS_ON_GOT_USE, GetEntry(), spellCaster, this);
+        scripting::Notify(GetMap(),
+                scripting::DbscriptGotUse{ scripting::RefOf(spellCaster),
+                                scripting::RefOf(this),
+                                GetEntry(),
+                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                false });
     }
 
     switch (GetGoType())
@@ -100,7 +106,12 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
+                                        scripting::RefOf(this),
+                                        GetGUIDLow(),
+                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                        false });
             }
             return;
         }
@@ -114,7 +125,12 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
+                                        scripting::RefOf(this),
+                                        GetGUIDLow(),
+                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                        false });
             }
 
             return;
@@ -373,7 +389,12 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                        scripting::DbscriptGoUse{ scripting::RefOf(spellCaster),
+                                        scripting::RefOf(this),
+                                        GetGUIDLow(),
+                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                        false });
             }
             else
             {

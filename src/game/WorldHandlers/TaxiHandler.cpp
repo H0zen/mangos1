@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
@@ -303,7 +304,12 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
         if (uint32 eventid = nlist[nlist.size() - 1].ArrivalEventID)
             if (!sScriptMgr.OnProcessEvent(eventid, GetPlayer(), GetPlayer(), false))
             {
-                GetPlayer()->GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, GetPlayer(), GetPlayer());
+                scripting::Notify(GetPlayer()->GetMap(),
+                        scripting::DbscriptEvent{ scripting::RefOf(GetPlayer()),
+                                        scripting::RefOf(GetPlayer()),
+                                        eventid,
+                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                        false });
             }
     }
 

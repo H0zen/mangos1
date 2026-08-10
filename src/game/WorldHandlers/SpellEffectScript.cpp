@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include <iterator>
 #include <random>
 #include "Platform/Define.h"
@@ -1160,5 +1161,10 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectScriptEffect", m_spellInfo->ID);
-    m_caster->GetMap()->ScriptsStart(DBS_ON_SPELL, m_spellInfo->ID, m_caster, unitTarget);
+    scripting::Notify(m_caster->GetMap(),
+            scripting::DbscriptSpell{ scripting::RefOf(m_caster),
+                            scripting::RefOf(unitTarget),
+                            m_spellInfo->ID,
+                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                            false });
 }

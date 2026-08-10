@@ -1362,7 +1362,12 @@ void Unit::JustKilledCreature(Creature* victim, Player* responsiblePlayer)
     }
 
     // Start creature death script
-    GetMap()->ScriptsStart(DBS_ON_CREATURE_DEATH, victim->GetEntry(), victim, responsiblePlayer ? responsiblePlayer : this);
+    scripting::Notify(GetMap(),
+            scripting::DbscriptCreatureDeath{ scripting::RefOf(victim),
+                            scripting::RefOf(responsiblePlayer ? responsiblePlayer : this),
+                            victim->GetEntry(),
+                            static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                            false });
 
     if (victim->IsLinkingEventTrigger())
     {

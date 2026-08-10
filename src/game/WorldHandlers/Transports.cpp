@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include <algorithm>
 #include <cmath>
@@ -934,7 +935,12 @@ void Transport::DoEventIfAny(WayPointMap::value_type const& node, bool departure
 
         if (!sScriptMgr.OnProcessEvent(eventid, this, this, departure))
         {
-            GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, this, this);
+            scripting::Notify(GetMap(),
+                    scripting::DbscriptEvent{ scripting::RefOf(this),
+                                    scripting::RefOf(this),
+                                    eventid,
+                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                    false });
         }
     }
 }

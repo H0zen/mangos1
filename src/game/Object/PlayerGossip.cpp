@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/PackedValues.h"
 #include "Player.h"
 #include "Language.h"
@@ -484,11 +485,21 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
     {
         if (pSource->GetTypeId() == TYPEID_UNIT)
         {
-            GetMap()->ScriptsStart(DBS_ON_GOSSIP, menuData.m_gAction_script, pSource, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
+            scripting::Notify(GetMap(),
+                    scripting::DbscriptGossip{ scripting::RefOf(pSource),
+                                    scripting::RefOf(this),
+                                    menuData.m_gAction_script,
+                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
+                                    false });
         }
         else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
         {
-            GetMap()->ScriptsStart(DBS_ON_GOSSIP, menuData.m_gAction_script, this, pSource, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET);
+            scripting::Notify(GetMap(),
+                    scripting::DbscriptGossip{ scripting::RefOf(this),
+                                    scripting::RefOf(pSource),
+                                    menuData.m_gAction_script,
+                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET),
+                                    false });
         }
     }
 }
@@ -551,7 +562,12 @@ uint32 Player::GetGossipTextId(uint32 menuId, WorldObject* pSource)
     // Start related script
     if (scriptId)
     {
-        GetMap()->ScriptsStart(DBS_ON_GOSSIP, scriptId, this, pSource, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET);
+        scripting::Notify(GetMap(),
+                scripting::DbscriptGossip{ scripting::RefOf(this),
+                                scripting::RefOf(pSource),
+                                scriptId,
+                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET),
+                                false });
     }
 
     return textId;

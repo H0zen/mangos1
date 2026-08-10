@@ -4314,220 +4314,290 @@ namespace scripting
     struct DbscriptQuestStart
     {
         static constexpr EventId Id = EventId::DbscriptQuestStart;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_quest_end: broadcast
     struct DbscriptQuestEnd
     {
         static constexpr EventId Id = EventId::DbscriptQuestEnd;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_gossip: broadcast
     struct DbscriptGossip
     {
         static constexpr EventId Id = EventId::DbscriptGossip;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_creature_movement: broadcast
     struct DbscriptCreatureMovement
     {
         static constexpr EventId Id = EventId::DbscriptCreatureMovement;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_creature_death: broadcast
     struct DbscriptCreatureDeath
     {
         static constexpr EventId Id = EventId::DbscriptCreatureDeath;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_spell: broadcast
     struct DbscriptSpell
     {
         static constexpr EventId Id = EventId::DbscriptSpell;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_go_use: broadcast
     struct DbscriptGoUse
     {
         static constexpr EventId Id = EventId::DbscriptGoUse;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_got_use: broadcast
     struct DbscriptGotUse
     {
         static constexpr EventId Id = EventId::DbscriptGotUse;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_event: broadcast
     struct DbscriptEvent
     {
         static constexpr EventId Id = EventId::DbscriptEvent;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// dbscript/on_creature_spell: broadcast
     struct DbscriptCreatureSpell
     {
         static constexpr EventId Id = EventId::DbscriptCreatureSpell;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 5;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = false;
 
         Ref            source;
         Ref            target;
         uint32         id;
+        uint32         execParams;
+        bool           started;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(id);
+            args[3] = Arg::FromNumber(execParams);
+            args[4] = Arg::FromFlag(started);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            started = static_cast<bool>(args[4].AsFlag());
+        }
     };
 
     /// core/on_npc_spell_click: claim

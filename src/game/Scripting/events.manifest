@@ -273,16 +273,16 @@ category gossip = 0x0B
 # can never answer. All ten are broadcast, and that is a property of the
 # engine, not a choice made here.
 category dbscript = 0x0E
-    on_quest_start                       0  broadcast  source:obj target:obj id:u32
-    on_quest_end                         1  broadcast  source:obj target:obj id:u32
-    on_gossip                            2  broadcast  source:obj target:obj id:u32
-    on_creature_movement                 3  broadcast  source:obj target:obj id:u32
-    on_creature_death                    4  broadcast  source:obj target:obj id:u32
-    on_spell                             5  broadcast  source:obj target:obj id:u32
-    on_go_use                            6  broadcast  source:obj target:obj id:u32
-    on_got_use                           7  broadcast  source:obj target:obj id:u32
-    on_event                             8  broadcast  source:obj target:obj id:u32
-    on_creature_spell                    9  broadcast  source:obj target:obj id:u32
+    on_quest_start                       0  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_quest_end                         1  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_gossip                            2  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_creature_movement                 3  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_creature_death                    4  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_spell                             5  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_go_use                            6  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_got_use                           7  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_event                             8  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
+    on_creature_spell                    9  broadcast  source:obj target:obj id:u32 execParams:u32 started:bool!
 
 # The three SD3 entry points with no Eluna counterpart. Every other hook SD3
 # exposes falls into a category above -- which is itself the finding: two

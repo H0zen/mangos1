@@ -26,6 +26,8 @@
 #include "ScriptHost.h"
 #include "IScriptEngine.h"
 
+#include "dbscripts/DbScriptEngine.h"
+
 // Complete types, not forward declarations: the auction upcasts Creature and
 // GameObject to WorldObject, and with multiple inheritance in the hierarchy an
 // upcast can adjust the pointer. A reinterpret_cast here would compile and be
@@ -49,12 +51,11 @@ namespace scripting
     {
         // Is there any engine at all in this build?
         //
-        // Flipped on by whichever engine registers itself in MakeHostState.
-        // With none built, every emit site in the world folds to this single
-        // test and never becomes a call. Whether a *state* exists for a given
-        // map stays a runtime question for the engine, which answers Continue
-        // when it has none.
-        bool g_scriptsEnabled = false;
+        // True while MakeHostState pushes at least one. With none built, every
+        // emit site in the world folds to this single test and never becomes a
+        // call. Whether a *state* exists for a given map stays a runtime
+        // question for the engine, which answers Continue when it has none.
+        bool g_scriptsEnabled = true;
     }
 
     namespace
@@ -68,14 +69,18 @@ namespace scripting
         /**
          * Build the engine list.
          *
-         * Empty at the moment, and the build is correct that way: the seam
-         * costs one test at every emit site and nothing else. An engine
-         * registers by pushing itself here and flipping g_scriptsEnabled --
-         * that pair is the whole contract for adding one.
+         * One line per engine, and that is the whole contract for adding one:
+         * push it here, and make sure g_scriptsEnabled is true. Order matters
+         * only for ties -- the auction sorts by bid and the dispatch chain
+         * stops at the first Cancel or Handled.
          */
         HostState MakeHostState()
         {
             HostState state;
+
+            state.engines.push_back(
+                std::unique_ptr<IEngine>(new DbScriptEngine()));
+
             return state;
         }
 

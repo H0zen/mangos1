@@ -60,6 +60,18 @@ source_group("References" FILES ${SRC_GRP_REFERENCES})
 file(GLOB SRC_GRP_SCRIPTING Scripting/*.cpp Scripting/*.h)
 source_group("Scripting" FILES ${SRC_GRP_SCRIPTING})
 
+# One directory per engine under Scripting/. Adding an engine is a new
+# directory plus one line in ScriptHost.cpp's MakeHostState -- nothing here
+# needs editing, and nothing outside Scripting/ ever names an engine.
+file(GLOB SRC_GRP_SCRIPT_ENGINES Scripting/*/*.cpp Scripting/*/*.h)
+list(APPEND SRC_GRP_SCRIPTING ${SRC_GRP_SCRIPT_ENGINES})
+
+foreach(_engine_file ${SRC_GRP_SCRIPT_ENGINES})
+    get_filename_component(_engine_dir "${_engine_file}" DIRECTORY)
+    get_filename_component(_engine_name "${_engine_dir}" NAME)
+    source_group("Scripting\\${_engine_name}" FILES "${_engine_file}")
+endforeach()
+
 #Server group
 file(GLOB SRC_GRP_SERVER Server/*.cpp Server/*.h)
 source_group("Server" FILES ${SRC_GRP_SERVER})

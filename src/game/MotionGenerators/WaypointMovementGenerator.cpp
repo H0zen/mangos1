@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Utilities/MathDefines.h"
 #include "WaypointMovementGenerator.h"
@@ -253,7 +254,12 @@ void WaypointMovementGenerator::OnArrived(Creature& creature)
     if (node.script_id)
     {
         DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Creature movement start script %u at point %u for %s.", node.script_id, m_currentNode, creature.GetGuidStr().c_str());
-        creature.GetMap()->ScriptsStart(DBS_ON_CREATURE_MOVEMENT, node.script_id, &creature, &creature);
+        scripting::Notify(creature.GetMap(),
+                scripting::DbscriptCreatureMovement{ scripting::RefOf(&creature),
+                                scripting::RefOf(&creature),
+                                node.script_id,
+                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                false });
     }
 
     if (WaypointBehavior* behavior = node.behavior)
@@ -862,7 +868,12 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
         {
             if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, false))
             {
-                player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
+                scripting::Notify(player.GetMap(),
+                        scripting::DbscriptEvent{ scripting::RefOf(&player),
+                                        scripting::RefOf(&player),
+                                        eventid,
+                                        static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_NONE),
+                                        false });
             }
         }
     }

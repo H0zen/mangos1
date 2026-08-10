@@ -46,6 +46,7 @@
 
 #include "Utilities/Errors.h"
 #include "ScriptMgr.h"
+#include "ScriptHost.h"
 #include "Policies/Singleton.h"
 #include "Log.h"
 #include "ProgressBar.h"
@@ -338,7 +339,17 @@ bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool
         execParam = Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET;
     }
 
-    return map->ScriptsStart(DBS_ON_EVENT, id, source, target, execParam);
+    // The exec param is computed here rather than carried by the event,
+    // because it depends on which of the two actors is a creature or game
+    // object -- a question about this call site, not about the event.
+    scripting::DbscriptEvent event{ scripting::RefOf(source),
+                                    scripting::RefOf(target),
+                                    id,
+                                    static_cast<uint32>(execParam),
+                                    false };
+    scripting::Notify(map, event);
+
+    return event.started;
 }
 
 // Wrappers

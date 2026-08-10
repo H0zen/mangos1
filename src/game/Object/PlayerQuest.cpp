@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
 #include "Player.h"
@@ -747,7 +748,12 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
         // starting initial DB quest script
         if (pQuest->GetQuestStartScript() != 0)
         {
-            GetMap()->ScriptsStart(DBS_ON_QUEST_START, pQuest->GetQuestStartScript(), questGiver, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
+            scripting::Notify(GetMap(),
+                    scripting::DbscriptQuestStart{ scripting::RefOf(questGiver),
+                                    scripting::RefOf(this),
+                                    pQuest->GetQuestStartScript(),
+                                    static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
+                                    false });
         }
     }
 
@@ -1035,7 +1041,12 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
 
     if (!handled && pQuest->GetQuestCompleteScript() != 0)
     {
-        GetMap()->ScriptsStart(DBS_ON_QUEST_END, pQuest->GetQuestCompleteScript(), questGiver, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
+        scripting::Notify(GetMap(),
+                scripting::DbscriptQuestEnd{ scripting::RefOf(questGiver),
+                                scripting::RefOf(this),
+                                pQuest->GetQuestCompleteScript(),
+                                static_cast<uint32>(Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE),
+                                false });
     }
 
     // cast spells after mark quest complete (some spells have quest completed state reqyurements in spell_area data)
