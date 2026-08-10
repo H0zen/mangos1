@@ -4566,6 +4566,1500 @@ namespace scripting
         void Unpack(Arg const*) {}
     };
 
+    // -- the same events as run-time data; see describe() in
+    //    tools/gen_events.py for why both forms exist.
+
+    struct ArgSpec
+    {
+        char const* name;
+        Arg::Kind   kind;
+        Domain      domain;   ///< None unless Named or Lent
+        bool        inout;
+    };
+
+    struct EventSpec
+    {
+        EventId        id;
+        char const*    name;        ///< "player.on_login"
+        ArgSpec const* args;
+        std::size_t    arity;
+        bool           cancellable;
+        bool           claimable;
+    };
+
+    inline constexpr ArgSpec g_argsPacketReceive[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, true },
+    };
+
+    inline constexpr ArgSpec g_argsPacketReceiveUnk[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, true },
+    };
+
+    inline constexpr ArgSpec g_argsPacketSend[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerPacketReceive[] =
+    {
+        { "session", Arg::Kind::Lent, Domain::Session, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, true },
+    };
+
+    inline constexpr ArgSpec g_argsServerPacketReceiveUnk[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, true },
+    };
+
+    inline constexpr ArgSpec g_argsServerPacketSend[] =
+    {
+        { "session", Arg::Kind::Lent, Domain::Session, false },
+        { "packet", Arg::Kind::Lent, Domain::Packet, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerOpenStateChange[] =
+    {
+        { "open", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerConfigLoad[] =
+    {
+        { "reload", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerShutdownInit[] =
+    {
+        { "code", Arg::Kind::Number, Domain::None, false },
+        { "mask", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWorldUpdate[] =
+    {
+        { "diff", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapCreate[] =
+    {
+        { "map", Arg::Kind::Named, Domain::Map, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapDestroy[] =
+    {
+        { "map", Arg::Kind::Named, Domain::Map, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapPlayerEnter[] =
+    {
+        { "map", Arg::Kind::Named, Domain::Map, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapPlayerLeave[] =
+    {
+        { "map", Arg::Kind::Named, Domain::Map, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerMapUpdate[] =
+    {
+        { "map", Arg::Kind::Named, Domain::Map, false },
+        { "diff", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerEventTrigger[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "trigger", Arg::Kind::Named, Domain::AreaTrigger, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWeatherChange[] =
+    {
+        { "weather", Arg::Kind::Named, Domain::Weather, false },
+        { "zone", Arg::Kind::Number, Domain::None, false },
+        { "state", Arg::Kind::Number, Domain::None, false },
+        { "grade", Arg::Kind::Real, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerAuctionAdd[] =
+    {
+        { "house", Arg::Kind::Lent, Domain::AuctionHouse, false },
+        { "entry", Arg::Kind::Named, Domain::Auction, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerAuctionRemove[] =
+    {
+        { "house", Arg::Kind::Lent, Domain::AuctionHouse, false },
+        { "entry", Arg::Kind::Named, Domain::Auction, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerAuctionSuccessful[] =
+    {
+        { "house", Arg::Kind::Lent, Domain::AuctionHouse, false },
+        { "entry", Arg::Kind::Named, Domain::Auction, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerAuctionExpire[] =
+    {
+        { "house", Arg::Kind::Lent, Domain::AuctionHouse, false },
+        { "entry", Arg::Kind::Named, Domain::Auction, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerAddonMessage[] =
+    {
+        { "sender", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+        { "receiver", Arg::Kind::Entity, Domain::None, false },
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "channel", Arg::Kind::Lent, Domain::Channel, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWorldDeleteCreature[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerWorldDeleteGameobject[] =
+    {
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerGameStart[] =
+    {
+        { "eventId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerGameStop[] =
+    {
+        { "eventId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsServerEventRaised[] =
+    {
+        { "source", Arg::Kind::Entity, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "eventId", Arg::Kind::Number, Domain::None, false },
+        { "isStart", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerCharacterCreate[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerCharacterDelete[] =
+    {
+        { "guid", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLogin[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLogout[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerSpellCast[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "skipCheck", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerKillPlayer[] =
+    {
+        { "killer", Arg::Kind::Entity, Domain::None, false },
+        { "killed", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerKillCreature[] =
+    {
+        { "killer", Arg::Kind::Entity, Domain::None, false },
+        { "killed", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerKilledByCreature[] =
+    {
+        { "killer", Arg::Kind::Entity, Domain::None, false },
+        { "killed", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerDuelRequest[] =
+    {
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "challenger", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerDuelStart[] =
+    {
+        { "starter", Arg::Kind::Entity, Domain::None, false },
+        { "challenger", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerDuelEnd[] =
+    {
+        { "winner", Arg::Kind::Entity, Domain::None, false },
+        { "loser", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerGiveXp[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "amount", Arg::Kind::Number, Domain::None, true },
+        { "victim", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLevelChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "oldLevel", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerMoneyChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "amount", Arg::Kind::Signed, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerReputationChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "factionID", Arg::Kind::Number, Domain::None, false },
+        { "standing", Arg::Kind::Signed, Domain::None, true },
+        { "incremental", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerTalentsChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "newPoints", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerTalentsReset[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "noCost", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerChat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "lang", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerWhisper[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "lang", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+        { "receiver", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerGroupChat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "lang", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+        { "group", Arg::Kind::Named, Domain::Group, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerGuildChat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "lang", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerChannelChat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "type", Arg::Kind::Number, Domain::None, false },
+        { "lang", Arg::Kind::Number, Domain::None, false },
+        { "msg", Arg::Kind::Text, Domain::None, true },
+        { "channel", Arg::Kind::Lent, Domain::Channel, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerEmote[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "emote", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerTextEmote[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "textEmote", Arg::Kind::Number, Domain::None, false },
+        { "emoteNum", Arg::Kind::Number, Domain::None, false },
+        { "guid", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerSave[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerBindToInstance[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "difficulty", Arg::Kind::Number, Domain::None, false },
+        { "mapid", Arg::Kind::Number, Domain::None, false },
+        { "permanent", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerUpdateZone[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "newZone", Arg::Kind::Number, Domain::None, false },
+        { "newArea", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerMapChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerEquip[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "bag", Arg::Kind::Number, Domain::None, false },
+        { "slot", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerFirstLogin[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerCanUseItem[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "itemEntry", Arg::Kind::Number, Domain::None, false },
+        { "result", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLootItem[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "count", Arg::Kind::Number, Domain::None, false },
+        { "guid", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerEnterCombat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "enemy", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLeaveCombat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerRepop[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerResurrect[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLootMoney[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "amount", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerQuestAbandon[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "questId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLearnTalents[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "talentId", Arg::Kind::Number, Domain::None, false },
+        { "talentRank", Arg::Kind::Number, Domain::None, false },
+        { "spellid", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerEnvironmentalDeath[] =
+    {
+        { "killed", Arg::Kind::Entity, Domain::None, false },
+        { "damageType", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerTradeAccept[] =
+    {
+        { "trader", Arg::Kind::Entity, Domain::None, false },
+        { "tradee", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerCommand[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "text", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerSkillChange[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "skillId", Arg::Kind::Number, Domain::None, false },
+        { "skillValue", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerLearnSpell[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "spellid", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerAchievementComplete[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "achievementId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerDiscoverArea[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "area", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerUpdateArea[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "oldArea", Arg::Kind::Number, Domain::None, false },
+        { "newArea", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerTradeInit[] =
+    {
+        { "trader", Arg::Kind::Entity, Domain::None, false },
+        { "tradee", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerSendMail[] =
+    {
+        { "sender", Arg::Kind::Entity, Domain::None, false },
+        { "recipientGuid", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerQuestStatusChanged[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "questId", Arg::Kind::Number, Domain::None, false },
+        { "status", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerQuestStart[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "questGiver", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+    };
+
+    inline constexpr ArgSpec g_argsPlayerQuestEnd[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "questGiver", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildAddMember[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "plRank", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildRemoveMember[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "isDisbanding", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildMotdChange[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "motd", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildInfoChange[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "info", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildCreate[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "leader", Arg::Kind::Entity, Domain::None, false },
+        { "name", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildDisband[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildMoneyWithdraw[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "amount", Arg::Kind::Number, Domain::None, true },
+        { "isRepair", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildMoneyDeposit[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "amount", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsGuildItemMove[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "isSrcBank", Arg::Kind::Flag, Domain::None, false },
+        { "srcContainer", Arg::Kind::Number, Domain::None, false },
+        { "srcSlotId", Arg::Kind::Number, Domain::None, false },
+        { "isDestBank", Arg::Kind::Flag, Domain::None, false },
+        { "destContainer", Arg::Kind::Number, Domain::None, false },
+        { "destSlotId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildEvent[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "eventType", Arg::Kind::Number, Domain::None, false },
+        { "playerGuid1", Arg::Kind::Number, Domain::None, false },
+        { "playerGuid2", Arg::Kind::Number, Domain::None, false },
+        { "newRank", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGuildBankEvent[] =
+    {
+        { "guild", Arg::Kind::Named, Domain::Guild, false },
+        { "eventType", Arg::Kind::Number, Domain::None, false },
+        { "tabId", Arg::Kind::Number, Domain::None, false },
+        { "playerGuid", Arg::Kind::Number, Domain::None, false },
+        { "itemOrMoney", Arg::Kind::Number, Domain::None, false },
+        { "itemStackCount", Arg::Kind::Number, Domain::None, false },
+        { "destTabId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupAddMember[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "guid", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupInviteMember[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "guid", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupRemoveMember[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "guid", Arg::Kind::Entity, Domain::None, false },
+        { "method", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupLeaderChange[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "newLeader", Arg::Kind::Entity, Domain::None, false },
+        { "oldLeader", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupDisband[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupCreate[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "leaderGuid", Arg::Kind::Entity, Domain::None, false },
+        { "groupType", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGroupMemberAccept[] =
+    {
+        { "group", Arg::Kind::Named, Domain::Group, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsVehicleInstall[] =
+    {
+        { "vehicle", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsVehicleUninstall[] =
+    {
+        { "vehicle", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsVehicleInstallAccessory[] =
+    {
+        { "vehicle", Arg::Kind::Number, Domain::None, false },
+        { "accessory", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsVehicleAddPassenger[] =
+    {
+        { "vehicle", Arg::Kind::Number, Domain::None, false },
+        { "passenger", Arg::Kind::Entity, Domain::None, false },
+        { "seatId", Arg::Kind::Signed, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsVehicleRemovePassenger[] =
+    {
+        { "vehicle", Arg::Kind::Number, Domain::None, false },
+        { "passenger", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureEnterCombat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "enemy", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureLeaveCombat[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureTargetDied[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "victim", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureDied[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "killer", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureSpawn[] =
+    {
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureReachWp[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "pathId", Arg::Kind::Signed, Domain::None, false },
+        { "pathOrigin", Arg::Kind::Number, Domain::None, false },
+        { "nodeIndex", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureReceiveEmote[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "emoteId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureDamageTaken[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "attacker", Arg::Kind::Entity, Domain::None, false },
+        { "damage", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsCreaturePreCombat[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureOwnerAttacked[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureOwnerAttackedAt[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "attacker", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureHitBySpell[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spell", Arg::Kind::Named, Domain::SpellInfo, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureSpellHitTarget[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "spell", Arg::Kind::Named, Domain::SpellInfo, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureJustSummonedCreature[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "summon", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureSummonedCreatureDespawn[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "summon", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureSummonedCreatureDied[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "summon", Arg::Kind::Entity, Domain::None, false },
+        { "killer", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureSummoned[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "summoner", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureReset[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureReachHome[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureCorpseRemoved[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "respawnDelay", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureMoveInLos[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "who", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureDummyEffect[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureQuestAccept[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureQuestReward[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+        { "opt", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureDialogStatus[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "status", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureAdd[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCreatureRemove[] =
+    {
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectSpawn[] =
+    {
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectDummyEffect[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectQuestAccept[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectQuestReward[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+        { "opt", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectDialogStatus[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+        { "status", Arg::Kind::Number, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectDestroyed[] =
+    {
+        { "gameObject", Arg::Kind::Entity, Domain::None, false },
+        { "attacker", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectDamaged[] =
+    {
+        { "gameObject", Arg::Kind::Entity, Domain::None, false },
+        { "attacker", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectLootStateChange[] =
+    {
+        { "gameObject", Arg::Kind::Entity, Domain::None, false },
+        { "state", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectGoStateChanged[] =
+    {
+        { "gameObject", Arg::Kind::Entity, Domain::None, false },
+        { "state", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectAdd[] =
+    {
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectRemove[] =
+    {
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectUse[] =
+    {
+        { "user", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectActivate[] =
+    {
+        { "user", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGameobjectTrapSprung[] =
+    {
+        { "unit", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellCast[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "skipCheck", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellAuraApplication[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "auraEff", Arg::Kind::Lent, Domain::AuraEffect, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "mode", Arg::Kind::Number, Domain::None, false },
+        { "apply", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellDispel[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "dispel", Arg::Kind::Lent, Domain::Dispel, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellPeriodicTick[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "auraEff", Arg::Kind::Lent, Domain::AuraEffect, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellPeriodicUpdate[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "auraEff", Arg::Kind::Lent, Domain::AuraEffect, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellAuraCalcAmount[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "auraEff", Arg::Kind::Lent, Domain::AuraEffect, false },
+        { "amount", Arg::Kind::Signed, Domain::None, true },
+        { "canBeRecalculated", Arg::Kind::Flag, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsSpellCalcPeriodic[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "auraEff", Arg::Kind::Lent, Domain::AuraEffect, false },
+        { "isPeriodic", Arg::Kind::Flag, Domain::None, true },
+        { "amplitude", Arg::Kind::Signed, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsSpellCheckProc[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "proc", Arg::Kind::Lent, Domain::Proc, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellProc[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "proc", Arg::Kind::Lent, Domain::Proc, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellCheckCast[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellBeforeCast[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellAfterCast[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellObjectAreaTarget[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "targets", Arg::Kind::Lent, Domain::ObjectList, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellObjectTarget[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Lent, Domain::ObjectSlot, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellDestTarget[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "dest", Arg::Kind::Lent, Domain::SpellDestination, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellEffectLaunch[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "mode", Arg::Kind::Number, Domain::None, false },
+        { "preventDefault", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellEffectLaunchTarget[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "mode", Arg::Kind::Number, Domain::None, false },
+        { "preventDefault", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellEffectCalcAbsorb[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "damageInfo", Arg::Kind::Lent, Domain::Damage, false },
+        { "resistAmount", Arg::Kind::Number, Domain::None, true },
+        { "absorbAmount", Arg::Kind::Signed, Domain::None, true },
+    };
+
+    inline constexpr ArgSpec g_argsSpellEffectHit[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellBeforeHit[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "missInfo", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellEffectHitTarget[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "mode", Arg::Kind::Number, Domain::None, false },
+        { "preventDefault", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellHit[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+    };
+
+    inline constexpr ArgSpec g_argsSpellAfterHit[] =
+    {
+        { "spell", Arg::Kind::Lent, Domain::Spell, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemDummyEffect[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemUse[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "targets", Arg::Kind::Lent, Domain::CastTargets, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemQuestAccept[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "quest", Arg::Kind::Named, Domain::Quest, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemExpire[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "proto", Arg::Kind::Named, Domain::ItemTemplate, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemRemove[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemAdd[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemEquip[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "bag", Arg::Kind::Number, Domain::None, false },
+        { "slot", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsItemUnequip[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "slot", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsBgStart[] =
+    {
+        { "bg", Arg::Kind::Named, Domain::BattleGround, false },
+        { "bgId", Arg::Kind::Number, Domain::None, false },
+        { "instanceId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsBgEnd[] =
+    {
+        { "bg", Arg::Kind::Named, Domain::BattleGround, false },
+        { "bgId", Arg::Kind::Number, Domain::None, false },
+        { "instanceId", Arg::Kind::Number, Domain::None, false },
+        { "winner", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsBgCreate[] =
+    {
+        { "bg", Arg::Kind::Named, Domain::BattleGround, false },
+        { "bgId", Arg::Kind::Number, Domain::None, false },
+        { "instanceId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsBgPreDestroy[] =
+    {
+        { "bg", Arg::Kind::Named, Domain::BattleGround, false },
+        { "bgId", Arg::Kind::Number, Domain::None, false },
+        { "instanceId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipCreatureHello[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipCreatureSelect[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "sender", Arg::Kind::Number, Domain::None, false },
+        { "action", Arg::Kind::Number, Domain::None, false },
+        { "code", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipGameobjectHello[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipGameobjectSelect[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "gameobject", Arg::Kind::Entity, Domain::None, false },
+        { "sender", Arg::Kind::Number, Domain::None, false },
+        { "action", Arg::Kind::Number, Domain::None, false },
+        { "code", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipItemHello[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipItemSelect[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "item", Arg::Kind::Entity, Domain::None, false },
+        { "sender", Arg::Kind::Number, Domain::None, false },
+        { "action", Arg::Kind::Number, Domain::None, false },
+        { "code", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipPlayerMenuSelect[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "menuId", Arg::Kind::Number, Domain::None, false },
+        { "sender", Arg::Kind::Number, Domain::None, false },
+        { "action", Arg::Kind::Number, Domain::None, false },
+        { "code", Arg::Kind::Text, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipActionChosen[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "source", Arg::Kind::Entity, Domain::None, false },
+        { "menuId", Arg::Kind::Number, Domain::None, false },
+        { "gossipListId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsGossipMenuShown[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "source", Arg::Kind::Entity, Domain::None, false },
+        { "menuId", Arg::Kind::Number, Domain::None, false },
+        { "textId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCoreNpcSpellClick[] =
+    {
+        { "player", Arg::Kind::Entity, Domain::None, false },
+        { "creature", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCoreEffectScriptEffect[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "originalCaster", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCoreAuraDummy[] =
+    {
+        { "aura", Arg::Kind::Lent, Domain::Aura, false },
+        { "apply", Arg::Kind::Flag, Domain::None, false },
+    };
+
+    inline constexpr ArgSpec g_argsCoreEffectDummy[] =
+    {
+        { "caster", Arg::Kind::Entity, Domain::None, false },
+        { "spellId", Arg::Kind::Number, Domain::None, false },
+        { "effIndex", Arg::Kind::Number, Domain::None, false },
+        { "target", Arg::Kind::Entity, Domain::None, false },
+        { "originalCaster", Arg::Kind::Entity, Domain::None, false },
+    };
+
+    inline constexpr EventSpec g_eventSpecs[] =
+    {
+        { EventId::PacketReceive, "packet.on_receive", g_argsPacketReceive, 2, true, false },
+        { EventId::PacketReceiveUnk, "packet.on_receive_unk", g_argsPacketReceiveUnk, 2, true, false },
+        { EventId::PacketSend, "packet.on_send", g_argsPacketSend, 2, true, false },
+        { EventId::ServerNetworkStart, "server.on_network_start", nullptr, 0, false, false },
+        { EventId::ServerNetworkStop, "server.on_network_stop", nullptr, 0, false, false },
+        { EventId::ServerSocketOpen, "server.on_socket_open", nullptr, 0, false, false },
+        { EventId::ServerSocketClose, "server.on_socket_close", nullptr, 0, false, false },
+        { EventId::ServerPacketReceive, "server.on_packet_receive", g_argsServerPacketReceive, 2, true, false },
+        { EventId::ServerPacketReceiveUnk, "server.on_packet_receive_unk", g_argsServerPacketReceiveUnk, 2, true, false },
+        { EventId::ServerPacketSend, "server.on_packet_send", g_argsServerPacketSend, 2, true, false },
+        { EventId::ServerOpenStateChange, "server.on_open_state_change", g_argsServerOpenStateChange, 1, false, false },
+        { EventId::ServerConfigLoad, "server.on_config_load", g_argsServerConfigLoad, 1, false, false },
+        { EventId::ServerShutdownInit, "server.on_shutdown_init", g_argsServerShutdownInit, 2, false, false },
+        { EventId::ServerShutdownCancel, "server.on_shutdown_cancel", nullptr, 0, false, false },
+        { EventId::ServerWorldUpdate, "server.on_world_update", g_argsServerWorldUpdate, 1, false, false },
+        { EventId::ServerWorldStartup, "server.on_world_startup", nullptr, 0, false, false },
+        { EventId::ServerWorldShutdown, "server.on_world_shutdown", nullptr, 0, false, false },
+        { EventId::ServerLuaStateClose, "server.on_lua_state_close", nullptr, 0, false, false },
+        { EventId::ServerMapCreate, "server.on_map_create", g_argsServerMapCreate, 1, false, false },
+        { EventId::ServerMapDestroy, "server.on_map_destroy", g_argsServerMapDestroy, 1, false, false },
+        { EventId::ServerMapGridLoad, "server.on_map_grid_load", nullptr, 0, false, false },
+        { EventId::ServerMapGridUnload, "server.on_map_grid_unload", nullptr, 0, false, false },
+        { EventId::ServerMapPlayerEnter, "server.on_map_player_enter", g_argsServerMapPlayerEnter, 2, false, false },
+        { EventId::ServerMapPlayerLeave, "server.on_map_player_leave", g_argsServerMapPlayerLeave, 2, false, false },
+        { EventId::ServerMapUpdate, "server.on_map_update", g_argsServerMapUpdate, 2, false, false },
+        { EventId::ServerEventTrigger, "server.on_event_trigger", g_argsServerEventTrigger, 2, false, true },
+        { EventId::ServerWeatherChange, "server.on_weather_change", g_argsServerWeatherChange, 4, false, false },
+        { EventId::ServerAuctionAdd, "server.on_auction_add", g_argsServerAuctionAdd, 2, false, false },
+        { EventId::ServerAuctionRemove, "server.on_auction_remove", g_argsServerAuctionRemove, 2, false, false },
+        { EventId::ServerAuctionSuccessful, "server.on_auction_successful", g_argsServerAuctionSuccessful, 2, false, false },
+        { EventId::ServerAuctionExpire, "server.on_auction_expire", g_argsServerAuctionExpire, 2, false, false },
+        { EventId::ServerAddonMessage, "server.on_addon_message", g_argsServerAddonMessage, 7, true, false },
+        { EventId::ServerWorldDeleteCreature, "server.on_world_delete_creature", g_argsServerWorldDeleteCreature, 1, false, false },
+        { EventId::ServerWorldDeleteGameobject, "server.on_world_delete_gameobject", g_argsServerWorldDeleteGameobject, 1, false, false },
+        { EventId::ServerLuaStateOpen, "server.on_lua_state_open", nullptr, 0, false, false },
+        { EventId::ServerGameStart, "server.on_game_start", g_argsServerGameStart, 1, false, false },
+        { EventId::ServerGameStop, "server.on_game_stop", g_argsServerGameStop, 1, false, false },
+        { EventId::ServerEventRaised, "server.on_event_raised", g_argsServerEventRaised, 4, false, true },
+        { EventId::PlayerCharacterCreate, "player.on_character_create", g_argsPlayerCharacterCreate, 1, false, false },
+        { EventId::PlayerCharacterDelete, "player.on_character_delete", g_argsPlayerCharacterDelete, 1, false, false },
+        { EventId::PlayerLogin, "player.on_login", g_argsPlayerLogin, 1, false, false },
+        { EventId::PlayerLogout, "player.on_logout", g_argsPlayerLogout, 1, false, false },
+        { EventId::PlayerSpellCast, "player.on_spell_cast", g_argsPlayerSpellCast, 3, false, false },
+        { EventId::PlayerKillPlayer, "player.on_kill_player", g_argsPlayerKillPlayer, 2, false, false },
+        { EventId::PlayerKillCreature, "player.on_kill_creature", g_argsPlayerKillCreature, 2, false, false },
+        { EventId::PlayerKilledByCreature, "player.on_killed_by_creature", g_argsPlayerKilledByCreature, 2, false, false },
+        { EventId::PlayerDuelRequest, "player.on_duel_request", g_argsPlayerDuelRequest, 2, false, false },
+        { EventId::PlayerDuelStart, "player.on_duel_start", g_argsPlayerDuelStart, 2, false, false },
+        { EventId::PlayerDuelEnd, "player.on_duel_end", g_argsPlayerDuelEnd, 3, false, false },
+        { EventId::PlayerGiveXp, "player.on_give_xp", g_argsPlayerGiveXp, 3, false, false },
+        { EventId::PlayerLevelChange, "player.on_level_change", g_argsPlayerLevelChange, 2, false, false },
+        { EventId::PlayerMoneyChange, "player.on_money_change", g_argsPlayerMoneyChange, 2, false, false },
+        { EventId::PlayerReputationChange, "player.on_reputation_change", g_argsPlayerReputationChange, 4, false, false },
+        { EventId::PlayerTalentsChange, "player.on_talents_change", g_argsPlayerTalentsChange, 2, false, false },
+        { EventId::PlayerTalentsReset, "player.on_talents_reset", g_argsPlayerTalentsReset, 2, false, false },
+        { EventId::PlayerChat, "player.on_chat", g_argsPlayerChat, 4, true, false },
+        { EventId::PlayerWhisper, "player.on_whisper", g_argsPlayerWhisper, 5, true, false },
+        { EventId::PlayerGroupChat, "player.on_group_chat", g_argsPlayerGroupChat, 5, true, false },
+        { EventId::PlayerGuildChat, "player.on_guild_chat", g_argsPlayerGuildChat, 5, true, false },
+        { EventId::PlayerChannelChat, "player.on_channel_chat", g_argsPlayerChannelChat, 5, true, false },
+        { EventId::PlayerEmote, "player.on_emote", g_argsPlayerEmote, 2, false, false },
+        { EventId::PlayerTextEmote, "player.on_text_emote", g_argsPlayerTextEmote, 4, false, false },
+        { EventId::PlayerSave, "player.on_save", g_argsPlayerSave, 1, false, false },
+        { EventId::PlayerBindToInstance, "player.on_bind_to_instance", g_argsPlayerBindToInstance, 4, false, false },
+        { EventId::PlayerUpdateZone, "player.on_update_zone", g_argsPlayerUpdateZone, 3, false, false },
+        { EventId::PlayerMapChange, "player.on_map_change", g_argsPlayerMapChange, 1, false, false },
+        { EventId::PlayerEquip, "player.on_equip", g_argsPlayerEquip, 4, false, false },
+        { EventId::PlayerFirstLogin, "player.on_first_login", g_argsPlayerFirstLogin, 1, false, false },
+        { EventId::PlayerCanUseItem, "player.on_can_use_item", g_argsPlayerCanUseItem, 3, false, false },
+        { EventId::PlayerLootItem, "player.on_loot_item", g_argsPlayerLootItem, 4, false, false },
+        { EventId::PlayerEnterCombat, "player.on_enter_combat", g_argsPlayerEnterCombat, 2, false, false },
+        { EventId::PlayerLeaveCombat, "player.on_leave_combat", g_argsPlayerLeaveCombat, 1, false, false },
+        { EventId::PlayerRepop, "player.on_repop", g_argsPlayerRepop, 1, false, false },
+        { EventId::PlayerResurrect, "player.on_resurrect", g_argsPlayerResurrect, 1, false, false },
+        { EventId::PlayerLootMoney, "player.on_loot_money", g_argsPlayerLootMoney, 2, false, false },
+        { EventId::PlayerQuestAbandon, "player.on_quest_abandon", g_argsPlayerQuestAbandon, 2, false, false },
+        { EventId::PlayerLearnTalents, "player.on_learn_talents", g_argsPlayerLearnTalents, 4, false, false },
+        { EventId::PlayerEnvironmentalDeath, "player.on_environmental_death", g_argsPlayerEnvironmentalDeath, 2, false, false },
+        { EventId::PlayerTradeAccept, "player.on_trade_accept", g_argsPlayerTradeAccept, 2, true, false },
+        { EventId::PlayerCommand, "player.on_command", g_argsPlayerCommand, 2, true, false },
+        { EventId::PlayerSkillChange, "player.on_skill_change", g_argsPlayerSkillChange, 3, false, false },
+        { EventId::PlayerLearnSpell, "player.on_learn_spell", g_argsPlayerLearnSpell, 2, false, false },
+        { EventId::PlayerAchievementComplete, "player.on_achievement_complete", g_argsPlayerAchievementComplete, 2, false, false },
+        { EventId::PlayerDiscoverArea, "player.on_discover_area", g_argsPlayerDiscoverArea, 2, false, false },
+        { EventId::PlayerUpdateArea, "player.on_update_area", g_argsPlayerUpdateArea, 3, false, false },
+        { EventId::PlayerTradeInit, "player.on_trade_init", g_argsPlayerTradeInit, 2, true, false },
+        { EventId::PlayerSendMail, "player.on_send_mail", g_argsPlayerSendMail, 2, true, false },
+        { EventId::PlayerQuestStatusChanged, "player.on_quest_status_changed", g_argsPlayerQuestStatusChanged, 3, false, false },
+        { EventId::PlayerQuestStart, "player.on_quest_start", g_argsPlayerQuestStart, 3, false, false },
+        { EventId::PlayerQuestEnd, "player.on_quest_end", g_argsPlayerQuestEnd, 3, false, false },
+        { EventId::GuildAddMember, "guild.on_add_member", g_argsGuildAddMember, 3, false, false },
+        { EventId::GuildRemoveMember, "guild.on_remove_member", g_argsGuildRemoveMember, 3, false, false },
+        { EventId::GuildMotdChange, "guild.on_motd_change", g_argsGuildMotdChange, 2, false, false },
+        { EventId::GuildInfoChange, "guild.on_info_change", g_argsGuildInfoChange, 2, false, false },
+        { EventId::GuildCreate, "guild.on_create", g_argsGuildCreate, 3, false, false },
+        { EventId::GuildDisband, "guild.on_disband", g_argsGuildDisband, 1, false, false },
+        { EventId::GuildMoneyWithdraw, "guild.on_money_withdraw", g_argsGuildMoneyWithdraw, 4, false, false },
+        { EventId::GuildMoneyDeposit, "guild.on_money_deposit", g_argsGuildMoneyDeposit, 3, false, false },
+        { EventId::GuildItemMove, "guild.on_item_move", g_argsGuildItemMove, 9, false, false },
+        { EventId::GuildEvent, "guild.on_event", g_argsGuildEvent, 5, false, false },
+        { EventId::GuildBankEvent, "guild.on_bank_event", g_argsGuildBankEvent, 7, false, false },
+        { EventId::GroupAddMember, "group.on_add_member", g_argsGroupAddMember, 2, false, false },
+        { EventId::GroupInviteMember, "group.on_invite_member", g_argsGroupInviteMember, 2, false, false },
+        { EventId::GroupRemoveMember, "group.on_remove_member", g_argsGroupRemoveMember, 3, false, false },
+        { EventId::GroupLeaderChange, "group.on_leader_change", g_argsGroupLeaderChange, 3, false, false },
+        { EventId::GroupDisband, "group.on_disband", g_argsGroupDisband, 1, false, false },
+        { EventId::GroupCreate, "group.on_create", g_argsGroupCreate, 3, false, false },
+        { EventId::GroupMemberAccept, "group.on_member_accept", g_argsGroupMemberAccept, 2, true, false },
+        { EventId::VehicleInstall, "vehicle.on_install", g_argsVehicleInstall, 1, false, false },
+        { EventId::VehicleUninstall, "vehicle.on_uninstall", g_argsVehicleUninstall, 1, false, false },
+        { EventId::VehicleInstallAccessory, "vehicle.on_install_accessory", g_argsVehicleInstallAccessory, 2, false, false },
+        { EventId::VehicleAddPassenger, "vehicle.on_add_passenger", g_argsVehicleAddPassenger, 3, false, false },
+        { EventId::VehicleRemovePassenger, "vehicle.on_remove_passenger", g_argsVehicleRemovePassenger, 2, false, false },
+        { EventId::CreatureEnterCombat, "creature.on_enter_combat", g_argsCreatureEnterCombat, 2, false, false },
+        { EventId::CreatureLeaveCombat, "creature.on_leave_combat", g_argsCreatureLeaveCombat, 1, false, false },
+        { EventId::CreatureTargetDied, "creature.on_target_died", g_argsCreatureTargetDied, 2, false, false },
+        { EventId::CreatureDied, "creature.on_died", g_argsCreatureDied, 2, false, false },
+        { EventId::CreatureSpawn, "creature.on_spawn", g_argsCreatureSpawn, 1, false, false },
+        { EventId::CreatureReachWp, "creature.on_reach_wp", g_argsCreatureReachWp, 4, false, false },
+        { EventId::CreatureReceiveEmote, "creature.on_receive_emote", g_argsCreatureReceiveEmote, 3, false, false },
+        { EventId::CreatureDamageTaken, "creature.on_damage_taken", g_argsCreatureDamageTaken, 3, false, false },
+        { EventId::CreaturePreCombat, "creature.on_pre_combat", g_argsCreaturePreCombat, 2, false, false },
+        { EventId::CreatureOwnerAttacked, "creature.on_owner_attacked", g_argsCreatureOwnerAttacked, 2, false, false },
+        { EventId::CreatureOwnerAttackedAt, "creature.on_owner_attacked_at", g_argsCreatureOwnerAttackedAt, 2, false, false },
+        { EventId::CreatureHitBySpell, "creature.on_hit_by_spell", g_argsCreatureHitBySpell, 3, false, false },
+        { EventId::CreatureSpellHitTarget, "creature.on_spell_hit_target", g_argsCreatureSpellHitTarget, 3, false, false },
+        { EventId::CreatureJustSummonedCreature, "creature.on_just_summoned_creature", g_argsCreatureJustSummonedCreature, 2, false, false },
+        { EventId::CreatureSummonedCreatureDespawn, "creature.on_summoned_creature_despawn", g_argsCreatureSummonedCreatureDespawn, 2, false, false },
+        { EventId::CreatureSummonedCreatureDied, "creature.on_summoned_creature_died", g_argsCreatureSummonedCreatureDied, 3, false, false },
+        { EventId::CreatureSummoned, "creature.on_summoned", g_argsCreatureSummoned, 2, true, false },
+        { EventId::CreatureReset, "creature.on_reset", g_argsCreatureReset, 1, false, false },
+        { EventId::CreatureReachHome, "creature.on_reach_home", g_argsCreatureReachHome, 1, false, false },
+        { EventId::CreatureCorpseRemoved, "creature.on_corpse_removed", g_argsCreatureCorpseRemoved, 2, false, false },
+        { EventId::CreatureMoveInLos, "creature.on_move_in_los", g_argsCreatureMoveInLos, 2, false, false },
+        { EventId::CreatureDummyEffect, "creature.on_dummy_effect", g_argsCreatureDummyEffect, 4, false, true },
+        { EventId::CreatureQuestAccept, "creature.on_quest_accept", g_argsCreatureQuestAccept, 3, false, true },
+        { EventId::CreatureQuestReward, "creature.on_quest_reward", g_argsCreatureQuestReward, 4, false, true },
+        { EventId::CreatureDialogStatus, "creature.on_dialog_status", g_argsCreatureDialogStatus, 3, false, true },
+        { EventId::CreatureAdd, "creature.on_add", g_argsCreatureAdd, 1, false, false },
+        { EventId::CreatureRemove, "creature.on_remove", g_argsCreatureRemove, 1, true, false },
+        { EventId::GameobjectSpawn, "gameobject.on_spawn", g_argsGameobjectSpawn, 1, false, false },
+        { EventId::GameobjectDummyEffect, "gameobject.on_dummy_effect", g_argsGameobjectDummyEffect, 4, false, true },
+        { EventId::GameobjectQuestAccept, "gameobject.on_quest_accept", g_argsGameobjectQuestAccept, 3, false, true },
+        { EventId::GameobjectQuestReward, "gameobject.on_quest_reward", g_argsGameobjectQuestReward, 4, false, true },
+        { EventId::GameobjectDialogStatus, "gameobject.on_dialog_status", g_argsGameobjectDialogStatus, 3, false, true },
+        { EventId::GameobjectDestroyed, "gameobject.on_destroyed", g_argsGameobjectDestroyed, 2, false, false },
+        { EventId::GameobjectDamaged, "gameobject.on_damaged", g_argsGameobjectDamaged, 2, false, false },
+        { EventId::GameobjectLootStateChange, "gameobject.on_loot_state_change", g_argsGameobjectLootStateChange, 2, false, false },
+        { EventId::GameobjectGoStateChanged, "gameobject.on_go_state_changed", g_argsGameobjectGoStateChanged, 2, false, false },
+        { EventId::GameobjectAdd, "gameobject.on_add", g_argsGameobjectAdd, 1, false, false },
+        { EventId::GameobjectRemove, "gameobject.on_remove", g_argsGameobjectRemove, 1, true, false },
+        { EventId::GameobjectUse, "gameobject.on_use", g_argsGameobjectUse, 2, false, true },
+        { EventId::GameobjectActivate, "gameobject.on_activate", g_argsGameobjectActivate, 2, false, false },
+        { EventId::GameobjectTrapSprung, "gameobject.on_trap_sprung", g_argsGameobjectTrapSprung, 2, false, false },
+        { EventId::SpellCast, "spell.on_cast", g_argsSpellCast, 2, false, false },
+        { EventId::SpellAuraApplication, "spell.on_aura_application", g_argsSpellAuraApplication, 5, true, false },
+        { EventId::SpellDispel, "spell.on_dispel", g_argsSpellDispel, 2, false, false },
+        { EventId::SpellPeriodicTick, "spell.on_periodic_tick", g_argsSpellPeriodicTick, 3, true, false },
+        { EventId::SpellPeriodicUpdate, "spell.on_periodic_update", g_argsSpellPeriodicUpdate, 2, false, false },
+        { EventId::SpellAuraCalcAmount, "spell.on_aura_calc_amount", g_argsSpellAuraCalcAmount, 4, false, false },
+        { EventId::SpellCalcPeriodic, "spell.on_calc_periodic", g_argsSpellCalcPeriodic, 4, false, false },
+        { EventId::SpellCheckProc, "spell.on_check_proc", g_argsSpellCheckProc, 2, true, false },
+        { EventId::SpellProc, "spell.on_proc", g_argsSpellProc, 2, true, false },
+        { EventId::SpellCheckCast, "spell.on_check_cast", g_argsSpellCheckCast, 1, false, false },
+        { EventId::SpellBeforeCast, "spell.on_before_cast", g_argsSpellBeforeCast, 1, false, false },
+        { EventId::SpellAfterCast, "spell.on_after_cast", g_argsSpellAfterCast, 1, false, false },
+        { EventId::SpellObjectAreaTarget, "spell.on_object_area_target", g_argsSpellObjectAreaTarget, 3, false, false },
+        { EventId::SpellObjectTarget, "spell.on_object_target", g_argsSpellObjectTarget, 3, false, false },
+        { EventId::SpellDestTarget, "spell.on_dest_target", g_argsSpellDestTarget, 3, false, false },
+        { EventId::SpellEffectLaunch, "spell.on_effect_launch", g_argsSpellEffectLaunch, 4, true, false },
+        { EventId::SpellEffectLaunchTarget, "spell.on_effect_launch_target", g_argsSpellEffectLaunchTarget, 4, true, false },
+        { EventId::SpellEffectCalcAbsorb, "spell.on_effect_calc_absorb", g_argsSpellEffectCalcAbsorb, 4, false, false },
+        { EventId::SpellEffectHit, "spell.on_effect_hit", g_argsSpellEffectHit, 3, false, true },
+        { EventId::SpellBeforeHit, "spell.on_before_hit", g_argsSpellBeforeHit, 2, false, false },
+        { EventId::SpellEffectHitTarget, "spell.on_effect_hit_target", g_argsSpellEffectHitTarget, 4, true, false },
+        { EventId::SpellHit, "spell.on_hit", g_argsSpellHit, 1, false, false },
+        { EventId::SpellAfterHit, "spell.on_after_hit", g_argsSpellAfterHit, 1, false, false },
+        { EventId::ItemDummyEffect, "item.on_dummy_effect", g_argsItemDummyEffect, 4, false, true },
+        { EventId::ItemUse, "item.on_use", g_argsItemUse, 3, true, false },
+        { EventId::ItemQuestAccept, "item.on_quest_accept", g_argsItemQuestAccept, 3, false, true },
+        { EventId::ItemExpire, "item.on_expire", g_argsItemExpire, 2, true, false },
+        { EventId::ItemRemove, "item.on_remove", g_argsItemRemove, 2, true, false },
+        { EventId::ItemAdd, "item.on_add", g_argsItemAdd, 2, false, false },
+        { EventId::ItemEquip, "item.on_equip", g_argsItemEquip, 4, false, false },
+        { EventId::ItemUnequip, "item.on_unequip", g_argsItemUnequip, 3, false, false },
+        { EventId::BgStart, "bg.on_start", g_argsBgStart, 3, false, false },
+        { EventId::BgEnd, "bg.on_end", g_argsBgEnd, 4, false, false },
+        { EventId::BgCreate, "bg.on_create", g_argsBgCreate, 3, false, false },
+        { EventId::BgPreDestroy, "bg.on_pre_destroy", g_argsBgPreDestroy, 3, false, false },
+        { EventId::GossipCreatureHello, "gossip.creature_hello", g_argsGossipCreatureHello, 2, false, true },
+        { EventId::GossipCreatureSelect, "gossip.creature_select", g_argsGossipCreatureSelect, 5, false, true },
+        { EventId::GossipGameobjectHello, "gossip.gameobject_hello", g_argsGossipGameobjectHello, 2, false, true },
+        { EventId::GossipGameobjectSelect, "gossip.gameobject_select", g_argsGossipGameobjectSelect, 5, false, true },
+        { EventId::GossipItemHello, "gossip.item_hello", g_argsGossipItemHello, 2, false, true },
+        { EventId::GossipItemSelect, "gossip.item_select", g_argsGossipItemSelect, 5, false, true },
+        { EventId::GossipPlayerMenuSelect, "gossip.player_menu_select", g_argsGossipPlayerMenuSelect, 5, false, true },
+        { EventId::GossipActionChosen, "gossip.action_chosen", g_argsGossipActionChosen, 4, false, false },
+        { EventId::GossipMenuShown, "gossip.menu_shown", g_argsGossipMenuShown, 4, false, false },
+        { EventId::CoreNpcSpellClick, "core.on_npc_spell_click", g_argsCoreNpcSpellClick, 3, false, true },
+        { EventId::CoreEffectScriptEffect, "core.on_effect_script_effect", g_argsCoreEffectScriptEffect, 5, false, true },
+        { EventId::CoreAuraDummy, "core.on_aura_dummy", g_argsCoreAuraDummy, 2, false, true },
+        { EventId::CoreEffectDummy, "core.on_effect_dummy", g_argsCoreEffectDummy, 5, false, true },
+    };
+
+    /// The shape of @a id, or nullptr when nothing carries it.
+    inline EventSpec const* SpecOf(EventId id)
+    {
+        for (EventSpec const& spec : g_eventSpecs)
+        {
+            if (spec.id == id)
+            {
+                return &spec;
+            }
+        }
+
+        return nullptr;
+    }
+
 }
 
 #endif //MANGOS_SCRIPT_EVENTS_GEN_H

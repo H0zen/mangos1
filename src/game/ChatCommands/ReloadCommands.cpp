@@ -1099,6 +1099,26 @@ bool ChatHandler::HandleReloadEventAIScriptsCommand(char* /*args*/)
 }
 
 /**
+ * @brief Handler for HandleReloadLuauCommand command.
+ *
+ * @param args Command arguments.
+ * @returns True if the command executed successfully, false otherwise.
+ */
+bool ChatHandler::HandleReloadLuauCommand(char* /*args*/)
+{
+    sLog.outString("Re-Loading Luau scripts...");
+    if (!scripting::ReloadData("luau"))
+    {
+        SendSysMessage("No script engine owns `luau`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+
+    SendGlobalSysMessage("Luau scripts reloaded.", SEC_MODERATOR);
+    return true;
+}
+
+/**
  * @brief Handler for HandleReloadDbScriptStringCommand command.
  *
  * @param args Command arguments.

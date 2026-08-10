@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ScriptEvents.gen.h from events.manifest.
+"""Generate the seam's two derived files from events.manifest.
 
 The manifest is the source of truth; this script is the only thing that turns
 it into C++. Run it after editing the manifest and commit the result, so the
@@ -18,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SEAM = os.path.dirname(HERE)
 MANIFEST = os.path.join(SEAM, 'events.manifest')
 OUTPUT = os.path.join(SEAM, 'ScriptEvents.gen.h')
+STUBS = os.path.join(SEAM, 'events.d.luau')
 
 # manifest type -> (C++ member type, Arg factory, Arg accessor, writes back)
 SCALARS = {
@@ -88,7 +89,18 @@ def parse(path):
     return cats
 
 
+# manifest type -> (Arg::Kind, Luau type shown in the editor stubs)
+RUNTIME = {
+    'u32': ('Number', 'number'), 'i32': ('Signed', 'number'),
+    'u64': ('Number', 'number'), 'i64': ('Signed', 'number'),
+    'f64': ('Real', 'number'), 'bool': ('Flag', 'boolean'),
+    'enum': ('Number', 'number'), 'obj': ('Entity', 'Guid'),
+    'str': ('Text', 'string'),
+}
+
+
 def parse_arg(spec, where):
+    """(name, cxx, make, read, inout, is_text, kind, domain, luau)."""
     if spec in ('-', '?'):
         return None
     if ':' not in spec:
@@ -97,19 +109,24 @@ def parse_arg(spec, where):
     inout = kind.endswith('!')
     kind = kind.rstrip('!')
     if kind == 'obj':
-        return (name, 'Ref', 'FromEntity', 'AsEntity', inout, False)
+        return (name, 'Ref', 'FromEntity', 'AsEntity', inout, False,
+                'Entity', 'None', 'Guid')
     if kind == 'str':
-        return (name, 'std::string&', 'FromText', None, inout, True)
+        return (name, 'std::string&', 'FromText', None, inout, True,
+                'Text', 'None', 'string')
     if kind.startswith('h.') or kind.startswith('b.'):
         dom = kind[2:]
         if dom not in DOMAIN:
             raise Bad('%s: unknown domain %r' % (where, dom))
         if kind[0] == 'h':
-            return (name, 'Handle', 'FromNamed', 'AsNamed', inout, False)
-        return (name, 'Borrow', 'FromLent', 'AsLent', inout, False)
+            return (name, 'Handle', 'FromNamed', 'AsNamed', inout, False,
+                    'Named', DOMAIN[dom], 'Handle')
+        return (name, 'Borrow', 'FromLent', 'AsLent', inout, False,
+                'Lent', DOMAIN[dom], 'Borrow')
     if kind in SCALARS:
         cxx, make, read, _ = SCALARS[kind]
-        return (name, cxx, make, read, inout, False)
+        rt, luau = RUNTIME[kind]
+        return (name, cxx, make, read, inout, False, rt, 'None', luau)
     raise Bad('%s: unknown payload type %r' % (where, kind))
 
 
@@ -153,10 +170,91 @@ def emit(cats):
     out.append('    };')
     out.append('')
     out.extend(structs)
+    out.extend(describe(cats))
     out.append('}')
     out.append('')
     out.append('#endif //MANGOS_SCRIPT_EVENTS_GEN_H')
     return '\n'.join(out) + '\n', counts
+
+
+def describe(cats):
+    """The same events again, as data an engine can walk at run time.
+
+    A struct per event is what a CALL SITE wants: named fields, checked by the
+    compiler, no lookup at all. An interpreter wants the opposite -- it is
+    handed an id and an array of Args and has to build something a script can
+    read, so it needs the names and the kinds while it runs. Both come from
+    this one manifest, which is the whole point: a script says `e.amount`
+    because the manifest calls the slot amount, and the C++ site sets
+    `.amount` for exactly the same reason.
+    """
+    lines = ['    // -- the same events as run-time data; see describe() in',
+             '    //    tools/gen_events.py for why both forms exist.',
+             '',
+             '    struct ArgSpec',
+             '    {',
+             '        char const* name;',
+             '        Arg::Kind   kind;',
+             '        Domain      domain;   ///< None unless Named or Lent',
+             '        bool        inout;',
+             '    };',
+             '',
+             '    struct EventSpec',
+             '    {',
+             '        EventId        id;',
+             '        char const*    name;        ///< "player.on_login"',
+             '        ArgSpec const* args;',
+             '        std::size_t    arity;',
+             '        bool           cancellable;',
+             '        bool           claimable;',
+             '    };',
+             '']
+
+    rows = []
+    for cat, _catid, entries in cats:
+        for name, _local, policy, payload in entries:
+            if policy == 'role' or payload == ['?']:
+                continue
+            ident = camel(cat) + camel(name[3:] if name.startswith('on_')
+                                       else name)
+            where = '%s/%s' % (cat, name)
+            args = [a for a in (parse_arg(spc, where) for spc in payload) if a]
+            if args:
+                lines.append('    inline constexpr ArgSpec g_args%s[] =' % ident)
+                lines.append('    {')
+                for a in args:
+                    lines.append('        { "%s", Arg::Kind::%s, Domain::%s, %s },'
+                                 % (a[0], a[6], a[7],
+                                    'true' if a[4] else 'false'))
+                lines.append('    };')
+                lines.append('')
+            rows.append((ident, '%s.%s' % (cat, name), len(args), policy))
+
+    lines.append('    inline constexpr EventSpec g_eventSpecs[] =')
+    lines.append('    {')
+    for ident, full, arity, policy in rows:
+        lines.append('        { EventId::%s, "%s", %s, %d, %s, %s },'
+                     % (ident, full,
+                        ('g_args%s' % ident) if arity else 'nullptr', arity,
+                        'true' if policy == 'cancel' else 'false',
+                        'true' if policy == 'claim' else 'false'))
+    lines.append('    };')
+    lines.append('')
+    lines.append('    /// The shape of @a id, or nullptr when nothing carries it.')
+    lines.append('    inline EventSpec const* SpecOf(EventId id)')
+    lines.append('    {')
+    lines.append('        for (EventSpec const& spec : g_eventSpecs)')
+    lines.append('        {')
+    lines.append('            if (spec.id == id)')
+    lines.append('            {')
+    lines.append('                return &spec;')
+    lines.append('            }')
+    lines.append('        }')
+    lines.append('')
+    lines.append('        return nullptr;')
+    lines.append('    }')
+    lines.append('')
+    return lines
 
 
 def build(ident, policy, payload, cat, name):
@@ -173,7 +271,7 @@ def build(ident, policy, payload, cat, name):
     lines.append('        static constexpr bool Claimable = %s;'
                  % ('true' if policy == 'claim' else 'false'))
     lines.append('')
-    for aname, cxx, _, _, inout, _ in args:
+    for aname, cxx, _, _, inout, _, _, _, _ in args:
         note = '    ///< in/out' if inout else ''
         lines.append('        %-14s %s;%s' % (cxx, aname, note))
     if not args:
@@ -182,7 +280,7 @@ def build(ident, policy, payload, cat, name):
     lines.append('        void Pack(Arg* args) const')
     lines.append('        {')
     if args:
-        for i, (aname, _, make, _, _, _) in enumerate(args):
+        for i, (aname, _, make, _, _, _, _, _, _) in enumerate(args):
             lines.append('            args[%d] = Arg::%s(%s);' % (i, make, aname))
     else:
         lines.append('            args[0] = Arg::FromEntity(subject);')
@@ -192,7 +290,7 @@ def build(ident, policy, payload, cat, name):
     if writes:
         lines.append('        void Unpack(Arg const* args)')
         lines.append('        {')
-        for i, (aname, cxx, _, read, _, _) in writes:
+        for i, (aname, cxx, _, read, _, _, _, _, _) in writes:
             cast = '' if cxx in ('Ref', 'Handle', 'Borrow') else 'static_cast<%s>' % cxx
             lines.append('            %s = %s(args[%d].%s());'
                          % (aname, cast, i, read))
@@ -204,21 +302,78 @@ def build(ident, policy, payload, cat, name):
     return '\n'.join(lines)
 
 
+def emit_luau(cats):
+    """The editor's view of the same manifest.
+
+    Luau reads definition files natively, so this is not decoration: a script
+    that annotates its handler gets the payload's fields checked against the
+    manifest, and a renamed slot becomes a type error in the author's editor
+    instead of a nil at run time.
+    """
+    out = ['--!strict',
+           '-- GENERATED FROM events.manifest -- DO NOT EDIT.',
+           '-- Regenerate with: python src/game/Scripting/tools/gen_events.py',
+           '',
+           '-- A guid is 64 bits and a Lua number holds 53, so one crosses as',
+           '-- an opaque box: comparable and printable, never rounded.',
+           'export type Guid = userdata',
+           'export type Handle = userdata',
+           '',
+           '-- Valid only while the call that lent it is on the stack. Ask.',
+           'export type Borrow = { IsLive: (Borrow) -> boolean }',
+           '']
+
+    ids = []
+    for cat, _catid, entries in cats:
+        for name, _local, policy, payload in entries:
+            if policy == 'role' or payload == ['?']:
+                continue
+            ident = camel(cat) + camel(name[3:] if name.startswith('on_')
+                                       else name)
+            where = '%s/%s' % (cat, name)
+            args = [a for a in (parse_arg(spc, where) for spc in payload) if a]
+            fields = ', '.join('%s: %s' % (a[0], a[8]) for a in args)
+            out.append('-- %s.%s (%s)' % (cat, name, policy))
+            out.append('export type %s = {%s}'
+                       % (ident, (' %s ' % fields) if fields else ''))
+            ids.append('%s_%s' % (cat, name))
+    out.append('')
+
+    out.append('declare EVENT: {')
+    for full in ids:
+        out.append('    %s: number,' % full)
+    out.append('}')
+    out.append('')
+    out.append('-- The payload is typed by the event, which one call cannot')
+    out.append('-- express; annotate the handler to get the fields checked:')
+    out.append('--     OnEvent(EVENT.player_on_login, function(e: PlayerLogin)')
+    out.append('declare function OnEvent(id: number,')
+    out.append('    handler: (payload: any) -> boolean?): ()')
+    return '\n'.join(out) + '\n'
+
+
 def main():
     try:
         cats = parse(MANIFEST)
         text, counts = emit(cats)
+        stubs = emit_luau(cats)
     except Bad as err:
         sys.stderr.write('error: %s\n' % err)
         return 1
     check = '--check' in sys.argv
     old = open(OUTPUT, encoding='utf-8').read() if os.path.exists(OUTPUT) else None
+    old_stubs = (open(STUBS, encoding='utf-8').read()
+                 if os.path.exists(STUBS) else None)
     if check:
         if old != text:
             sys.stderr.write('error: %s is stale -- regenerate it\n' % OUTPUT)
             return 1
-        print('ScriptEvents.gen.h is up to date')
+        if old_stubs != stubs:
+            sys.stderr.write('error: %s is stale -- regenerate it\n' % STUBS)
+            return 1
+        print('ScriptEvents.gen.h and events.d.luau are up to date')
         return 0
+    open(STUBS, 'w', encoding='utf-8', newline='\n').write(stubs)
     open(OUTPUT, 'w', encoding='utf-8', newline='\n').write(text)
     total = sum(len(r) for _, _, r in cats)
     print('%s: %d categories, %d ids' % (MANIFEST, len(cats), total))

@@ -455,6 +455,26 @@ LogColors                    = "13 7 11 9"
 SD3ErrorLogFile              = "scriptdev3-errors.log"
 
 ################################################################################
+# SCRIPTING
+#
+#    Luau.ScriptsPath
+#        Directory the Luau engine reads .luau and .lua scripts from, searched
+#        recursively. A relative path is resolved from the server's working
+#        directory. A missing or empty directory is reported and accepted -- it
+#        means no Lua scripts, not a broken install.
+#
+#        The scripts are compiled once at start-up, and every map then runs the
+#        same bytecode in a sandboxed state of its own, so one map's values
+#        cannot be seen or corrupted by another's. `.reload luau` recompiles
+#        and rebuilds them.
+#
+#        Default: "scripts/luau"
+#
+################################################################################
+
+Luau.ScriptsPath             = "scripts/luau"
+
+################################################################################
 # SERVER SETTINGS
 #
 #    GameType

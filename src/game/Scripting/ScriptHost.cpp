@@ -31,6 +31,9 @@
 #ifdef ENABLE_SD3
 #include "sd3/Sd3Engine.h"
 #endif
+#ifdef ENABLE_LUAU
+#include "luau/LuauEngine.h"
+#endif
 
 // Complete types, not forward declarations: the auction upcasts Creature and
 // GameObject to WorldObject, and with multiple inheritance in the hierarchy an
@@ -100,6 +103,14 @@ namespace scripting
             // order below, not by which #ifdef nests outermost.
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new Sd3Engine()));
+#endif
+#ifdef ENABLE_LUAU
+            // After SD3 and before the DB scripts. A Lua handler is the most
+            // specific thing an operator can write -- it is code they wrote
+            // for this server -- but it does not outrank a compiled script
+            // bound to an entry, which is what SD3 is.
+            state.engines.push_back(
+                std::unique_ptr<IEngine>(new LuauEngine()));
 #endif
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new DbScriptEngine()));

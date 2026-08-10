@@ -80,6 +80,19 @@ if(NOT SCRIPT_LIB_SD3)
     list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/sd3/engine/")
 endif()
 
+if(NOT SCRIPT_LIB_LUAU)
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/luau/engine/")
+endif()
+
+# The vendored Luau VM is third-party C++ that knows nothing about this core,
+# so it must not be handed the core's precompiled header: /Yu forces pchdef.h
+# into every source of the target, and these sources have their own idea of
+# what a uint32 is. They are excluded by name rather than moved out of `game`,
+# because being in `game` is what removes the library cycle SD3 used to have.
+file(GLOB_RECURSE SRC_GRP_LUAU_VENDORED Scripting/luau/engine/*.cpp)
+set_source_files_properties(${SRC_GRP_LUAU_VENDORED} PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON)
+
 list(APPEND SRC_GRP_SCRIPTING ${SRC_GRP_SCRIPT_ENGINES})
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Scripting" PREFIX "Scripting"
@@ -249,6 +262,15 @@ target_include_directories(game
             Scripting/sd3/engine/base
             Scripting/sd3/engine/include
         >
+        # Luau ships one include root per component and every header is
+        # reached as "Luau/<name>.h" from inside them.
+        $<$<BOOL:${SCRIPT_LIB_LUAU}>:
+            Scripting/luau/engine/Common/include
+            Scripting/luau/engine/Ast/include
+            Scripting/luau/engine/Bytecode/include
+            Scripting/luau/engine/Compiler/include
+            Scripting/luau/engine/VM/include
+        >
         $<$<BOOL:${PLAYERBOTS}>:
             ${CMAKE_SOURCE_DIR}/src/modules/Bots
             ${CMAKE_SOURCE_DIR}/src/modules/Bots/playerbot
@@ -264,6 +286,7 @@ target_compile_definitions(game
         # Eluna is gone. See Object/ScriptApiCompat.inl.
         $<$<BOOL:${PLAYERBOTS}>:MANGOS_SCRIPT_COMPAT>
         $<$<BOOL:${SCRIPT_LIB_SD3}>:ENABLE_SD3>
+        $<$<BOOL:${SCRIPT_LIB_LUAU}>:ENABLE_LUAU>
         $<$<BOOL:${PLAYERBOTS}>:ENABLE_PLAYERBOTS>
 )
 
