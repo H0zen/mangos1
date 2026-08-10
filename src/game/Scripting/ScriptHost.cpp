@@ -26,7 +26,6 @@
 #include "ScriptHost.h"
 #include "IScriptEngine.h"
 
-#include "dbscripts/DbScriptEngine.h"
 #include "mai/MaiEngine.h"
 #include "eventai/EventAiEngine.h"
 #ifdef ENABLE_SD3
@@ -117,15 +116,12 @@ namespace scripting
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new LuauEngine()));
 #endif
-            state.engines.push_back(
-                std::unique_ptr<IEngine>(new DbScriptEngine()));
-
-            // MAI, alongside the engine it is meant to replace rather than
-            // instead of it. It loads the same tables through its own model,
-            // validates them against the world and ticks its own frames, but
-            // subscribes to no event yet: two engines both starting every DB
-            // script would run each one twice, and a differential test that
-            // changes the world twice is not a test.
+            // MAI, where DbScriptEngine was. It reads the same tables through
+            // its own model and starts the same sequences from the same rows;
+            // what made the swap something other than an act of faith is the
+            // differential test over every chain a live world has -- 686 of
+            // them, 2,076 steps, agreeing on the same step, the same order and
+            // the same tick.
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new MaiEngine()));
             state.engines.push_back(

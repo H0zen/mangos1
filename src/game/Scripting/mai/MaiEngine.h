@@ -41,12 +41,10 @@ namespace scripting
     /**
      * MAI, running the DB scripts' own tables through MAI's model.
      *
-     * It subscribes to the same events DbScriptEngine does and starts the same
-     * sequences from the same rows -- so for as long as both are compiled in,
-     * the two can be run side by side and their traces compared. That is the
-     * point of it: a replacement nobody can diff against the thing it replaces
-     * is a rewrite, and a rewrite of a decade of encounter scripting is not
-     * something to do on faith.
+     * It is the DB scripts' engine now, not a second opinion beside one:
+     * DbScriptEngine is gone, the tables are read through MAI's model, and the
+     * differential test over every chain a live world has is what made the
+     * swap something other than an act of faith.
      *
      * IT KEEPS ITS OWN SCHEDULE, and does not touch Map::m_scriptSchedule.
      * Sharing one would have meant editing Map to know about a second engine,
@@ -95,8 +93,11 @@ namespace scripting
             }
         };
 
-        void Start(Map* map, uint32 type, uint32 id, WorldObject* source,
-                   WorldObject* target);
+        /// @return false when nothing was started -- there is no such
+        ///         sequence, or one is already running for this actor and the
+        ///         engine's own policy says one is enough.
+        bool Start(Map* map, uint32 type, uint32 id, WorldObject* source,
+                   WorldObject* target, uint32 unique);
 
         std::unordered_map<Key, mai::Sequence, KeyHash> m_sequences;
         std::unordered_map<Map const*, std::vector<mai::Frame>> m_frames;

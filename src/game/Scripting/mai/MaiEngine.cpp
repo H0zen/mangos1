@@ -39,9 +39,11 @@
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "QuestDef.h"
+#include "WaypointManager.h"
 #include "dbscripts/DbScriptStore.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace scripting
 {
@@ -173,6 +175,141 @@ namespace scripting
             return buddy != nullptr;
         }
 
+        /**
+         * The subject of a case, as the type that case is about.
+         *
+         * A Ref is a guid and nothing more -- the seam erases the type on
+         * purpose -- so recovering it with a cast would be asking the compiler
+         * to take the payload's word for what a slot holds. It compiles for
+         * any guid at all, and a Ref naming a player where a creature was
+         * meant would give a Creature* pointing at a Player. The map already
+         * knows how to answer by type, and answering null for the wrong one is
+         * what makes the recovery safe rather than merely correct so far.
+         */
+        WorldObject* ObjectOn(Context const& ctx, Ref ref)
+        {
+            return (ref.IsEmpty() || !ctx.map)
+                       ? nullptr
+                       : ctx.map->GetWorldObject(ObjectGuid(ref.guid));
+        }
+
+        Creature* CreatureOn(Context const& ctx, Ref ref)
+        {
+            // GetAnyTypeCreature, not GetCreature: a pet is a creature to
+            // these tables exactly as it is to EventAI.
+            return (ref.IsEmpty() || !ctx.map)
+                       ? nullptr
+                       : ctx.map->GetAnyTypeCreature(ObjectGuid(ref.guid));
+        }
+
+        GameObject* GameObjectOn(Context const& ctx, Ref ref)
+        {
+            return (ref.IsEmpty() || !ctx.map)
+                       ? nullptr
+                       : ctx.map->GetGameObject(ObjectGuid(ref.guid));
+        }
+
+        /// Which of the two actors the dedup key is built from.
+        ///
+        /// This is the engine's own policy about its own queues -- whether a
+        /// second copy of the same script may run while the first is pending --
+        /// and it has no business being decided by the world.
+        Map::ScriptExecutionParam UniquenessFor(DBScriptType type,
+                                                WorldObject const* source,
+                                                WorldObject const* target)
+        {
+            switch (type)
+            {
+                case DBS_ON_QUEST_START:
+                case DBS_ON_QUEST_END:
+                    return Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE;
+
+                case DBS_ON_GOSSIP:
+                    // Keyed on whichever end is the creature or object: two
+                    // players talking to one NPC must not share a key.
+                    return (source
+                            && source->isType(TYPEMASK_CREATURE_OR_GAMEOBJECT))
+                               ? Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE
+                               : Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET;
+
+                case DBS_ON_EVENT:
+                    if (source
+                        && source->isType(TYPEMASK_CREATURE_OR_GAMEOBJECT))
+                    {
+                        return Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE;
+                    }
+                    if (target
+                        && target->isType(TYPEMASK_CREATURE_OR_GAMEOBJECT))
+                    {
+                        return Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET;
+                    }
+                    return Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET;
+
+                default:
+                    return Map::SCRIPT_EXEC_PARAM_NONE;
+            }
+        }
+
+        /// The script id bound to a chosen gossip option.
+        ///
+        /// The world hands over which menu and which line; finding the script
+        /// behind them is a read of this engine's own table.
+        uint32 GossipScriptId(uint32 menuId, uint32 gossipListId)
+        {
+            GossipMenuItemsMapBounds bounds =
+                sObjectMgr.GetGossipMenuItemsMapBounds(menuId);
+
+            for (GossipMenuItemsMap::const_iterator itr = bounds.first;
+                 itr != bounds.second; ++itr)
+            {
+                if (itr->second.id == gossipListId)
+                {
+                    return itr->second.action_script_id;
+                }
+            }
+
+            return 0;
+        }
+
+        /// The script id on the gossip menu row the conditions selected.
+        uint32 GossipMenuScriptId(uint32 menuId, uint32 textId)
+        {
+            GossipMenusMapBounds bounds =
+                sObjectMgr.GetGossipMenusMapBounds(menuId);
+
+            for (GossipMenusMap::const_iterator itr = bounds.first;
+                 itr != bounds.second; ++itr)
+            {
+                if (itr->second.text_id == textId)
+                {
+                    return itr->second.script_id;
+                }
+            }
+
+            return 0;
+        }
+
+        /// The script id on a waypoint node.
+        uint32 WaypointScriptId(Creature const* creature, int32 pathId,
+                                uint32 pathOrigin, uint32 nodeIndex)
+        {
+            if (!creature)
+            {
+                return 0;
+            }
+
+            WaypointPath const* path = sWaypointMgr.GetPathFromOrigin(
+                creature->GetEntry(), creature->GetGUIDLow(), pathId,
+                static_cast<WaypointPathOrigin>(pathOrigin));
+            if (!path)
+            {
+                return 0;
+            }
+
+            WaypointPath::const_iterator node = path->find(nodeIndex);
+            return node != path->end() ? node->second.script_id : 0;
+        }
+
         WorldObject* Resolve(Map* map, ObjectGuid guid)
         {
             return guid.IsEmpty() ? nullptr : map->GetWorldObject(guid);
@@ -290,27 +427,92 @@ namespace scripting
 
     bool MaiEngine::ReloadData(char const* table)
     {
-        // Not owned here. DbScriptEngine reloads the tables; this rebuilds
-        // from whatever they now hold, and says so rather than claiming the
-        // name -- two engines answering one reload command is the collision
-        // ReloadData's first-match-wins chain cannot report.
-        (void)table;
-        return false;
+        // The DB-script tables are MAI's now, so the reload commands are too.
+        // The store still reads them; this rebuilds the sequences from what it
+        // read.
+        static char const* const owned[] =
+        {
+            "dbscripts_on_quest_start", "dbscripts_on_quest_end",
+            "dbscripts_on_spell", "dbscripts_on_go_use",
+            "dbscripts_on_go_template_use", "dbscripts_on_event",
+            "dbscripts_on_gossip", "dbscripts_on_creature_death",
+            "dbscripts_on_creature_movement", "db_script_string",
+            "db_scripts",
+        };
+
+        bool mine = false;
+        for (char const* name : owned)
+        {
+            if (std::strcmp(table, name) == 0)
+            {
+                mine = true;
+                break;
+            }
+        }
+
+        if (!mine)
+        {
+            return false;
+        }
+
+        // Safe only because of WHERE a reload runs: on the world thread, with
+        // the parallel map update already joined. A frame holds a pointer into
+        // m_sequences, so rebuilding it while a map thread walked one would be
+        // a use after free.
+        m_frames.clear();
+        LoadData(LoadPhase::Final);
+        return true;
     }
 
-    void MaiEngine::Start(Map* map, uint32 type, uint32 id, WorldObject* source,
-                          WorldObject* target)
+    bool MaiEngine::Start(Map* map, uint32 type, uint32 id, WorldObject* source,
+                          WorldObject* target, uint32 unique)
     {
         auto found = m_sequences.find(Key{ type, id });
         if (found == m_sequences.end() || found->second.steps.empty())
         {
-            return;
+            return false;
+        }
+
+        ObjectGuid const sourceGuid = source ? source->GetObjectGuid()
+                                             : ObjectGuid();
+        ObjectGuid const targetGuid = target ? target->GetObjectGuid()
+                                             : ObjectGuid();
+
+        // Refuse a second copy while the first is still running, on whichever
+        // of the two actors the engine's own policy names. Without this a
+        // player clicking a gossip option twice gets the sequence twice, which
+        // for a script that summons something means two of it.
+        if (unique != Map::SCRIPT_EXEC_PARAM_NONE)
+        {
+            auto live = m_frames.find(map);
+            if (live != m_frames.end())
+            {
+                for (mai::Frame const& frame : live->second)
+                {
+                    if (frame.Finished() || frame.sequence != &found->second)
+                    {
+                        continue;
+                    }
+
+                    bool const bySource =
+                        (unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE) &&
+                        frame.source == sourceGuid;
+                    bool const byTarget =
+                        (unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET) &&
+                        frame.target == targetGuid;
+
+                    if (bySource || byTarget)
+                    {
+                        return false;
+                    }
+                }
+            }
         }
 
         mai::Frame frame;
         frame.sequence = &found->second;
-        frame.source = source ? source->GetObjectGuid() : ObjectGuid();
-        frame.target = target ? target->GetObjectGuid() : ObjectGuid();
+        frame.source = sourceGuid;
+        frame.target = targetGuid;
 
         // An item source is the one thing not findable from its guid, so the
         // player holding it rides along -- the same reason the seam's guid box
@@ -325,6 +527,7 @@ namespace scripting
         }
 
         m_frames[map].push_back(frame);
+        return true;
     }
 
     void MaiEngine::Tick(Context const& ctx, uint32 diff)
@@ -383,11 +586,203 @@ namespace scripting
     Verdict MaiEngine::Dispatch(Context const& ctx, EventId id, Arg* args,
                                 std::size_t count)
     {
-        // Deliberately silent for now. MAI is loaded, validated and ticking,
-        // and starting sequences from events is the next step -- but doing it
-        // while DbScriptEngine also does would run every DB script twice, and
-        // a differential test that changes the world twice is not a test.
-        (void)ctx; (void)id; (void)args; (void)count;
-        return Verdict::Continue;
+        // The sequences belong to a map. An event raised in the global scope
+        // has no map to run one on, which is not an error -- it simply is not
+        // addressed here.
+        if (ctx.scope != Context::Scope::Map || !ctx.map)
+        {
+            return Verdict::Continue;
+        }
+
+        DBScriptType type = DBS_END;
+        uint32 scriptId = 0;
+        Ref source{ 0 };
+        Ref target{ 0 };
+
+        switch (id)
+        {
+            case EventId::PlayerQuestStart:
+            case EventId::PlayerQuestEnd:
+            {
+                MANGOS_ASSERT(count == PlayerQuestStart::Arity);
+
+                Quest const* quest = nullptr;
+                Handle const handle = args[2].AsNamed();
+                if (handle.domain == Domain::Quest)
+                {
+                    quest = sObjectMgr.GetQuestTemplate(
+                        static_cast<uint32>(handle.id));
+                }
+
+                if (!quest)
+                {
+                    return Verdict::Continue;
+                }
+
+                bool const start = (id == EventId::PlayerQuestStart);
+                type = start ? DBS_ON_QUEST_START : DBS_ON_QUEST_END;
+                scriptId = start ? quest->GetQuestStartScript()
+                                 : quest->GetQuestCompleteScript();
+                source = args[1].AsEntity();     // the quest giver
+                target = args[0].AsEntity();     // the player
+                break;
+            }
+
+            case EventId::CreatureDied:
+            {
+                MANGOS_ASSERT(count == CreatureDied::Arity);
+
+                Creature const* victim = CreatureOn(ctx, args[0].AsEntity());
+                if (!victim)
+                {
+                    return Verdict::Continue;
+                }
+
+                type = DBS_ON_CREATURE_DEATH;
+                scriptId = victim->GetEntry();
+                source = args[0].AsEntity();
+                target = args[1].AsEntity();
+                break;
+            }
+
+            case EventId::GameobjectUse:
+            {
+                MANGOS_ASSERT(count == GameobjectUse::Arity);
+
+                GameObject const* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (!go)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Keyed by TEMPLATE ENTRY. The guid-keyed table belongs to
+                // on_activate, which is a later and narrower moment -- only
+                // doors, buttons and goobers reach it, and only after they
+                // have operated. Firing both here would run guid scripts for
+                // object types that never used to see them.
+                type = DBS_ON_GOT_USE;
+                scriptId = go->GetEntry();
+                source = args[0].AsEntity();
+                target = args[1].AsEntity();
+                break;
+            }
+
+            case EventId::GameobjectActivate:
+            {
+                MANGOS_ASSERT(count == GameobjectActivate::Arity);
+
+                GameObject const* go = GameObjectOn(ctx, args[1].AsEntity());
+                if (!go)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Keyed by GUID: this table is per placed object, not per
+                // template.
+                type = DBS_ON_GO_USE;
+                scriptId = go->GetGUIDLow();
+                source = args[0].AsEntity();
+                target = args[1].AsEntity();
+                break;
+            }
+
+            case EventId::GossipActionChosen:
+            {
+                MANGOS_ASSERT(count == GossipActionChosen::Arity);
+
+                scriptId = GossipScriptId(
+                    static_cast<uint32>(args[2].AsNumber()),
+                    static_cast<uint32>(args[3].AsNumber()));
+                type = DBS_ON_GOSSIP;
+                source = args[1].AsEntity();     // the gossip source
+                target = args[0].AsEntity();     // the player
+                break;
+            }
+
+            case EventId::GossipMenuShown:
+            {
+                MANGOS_ASSERT(count == GossipMenuShown::Arity);
+
+                scriptId = GossipMenuScriptId(
+                    static_cast<uint32>(args[2].AsNumber()),
+                    static_cast<uint32>(args[3].AsNumber()));
+                type = DBS_ON_GOSSIP;
+                source = args[0].AsEntity();     // the player
+                target = args[1].AsEntity();     // the gossip source
+                break;
+            }
+
+            case EventId::SpellEffectHit:
+            {
+                MANGOS_ASSERT(count == SpellEffectHit::Arity);
+
+                type = DBS_ON_SPELL;
+                scriptId = static_cast<uint32>(args[2].AsNumber());
+                source = args[0].AsEntity();
+                target = args[1].AsEntity();
+                break;
+            }
+
+            case EventId::ServerEventRaised:
+            {
+                MANGOS_ASSERT(count == ServerEventRaised::Arity);
+
+                type = DBS_ON_EVENT;
+                scriptId = static_cast<uint32>(args[2].AsNumber());
+                source = args[0].AsEntity();
+                target = args[1].AsEntity();
+                break;
+            }
+
+            case EventId::CreatureReachWp:
+            {
+                MANGOS_ASSERT(count == CreatureReachWp::Arity);
+
+                Creature const* creature = CreatureOn(ctx, args[0].AsEntity());
+
+                type = DBS_ON_CREATURE_MOVEMENT;
+                scriptId = WaypointScriptId(
+                    creature,
+                    static_cast<int32>(args[1].AsSigned()),
+                    static_cast<uint32>(args[2].AsNumber()),
+                    static_cast<uint32>(args[3].AsNumber()));
+                source = args[0].AsEntity();
+                target = args[0].AsEntity();
+                break;
+            }
+
+            default:
+                return Verdict::Continue;
+        }
+        // No row for this subject is the ordinary case, not a failure: most
+        // quests, creatures and spells have no script at all.
+        if (!scriptId)
+        {
+            return Verdict::Continue;
+        }
+
+        WorldObject* sourceObj = ObjectOn(ctx, source);
+        WorldObject* targetObj = ObjectOn(ctx, target);
+        if (!sourceObj && !targetObj)
+        {
+            return Verdict::Continue;
+        }
+
+        bool const started = Start(ctx.map, uint32(type), scriptId, sourceObj,
+                                   targetObj,
+                                   UniquenessFor(type, sourceObj, targetObj));
+
+        // Claiming is the exception, and the reason is unchanged from the
+        // engine this replaces: nothing has RUN when a sequence is started, so
+        // there is normally no answer to give. Exactly one caller asks a
+        // question that can be answered -- EffectTriggerSpell, which logs when
+        // nothing at all took the trigger -- and for that one, "was anything
+        // queued" is a fair reading of "did an engine deal with this".
+        if (id != EventId::SpellEffectHit)
+        {
+            return Verdict::Continue;
+        }
+
+        return started ? Verdict::Handled : Verdict::Continue;
     }
 }
