@@ -232,7 +232,7 @@ namespace mai
             bool missing = false;
             Unit* picked = Select(source ? source->ToCreature() : nullptr,
                                   step.select, run.from, missing,
-                                  SpellUnder(step));
+                                  SpellUnder(step), step.selectFlags);
             if (!picked)
             {
                 if (missing)

@@ -35,7 +35,6 @@ void AddSC_boss_coren_direbrew();
 #endif
 void AddSC_boss_draganthaurissan();
 void AddSC_boss_general_angerforge();
-void AddSC_boss_high_interrogator_gerstahn();
 void AddSC_instance_blackrock_depths();
 void AddSC_boss_overlordwyrmthalak();                // blackrock_spire
 void AddSC_boss_pyroguard_emberseer();
@@ -127,7 +126,6 @@ void AddSC_boss_hummel();                            // shadowfang_keep
 #endif
 void AddSC_shadowfang_keep();                        // shadowfang_keep
 void AddSC_instance_shadowfang_keep();
-void AddSC_boss_maleki_the_pallid();                 // stratholme
 void AddSC_boss_cannon_master_willey();
 void AddSC_boss_baroness_anastari();
 void AddSC_boss_dathrohan_balnazzar();
@@ -242,7 +240,6 @@ void AddEasternKingdomsScripts()
 
     AddSC_boss_draganthaurissan();
     AddSC_boss_general_angerforge();
-    AddSC_boss_high_interrogator_gerstahn();
     AddSC_instance_blackrock_depths();
     AddSC_boss_overlordwyrmthalak();                        // blackrock_spire
     AddSC_boss_pyroguard_emberseer();
@@ -331,7 +328,6 @@ void AddEasternKingdomsScripts()
 #endif
     AddSC_shadowfang_keep();                                // shadowfang_keep
     AddSC_instance_shadowfang_keep();
-    AddSC_boss_maleki_the_pallid();                         // stratholme
     AddSC_boss_cannon_master_willey();
     AddSC_boss_baroness_anastari();
     AddSC_boss_dathrohan_balnazzar();

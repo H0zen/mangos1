@@ -234,6 +234,18 @@ namespace mai
         /// target already and leaves it at SelectSelf.
         Selector select = SelectSelf;
 
+        /// What the selector will accept: a player, someone with mana, someone
+        /// out of melee range. The values are Creature.h's SelectFlags.
+        ///
+        /// Not folded into Selector because they are orthogonal -- every one
+        /// of the eleven selectors can be narrowed by every one of these, and
+        /// a combined enum would have been eleven times seven names. Fifty-one
+        /// ScriptDev files use them, which is what makes the difference
+        /// between "random target" and "random target WITH MANA" worth a
+        /// column: Mana Burn on somebody with no mana is a wasted cast every
+        /// ten seconds, and nothing reports it.
+        uint8 selectFlags = 0;
+
         /// Laid out in the order the action's ParamSpec table names them, so
         /// operand `n` is `SpecOf(action)->params[n]`. There is no other
         /// mapping to get wrong.

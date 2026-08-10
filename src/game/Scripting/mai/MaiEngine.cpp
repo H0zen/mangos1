@@ -359,7 +359,7 @@ namespace scripting
         {
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
-                "`buddy_flags` FROM `mai_rule_step` "
+                "`buddy_flags`, `select_flags` FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
             while (stepRows && stepRows->NextRow())
@@ -385,6 +385,7 @@ namespace scripting
                 // Neither is a parameter of the verb: both modify the step.
                 step.select = mai::Selector(field[4].GetUInt8());
                 step.buddy.flags = field[5].GetUInt8();
+                step.selectFlags = field[6].GetUInt8();
 
                 if (step.select >= mai::SelectEnd)
                 {

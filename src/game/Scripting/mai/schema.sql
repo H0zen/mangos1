@@ -158,8 +158,6 @@ CREATE TABLE `mai_rule`
     `rule`       VARCHAR(48) NOT NULL,
     `params`     VARCHAR(512) NOT NULL DEFAULT '',
 
-    -- The phases this rule does NOT fire in. Inverted, as EventAI had it, and
-    -- kept inverted so a converted row means what it meant.
     -- WHETHER, as opposed to WHEN. The trigger says a health threshold was
     -- crossed; the guard says "and we have not enraged yet". Empty on every
     -- rule converted from EventAI, because EventAI had no way to say it.
@@ -172,6 +170,8 @@ CREATE TABLE `mai_rule`
     -- needs more is a program and belongs in C++.
     `guard`      VARCHAR(255) NOT NULL DEFAULT '',
 
+    -- The phases this rule does NOT fire in. Inverted, as EventAI had it, and
+    -- kept inverted so a converted row means what it meant.
     `phase_mask` INT UNSIGNED NOT NULL DEFAULT 0,
     `chance`     TINYINT UNSIGNED NOT NULL DEFAULT 100,
     `flags`      INT UNSIGNED NOT NULL DEFAULT 0,
@@ -206,6 +206,12 @@ CREATE TABLE `mai_rule_step`
     -- (`cast_spell`), and without the bit the selected unit IS the actor
     -- (`set_unit_field`). The same flags `mai_step` uses.
     `buddy_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- What the selector will ACCEPT, as opposed to which one it is: a player,
+    -- somebody with mana, somebody out of melee range. Creature.h SelectFlags.
+    -- Orthogonal to `select`, which is why it is a second column and not more
+    -- values in the first: every selector can be narrowed by every flag.
+    `select_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
     PRIMARY KEY (`creature`, `rule`, `seq`),
     CONSTRAINT `mai_rule_step_belongs_to_a_rule`
