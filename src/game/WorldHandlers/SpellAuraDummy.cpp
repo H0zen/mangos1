@@ -46,6 +46,7 @@
 
 
 #include "SpellAuras.h"
+#include "WorldHooks.h"
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
 #include "Database/DatabaseEnv.h"
@@ -930,6 +931,6 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
     // script has to "handle with care", only use where data are not ok to use in the above code.
     if (target->GetTypeId() == TYPEID_UNIT)
     {
-        sScriptMgr.OnAuraDummy(this, apply);
+        scripting::DummyAura(this, apply);
     }
 }

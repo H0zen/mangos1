@@ -24,6 +24,7 @@
  */
 
 #include "Utilities/Errors.h"
+#include "ScriptHost.h"
 #include <vector>
 #include "CreatureAISelector.h"
 #include "Creature.h"
@@ -66,7 +67,7 @@ namespace FactorySelector
 
         if (!(creature->IsPet() && ((Pet*)creature)->isControlled() && ownedByPlayer)
             && !creature->IsCharmed())
-            if (CreatureAI* scriptedAI = sScriptMgr.GetCreatureAI(creature))
+            if (CreatureAI* scriptedAI = scripting::ClaimCreatureAI(creature))
             {
                 return scriptedAI;
             }

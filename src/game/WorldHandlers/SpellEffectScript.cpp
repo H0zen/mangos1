@@ -26,6 +26,7 @@
 
 
 #include "ScriptHost.h"
+#include "WorldHooks.h"
 #include <iterator>
 #include <random>
 #include "Platform/Define.h"
@@ -1148,7 +1149,7 @@ void Spell::EffectScriptEffect(SpellEffectIndex eff_idx)
     // So called only for not processed cases
     if (unitTarget->GetTypeId() == TYPEID_UNIT || unitTarget->GetTypeId() == TYPEID_PLAYER)
     {
-        if (sScriptMgr.OnEffectScriptEffect(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID))
+        if (scripting::ScriptEffect(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID))
         {
             return;
         }

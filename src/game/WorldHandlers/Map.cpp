@@ -2283,7 +2283,7 @@ void Map::CreateInstanceData(bool load)
     // checks it itself, and applying it up here meant an engine that binds
     // instances by map id could never own a map with no row in the
     // script-name table.
-    i_data = sScriptMgr.CreateInstanceData(this);
+    i_data = scripting::ClaimInstanceData(this);
     if (!i_data)
     {
         return;

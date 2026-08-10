@@ -26,6 +26,7 @@
 
 
 #include "ScriptHost.h"
+#include "WorldHooks.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
 #include "Player.h"
@@ -734,14 +735,14 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
         switch (questGiver->GetTypeId())
         {
             case TYPEID_UNIT:
-                sScriptMgr.OnQuestAccept(this, (Creature*)questGiver, pQuest);
+                scripting::QuestAccept(this, (Creature*)questGiver, pQuest);
                 break;
             case TYPEID_ITEM:
             case TYPEID_CONTAINER:
-                sScriptMgr.OnQuestAccept(this, (Item*)questGiver, pQuest);
+                scripting::QuestAccept(this, (Item*)questGiver, pQuest);
                 break;
             case TYPEID_GAMEOBJECT:
-                sScriptMgr.OnQuestAccept(this, (GameObject*)questGiver, pQuest);
+                scripting::QuestAccept(this, (GameObject*)questGiver, pQuest);
                 break;
         }
 
@@ -1030,10 +1031,10 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     switch (questGiver->GetTypeId())
     {
         case TYPEID_UNIT:
-            handled = sScriptMgr.OnQuestRewarded(this, (Creature*)questGiver, pQuest, reward);
+            handled = scripting::QuestRewarded(this, (Creature*)questGiver, pQuest, reward);
             break;
         case TYPEID_GAMEOBJECT:
-            handled = sScriptMgr.OnQuestRewarded(this, (GameObject*)questGiver, pQuest, reward);
+            handled = scripting::QuestRewarded(this, (GameObject*)questGiver, pQuest, reward);
             break;
     }
 

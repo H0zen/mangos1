@@ -49,6 +49,7 @@
  */
 
 #include "ScriptHost.h"
+#include "WorldHooks.h"
 #include <zlib.h>
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
@@ -744,7 +745,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         return;
     }
 
-    if (sScriptMgr.OnAreaTrigger(player, atEntry))
+    if (scripting::AreaTriggered(player, atEntry))
     {
         return;
     }

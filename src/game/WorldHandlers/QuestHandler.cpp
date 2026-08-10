@@ -43,6 +43,7 @@
  */
 
 #include "ScriptHost.h"
+#include "WorldHooks.h"
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
 #include "Log.h"
@@ -81,7 +82,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
 
             if (!cr_questgiver->IsHostileTo(_player))       // not show quest status to enemies
             {
-                dialogStatus = sScriptMgr.GetDialogStatus(_player, cr_questgiver);
+                dialogStatus = scripting::DialogStatus(_player, cr_questgiver);
 
                 if (dialogStatus == DIALOG_STATUS_UNDEFINED)
                 {
@@ -93,7 +94,7 @@ void WorldSession::HandleQuestgiverStatusQueryOpcode(WorldPacket& recv_data)
         case TYPEID_GAMEOBJECT:
         {
             GameObject* go_questgiver = (GameObject*)questgiver;
-            dialogStatus = sScriptMgr.GetDialogStatus(_player, go_questgiver);
+            dialogStatus = scripting::DialogStatus(_player, go_questgiver);
 
             if (dialogStatus == DIALOG_STATUS_UNDEFINED)
             {
@@ -139,7 +140,7 @@ void WorldSession::HandleQuestgiverHelloOpcode(WorldPacket& recv_data)
     // Stop the npc if moving
     pCreature->StopMoving();
 
-    if (sScriptMgr.OnGossipHello(_player, pCreature))
+    if (scripting::GossipHello(_player, pCreature))
     {
         return;
     }
@@ -832,7 +833,7 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
                 continue;
             }
 
-            dialogStatus = sScriptMgr.GetDialogStatus(_player, questgiver);
+            dialogStatus = scripting::DialogStatus(_player, questgiver);
 
             if (dialogStatus == DIALOG_STATUS_UNDEFINED)
             {
@@ -857,7 +858,7 @@ void WorldSession::HandleQuestgiverStatusMultipleQuery(WorldPacket& /*recvPacket
                 continue;
             }
 
-            dialogStatus = sScriptMgr.GetDialogStatus(_player, questgiver);
+            dialogStatus = scripting::DialogStatus(_player, questgiver);
 
             if (dialogStatus == DIALOG_STATUS_UNDEFINED)
             {

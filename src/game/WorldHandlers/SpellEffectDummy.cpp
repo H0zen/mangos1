@@ -26,6 +26,7 @@
 
 
 #include "ScriptHost.h"
+#include "WorldHooks.h"
 #include <iterator>
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -2203,15 +2204,15 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
     bool libraryResult = false;
     if (gameObjTarget)
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, gameObjTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, gameObjTarget, m_originalCasterGUID);
     }
     else if (unitTarget && (unitTarget->GetTypeId() == TYPEID_UNIT || unitTarget->GetTypeId() == TYPEID_PLAYER))
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID);
     }
     else if (itemTarget)
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, itemTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, itemTarget, m_originalCasterGUID);
     }
 
     if (libraryResult || !unitTarget)

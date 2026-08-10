@@ -1711,7 +1711,7 @@ bool  GameObject::AIM_Initialize()
         return false;
     }
 
-    m_AI.reset(sScriptMgr.GetGameObjectAI(this));
+    m_AI.reset(scripting::ClaimGameObjectAI(this));
 
     return true;
 }
