@@ -678,8 +678,6 @@ class CreatureEventAI : public CreatureAI
         void SummonedCreatureDespawn(Creature* unit) override;
         void ReceiveAIEvent(AIEventType eventType, Creature* pSender, Unit* pInvoker, uint32 miscValue) override;
 
-        static int Permissible(const Creature*);
-
         bool ProcessEvent(CreatureEventAIHolder& pHolder, Unit* pActionInvoker = NULL, Creature* pAIEventSender = NULL);
         void ProcessAction(CreatureEventAI_Action const& action, uint32 rnd, uint32 EventId, Unit* pActionInvoker, Creature* pAIEventSender);
         inline uint32 GetRandActionParam(uint32 rnd, uint32 param1, uint32 param2, uint32 param3);

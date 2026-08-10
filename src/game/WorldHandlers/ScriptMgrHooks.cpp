@@ -81,17 +81,17 @@
  */
 CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
 {
-    // Exactly one engine can drive a creature, so this is an auction, not a
-    // chain: every engine says what it offers, the best one builds, and a
-    // bidder that declines after all drops the role to the next. That is the
-    // same mechanism FactorySelector already uses further down this path with
-    // Permit(), which is why it replaces the old "whichever #ifdef nests
-    // outermost wins" without changing who actually wins today.
-    if (CreatureAI* claimed = scripting::ClaimCreatureAI(pCreature))
-    {
-        return claimed;
-    }
-
+    // Exactly one engine can drive a creature, so the role is settled by an
+    // auction rather than by a chain -- but the auction is not run here. It is
+    // run by FactorySelector::selectAI, at the position EventAI used to occupy
+    // in its ordering, because who drives a creature is a graded decision that
+    // the selector owns end to end: core AI for a creature whose control the
+    // core owns, then a script, then the AI named by the template.
+    //
+    // Bidding from here would put every engine ahead of SD3 and ahead of the
+    // NPC-flag tests, which is a different order than the one this core has
+    // today. SD3 is the last producer still outside the seam; when it bids
+    // like the rest, this function goes away with the #ifdef.
 #ifdef ENABLE_SD3
     return SD3::GetCreatureAI(pCreature);
 #else

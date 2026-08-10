@@ -31,6 +31,7 @@
 #include "NullCreatureAI.h"
 #include "Policies/Singleton.h"
 #include "MovementGenerator.h"
+#include "ScriptHost.h"
 #include "ScriptMgr.h"
 #include "Pet.h"
 #include "Log.h"
@@ -60,8 +61,20 @@ namespace FactorySelector
 
         std::string ainame = creature->GetAIName();
 
-        // select by NPC flags _first_ - otherwise EventAI might be choosen for pets/totems
-        // excplicit check for isControlled() and owner type to allow guardian, mini-pets and pets controlled by NPCs to be scripted by EventAI
+        // Select by NPC flags _first_: a creature whose control the core owns
+        // must be driven by the AI that implements that control, whatever a
+        // template or a script would rather have. This is the test the old
+        // comment called "otherwise EventAI might be choosen for pets/totems",
+        // and it still is -- the engine auction below sits where EventAI used
+        // to be reached by name, so these two decisions keep beating it.
+        //
+        // The explicit isControlled() and owner-type check is load-bearing and
+        // stays exactly as it is: it is what lets guardians, mini-pets and
+        // pets controlled by NPCs fall past PetAI and be scripted. A pet
+        // summoned by a creature is isControlled() with a non-player owner --
+        // Spell::DoSummon makes one whenever a non-player casts a summon-pet
+        // effect -- so it never reaches the scripted call above and the
+        // auction below is its only way to a script.
         Unit* owner = NULL;
         if ((creature->IsPet() && ((Pet*)creature)->isControlled() &&
              ((owner = creature->GetOwner()) && owner->GetTypeId() == TYPEID_PLAYER)) || creature->IsCharmed())
@@ -71,6 +84,35 @@ namespace FactorySelector
         else if (creature->IsTotem())
         {
             ai_factory = ai_registry.GetRegistryItem("TotemAI");
+        }
+
+        // Let the scripting engines bid for the creature.
+        //
+        // This is where EventAI was picked up when it was a registry entry
+        // named "EventAI", and the position is the whole point: after the NPC
+        // flags above have had their say, and ahead of selection by AI name.
+        // Putting the auction at the top of this function instead would have
+        // moved EventAI ahead of SD3, which is consulted through
+        // sScriptMgr.GetCreatureAI(), and taken creatures away from it.
+        //
+        // SD3 is not an engine yet, so it is still asked separately and still
+        // asked first. When it becomes one it bids here like everything else,
+        // strongly, because its binding is to a named script rather than to a
+        // template field -- and this call is then the only one left.
+        if (!ai_factory)
+        {
+            if (CreatureAI* claimed = scripting::ClaimCreatureAI(creature))
+            {
+                // The line below never runs for a claimed creature, and one
+                // used to say "used AI is EventAI" for every creature this
+                // branch now takes. Which engine won is deliberately not
+                // named -- the selector must not learn engine names to log
+                // them -- and `.npc aiinfo` still prints the AI class.
+                DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
+                                 "Creature %u AI claimed by a scripting engine.",
+                                 creature->GetGUIDLow());
+                return claimed;
+            }
         }
 
         // select by script name

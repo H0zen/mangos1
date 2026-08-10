@@ -27,6 +27,7 @@
 #include "IScriptEngine.h"
 
 #include "dbscripts/DbScriptEngine.h"
+#include "eventai/EventAiEngine.h"
 
 // Complete types, not forward declarations: the auction upcasts Creature and
 // GameObject to WorldObject, and with multiple inheritance in the hierarchy an
@@ -80,6 +81,8 @@ namespace scripting
 
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new DbScriptEngine()));
+            state.engines.push_back(
+                std::unique_ptr<IEngine>(new EventAiEngine()));
 
             return state;
         }

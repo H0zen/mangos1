@@ -29,7 +29,6 @@
 #include "GuardAI.h"
 #include "PetAI.h"
 #include "TotemAI.h"
-#include "CreatureEventAI.h"
 #include "RandomMovementGenerator.h"
 #include "CreatureAIImpl.h"
 #include "MovementGeneratorImpl.h"
@@ -40,6 +39,13 @@ namespace AIRegistry
 {
     /**
      * @brief Registers built-in creature AI and movement generator factories.
+     *
+     * Built-in means exactly that: the AI the core itself implements. EventAI
+     * used to be registered here under the name "EventAI" and picked up by
+     * FactorySelector like any of these, which made a scripting system look
+     * like a core behaviour. It is a scripting engine now and bids for the
+     * creature at the auction instead; nothing outside src/game/Scripting
+     * names it.
      */
     void Initialize()
     {
@@ -49,7 +55,6 @@ namespace AIRegistry
         (new CreatureAIFactory<GuardAI>("GuardAI"))->RegisterSelf();
         (new CreatureAIFactory<PetAI>("PetAI"))->RegisterSelf();
         (new CreatureAIFactory<TotemAI>("TotemAI"))->RegisterSelf();
-        (new CreatureAIFactory<CreatureEventAI>("EventAI"))->RegisterSelf();
 
         (new MovementGeneratorFactory<RandomMovementGenerator>(RANDOM_MOTION_TYPE))->RegisterSelf();
         (new MovementGeneratorFactory<WaypointMovementGenerator>(WAYPOINT_MOTION_TYPE))->RegisterSelf();

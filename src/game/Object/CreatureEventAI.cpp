@@ -70,20 +70,10 @@ bool CreatureEventAIHolder::UpdateRepeatTimer(Creature* creature, uint32 repeatM
     return true;
 }
 
-/**
- * @brief Checks whether EventAI is the appropriate AI for a creature.
- *
- * @param creature The creature being evaluated.
- * @return The EventAI permissibility score.
- */
-int CreatureEventAI::Permissible(const Creature* creature)
-{
-    if (creature->GetAIName() == "EventAI")
-    {
-        return PERMIT_BASE_SPECIAL;
-    }
-    return PERMIT_BASE_NO;
-}
+// Permissible() lived here: the score the AI registry asked this class for
+// when it selected by Permit(). The question it answered -- is this creature's
+// AIName "EventAI" -- is now the engine's Bid(), which is asked of every
+// engine rather than only of the ones the registry happens to hold.
 
 /**
  * @brief Prints current EventAI debug information for the creature.
