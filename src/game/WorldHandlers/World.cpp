@@ -1185,7 +1185,6 @@ void World::showFooter(uint32 startupMs)
     // what survives a redirected stdout.
     sLog.outString("World initialization complete (%s)", ready);
     sLog.outString("    server   : %s", GitRevision::GetProductVersionStr());
-    sLog.outString("    sd3      : %s", GitRevision::GetDepSD3FullRevision());
     sLog.outString("    database : %s", database);
     sLog.outString("    clients  : %s", EXPECTED_MANGOSD_CLIENT_VERSION);
     sLog.outString("    builds   : %s", AcceptableClientBuildsListStr().c_str());

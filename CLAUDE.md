@@ -10,11 +10,17 @@ this repo. Humans: also read [`doc/CodingStandard.md`](doc/CodingStandard.md).
 
 - **Database changes go in the separate `mangosone/database` repo**, not here — as transactional, idempotent
   `Rel##_##_###_*.sql` migrations that chain via `db_version`.
-- Clone/update **recursively**: `dep`, `src/realmd`, `src/modules/{SD3,Eluna}` and `win` are submodules —
-  those four and no others. Never shallow-update a submodule to a non-tip pinned SHA.
-- Less-obvious locations: scripting lives in `src/modules/` — Eluna (Lua) and SD3 (C++) are submodules;
-  Bots (playerbots) is in-tree. The AuctionHouseBot is in `src/game/AuctionHouseBot/`. The client-data
-  baker is **in-tree** at `src/tools/extractor/` (the old `Extractor_projects` submodule is gone).
+- Clone/update **recursively**: `dep`, `src/realmd` and `win` are submodules — those three and no
+  others. Never shallow-update a submodule to a non-tip pinned SHA.
+- **Scripting lives in `src/game/Scripting/`**, one directory per engine, and every engine is in-tree.
+  The seam (`ScriptHost`, `IScriptEngine`, the event manifest) sits at the top; under it, `dbscripts/`
+  is the `dbscripts_on_*` tables, `eventai/` is `creature_ai_scripts`, and `sd3/` is ScriptDev3 — whose
+  480 C++ scripts live in `sd3/engine/`. SD3 was a submodule and a `mangosscript` library until it
+  became an engine; it is neither now, and only the TBC scripts were kept, because the rest could never
+  compile against a 2.4.3 core. Eluna is gone entirely.
+- Less-obvious locations: Bots (playerbots) is in `src/modules/Bots`, globbed straight into `game`. The
+  AuctionHouseBot is in `src/game/AuctionHouseBot/`. The client-data baker is **in-tree** at
+  `src/tools/extractor/` (the old `Extractor_projects` submodule is gone).
 
 ## Build & test
 
@@ -29,7 +35,7 @@ cmake -S . -B ../build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../build/install \
   -DBUILD_TOOLS=1 -DBUILD_MANGOSD=1 -DBUILD_REALMD=1 \
   -DWITH_TESTS=1 -DWITH_NET_TESTS=0 -DSOAP=1 \
-  -DSCRIPT_LIB_ELUNA=1 -DSCRIPT_LIB_SD3=1 -DPLAYERBOTS=1 \
+  -DSCRIPT_LIB_SD3=1 -DPLAYERBOTS=1 \
   -DPCH=0
 cmake --build ../build --parallel && cmake --install ../build
 ```

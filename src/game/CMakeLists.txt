@@ -63,14 +63,27 @@ source_group("Scripting" FILES ${SRC_GRP_SCRIPTING})
 # One directory per engine under Scripting/. Adding an engine is a new
 # directory plus one line in ScriptHost.cpp's MakeHostState -- nothing here
 # needs editing, and nothing outside Scripting/ ever names an engine.
-file(GLOB SRC_GRP_SCRIPT_ENGINES Scripting/*/*.cpp Scripting/*/*.h)
+#
+# GLOB_RECURSE, because an engine's directory is its whole nest: the adapter
+# that implements IEngine sits at the top and whatever it drives lives under
+# it, at whatever depth suits it. SD3 keeps 480 scripts sorted by continent and
+# instance under sd3/engine/, and the build follows the layout instead of
+# listing it -- the file that used to do the listing was 32 KB of one glob per
+# dungeon, and every new script directory was a build edit waiting to be
+# forgotten.
+file(GLOB_RECURSE SRC_GRP_SCRIPT_ENGINES Scripting/*/*.cpp Scripting/*/*.h)
+
+# An engine that can be configured out is dropped whole. The adapter beside it
+# still compiles -- it guards its own body -- so the seam stays the same shape
+# with the back end absent, which is the point of a seam.
+if(NOT SCRIPT_LIB_SD3)
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/sd3/engine/")
+endif()
+
 list(APPEND SRC_GRP_SCRIPTING ${SRC_GRP_SCRIPT_ENGINES})
 
-foreach(_engine_file ${SRC_GRP_SCRIPT_ENGINES})
-    get_filename_component(_engine_dir "${_engine_file}" DIRECTORY)
-    get_filename_component(_engine_name "${_engine_dir}" NAME)
-    source_group("Scripting\\${_engine_name}" FILES "${_engine_file}")
-endforeach()
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Scripting" PREFIX "Scripting"
+    FILES ${SRC_GRP_SCRIPT_ENGINES})
 
 #Server group
 file(GLOB SRC_GRP_SERVER Server/*.cpp Server/*.h)
@@ -227,6 +240,15 @@ target_include_directories(game
         Warden
         Warden/Modules
         WorldHandlers
+        # SD3's own three roots. The scripts include "precompiled.h",
+        # "sc_creature.h" and "system/ScriptDevMgr.h" by those names and always
+        # have; these are what makes those spellings resolve now that the
+        # engine lives in the tree instead of behind a library of its own.
+        $<$<BOOL:${SCRIPT_LIB_SD3}>:
+            Scripting/sd3/engine
+            Scripting/sd3/engine/base
+            Scripting/sd3/engine/include
+        >
         $<$<BOOL:${PLAYERBOTS}>:
             ${CMAKE_SOURCE_DIR}/src/modules/Bots
             ${CMAKE_SOURCE_DIR}/src/modules/Bots/playerbot
@@ -254,7 +276,6 @@ target_link_libraries(game
         shared
         RecastNavigation::Detour
         ZLIB::ZLIB
-        $<$<BOOL:${SCRIPT_LIB_SD3}>:mangosscript>
     PRIVATE
         mangos_openssl_strict
 )
