@@ -259,6 +259,35 @@ namespace mai
             return false;
         }
 
+        /**
+         * Arrive at the target, instantly.
+         *
+         * A near-teleport rather than a movement: the target's own position,
+         * the caster's own facing. That is what Shazzrah's Gate does, and what
+         * the ScriptDev script wrote by hand under a comment reading
+         * TODO REMOVE HACK -- because the spell's dummy effect had nowhere to
+         * live. It has somewhere now: the effect reaches MAI as a sequence
+         * keyed on the spell, and this is the one verb that sequence needed.
+         */
+        bool TeleportToTarget(Doing& doing, Step const& step)
+        {
+            (void)step;
+
+            Unit* self = doing.SourceUnit();
+            Unit* victim = doing.TargetUnit();
+
+            if (!self || !victim || self == victim)
+            {
+                sLog.outErrorDb("MAI: teleport_to_target needs a source and a "
+                                "different target");
+                return false;
+            }
+
+            self->NearTeleportTo(victim->Where().X(), victim->Where().Y(),
+                                 victim->Where().Z(), self->Where().Facing());
+            return false;
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -749,6 +778,7 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::TeleportToTarget:  return TeleportToTarget(doing, step);
             case ActionId::SetThrowMask:      return SetThrowMask(doing, step);
             case ActionId::ThrowAiEvent:      return ThrowAiEvent(doing, step);
 

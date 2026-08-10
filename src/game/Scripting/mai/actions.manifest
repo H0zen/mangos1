@@ -74,6 +74,13 @@ category move = 0x03
     set_run                 25   run:bool
     turn_to                 36   target:u32
     move_dynamic            37   max_dist:f32 min_dist:f32?
+
+    # The missing member of the family above. MAI could teleport to a PLACE
+    # (teleport_to) and walk to a UNIT (move_dynamic with max_dist 0), and had
+    # no way to arrive at a unit instantly -- which is what every blink,
+    # charge and gate does. Written as a verb rather than as a spell's private
+    # hack, because it is not one boss's trick.
+    teleport_to_target      129
     send_taxi_path          30   path:taxi
     pause_waypoints         32   pause:bool
     set_fly                 59   enable:bool
