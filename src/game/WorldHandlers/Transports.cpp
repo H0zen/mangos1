@@ -933,12 +933,11 @@ void Transport::DoEventIfAny(WayPointMap::value_type const& node, bool departure
     {
         DEBUG_FILTER_LOG(LOG_FILTER_TRANSPORT_MOVES, "Taxi %s event %u of node %u of %s \"%s\") path", departure ? "departure" : "arrival", eventid, node.first, GetGuidStr().c_str(), GetName());
 
-        if (!sScriptMgr.OnProcessEvent(eventid, this, this, departure))
-        {
-            scripting::Notify(GetMap(),
-                scripting::ServerEventRaised{ scripting::RefOf(this),
-                                              scripting::RefOf(this),
-                                              eventid });
-        }
+        // departure is the isStart of this event: leaving a node starts
+        // something, arriving at one ends it.
+        scripting::Notify(GetMap(),
+            scripting::ServerEventRaised{ scripting::RefOf(this),
+                                          scripting::RefOf(this),
+                                          eventid, departure });
     }
 }

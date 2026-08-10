@@ -85,13 +85,18 @@ void GameObject::Use(Unit* user)
         m_cooldownTime = sWorld.GetGameTime() + cooldown;
     }
 
-    bool scriptReturnValue = user->GetTypeId() == TYPEID_PLAYER && sScriptMgr.OnGameObjectUse((Player*)user, this);
-    if (!scriptReturnValue)
-    {
-        scripting::Notify(GetMap(),
-            scripting::GameobjectUse{ scripting::RefOf(spellCaster),
-                                      scripting::RefOf(this) });
-    }
+    // One event for the object being used, and one answer. This used to be
+    // two emissions of the same event -- a claimable one raised only for a
+    // player, and a broadcast one raised for everybody when the first was not
+    // claimed -- which is how the same moment got told twice and how a
+    // template-keyed DB script could suppress the guid-keyed one below.
+    //
+    // A claim here means a script produced the behaviour, so the object's own
+    // activation script is skipped. spellCaster is still the user at this
+    // point; it only changes further down inside the switch.
+    bool const scriptReturnValue = scripting::Offer(GetMap(),
+        scripting::GameobjectUse{ scripting::RefOf(spellCaster),
+                                  scripting::RefOf(this) });
 
     switch (GetGoType())
     {
@@ -218,9 +223,15 @@ void GameObject::Use(Unit* user)
                 SendGameObjectCustomAnim();
             }
 
-            if (!scriptReturnValue && user->GetTypeId() == TYPEID_UNIT)
+            // The trap has gone off by now: it has cast its spell, spent a
+            // charge and played its animation. That is a later and narrower
+            // moment than the use above, and merging the two would run a
+            // script that despawns the trap before the trap fires.
+            if (user->GetTypeId() == TYPEID_UNIT)
             {
-                sScriptMgr.OnGameObjectUse(user, this);
+                scripting::Notify(GetMap(),
+                    scripting::GameobjectTrapSprung{ scripting::RefOf(user),
+                                                     scripting::RefOf(this) });
             }
 
             // TODO: Despawning of traps? (Also related to code in ::Update)

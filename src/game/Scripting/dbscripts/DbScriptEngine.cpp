@@ -351,9 +351,25 @@ namespace scripting
             type, scriptId, sourceObj, targetObj,
             UniquenessFor(type, sourceObj, targetObj));
 
-        // Handled, not a payload field. The one caller that asks is a spell
-        // effect that logs an error when nothing took the trigger at all, and
-        // "did an engine deal with this" is exactly what Handled means.
+        // Claiming is the exception here, not the rule, and the header above
+        // says why: nothing has run when ScriptsStart returns, so there is
+        // normally no answer to give. Exactly one caller asks a question this
+        // engine can answer -- EffectTriggerSpell, which logs an error when
+        // NOTHING took the trigger -- and for that one "did an engine deal
+        // with this" is a fair reading of "something was queued".
+        //
+        // Answering Handled everywhere else was wrong and had a symptom:
+        // GameObject::Use treats a claim as "a script produced the behaviour"
+        // and skips the object's own activation script, so a row in
+        // dbscripts_on_go_template_use silently disabled the guid-keyed row in
+        // dbscripts_on_go_use for the same object. Ending the dispatch chain
+        // early was the other half of it -- a claim here is the reason a later
+        // engine would never see the event at all.
+        if (id != EventId::SpellEffectHit)
+        {
+            return Verdict::Continue;
+        }
+
         return started ? Verdict::Handled : Verdict::Continue;
     }
 }

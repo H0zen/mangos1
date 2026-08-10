@@ -703,12 +703,14 @@ class ScriptMgr
         bool OnQuestRewarded(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest, uint32 reward);
         uint32 GetDialogStatus(Player* pPlayer, Creature* pCreature);
         uint32 GetDialogStatus(Player* pPlayer, GameObject* pGameObject);
-        bool OnGameObjectUse(Player* pPlayer, GameObject* pGameObject);
-        bool OnGameObjectUse(Unit* pUnit, GameObject* pGameObject);
+        // OnGameObjectUse and OnProcessEvent were here. Both were pure
+        // forwarders into one back end and both had a second, hand-written
+        // fallback at every call site -- ask the back end, and if it said no,
+        // raise the event. There is one call now and the engines chain
+        // behind it, so the sites raise the event directly.
         bool OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets);
         bool OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* atEntry);
         bool OnNpcSpellClick(Player* pPlayer, Creature* pClickedCreature, uint32 spellId);
-        bool OnProcessEvent(uint32 eventId, Object* pSource, Object* pTarget, bool isStart);
         bool OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Unit* pTarget, ObjectGuid originalCasterGuid);
         bool OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, GameObject* pTarget, ObjectGuid originalCasterGuid);
         bool OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Item* pTarget, ObjectGuid originalCasterGuid);

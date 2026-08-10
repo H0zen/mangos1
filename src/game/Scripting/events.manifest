@@ -78,7 +78,12 @@ category server = 0x02
     on_lua_state_open                   33  broadcast  -
     on_game_start                       34  broadcast  eventId:u32
     on_game_stop                        35  broadcast  eventId:u32
-    on_event_raised                     36  claim      source:obj target:obj eventId:u32
+    # isStart is a world fact, not an engine's flag: a transport raises the
+    # departure event as a start and the arrival event as an end, and a taxi
+    # node arrival is an end. Everything that raises an event id knows which
+    # of the two it is, and it is the last thing on the line because adding a
+    # slot to the end leaves every earlier index where it was.
+    on_event_raised                     36  claim      source:obj target:obj eventId:u32 isStart:bool
 
 category player = 0x03
     on_character_create                  1  broadcast  player:obj
@@ -189,7 +194,9 @@ category creature = 0x07
     on_dummy_effect                     30  claim      caster:obj spellId:u32 effIndex:enum target:obj
     on_quest_accept                     31  claim      player:obj creature:obj quest:h.quest
     on_quest_reward                     34  claim      player:obj creature:obj quest:h.quest opt:u32
-    on_dialog_status                    35  claim      player:obj creature:obj
+    # status is the answer, and an answer is a value: Verdict says whether an
+    # engine produced one, the slot carries what it was.
+    on_dialog_status                    35  claim      player:obj creature:obj status:u32!
     on_add                              36  broadcast  creature:obj
     on_remove                           37  cancel     creature:obj
 
@@ -199,7 +206,7 @@ category gameobject = 0x08
     on_dummy_effect                      3  claim      caster:obj spellId:u32 effIndex:enum target:obj
     on_quest_accept                      4  claim      player:obj gameobject:obj quest:h.quest
     on_quest_reward                      5  claim      player:obj gameobject:obj quest:h.quest opt:u32
-    on_dialog_status                     6  claim      player:obj gameobject:obj
+    on_dialog_status                     6  claim      player:obj gameobject:obj status:u32!
     on_destroyed                         7  broadcast  gameObject:obj attacker:obj
     on_damaged                           8  broadcast  gameObject:obj attacker:obj
     on_loot_state_change                 9  broadcast  gameObject:obj state:u32
@@ -208,6 +215,12 @@ category gameobject = 0x08
     on_remove                           13  cancel     gameobject:obj
     on_use                              14  claim      user:obj gameobject:obj
     on_activate                         15  broadcast  user:obj gameobject:obj
+    # A trap that has gone off on a non-player unit. Not on_use with a
+    # different user: on_use fires at the top of Use() for every object type,
+    # and this fires at the bottom of the trap branch, after the trap has cast
+    # its spell, spent a charge and played its animation. Collapsing the two
+    # would move a script that despawns the trap ahead of the trap firing.
+    on_trap_sprung                      16  broadcast  unit:obj gameobject:obj
 
 category spell = 0x09
     on_cast                              1  broadcast  spell:b.spell skipCheck:bool
@@ -293,3 +306,10 @@ category core = 0x0F
     on_npc_spell_click                   1  claim      player:obj creature:obj spellId:u32
     on_effect_script_effect              2  claim      caster:obj spellId:u32 effIndex:u32 target:obj originalCaster:obj
     on_aura_dummy                        3  claim      aura:b.aura apply:bool
+    # The twin of on_effect_script_effect, and here for the same reason: a
+    # dummy effect is keyed by SPELL, not by what it landed on. The three
+    # typed on_dummy_effect events above each describe one kind of target and
+    # none of them describes a player, which is a target a dummy effect
+    # certainly has. This one carries whatever was hit -- unit, gameobject or
+    # item -- and lets the listener sort it out from the guid.
+    on_effect_dummy                      4  claim      caster:obj spellId:u32 effIndex:u32 target:obj originalCaster:obj

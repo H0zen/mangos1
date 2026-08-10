@@ -66,9 +66,6 @@
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "WaypointMovementGenerator.h"
 #include "Mail.h"
-#ifdef ENABLE_SD3
-#include "system/ScriptDevMgr.h"
-#endif /* ENABLE_SD3 */
 #ifdef CLASSIC
 #include "LFGMgr.h"
 #endif /* CLASSIC */
@@ -81,22 +78,14 @@
  */
 CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
 {
-    // Exactly one engine can drive a creature, so the role is settled by an
-    // auction rather than by a chain -- but the auction is not run here. It is
-    // run by FactorySelector::selectAI, at the position EventAI used to occupy
-    // in its ordering, because who drives a creature is a graded decision that
-    // the selector owns end to end: core AI for a creature whose control the
-    // core owns, then a script, then the AI named by the template.
-    //
-    // Bidding from here would put every engine ahead of SD3 and ahead of the
-    // NPC-flag tests, which is a different order than the one this core has
-    // today. SD3 is the last producer still outside the seam; when it bids
-    // like the rest, this function goes away with the #ifdef.
-#ifdef ENABLE_SD3
-    return SD3::GetCreatureAI(pCreature);
-#else
-    return NULL;
-#endif
+    // Exactly one engine can drive a creature, so this is an auction, not a
+    // chain: every engine says what it offers, the best one builds, and a
+    // bidder that declines after all drops the role to the next. It replaces
+    // the old "whichever #ifdef nests outermost wins" without changing who
+    // wins today -- a bound C++ script bids strongly and a template that only
+    // names EventAI bids normally, which is the order this function had when
+    // the two were an #ifdef and an AI-registry entry.
+    return scripting::ClaimCreatureAI(pCreature);
 }
 
 /**
@@ -107,19 +96,7 @@ CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
  */
 GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
 {
-    // No engine bids for this role yet. The auction is wired anyway, so an
-    // engine that wants game-object AI declares it with a Bid() rather than
-    // with another #ifdef in this function.
-    if (GameObjectAI* claimed = scripting::ClaimGameObjectAI(pGo))
-    {
-        return claimed;
-    }
-
-    #ifdef ENABLE_SD3
-        return SD3::GetGameObjectAI(pGo);
-    #else
-        return NULL;
-    #endif
+    return scripting::ClaimGameObjectAI(pGo);
 }
 
 /**
@@ -130,22 +107,11 @@ GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
  */
 InstanceData* ScriptMgr::CreateInstanceData(Map* pMap)
 {
-    // The auction runs first and SD3 is the fallback, which is the same
-    // precedence creature AI uses. This function used to consult only SD3,
-    // even though the scripting engine of the day implemented instance data
-    // too -- so that engine shipped instance scripting nothing in this core
-    // ever reached. Going through the auction is what keeps that from
-    // happening again to the next engine.
-    if (InstanceData* claimed = scripting::ClaimInstanceData(pMap))
-    {
-        return claimed;
-    }
-
-#ifdef ENABLE_SD3
-    return SD3::CreateInstanceData(pMap);
-#else
-    return NULL;
-#endif
+    // This function used to consult only SD3, even though the scripting engine
+    // of the day implemented instance data too -- so that engine shipped
+    // instance scripting nothing in this core ever reached. Going through the
+    // auction is what keeps that from happening again to the next engine.
+    return scripting::ClaimInstanceData(pMap);
 }
 
 /**
@@ -157,19 +123,9 @@ InstanceData* ScriptMgr::CreateInstanceData(Map* pMap)
  */
 bool ScriptMgr::OnGossipHello(Player* pPlayer, Creature* pCreature)
 {
-    if (scripting::Offer(pPlayer,
-            scripting::GossipCreatureHello{ scripting::RefOf(pPlayer),
-                                    scripting::RefOf(pCreature) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::GossipHello(pPlayer, pCreature);
-#else
-    return false;
-#endif
+    return scripting::Offer(pPlayer,
+        scripting::GossipCreatureHello{ scripting::RefOf(pPlayer),
+                                        scripting::RefOf(pCreature) });
 }
 
 /**
@@ -181,19 +137,9 @@ bool ScriptMgr::OnGossipHello(Player* pPlayer, Creature* pCreature)
  */
 bool ScriptMgr::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
 {
-    if (scripting::Offer(pPlayer,
-            scripting::GossipGameobjectHello{ scripting::RefOf(pPlayer),
-                                    scripting::RefOf(pGameObject) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::GOGossipHello(pPlayer, pGameObject);
-#else
-    return false;
-#endif
+    return scripting::Offer(pPlayer,
+        scripting::GossipGameobjectHello{ scripting::RefOf(pPlayer),
+                                          scripting::RefOf(pGameObject) });
 }
 
 /**
@@ -205,12 +151,9 @@ bool ScriptMgr::OnGossipHello(Player* pPlayer, GameObject* pGameObject)
  */
 bool ScriptMgr::OnGossipHello(Player* pPlayer, Item* pItem)
 {
-
-#ifdef ENABLE_SD3
-    return SD3::ItemGossipHello(pPlayer, pItem);
-#else
-    return false;
-#endif
+    return scripting::Offer(pPlayer,
+        scripting::GossipItemHello{ scripting::RefOf(pPlayer),
+                                    scripting::RefOf(pItem) });
 }
 
 /**
@@ -229,27 +172,10 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 send
     // selection into separate hooks, but it is the same thing
     // happening with the text field empty.
     std::string selectCode(code ? code : "");
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::GossipCreatureSelect{ scripting::RefOf(pPlayer),
                                      scripting::RefOf(pCreature),
-                                     sender, action, selectCode }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    if (code)
-    {
-        return SD3::GossipSelectWithCode(pPlayer, pCreature, sender, action, code);
-    }
-    else
-    {
-        return SD3::GossipSelect(pPlayer, pCreature, sender, action);
-    }
-#else
-    return false;
-#endif
+                                     sender, action, selectCode });
 }
 
 /**
@@ -268,27 +194,10 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 
     // selection into separate hooks, but it is the same thing
     // happening with the text field empty.
     std::string selectCode(code ? code : "");
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::GossipGameobjectSelect{ scripting::RefOf(pPlayer),
                                      scripting::RefOf(pGameObject),
-                                     sender, action, selectCode }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    if (code)
-    {
-        return SD3::GOGossipSelectWithCode(pPlayer, pGameObject, sender, action, code);
-    }
-    else
-    {
-        return SD3::GOGossipSelect(pPlayer, pGameObject, sender, action);
-    }
-#else
-    return false;
-#endif
+                                     sender, action, selectCode });
 }
 
 /**
@@ -303,19 +212,14 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, GameObject* pGameObject, uint32 
  */
 bool ScriptMgr::OnGossipSelect(Player* pPlayer, Item* pItem, uint32 sender, uint32 action, const char* code)
 {
-
-#ifdef ENABLE_SD3
-    if (code)
-    {
-        return SD3::ItemGossipSelectWithCode(pPlayer, pItem, sender, action, code);
-    }
-    else
-    {
-        return SD3::ItemGossipSelect(pPlayer, pItem, sender, action);
-    }
-#else
-    return false;
-#endif
+    // One event, not two: the engines split coded and uncoded
+    // selection into separate hooks, but it is the same thing
+    // happening with the text field empty.
+    std::string selectCode(code ? code : "");
+    return scripting::Offer(pPlayer,
+        scripting::GossipItemSelect{ scripting::RefOf(pPlayer),
+                                     scripting::RefOf(pItem),
+                                     sender, action, selectCode });
 }
 
 /**
@@ -328,20 +232,10 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, Item* pItem, uint32 sender, uint
  */
 bool ScriptMgr::OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const* pQuest)
 {
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::CreatureQuestAccept{ scripting::RefOf(pPlayer),
                                    scripting::RefOf(pCreature),
-                                   scripting::HandleOf(pQuest) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::QuestAccept(pPlayer, pCreature, pQuest);
-#else
-    return false;
-#endif
+                                   scripting::HandleOf(pQuest) });
 }
 
 /**
@@ -354,20 +248,10 @@ bool ScriptMgr::OnQuestAccept(Player* pPlayer, Creature* pCreature, Quest const*
  */
 bool ScriptMgr::OnQuestAccept(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest)
 {
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::GameobjectQuestAccept{ scripting::RefOf(pPlayer),
                                    scripting::RefOf(pGameObject),
-                                   scripting::HandleOf(pQuest) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::GOQuestAccept(pPlayer, pGameObject, pQuest);
-#else
-    return false;
-#endif
+                                   scripting::HandleOf(pQuest) });
 }
 
 /**
@@ -380,20 +264,10 @@ bool ScriptMgr::OnQuestAccept(Player* pPlayer, GameObject* pGameObject, Quest co
  */
 bool ScriptMgr::OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest)
 {
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::ItemQuestAccept{ scripting::RefOf(pPlayer),
                                    scripting::RefOf(pItem),
-                                   scripting::HandleOf(pQuest) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::ItemQuestAccept(pPlayer, pItem, pQuest);
-#else
-    return false;
-#endif
+                                   scripting::HandleOf(pQuest) });
 }
 
 /**
@@ -407,21 +281,11 @@ bool ScriptMgr::OnQuestAccept(Player* pPlayer, Item* pItem, Quest const* pQuest)
  */
 bool ScriptMgr::OnQuestRewarded(Player* pPlayer, Creature* pCreature, Quest const* pQuest, uint32 reward)
 {
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::CreatureQuestReward{ scripting::RefOf(pPlayer),
                                    scripting::RefOf(pCreature),
                                    scripting::HandleOf(pQuest),
-                                   reward }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::QuestRewarded(pPlayer, pCreature, pQuest);
-#else
-    return false;
-#endif
+                                   reward });
 }
 
 /**
@@ -435,21 +299,11 @@ bool ScriptMgr::OnQuestRewarded(Player* pPlayer, Creature* pCreature, Quest cons
  */
 bool ScriptMgr::OnQuestRewarded(Player* pPlayer, GameObject* pGameObject, Quest const* pQuest, uint32 reward)
 {
-    if (scripting::Offer(pPlayer,
+    return scripting::Offer(pPlayer,
             scripting::GameobjectQuestReward{ scripting::RefOf(pPlayer),
                                    scripting::RefOf(pGameObject),
                                    scripting::HandleOf(pQuest),
-                                   reward }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::GOQuestRewarded(pPlayer, pGameObject, pQuest);
-#else
-    return false;
-#endif
+                                   reward });
 }
 
 /**
@@ -461,16 +315,15 @@ bool ScriptMgr::OnQuestRewarded(Player* pPlayer, GameObject* pGameObject, Quest 
  */
 uint32 ScriptMgr::GetDialogStatus(Player* pPlayer, Creature* pCreature)
 {
-    scripting::Offer(pPlayer,
-        scripting::CreatureDialogStatus{ scripting::RefOf(pPlayer),
-                                scripting::RefOf(pCreature) });
+    // The verdict says whether an engine had an answer; the answer itself
+    // comes back in the slot, because a dialog status is a value and Verdict
+    // is not a place to put one.
+    scripting::CreatureDialogStatus event{ scripting::RefOf(pPlayer),
+                                           scripting::RefOf(pCreature),
+                                           DIALOG_STATUS_UNDEFINED };
 
-
-#ifdef ENABLE_SD3
-    return SD3::GetNPCDialogStatus(pPlayer, pCreature);
-#else
-    return DIALOG_STATUS_UNDEFINED;
-#endif
+    return scripting::Offer(pPlayer, event) ? event.status
+                                            : DIALOG_STATUS_UNDEFINED;
 }
 
 /**
@@ -482,56 +335,12 @@ uint32 ScriptMgr::GetDialogStatus(Player* pPlayer, Creature* pCreature)
  */
 uint32 ScriptMgr::GetDialogStatus(Player* pPlayer, GameObject* pGameObject)
 {
-    scripting::Offer(pPlayer,
-        scripting::GameobjectDialogStatus{ scripting::RefOf(pPlayer),
-                                scripting::RefOf(pGameObject) });
+    scripting::GameobjectDialogStatus event{ scripting::RefOf(pPlayer),
+                                             scripting::RefOf(pGameObject),
+                                             DIALOG_STATUS_UNDEFINED };
 
-
-#ifdef ENABLE_SD3
-    return SD3::GetGODialogStatus(pPlayer, pGameObject);
-#else
-    return DIALOG_STATUS_UNDEFINED;
-#endif
-}
-
-/**
- * @brief Dispatches player game object use hooks to scripting engines.
- *
- * @param pPlayer The player using the object.
- * @param pGameObject The used game object.
- * @return true if a script handled the event; otherwise false.
- */
-bool ScriptMgr::OnGameObjectUse(Player* pPlayer, GameObject* pGameObject)
-{
-    if (scripting::Offer(pPlayer,
-            scripting::GameobjectUse{ scripting::RefOf(pPlayer),
-                                      scripting::RefOf(pGameObject) }))
-    {
-        return true;
-    }
-
-#ifdef ENABLE_SD3
-    return SD3::GOUse(pPlayer, pGameObject);
-#else
-    return false;
-#endif
-}
-
-/**
- * @brief Dispatches non-player game object use hooks to scripting engines.
- *
- * @param pUnit The unit using the object.
- * @param pGameObject The used game object.
- * @return true if a script handled the event; otherwise false.
- */
-bool ScriptMgr::OnGameObjectUse(Unit* pUnit, GameObject* pGameObject)
-{
-
-#ifdef ENABLE_SD3
-    return SD3::GOUse(pUnit, pGameObject);
-#else
-    return false;
-#endif
+    return scripting::Offer(pPlayer, event) ? event.status
+                                            : DIALOG_STATUS_UNDEFINED;
 }
 
 /**
@@ -547,23 +356,13 @@ bool ScriptMgr::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& 
     // A refusal here means the scripts blocked the cast, and the caller
     // reads that as "handled" -- the opposite polarity to the claims
     // above, which is exactly why this one is an Ask and not an Offer.
-    if (scripting::Ask(pPlayer,
-            scripting::ItemUse{ scripting::RefOf(pPlayer),
-                                scripting::RefOf(pItem),
-                                scripting::Lend(
-                                    scripting::Domain::CastTargets,
-                                    &targets) })
-            == scripting::Verdict::Cancel)
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::ItemUse(pPlayer, pItem, targets);
-#else
-    return false;
-#endif
+    return scripting::Ask(pPlayer,
+               scripting::ItemUse{ scripting::RefOf(pPlayer),
+                                   scripting::RefOf(pItem),
+                                   scripting::Lend(
+                                       scripting::Domain::CastTargets,
+                                       &targets) })
+               == scripting::Verdict::Cancel;
 }
 
 /**
@@ -575,21 +374,11 @@ bool ScriptMgr::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& 
  */
 bool ScriptMgr::OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* atEntry)
 {
-    if (scripting::Offer(pPlayer,
-            scripting::ServerEventTrigger{
-                scripting::RefOf(pPlayer),
-                scripting::HandleOf(scripting::Domain::AreaTrigger,
-                                    atEntry->id) }))
-    {
-        return true;
-    }
-
-
-#ifdef ENABLE_SD3
-    return SD3::AreaTrigger(pPlayer, atEntry);
-#else
-    return false;
-#endif
+    return scripting::Offer(pPlayer,
+        scripting::ServerEventTrigger{
+            scripting::RefOf(pPlayer),
+            scripting::HandleOf(scripting::Domain::AreaTrigger,
+                                atEntry->id) });
 }
 
 /**
@@ -602,29 +391,14 @@ bool ScriptMgr::OnAreaTrigger(Player* pPlayer, AreaTriggerEntry const* atEntry)
  */
 bool ScriptMgr::OnNpcSpellClick(Player* pPlayer, Creature* pClickedCreature, uint32 spellId)
 {
-#ifdef ENABLE_SD3
-    return SD3::NpcSpellClick(pPlayer, pClickedCreature, spellId);
-#else
-    return false;
-#endif
-}
-
-/**
- * @brief Dispatches generic scripted process events to scripting engines.
- *
- * @param eventId The event identifier.
- * @param pSource The event source object.
- * @param pTarget The event target object.
- * @param isStart True when processing the start of the event chain.
- * @return true if a script handled the event; otherwise false.
- */
-bool ScriptMgr::OnProcessEvent(uint32 eventId, Object* pSource, Object* pTarget, bool isStart)
-{
-#ifdef ENABLE_SD3
-    return SD3::ProcessEvent(eventId, pSource, pTarget, isStart);
-#else
-    return false;
-#endif
+    // Nothing in this core calls this. The hook stays, converted, because the
+    // back end behind it implements the handler and deleting the last caller
+    // of something is how a feature disappears without anyone deciding to
+    // remove it -- 2.4.3 simply has no spell-click table to drive it from.
+    return scripting::Offer(pPlayer,
+        scripting::CoreNpcSpellClick{ scripting::RefOf(pPlayer),
+                                      scripting::RefOf(pClickedCreature),
+                                      spellId });
 }
 
 /**
@@ -639,20 +413,25 @@ bool ScriptMgr::OnProcessEvent(uint32 eventId, Object* pSource, Object* pTarget,
  */
 bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Unit* pTarget, ObjectGuid originalCasterGuid)
 {
+    // Two events, and they are not the same statement. The typed one says a
+    // dummy effect landed on a CREATURE and is not raised for anything else;
+    // the core one says a dummy effect landed, keyed by spell, and is raised
+    // for every target a dummy effect can have -- including a player, which
+    // no typed event describes.
     if (Creature* creature = pTarget->ToCreature())
     {
-        scripting::Offer(pCaster,
+        scripting::Notify(pCaster,
             scripting::CreatureDummyEffect{ scripting::RefOf(pCaster),
                                             spellId,
                                             static_cast<uint32>(effIndex),
                                             scripting::RefOf(creature) });
     }
 
-#ifdef ENABLE_SD3
-    return SD3::EffectDummyUnit(pCaster, spellId, effIndex, pTarget, originalCasterGuid);
-#else
-    return false;
-#endif
+    return scripting::Offer(pCaster,
+        scripting::CoreEffectDummy{ scripting::RefOf(pCaster), spellId,
+                                    static_cast<uint32>(effIndex),
+                                    scripting::RefOf(pTarget),
+                                    scripting::Ref{ originalCasterGuid.GetRawValue() } });
 }
 
 /**
@@ -667,17 +446,17 @@ bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex ef
  */
 bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, GameObject* pTarget, ObjectGuid originalCasterGuid)
 {
-    scripting::Offer(pCaster,
+    scripting::Notify(pCaster,
         scripting::GameobjectDummyEffect{ scripting::RefOf(pCaster),
                                           spellId,
                                           static_cast<uint32>(effIndex),
                                           scripting::RefOf(pTarget) });
 
-#ifdef ENABLE_SD3
-    return SD3::EffectDummyGameObject(pCaster, spellId, effIndex, pTarget, originalCasterGuid);
-#else
-    return false;
-#endif
+    return scripting::Offer(pCaster,
+        scripting::CoreEffectDummy{ scripting::RefOf(pCaster), spellId,
+                                    static_cast<uint32>(effIndex),
+                                    scripting::RefOf(pTarget),
+                                    scripting::Ref{ originalCasterGuid.GetRawValue() } });
 }
 
 /**
@@ -692,17 +471,17 @@ bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex ef
  */
 bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Item* pTarget, ObjectGuid originalCasterGuid)
 {
-    scripting::Offer(pCaster,
+    scripting::Notify(pCaster,
         scripting::ItemDummyEffect{ scripting::RefOf(pCaster),
                                     spellId,
                                     static_cast<uint32>(effIndex),
                                     scripting::RefOf(pTarget) });
 
-#ifdef ENABLE_SD3
-    return SD3::EffectDummyItem(pCaster, spellId, effIndex, pTarget, originalCasterGuid);
-#else
-    return false;
-#endif
+    return scripting::Offer(pCaster,
+        scripting::CoreEffectDummy{ scripting::RefOf(pCaster), spellId,
+                                    static_cast<uint32>(effIndex),
+                                    scripting::RefOf(pTarget),
+                                    scripting::Ref{ originalCasterGuid.GetRawValue() } });
 }
 
 /**
@@ -717,11 +496,11 @@ bool ScriptMgr::OnEffectDummy(Unit* pCaster, uint32 spellId, SpellEffectIndex ef
  */
 bool ScriptMgr::OnEffectScriptEffect(Unit* pCaster, uint32 spellId, SpellEffectIndex effIndex, Unit* pTarget, ObjectGuid originalCasterGuid)
 {
-#ifdef ENABLE_SD3
-    return SD3::EffectScriptEffectUnit(pCaster, spellId, effIndex, pTarget, originalCasterGuid);
-#else
-    return false;
-#endif
+    return scripting::Offer(pCaster,
+        scripting::CoreEffectScriptEffect{ scripting::RefOf(pCaster), spellId,
+                                           static_cast<uint32>(effIndex),
+                                           scripting::RefOf(pTarget),
+                                           scripting::Ref{ originalCasterGuid.GetRawValue() } });
 }
 
 /**
@@ -733,9 +512,11 @@ bool ScriptMgr::OnEffectScriptEffect(Unit* pCaster, uint32 spellId, SpellEffectI
  */
 bool ScriptMgr::OnAuraDummy(Aura const* pAura, bool apply)
 {
-#ifdef ENABLE_SD3
-    return SD3::AuraDummy(pAura, apply);
-#else
-    return false;
-#endif
+    // An Aura has no identity to hand out and no lifetime an engine can reason
+    // about, so it travels as a borrow: an engine that stores it and reads it
+    // next tick finds a stale epoch instead of freed memory.
+    return scripting::Offer(pAura->GetTarget(),
+        scripting::CoreAuraDummy{ scripting::Lend(scripting::Domain::Aura,
+                                                  pAura),
+                                  apply });
 }

@@ -864,13 +864,10 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
         TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
         if (uint32 eventid = nlist[nlist.size() - 1].ArrivalEventID)
         {
-            if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, false))
-            {
-                scripting::Notify(player.GetMap(),
-                    scripting::ServerEventRaised{ scripting::RefOf(&player),
-                                                  scripting::RefOf(&player),
-                                                  eventid });
-            }
+            scripting::Notify(player.GetMap(),
+                scripting::ServerEventRaised{ scripting::RefOf(&player),
+                                              scripting::RefOf(&player),
+                                              eventid, false });
         }
     }
 

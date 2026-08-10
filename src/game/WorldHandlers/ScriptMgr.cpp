@@ -281,12 +281,6 @@ bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool
 {
     MANGOS_ASSERT(source);
 
-    // Handle SD3 script
-    if (sScriptMgr.OnProcessEvent(id, source, target, isStart))
-    {
-        return true;
-    }
-
     // Handle PvP Calls
     if (forwardToPvp && source->GetTypeId() == TYPEID_GAMEOBJECT)
     {
@@ -332,7 +326,7 @@ bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool
     return scripting::Offer(map,
                scripting::ServerEventRaised{ scripting::RefOf(source),
                                              scripting::RefOf(target),
-                                             id });
+                                             id, isStart });
 }
 
 // Wrappers

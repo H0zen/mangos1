@@ -210,6 +210,7 @@ namespace scripting
         GameobjectRemove                             = 0x080D,
         GameobjectUse                                = 0x080E,
         GameobjectActivate                           = 0x080F,
+        GameobjectTrapSprung                         = 0x0810,
 
         // spell
         SpellCast                                    = 0x0901,
@@ -276,6 +277,7 @@ namespace scripting
         CoreNpcSpellClick                            = 0x0F01,
         CoreEffectScriptEffect                       = 0x0F02,
         CoreAuraDummy                                = 0x0F03,
+        CoreEffectDummy                              = 0x0F04,
     };
 
     /// packet/on_receive: cancel
@@ -1008,19 +1010,21 @@ namespace scripting
     struct ServerEventRaised
     {
         static constexpr EventId Id = EventId::ServerEventRaised;
-        static constexpr std::size_t Arity = 3;
+        static constexpr std::size_t Arity = 4;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = true;
 
         Ref            source;
         Ref            target;
         uint32         eventId;
+        bool           isStart;
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(source);
             args[1] = Arg::FromEntity(target);
             args[2] = Arg::FromNumber(eventId);
+            args[3] = Arg::FromFlag(isStart);
         }
 
         void Unpack(Arg const*) {}
@@ -3144,20 +3148,25 @@ namespace scripting
     struct CreatureDialogStatus
     {
         static constexpr EventId Id = EventId::CreatureDialogStatus;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 3;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = true;
 
         Ref            player;
         Ref            creature;
+        uint32         status;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
             args[1] = Arg::FromEntity(creature);
+            args[2] = Arg::FromNumber(status);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            status = static_cast<uint32>(args[2].AsNumber());
+        }
     };
 
     /// creature/on_add: broadcast
@@ -3288,20 +3297,25 @@ namespace scripting
     struct GameobjectDialogStatus
     {
         static constexpr EventId Id = EventId::GameobjectDialogStatus;
-        static constexpr std::size_t Arity = 2;
+        static constexpr std::size_t Arity = 3;
         static constexpr bool Cancellable = false;
         static constexpr bool Claimable = true;
 
         Ref            player;
         Ref            gameobject;
+        uint32         status;    ///< in/out
 
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(player);
             args[1] = Arg::FromEntity(gameobject);
+            args[2] = Arg::FromNumber(status);
         }
 
-        void Unpack(Arg const*) {}
+        void Unpack(Arg const* args)
+        {
+            status = static_cast<uint32>(args[2].AsNumber());
+        }
     };
 
     /// gameobject/on_destroyed: broadcast
@@ -3454,6 +3468,26 @@ namespace scripting
         void Pack(Arg* args) const
         {
             args[0] = Arg::FromEntity(user);
+            args[1] = Arg::FromEntity(gameobject);
+        }
+
+        void Unpack(Arg const*) {}
+    };
+
+    /// gameobject/on_trap_sprung: broadcast
+    struct GameobjectTrapSprung
+    {
+        static constexpr EventId Id = EventId::GameobjectTrapSprung;
+        static constexpr std::size_t Arity = 2;
+        static constexpr bool Cancellable = false;
+        static constexpr bool Claimable = false;
+
+        Ref            unit;
+        Ref            gameobject;
+
+        void Pack(Arg* args) const
+        {
+            args[0] = Arg::FromEntity(unit);
             args[1] = Arg::FromEntity(gameobject);
         }
 
@@ -4501,6 +4535,32 @@ namespace scripting
         {
             args[0] = Arg::FromLent(aura);
             args[1] = Arg::FromFlag(apply);
+        }
+
+        void Unpack(Arg const*) {}
+    };
+
+    /// core/on_effect_dummy: claim
+    struct CoreEffectDummy
+    {
+        static constexpr EventId Id = EventId::CoreEffectDummy;
+        static constexpr std::size_t Arity = 5;
+        static constexpr bool Cancellable = false;
+        static constexpr bool Claimable = true;
+
+        Ref            caster;
+        uint32         spellId;
+        uint32         effIndex;
+        Ref            target;
+        Ref            originalCaster;
+
+        void Pack(Arg* args) const
+        {
+            args[0] = Arg::FromEntity(caster);
+            args[1] = Arg::FromNumber(spellId);
+            args[2] = Arg::FromNumber(effIndex);
+            args[3] = Arg::FromEntity(target);
+            args[4] = Arg::FromEntity(originalCaster);
         }
 
         void Unpack(Arg const*) {}

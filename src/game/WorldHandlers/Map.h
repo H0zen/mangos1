@@ -80,6 +80,7 @@
 
 struct CreatureInfo;
 class Creature;
+class Transport;
 class TransportMap;
 class Unit;
 class WorldPacket;
@@ -322,6 +323,7 @@ class Map : public GridRefManager<NGridType>
         Pet* GetPet(ObjectGuid guid);
         Creature* GetAnyTypeCreature(ObjectGuid guid);      // normal creature or pet or vehicle
         GameObject* GetGameObject(ObjectGuid guid);
+        Transport* GetTransport(ObjectGuid guid);           // vessels are not in the object store; see the definition
         DynamicObject* GetDynamicObject(ObjectGuid guid);
         Corpse* GetCorpse(ObjectGuid guid);                 // !!! find corpse can be not in world
         Unit* GetUnit(ObjectGuid guid);                     // only use if sure that need objects at current map, specially for player case

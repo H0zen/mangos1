@@ -302,12 +302,11 @@ void WorldSession::HandleMoveSplineDoneOpcode(WorldPacket& recv_data)
     {
         TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
         if (uint32 eventid = nlist[nlist.size() - 1].ArrivalEventID)
-            if (!sScriptMgr.OnProcessEvent(eventid, GetPlayer(), GetPlayer(), false))
             {
                 scripting::Notify(GetPlayer()->GetMap(),
                     scripting::ServerEventRaised{
                         scripting::RefOf(GetPlayer()),
-                        scripting::RefOf(GetPlayer()), eventid });
+                        scripting::RefOf(GetPlayer()), eventid, false });
             }
     }
 

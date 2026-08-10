@@ -3061,6 +3061,46 @@ GameObject* Map::GetGameObject(ObjectGuid guid)
 }
 
 /**
+ * Function return the vessel that sails at CURRENT map
+ *
+ * @param guid must be a transport guid (HIGHGUID_MO_TRANSPORT or HIGHGUID_TRANSPORT)
+ *
+ * A vessel is a GameObject that is deliberately NOT in m_objectsStore: it is
+ * owned by MapManager, which is what lets it cross between maps at all. So the
+ * generic guid lookups had no answer for one, and anything that reached a
+ * vessel through its guid instead of through a pointer got nothing back --
+ * which is how transport arrival and departure event scripts stopped running
+ * when the event sites started carrying identities rather than pointers.
+ *
+ * The set is per map id and holds a handful of vessels, so a scan is cheaper
+ * than a second index kept in step with two owners.
+ */
+Transport* Map::GetTransport(ObjectGuid guid)
+{
+    if (!guid.IsMOTransport() && !guid.IsTransport())
+    {
+        return NULL;
+    }
+
+    MapManager::TransportsByMapType::const_iterator onMap =
+        sMapMgr.m_TransportsByMap.find(GetId());
+    if (onMap == sMapMgr.m_TransportsByMap.end())
+    {
+        return NULL;
+    }
+
+    for (Transport* transport : onMap->second)
+    {
+        if (transport->GetObjectGuid() == guid)
+        {
+            return transport;
+        }
+    }
+
+    return NULL;
+}
+
+/**
  * Function return dynamic object that in world at CURRENT map
  *
  * @param guid must be dynamic object guid (HIGHGUID_DYNAMICOBJECT)
@@ -3107,7 +3147,7 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
             return corpse && corpse->IsInWorld() ? corpse : NULL;
         }
         case HIGHGUID_MO_TRANSPORT:
-        case HIGHGUID_TRANSPORT:
+        case HIGHGUID_TRANSPORT:    return GetTransport(guid);
         default:                    break;
     }
 

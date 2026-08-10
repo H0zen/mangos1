@@ -28,6 +28,9 @@
 
 #include "dbscripts/DbScriptEngine.h"
 #include "eventai/EventAiEngine.h"
+#ifdef ENABLE_SD3
+#include "sd3/Sd3Engine.h"
+#endif
 
 // Complete types, not forward declarations: the auction upcasts Creature and
 // GameObject to WorldObject, and with multiple inheritance in the hierarchy an
@@ -71,14 +74,33 @@ namespace scripting
          * Build the engine list.
          *
          * One line per engine, and that is the whole contract for adding one:
-         * push it here, and make sure g_scriptsEnabled is true. Order matters
-         * only for ties -- the auction sorts by bid and the dispatch chain
-         * stops at the first Cancel or Handled.
+         * push it here, and make sure g_scriptsEnabled is true.
+         *
+         * ORDER IS PRECEDENCE for events. The auction sorts by bid and ignores
+         * this order except to break ties, but the dispatch chain stops at the
+         * first Cancel or Handled, so an engine listed earlier can end the
+         * event before a later one sees it. Two events have more than one
+         * listener today -- a gameobject being used and an event id being
+         * raised -- and on both of them the world used to ask SD3 first and
+         * fall back to the DB scripts only when SD3 declined. That is what
+         * this order preserves; it is not alphabetical and not arbitrary.
+         *
+         * EventAI is last and it does not matter where it goes: it subscribes
+         * to no event at all and only ever competes at the auction, where its
+         * bid and not its position decides.
          */
         HostState MakeHostState()
         {
             HostState state;
 
+#ifdef ENABLE_SD3
+            // The one build-time question left in the seam: whether a back end
+            // was compiled in at all. It is not an #ifdef about behaviour --
+            // precedence between the engines is decided by bids and by the
+            // order below, not by which #ifdef nests outermost.
+            state.engines.push_back(
+                std::unique_ptr<IEngine>(new Sd3Engine()));
+#endif
             state.engines.push_back(
                 std::unique_ptr<IEngine>(new DbScriptEngine()));
             state.engines.push_back(
@@ -192,10 +214,23 @@ namespace scripting
         }
     }
 
+    // The state a ROLE belongs to is the map the object is on, which is not
+    // the same test an event uses. An event for an object outside the world is
+    // dropped, deliberately -- but a role is settled while the object is being
+    // put into the world, and for a game object it is settled BEFORE: both
+    // GameObject::LoadFromDB and the linked-object path call AIM_Initialize()
+    // and only then Map::Add(). Asking for IsInWorld() here would have made
+    // the game-object auction unreachable and quietly handed every scripted
+    // object back to nothing.
+    //
+    // GetMap() is safe at every one of these call sites because SetMap()
+    // happens during Create(), long before an AI is chosen.
+
     CreatureAI* ClaimCreatureAI(Creature* creature)
     {
         WorldObject const* subject = creature;
-        Context const ctx = detail::ToContext(subject);
+        Context const ctx = creature ? ContextOf(creature->GetMap())
+                                     : Context{ Context::Scope::None, nullptr };
 
         return Auction<CreatureAI>(ctx, RoleId::CreatureAI, RefOf(subject),
             [&ctx, creature](IEngine* engine)
@@ -207,7 +242,8 @@ namespace scripting
     GameObjectAI* ClaimGameObjectAI(GameObject* go)
     {
         WorldObject const* subject = go;
-        Context const ctx = detail::ToContext(subject);
+        Context const ctx = go ? ContextOf(go->GetMap())
+                               : Context{ Context::Scope::None, nullptr };
 
         return Auction<GameObjectAI>(ctx, RoleId::GameObjectAI, RefOf(subject),
             [&ctx, go](IEngine* engine)

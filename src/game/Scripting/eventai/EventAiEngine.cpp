@@ -60,6 +60,22 @@ namespace scripting
             return NoBid;
         }
 
+        // Not a totem, ever. EventAI reached a creature through the AI
+        // registry, which FactorySelector consulted only after it had already
+        // picked TotemAI by NPC flag -- the comment there said so in as many
+        // words. That test is the world's, but the refusal is this engine's:
+        // EventAI has never driven a totem and does not start now because it
+        // moved into the auction, which runs before those flags are read.
+        //
+        // SD3 deliberately does NOT share this refusal. A script bound by name
+        // to a totem's entry has always been able to drive it, because SD3 was
+        // asked at the top of that function rather than through the registry.
+        // The asymmetry is inherited, not designed.
+        if (creature->IsTotem())
+        {
+            return NoBid;
+        }
+
         // A lookup, which is what a bid has to be -- the answer is one string
         // compare against the creature's template and nothing is built to get
         // it.
