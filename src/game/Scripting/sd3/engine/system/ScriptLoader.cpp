@@ -784,7 +784,6 @@ void AddSC_boss_kelidan_the_breaker();
 void AddSC_instance_blood_furnace();
 void AddSC_boss_nazan_and_vazruden();                // HC, hellfire_ramparts
 void AddSC_boss_omor_the_unscarred();
-void AddSC_boss_watchkeeper_gargolmar();
 void AddSC_instance_ramparts();
 void AddSC_boss_magtheridon();                       // HC, magtheridons_lair
 void AddSC_instance_magtheridons_lair();
@@ -868,7 +867,6 @@ void AddOutlandsScripts()
     AddSC_instance_blood_furnace();
     AddSC_boss_nazan_and_vazruden();                        // HC, hellfire_ramparts
     AddSC_boss_omor_the_unscarred();
-    AddSC_boss_watchkeeper_gargolmar();
     AddSC_instance_ramparts();
     AddSC_boss_magtheridon();                               // HC, magtheridons_lair
     AddSC_instance_magtheridons_lair();
