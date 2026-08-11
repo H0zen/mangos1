@@ -71,9 +71,15 @@ DROP TABLE IF EXISTS `mai_script`;
 CREATE TABLE `mai_script`
 (
     `id`      INT UNSIGNED NOT NULL,
+    -- The last three are MAI's own and have no `dbscripts_on_*` table behind
+    -- them: `aura_apply`/`aura_remove` are a dummy aura going on and coming
+    -- off, keyed by spell; `branch` is a sequence nothing in the world starts
+    -- -- only `start_script` and `random_script` do, which is what lets a
+    -- straight line say "one of these".
     `kind`    ENUM('quest_start','quest_end','spell','go_use',
                    'go_template_use','creature_death','creature_movement',
-                   'gossip','event','internal') NOT NULL,
+                   'gossip','event','internal',
+                   'aura_apply','aura_remove','branch') NOT NULL,
 
     -- What the id means depends on the kind: a quest id, a spell id, a
     -- creature entry, a gameobject guid. It was the same before; what is new
@@ -88,7 +94,8 @@ CREATE TABLE `mai_step`
 (
     `kind`     ENUM('quest_start','quest_end','spell','go_use',
                     'go_template_use','creature_death','creature_movement',
-                    'gossip','event','internal') NOT NULL,
+                    'gossip','event','internal',
+                    'aura_apply','aura_remove','branch') NOT NULL,
     `script`   INT UNSIGNED NOT NULL,
 
     -- Ties are broken by this, so two steps at the same instant have a defined
@@ -106,6 +113,11 @@ CREATE TABLE `mai_step`
     `buddy_entry` INT UNSIGNED NOT NULL DEFAULT 0,
     `buddy_range` INT UNSIGNED NOT NULL DEFAULT 0,
     `buddy_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- Out of 100, rolled per step. Not the sequence's roll: `random_script`
+    -- is how a script picks ONE of several, and this is how it says "and
+    -- sometimes a third as well".
+    `chance`   TINYINT UNSIGNED NOT NULL DEFAULT 100,
 
     `comment`  VARCHAR(255) NOT NULL DEFAULT '',
 

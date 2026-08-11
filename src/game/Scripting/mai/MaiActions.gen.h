@@ -104,6 +104,7 @@ namespace mai
         MoveDynamic                = 37,
         TeleportToTarget           = 129,
         Chase                      = 134,
+        Follow                     = 143,
         SendTaxiPath               = 30,
         PauseWaypoints             = 32,
         SetFly                     = 59,
@@ -115,6 +116,7 @@ namespace mai
         AttackStart                = 26,
         DespawnSelf                = 18,
         Respawn                    = 41,
+        KillTarget                 = 139,
 
         // world
         RespawnGo                  = 9,
@@ -127,6 +129,7 @@ namespace mai
         TempSummonCreature         = 10,
         SummonAtTarget             = 133,
         SetActiveobject            = 21,
+        ConsumeGo                  = 138,
 
         // player
         QuestExplored              = 7,
@@ -140,6 +143,12 @@ namespace mai
         TerminateScript            = 31,
         TerminateCond              = 34,
         RequireTarget              = 135,
+        RequireVictim              = 140,
+        RequireHealth              = 141,
+        RequireStandState          = 142,
+        RequireCreature            = 145,
+        StartScript                = 136,
+        RandomScript               = 137,
         SendAiEventAround          = 35,
 
         // threat
@@ -186,6 +195,7 @@ namespace mai
         SetSheath                  = 117,
         SetImmunity                = 131,
         EmoteTarget                = 118,
+        SetAuraFlags               = 144,
 
         // quest
         QuestEvent                 = 119,
@@ -319,6 +329,14 @@ namespace mai
         { "angle", ParamType::F32, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsFollow[] =
+    {
+        { "min_distance", ParamType::F32, true },
+        { "max_distance", ParamType::F32, true },
+        { "min_angle", ParamType::F32, true },
+        { "max_angle", ParamType::F32, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsSendTaxiPath[] =
     {
         { "path", ParamType::Taxi, false },
@@ -399,11 +417,23 @@ namespace mai
     {
         { "entry", ParamType::Creature, false },
         { "despawn_delay", ParamType::Ms, true },
+        { "mode", ParamType::U32, true },
+        { "attack", ParamType::Bool, true },
+        { "x", ParamType::F32, true },
+        { "y", ParamType::F32, true },
+        { "z", ParamType::F32, true },
+        { "o", ParamType::F32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSetActiveobject[] =
     {
         { "activate", ParamType::Bool, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsConsumeGo[] =
+    {
+        { "entry", ParamType::Gameobject, false },
+        { "range", ParamType::F32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsQuestExplored[] =
@@ -455,6 +485,45 @@ namespace mai
     inline constexpr ParamSpec g_actionParamsRequireTarget[] =
     {
         { "entry", ParamType::Creature, false },
+        { "entry2", ParamType::Creature, true },
+        { "entry3", ParamType::Creature, true },
+        { "entry4", ParamType::Creature, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRequireVictim[] =
+    {
+        { "present", ParamType::Bool, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRequireHealth[] =
+    {
+        { "max_percent", ParamType::U32, true },
+        { "min_percent", ParamType::U32, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRequireStandState[] =
+    {
+        { "state", ParamType::U32, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRequireCreature[] =
+    {
+        { "entry", ParamType::Creature, false },
+        { "range", ParamType::F32, false },
+        { "present", ParamType::Bool, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsStartScript[] =
+    {
+        { "kind", ParamType::U32, true },
+        { "script", ParamType::U32, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRandomScript[] =
+    {
+        { "a", ParamType::U32, false },
+        { "b", ParamType::U32, true },
+        { "c", ParamType::U32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSendAiEventAround[] =
@@ -512,6 +581,11 @@ namespace mai
     {
         { "type", ParamType::U32, false },
         { "wander_distance", ParamType::F32, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsDie[] =
+    {
+        { "silent", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSetInvincibility[] =
@@ -625,6 +699,12 @@ namespace mai
         { "emote", ParamType::Emote, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsSetAuraFlags[] =
+    {
+        { "value", ParamType::Flags, false },
+        { "apply", ParamType::Bool, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsQuestEvent[] =
     {
         { "quest", ParamType::Quest, false },
@@ -689,6 +769,7 @@ namespace mai
         { ActionId::MoveDynamic, "move_dynamic", g_actionParamsMoveDynamic, 2, 2, 0 },
         { ActionId::TeleportToTarget, "teleport_to_target", nullptr, 0, 0, 0 },
         { ActionId::Chase, "chase", g_actionParamsChase, 2, 2, 0 },
+        { ActionId::Follow, "follow", g_actionParamsFollow, 4, 4, 0 },
         { ActionId::SendTaxiPath, "send_taxi_path", g_actionParamsSendTaxiPath, 1, 1, 0 },
         { ActionId::PauseWaypoints, "pause_waypoints", g_actionParamsPauseWaypoints, 1, 1, 0 },
         { ActionId::SetFly, "set_fly", g_actionParamsSetFly, 1, 1, 0 },
@@ -698,6 +779,7 @@ namespace mai
         { ActionId::AttackStart, "attack_start", nullptr, 0, 0, 0 },
         { ActionId::DespawnSelf, "despawn_self", g_actionParamsDespawnSelf, 1, 1, 0 },
         { ActionId::Respawn, "respawn", nullptr, 0, 0, 0 },
+        { ActionId::KillTarget, "kill_target", nullptr, 0, 0, 0 },
         { ActionId::RespawnGo, "respawn_go", g_actionParamsRespawnGo, 2, 2, 0 },
         { ActionId::DespawnGo, "despawn_go", g_actionParamsDespawnGo, 2, 2, 0 },
         { ActionId::OpenDoor, "open_door", g_actionParamsOpenDoor, 2, 2, 0 },
@@ -706,8 +788,9 @@ namespace mai
         { ActionId::ResetGo, "reset_go", nullptr, 0, 0, 0 },
         { ActionId::GoLockState, "go_lock_state", g_actionParamsGoLockState, 1, 1, 0 },
         { ActionId::TempSummonCreature, "temp_summon_creature", g_actionParamsTempSummonCreature, 6, 2, FacetAt },
-        { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 2, 2, 0 },
+        { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 8, 4, FacetAt },
         { ActionId::SetActiveobject, "set_activeobject", g_actionParamsSetActiveobject, 1, 1, 0 },
+        { ActionId::ConsumeGo, "consume_go", g_actionParamsConsumeGo, 2, 2, 0 },
         { ActionId::QuestExplored, "quest_explored", g_actionParamsQuestExplored, 2, 2, 0 },
         { ActionId::KillCredit, "kill_credit", g_actionParamsKillCredit, 2, 2, 0 },
         { ActionId::CreateItem, "create_item", g_actionParamsCreateItem, 2, 2, 0 },
@@ -716,7 +799,13 @@ namespace mai
         { ActionId::XpUser, "xp_user", g_actionParamsXpUser, 1, 1, 0 },
         { ActionId::TerminateScript, "terminate_script", g_actionParamsTerminateScript, 2, 2, 0 },
         { ActionId::TerminateCond, "terminate_cond", g_actionParamsTerminateCond, 2, 2, 0 },
-        { ActionId::RequireTarget, "require_target", g_actionParamsRequireTarget, 1, 1, 0 },
+        { ActionId::RequireTarget, "require_target", g_actionParamsRequireTarget, 4, 4, 0 },
+        { ActionId::RequireVictim, "require_victim", g_actionParamsRequireVictim, 1, 1, 0 },
+        { ActionId::RequireHealth, "require_health", g_actionParamsRequireHealth, 2, 2, 0 },
+        { ActionId::RequireStandState, "require_stand_state", g_actionParamsRequireStandState, 1, 1, 0 },
+        { ActionId::RequireCreature, "require_creature", g_actionParamsRequireCreature, 3, 3, 0 },
+        { ActionId::StartScript, "start_script", g_actionParamsStartScript, 2, 2, 0 },
+        { ActionId::RandomScript, "random_script", g_actionParamsRandomScript, 3, 3, 0 },
         { ActionId::SendAiEventAround, "send_ai_event_around", g_actionParamsSendAiEventAround, 2, 2, 0 },
         { ActionId::ThreatChange, "threat_change", g_actionParamsThreatChange, 2, 2, 0 },
         { ActionId::CallForHelp, "call_for_help", g_actionParamsCallForHelp, 1, 1, 0 },
@@ -730,7 +819,7 @@ namespace mai
         { ActionId::RangedMovement, "ranged_movement", g_actionParamsRangedMovement, 2, 2, 0 },
         { ActionId::ChangeMovement, "change_movement", g_actionParamsChangeMovement, 2, 2, 0 },
         { ActionId::Evade, "evade", nullptr, 0, 0, 0 },
-        { ActionId::Die, "die", nullptr, 0, 0, 0 },
+        { ActionId::Die, "die", g_actionParamsDie, 1, 1, 0 },
         { ActionId::SetInvincibility, "set_invincibility", g_actionParamsSetInvincibility, 2, 2, 0 },
         { ActionId::SetHealth, "set_health", g_actionParamsSetHealth, 1, 1, 0 },
         { ActionId::ThrowAiEvent, "throw_ai_event", g_actionParamsThrowAiEvent, 2, 2, 0 },
@@ -751,6 +840,7 @@ namespace mai
         { ActionId::SetSheath, "set_sheath", g_actionParamsSetSheath, 1, 1, 0 },
         { ActionId::SetImmunity, "set_immunity", g_actionParamsSetImmunity, 3, 3, 0 },
         { ActionId::EmoteTarget, "emote_target", g_actionParamsEmoteTarget, 1, 1, 0 },
+        { ActionId::SetAuraFlags, "set_aura_flags", g_actionParamsSetAuraFlags, 2, 2, 0 },
         { ActionId::QuestEvent, "quest_event", g_actionParamsQuestEvent, 2, 2, 0 },
         { ActionId::CastEvent, "cast_event", g_actionParamsCastEvent, 3, 3, 0 },
         { ActionId::KilledMonster, "killed_monster", g_actionParamsKilledMonster, 1, 1, 0 },

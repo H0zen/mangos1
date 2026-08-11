@@ -28,6 +28,8 @@
 
 #include "IScriptEngine.h"
 
+#include "ObjectGuid.h"
+
 #include "mai/MaiRule.h"
 #include "mai/MaiScript.h"
 
@@ -61,7 +63,18 @@ namespace scripting
     class MaiEngine : public IEngine
     {
     public:
+        MaiEngine();
+        ~MaiEngine() override;
+
         char const* GetName() const override { return "MAI"; }
+
+        /// What `mai::StartSequence` reaches, so that a VERB can start another
+        /// sequence without including the engine. There is exactly one engine
+        /// per process -- ScriptHost makes it and owns it -- so the indirection
+        /// is a pointer rather than a lookup.
+        static bool StartFrom(Map* map, uint32 kind, uint32 id,
+                              WorldObject* source, WorldObject* target,
+                              ObjectGuid owner);
 
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
@@ -103,7 +116,10 @@ namespace scripting
         ///         sequence, or one is already running for this actor and the
         ///         engine's own policy says one is enough.
         bool Start(Map* map, uint32 type, uint32 id, WorldObject* source,
-                   WorldObject* target, uint32 unique);
+                   WorldObject* target, uint32 unique,
+                   ObjectGuid owner = ObjectGuid());
+
+        static MaiEngine* s_instance;
 
         /// Everything anything says, from `mai_text`.
         void LoadTexts();

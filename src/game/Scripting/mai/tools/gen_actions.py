@@ -99,12 +99,31 @@ def parse_param(spec, where):
     return name, kind, cxx, check, optional
 
 
+def joined(path):
+    """The file's lines, with a trailing backslash meaning "and the next one".
+
+    Purely so the manifest can stay inside eighty columns: a verb with four
+    optional parameters does not fit on one line, and the alternative -- a
+    long line -- is the one thing the coding standard says not to write.
+    """
+    held, at = '', 0
+    for lineno, raw in enumerate(open(path, encoding='utf-8'), 1):
+        line = raw.split('#')[0].rstrip()
+        if line.endswith('\\'):
+            held += line[:-1]
+            at = at or lineno
+            continue
+        yield (at or lineno), held + line
+        held, at = '', 0
+    if held:
+        yield at, held
+
+
 def parse(path):
     """(facets, [(category, catid, [(name, id, params, facets)])])"""
     facets, cats, cur = {}, [], None
     seen = {}
-    for lineno, raw in enumerate(open(path, encoding='utf-8'), 1):
-        line = raw.split('#')[0].rstrip()
+    for lineno, line in joined(path):
         if not line.strip():
             continue
         where = '%s:%d' % (path, lineno)

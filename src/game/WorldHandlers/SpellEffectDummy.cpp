@@ -2213,7 +2213,17 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
         libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, itemTarget, m_originalCasterGUID);
     }
 
-    if (libraryResult || !unitTarget)
+    // A gameobject is a target like any other here, and used not to be: this
+    // fired for a unit alone, so a dummy effect aimed at a fishing node or a
+    // dirt mound could only ever be answered in C++. Nothing else changes --
+    // an engine that wants units still gets units, and one that does not
+    // recognise the subject does what it always did with a subject it does
+    // not recognise.
+    WorldObject* const subject = unitTarget
+                                     ? static_cast<WorldObject*>(unitTarget)
+                                     : static_cast<WorldObject*>(gameObjTarget);
+
+    if (libraryResult || !subject)
     {
         return;
     }
@@ -2227,6 +2237,6 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectDummy", m_spellInfo->ID);
     scripting::Notify(m_caster->GetMap(),
         scripting::SpellEffectHit{ scripting::RefOf(m_caster),
-                                   scripting::RefOf(unitTarget),
+                                   scripting::RefOf(subject),
                                    m_spellInfo->ID });
 }

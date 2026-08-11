@@ -39,6 +39,8 @@
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "QuestDef.h"
+#include "SpellAuras.h"
+#include "SharedDefines.h"
 #include "WaypointManager.h"
 #include "dbscripts/DbScriptStore.h"
 
@@ -61,6 +63,48 @@ namespace scripting
         /// with no way to compare the two side by side, is not a thing to do
         /// to a live world.
         char const AI_NAME[] = "MAI";
+
+        /**
+         * A borrowed pointer, refused unless it is still inside its call.
+         *
+         * An Aura has no identity to hand out and no lifetime an engine can
+         * reason about, so the seam lends it rather than naming it: an engine
+         * that stored one and read it next tick would find a stale epoch here
+         * instead of freed memory.
+         */
+        template <class T>
+        T* Borrowed(Borrow const& borrow, Domain domain)
+        {
+            if (borrow.domain != domain || !detail::IsBorrowLive(borrow))
+            {
+                return nullptr;
+            }
+
+            return static_cast<T*>(borrow.target);
+        }
+
+        /**
+         * The lowest effect index of @a spell that applies a dummy aura.
+         *
+         * What "EFFECT_INDEX_0" meant in the eight scripts that opened with
+         * it: run once when the aura goes on, not once per effect. Written as
+         * a question about the spell so that a spell whose dummy sits at index
+         * 1 is handled rather than silently skipped.
+         */
+        SpellEffectIndex FirstDummyEffect(SpellEntry const* spell)
+        {
+            if (spell)
+            {
+                for (uint32 effect = 0; effect < MAX_EFFECT_INDEX; ++effect)
+                {
+                    if (spell->EffectAura[effect] == SPELL_AURA_DUMMY)
+                    {
+                        return SpellEffectIndex(effect);
+                    }
+                }
+            }
+            return EFFECT_INDEX_0;
+        }
 
         /**
          * The subject of a case, as the type that case is about.
@@ -226,6 +270,32 @@ namespace scripting
         }
     }
 
+    MaiEngine* MaiEngine::s_instance = nullptr;
+
+    MaiEngine::MaiEngine()
+    {
+        s_instance = this;
+    }
+
+    MaiEngine::~MaiEngine()
+    {
+        if (s_instance == this)
+        {
+            s_instance = nullptr;
+        }
+    }
+
+    bool MaiEngine::StartFrom(Map* map, uint32 kind, uint32 id,
+                              WorldObject* source, WorldObject* target,
+                              ObjectGuid owner)
+    {
+        // A branch may run only once per step, so uniqueness is nobody's
+        // policy here: whoever started the parent already decided that.
+        return s_instance && map &&
+               s_instance->Start(map, kind, id, source, target,
+                                 Map::SCRIPT_EXEC_PARAM_NONE, owner);
+    }
+
     void MaiEngine::LoadData(LoadPhase phase)
     {
         // Last: every table a step's parameters are checked against has to be
@@ -284,7 +354,12 @@ namespace scripting
         // Spelled out rather than derived: `kind` is what a person types and
         // DBScriptType is what the borrowed bodies expect, and the two exist
         // for different reasons while only happening to agree.
-        static struct { char const* name; DBScriptType type; } const kinds[] =
+        // The last three are MAI's own and have no `dbscripts_on_*` table
+        // behind them, so their `origin` -- what a BORROWED body should think
+        // it is -- is the nearest thing that does. An aura going on or coming
+        // off is a spell effect as far as those bodies can tell, and a branch
+        // is whatever started it.
+        static struct { char const* name; uint32 type; } const kinds[] =
         {
             { "quest_start",       DBS_ON_QUEST_START },
             { "quest_end",         DBS_ON_QUEST_END },
@@ -296,6 +371,9 @@ namespace scripting
             { "gossip",            DBS_ON_GOSSIP },
             { "event",             DBS_ON_EVENT },
             { "internal",          DBS_ON_CREATURE_SPELL },
+            { "aura_apply",        mai::KindAuraApply },
+            { "aura_remove",       mai::KindAuraRemove },
+            { "branch",            mai::KindBranch },
         };
         std::size_t const kindCount = sizeof(kinds) / sizeof(*kinds);
 
@@ -305,8 +383,8 @@ namespace scripting
         {
             std::unique_ptr<QueryResult> rows(WorldDatabase.Query(
                 "SELECT `kind`+0, `script`, `at_ms`, `action`, `params`, "
-                "`buddy_entry`, `buddy_range`, `buddy_flags` FROM `mai_step` "
-                "ORDER BY `kind`, `script`, `seq`"));
+                "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance` "
+                "FROM `mai_step` ORDER BY `kind`, `script`, `seq`"));
 
             while (rows && rows->NextRow())
             {
@@ -320,7 +398,7 @@ namespace scripting
                     continue;
                 }
 
-                uint32 const type = uint32(kinds[which - 1].type);
+                uint32 const type = kinds[which - 1].type;
                 uint32 const script = field[1].GetUInt32();
 
                 mai::Step step;
@@ -339,6 +417,15 @@ namespace scripting
                 step.buddy.entry = field[5].GetUInt32();
                 step.buddy.guidOrRadius = field[6].GetUInt32();
                 step.buddy.flags = field[7].GetUInt8();
+
+                // Out of 100, and 100 is "always". A step's own roll, not the
+                // sequence's: `random_script` is how a script picks ONE of
+                // several, and this is how it says "and sometimes a third".
+                step.chance = field[8].GetUInt8();
+                if (!step.chance || step.chance > 100)
+                {
+                    step.chance = 100;
+                }
 
                 byScript[std::make_pair(type, script)].push_back(step);
             }
@@ -366,7 +453,7 @@ namespace scripting
                 continue;
             }
 
-            uint32 const type = uint32(kinds[which - 1].type);
+            uint32 const type = kinds[which - 1].type;
             uint32 const id = field[1].GetUInt32();
 
             mai::Sequence sequence;
@@ -675,7 +762,7 @@ namespace scripting
     }
 
     bool MaiEngine::Start(Map* map, uint32 type, uint32 id, WorldObject* source,
-                          WorldObject* target, uint32 unique)
+                          WorldObject* target, uint32 unique, ObjectGuid owner)
     {
         auto found = m_sequences.find(Key{ type, id });
         if (found == m_sequences.end() || found->second.steps.empty())
@@ -727,7 +814,13 @@ namespace scripting
         // An item source is the one thing not findable from its guid, so the
         // player holding it rides along -- the same reason the seam's guid box
         // carries an owner.
-        if (source && source->GetTypeId() == TYPEID_PLAYER)
+        if (!owner.IsEmpty())
+        {
+            // A branch inherits it. The player holding an item is not findable
+            // from either actor once the sequence has moved on from them.
+            frame.owner = owner;
+        }
+        else if (source && source->GetTypeId() == TYPEID_PLAYER)
         {
             frame.owner = source->GetObjectGuid();
         }
@@ -922,6 +1015,51 @@ namespace scripting
                 break;
             }
 
+            case EventId::CoreAuraDummy:
+            {
+                MANGOS_ASSERT(count == CoreAuraDummy::Arity);
+
+                Aura const* aura =
+                    Borrowed<Aura const>(args[0].AsLent(), Domain::Aura);
+                if (!aura || !aura->GetTarget())
+                {
+                    return Verdict::Continue;
+                }
+
+                // ONE effect, not every dummy effect the spell has. Seven of
+                // the eight scripts this replaces open with
+                //
+                //     if (pAura->GetEffIndex() != EFFECT_INDEX_0) return true;
+                //
+                // and the eighth has a single dummy effect, so the check never
+                // mattered there. Written as "the FIRST dummy effect" rather
+                // than as "index zero" because that is what those seven lines
+                // mean: run once per application, not once per effect. A spell
+                // whose dummy sits at index 1 gets the same treatment instead
+                // of being silently skipped.
+                if (aura->GetEffIndex() != FirstDummyEffect(aura->GetSpellProto()))
+                {
+                    return Verdict::Continue;
+                }
+
+                // Only a creature ever gets here -- the core calls this hook
+                // for TYPEID_UNIT alone -- which is why every one of the
+                // scripts could cast its target to Creature* without asking.
+                bool const apply = args[1].AsFlag();
+
+                Start(ctx.map, apply ? mai::KindAuraApply : mai::KindAuraRemove,
+                      aura->GetId(),
+                      aura->GetCaster() ? aura->GetCaster()
+                                        : aura->GetTarget(),
+                      aura->GetTarget(),
+                      Map::SCRIPT_EXEC_PARAM_NONE);
+
+                // Never claimed. The core discards the answer -- the call is a
+                // bare statement at the end of HandleAuraDummy -- so saying
+                // "handled" would only be a lie told to nobody.
+                return Verdict::Continue;
+            }
+
             case EventId::SpellEffectHit:
             {
                 MANGOS_ASSERT(count == SpellEffectHit::Arity);
@@ -994,5 +1132,23 @@ namespace scripting
         }
 
         return started ? Verdict::Handled : Verdict::Continue;
+    }
+}
+
+/**
+ * What a verb reaches when it starts another sequence.
+ *
+ * Declared in MaiActor.h beside the Doing a verb is handed, and defined here
+ * because this is where the sequence table lives. The direction matters: the
+ * verbs must not include the engine, which is what keeps MaiPerform testable
+ * with no world at all.
+ */
+namespace mai
+{
+    bool StartSequence(Map* map, uint32 kind, uint32 id, WorldObject* source,
+                       WorldObject* target, ObjectGuid owner)
+    {
+        return scripting::MaiEngine::StartFrom(map, kind, id, source, target,
+                                               owner);
     }
 }

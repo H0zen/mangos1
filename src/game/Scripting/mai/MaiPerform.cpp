@@ -45,9 +45,13 @@
 
 #include "MaiTargeting.h"
 
+#include "Cell.h"
+#include "CellImpl.h"
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "GameObject.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
 #include "InstanceData.h"
 #include "Log.h"
 #include "Map.h"
@@ -397,7 +401,7 @@ namespace mai
         bool SummonAtTarget(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
-            Unit* where = doing.TargetUnit();
+            WorldObject* where = doing.target;
 
             if (!self || !where)
             {
@@ -408,11 +412,262 @@ namespace mai
 
             uint32 const despawn = Given(step, 1);
 
-            self->SummonCreature(Given(step, 0), where->Where().X(),
-                                 where->Where().Y(), where->Where().Z(), 0.0f,
-                                 despawn ? TEMPSPAWN_TIMED_DESPAWN
-                                         : TEMPSPAWN_DEAD_DESPAWN,
-                                 despawn);
+            // TempSpawnType, when the script names one. The default is what
+            // every converted row already means: timed when there is a delay,
+            // dead-despawn when there is not.
+            TempSpawnType const mode =
+                step.Has(2) ? TempSpawnType(Given(step, 2))
+                            : (despawn ? TEMPSPAWN_TIMED_DESPAWN
+                                       : TEMPSPAWN_DEAD_DESPAWN);
+
+            // An OFFSET, not a place. The whole point of this verb is that the
+            // place is not known until it runs.
+            Creature* made = self->SummonCreature(
+                Given(step, 0),
+                where->Where().X() + GivenF(step, 4),
+                where->Where().Y() + GivenF(step, 5),
+                where->Where().Z() + GivenF(step, 6),
+                GivenF(step, 7), mode, despawn);
+
+            if (made && Given(step, 3) && made->AI())
+            {
+                made->AI()->AttackStart(self);
+            }
+            return false;
+        }
+
+        /**
+         * Follow, which is not chase.
+         *
+         * MoveChase keeps a fighting distance and turns to face; MoveFollow
+         * walks at a fixed bearing behind somebody, which is what a charmed
+         * critter does. The four numbers are RANGES because the scripts that
+         * want this want a crowd that does not stack: ten enthralled rats each
+         * pick their own distance and angle, and look like ten rats.
+         */
+        bool Follow(Doing& doing, Step const& step)
+        {
+            Creature* self = doing.SourceCreature();
+            Unit* who = doing.TargetUnit();
+
+            if (!self || !who)
+            {
+                sLog.outErrorDb("MAI: follow needs a creature and somebody to "
+                                "follow");
+                return false;
+            }
+
+            float const nearest = GivenF(step, 0, PET_FOLLOW_DIST);
+            float const farthest = GivenF(step, 1, nearest);
+            float const leastAngle = GivenF(step, 2, PET_FOLLOW_ANGLE);
+            float const mostAngle = GivenF(step, 3, leastAngle);
+
+            self->GetMotionMaster()->MoveFollow(
+                who,
+                farthest > nearest ? frand(nearest, farthest) : nearest,
+                mostAngle > leastAngle ? frand(leastAngle, mostAngle)
+                                       : leastAngle);
+            return false;
+        }
+
+        /**
+         * The source kills the target, and the CREDIT is what this is for.
+         *
+         * `die` is the other half: the target simply dies, with no killer and
+         * so no experience, no loot and no quest tick. A script that means one
+         * and writes the other is the difference between a quest that
+         * completes and one that does not, which is why they are two verbs and
+         * not one with a flag.
+         */
+        bool KillTarget(Doing& doing, Step const&)
+        {
+            Unit* self = doing.SourceUnit();
+            Unit* victim = doing.TargetUnit();
+
+            if (!self || !victim || !victim->IsAlive())
+            {
+                return false;
+            }
+
+            self->DealDamage(victim, victim->GetMaxHealth(), nullptr,
+                             DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL, nullptr,
+                             false);
+            return false;
+        }
+
+        /**
+         * Take a gameobject that is standing there ready, and use it up.
+         *
+         * The check and the taking are one verb on purpose: every script that
+         * does this reads "if it is there and nobody has it, it is mine", and
+         * splitting it in two is two searches and a window between them.
+         *
+         * A non-zero respawn time means somebody already took it and it is
+         * waiting to come back -- the single check that keeps two players from
+         * looting one node.
+         */
+        bool ConsumeGo(Doing& doing, Step const& step)
+        {
+            GameObject* found = nullptr;
+
+            if (step.Has(1))
+            {
+                // The nearest one of that entry, by MaNGOS's own searcher --
+                // the same one the buddy search uses, so "nearest" means the
+                // same thing everywhere in MAI.
+                if (doing.target)
+                {
+                    float const radius = GivenF(step, 1);
+                    MaNGOS::NearestGameObjectEntryInObjectRangeCheck check(
+                        *doing.target, Given(step, 0), radius);
+                    MaNGOS::GameObjectLastSearcher<
+                        MaNGOS::NearestGameObjectEntryInObjectRangeCheck>
+                            search(found, check);
+                    Cell::VisitGridObjects(doing.target, search, radius);
+                }
+            }
+            else if (doing.target)
+            {
+                found = doing.target->ToGameObject();
+                if (found && found->GetEntry() != Given(step, 0))
+                {
+                    found = nullptr;
+                }
+            }
+
+            if (!found || found->GetRespawnTime() != 0)
+            {
+                return true;
+            }
+
+            found->SetLootState(GO_JUST_DEACTIVATED);
+            return false;
+        }
+
+        // ---- the conditions a sequence stops on -----------------------------
+
+        bool RequireVictim(Doing& doing, Step const& step)
+        {
+            Unit const* who = doing.TargetUnit();
+            bool const wanted = !step.Has(0) || Given(step, 0) != 0;
+
+            return !who || (who->getVictim() != nullptr) != wanted;
+        }
+
+        bool RequireHealth(Doing& doing, Step const& step)
+        {
+            Unit const* who = doing.TargetUnit();
+            if (!who || !who->GetMaxHealth())
+            {
+                return true;
+            }
+
+            uint64 const scaled = uint64(who->GetHealth()) * 100u;
+
+            if (step.Has(0) && scaled > uint64(who->GetMaxHealth()) * Given(step, 0))
+            {
+                return true;
+            }
+
+            return step.Has(1) &&
+                   scaled < uint64(who->GetMaxHealth()) * Given(step, 1);
+        }
+
+        /**
+         * Whether one of those is standing about nearby.
+         *
+         * Its OWN search rather than the step's buddy, and that is the point:
+         * a buddy that is not there SKIPS the step, so a buddy can never
+         * answer "is there one?". This can, which is what lets a script say
+         * "attack the myrmidon, or the siren if there is no myrmidon".
+         */
+        bool RequireCreature(Doing& doing, Step const& step)
+        {
+            bool const wanted = !step.Has(2) || Given(step, 2) != 0;
+
+            if (!doing.target)
+            {
+                return wanted;
+            }
+
+            Creature* found = nullptr;
+            float const radius = GivenF(step, 1);
+            MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck check(
+                *doing.target, Given(step, 0), true, false, radius);
+            MaNGOS::CreatureLastSearcher<
+                MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck>
+                    search(found, check);
+            Cell::VisitGridObjects(doing.target, search, radius);
+
+            return (found != nullptr) != wanted;
+        }
+
+        bool RequireStandState(Doing& doing, Step const& step)
+        {
+            Unit const* who = doing.TargetUnit();
+            return !who || who->getStandState() != Given(step, 0);
+        }
+
+        // ---- the branch -----------------------------------------------------
+
+        bool StartScript(Doing& doing, Step const& step)
+        {
+            StartSequence(doing.map, step.Has(0) ? Given(step, 0) : KindBranch,
+                          Given(step, 1), doing.source, doing.target,
+                          doing.owner);
+            return false;
+        }
+
+        /**
+         * Exactly one of up to three, uniformly.
+         *
+         * Repeating an id is how a script says two-in-three: `a=7 b=7 c=8` is
+         * the shape every `urand(0, 2)` in ScriptDev has, written down instead
+         * of implied.
+         */
+        bool RandomScript(Doing& doing, Step const& step)
+        {
+            uint32 pick[3];
+            uint32 count = 0;
+
+            for (std::size_t slot = 0; slot < 3; ++slot)
+            {
+                if (step.Has(slot))
+                {
+                    pick[count++] = Given(step, slot);
+                }
+            }
+
+            if (!count)
+            {
+                return false;
+            }
+
+            StartSequence(doing.map, KindBranch, pick[urand(0, count - 1)],
+                          doing.source, doing.target, doing.owner);
+            return false;
+        }
+
+        /**
+         * A creature's own m_AuraFlags, which is not an update field and so
+         * cannot be reached by set_unit_flag.
+         */
+        bool SetAuraFlags(Doing& doing, Step const& step)
+        {
+            Creature* self = doing.SourceCreature();
+            if (!self)
+            {
+                return false;
+            }
+
+            if (!step.Has(1) || Given(step, 1) != 0)
+            {
+                self->m_AuraFlags |= uint8(Given(step, 0));
+            }
+            else
+            {
+                self->m_AuraFlags &= uint8(~Given(step, 0));
+            }
             return false;
         }
 
@@ -457,7 +712,22 @@ namespace mai
         {
             Creature const* victim = doing.target ? doing.target->ToCreature()
                                                   : nullptr;
-            return !victim || victim->GetEntry() != Given(step, 0);
+            if (!victim)
+            {
+                return true;
+            }
+
+            // Up to four, because "a sickly deer or a sickly gazelle" is one
+            // question and not two. Slot 0 is always given; the rest are a
+            // list and stop at the first one that is not.
+            for (std::size_t slot = 0; slot < 4; ++slot)
+            {
+                if (step.Has(slot) && victim->GetEntry() == Given(step, slot))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         bool SetHealth(Doing& doing, Step const& step)
@@ -679,15 +949,27 @@ namespace mai
             return false;
         }
 
-        bool Die(Doing& doing, Step const&)
+        bool Die(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
-            if (self && self->IsAlive())
+            if (!self || !self->IsAlive())
             {
-                self->DealDamage(self, self->GetHealth(), nullptr,
-                                 DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL,
-                                 nullptr, false);
+                return false;
             }
+
+            // `silent` is death with no killer. Damaging itself to death is
+            // still a death EVENT -- procs, credit, loot -- and a script that
+            // kills something the player never fought means none of that.
+            if (step.Has(0) && Given(step, 0))
+            {
+                self->SetDeathState(JUST_DIED);
+                self->SetHealth(0);
+                return false;
+            }
+
+            self->DealDamage(self, self->GetHealth(), nullptr,
+                             DIRECT_DAMAGE, SPELL_SCHOOL_MASK_NORMAL,
+                             nullptr, false);
             return false;
         }
 
@@ -951,6 +1233,16 @@ namespace mai
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
             case ActionId::RequireTarget:     return RequireTarget(doing, step);
+            case ActionId::RequireVictim:     return RequireVictim(doing, step);
+            case ActionId::RequireHealth:     return RequireHealth(doing, step);
+            case ActionId::RequireStandState: return RequireStandState(doing, step);
+            case ActionId::RequireCreature:   return RequireCreature(doing, step);
+            case ActionId::StartScript:       return StartScript(doing, step);
+            case ActionId::RandomScript:      return RandomScript(doing, step);
+            case ActionId::ConsumeGo:         return ConsumeGo(doing, step);
+            case ActionId::KillTarget:        return KillTarget(doing, step);
+            case ActionId::Follow:            return Follow(doing, step);
+            case ActionId::SetAuraFlags:      return SetAuraFlags(doing, step);
             case ActionId::Chase:             return Chase(doing, step);
             case ActionId::RememberTarget:    return RememberTarget(doing, step);
             case ActionId::SummonAtTarget:    return SummonAtTarget(doing, step);

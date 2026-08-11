@@ -88,6 +88,14 @@ category move = 0x03
     # Raging Flames are immune to all damage and exist only to be run away
     # from.
     chase                   134   distance:f32? angle:f32?
+
+    # Follow, which is not chase. MoveChase keeps a fighting distance and turns
+    # to face; MoveFollow walks at a fixed bearing behind somebody and is what
+    # every charmed critter, escort and pet does. The four numbers are RANGES
+    # because the scripts that want this want a crowd that does not stack: the
+    # Deeprun rats each pick their own distance and angle, so ten of them
+    # behind one player look like ten rats and not like one.
+    follow                  143   min_distance:f32? max_distance:f32?                                   min_angle:f32? max_angle:f32?
     send_taxi_path          30   path:taxi
     pause_waypoints         32   pause:bool
     set_fly                 59   enable:bool
@@ -108,6 +116,14 @@ category combat = 0x04
     despawn_self            18   delay:ms?
     respawn                 41
 
+    # The source kills the target outright, and the CREDIT is what this is for:
+    # damage dealt by somebody is a kill by somebody, with experience, loot and
+    # a quest tick. `die` is the other half -- the target simply dies, with no
+    # killer and so no reward -- and a script that means one and writes the
+    # other is the difference between a quest that completes and one that does
+    # not.
+    kill_target             139
+
 category world = 0x05
     respawn_go               9   guid:u32 despawn_delay:ms?
     despawn_go              40   guid:u32 respawn_time:ms?
@@ -122,8 +138,31 @@ category world = 0x05
     # member of the summon family, exactly as teleport_to_target was of the
     # movement one: MAI could summon at a PLACE and had no way to summon at a
     # unit, which is what every "it appears under them" does.
-    summon_at_target        133   entry:creature despawn_delay:ms?
+    #
+    # `mode` is TempSpawnType, written down rather than guessed: a summon that
+    # despawns on a timer, one that waits until its summoner leaves combat and
+    # one that lingers as a corpse are three different things, and the default
+    # -- timed when a delay is given, dead-despawn when it is not -- is what
+    # every converted row already means.
+    #
+    # `attack` points the new creature at whoever SUMMONED it, which is what
+    # "and it comes up angry" is in every script that has one.
+    #
+    # The `at` facet is an OFFSET here, not a place: the point of this verb is
+    # that the place is not known until it runs.
+    summon_at_target        133   entry:creature despawn_delay:ms? mode:u32?                                   attack:bool? at
     set_activeobject        21   activate:bool
+
+    # Take a gameobject that is standing there ready, and use it up: it must
+    # exist, and its respawn timer must be zero -- an object already taken is
+    # waiting to come back and must not be taken twice. Found as the step's
+    # TARGET when no range is given, or as the nearest one of that entry within
+    # `range` of the target when there is.
+    #
+    # The check and the taking are ONE verb on purpose. Every script that does
+    # this reads "if it is there and nobody has it, it is mine", and splitting
+    # that in two is two searches and a window between them.
+    consume_go              138   entry:gameobject range:f32?
 
 category player = 0x06
     quest_explored           7   quest:quest distance:f32?
@@ -149,7 +188,50 @@ category flow = 0x07
     # Needed wherever a spell has no `spell_script_target` row to narrow it --
     # where it does, the restriction is already enforced and this is a
     # duplicate.
-    require_target          135   entry:creature
+    #
+    # Up to four entries, because "a sickly deer or a sickly gazelle" is one
+    # question and not two: the alternative is a branch per entry, and a branch
+    # per entry for a list is how a four-line switch becomes eight tables.
+    require_target          135   entry:creature entry2:creature?                                   entry3:creature? entry4:creature?
+
+    # Stop unless the step's target is (or is not) fighting somebody. The
+    # difference decides whether a creature killed by a script gives credit:
+    # Gordawg's boulder kills a minion outright when it was in combat and lets
+    # it die unrewarded when it was not.
+    require_victim          140   present:bool?
+
+    # Stop unless the step's target's health is inside the band. Both ends are
+    # optional and both are percentages of ITS OWN maximum, so a script says
+    # "nearly dead" and stays right when the template changes underneath it.
+    require_health          141   max_percent:u32? min_percent:u32?
+
+    # Stop unless the step's target is standing/sitting/kneeling as named.
+    # UnitStandStateType: 0 stands, 8 kneels.
+    require_stand_state     142   state:u32
+
+    # Stop unless a creature of `entry` is (or is not) within `range` of the
+    # step's target. Its OWN search rather than the step's buddy, and that is
+    # the point: a buddy that is not there SKIPS the step, so a buddy can
+    # never answer "is there one?". This verb can.
+    require_creature        145   entry:creature range:f32 present:bool?
+
+    # ---- the branch -------------------------------------------------------
+    #
+    # A sequence is a straight line, and a straight line cannot say "one of
+    # these". EventAI faked it with three action columns and a flag; the DB
+    # scripts could not say it at all. Both of these start ANOTHER sequence,
+    # with this step's source and target, and the sub-sequence stops itself on
+    # its own `require_*` -- which is what makes a branch a branch: the parent
+    # keeps going either way.
+    #
+    # `kind` defaults to `branch` (12), the kind that exists for exactly this
+    # and whose ids are nobody else's.
+    start_script            136   kind:u32? script:u32
+
+    # Exactly ONE of up to three, uniformly. Repeating an id is how a script
+    # says two-in-three: `a=7 b=7 c=8` is the shape every `urand(0, 2)` in
+    # ScriptDev has, written down.
+    random_script           137   a:u32 b:u32? c:u32?
     send_ai_event_around    35   event:u32 radius:f32
 
 # ---------------------------------------------------------------------------
@@ -183,7 +265,12 @@ category ai = 0x11
     ranged_movement         105   distance:f32 angle:f32?
     change_movement         106   type:u32 wander_distance:f32?
     evade                   107
-    die                     108
+    # `silent` is death with no killer: the creature is simply not alive any
+    # more. Nothing procs, nothing is credited, nothing drops -- which is what
+    # a script means when it kills something the player did not fight. Without
+    # it the creature damages itself to death, and a self-kill is still a
+    # death event with everything that hangs off one.
+    die                     108   silent:bool?
     set_invincibility       109   hp:u32 percent:bool?
 
     # Out of 100, because a script that heals says "to full" and never "to
@@ -258,6 +345,12 @@ category unit = 0x13
     # each would be six names for ApplySpellImmune.
     set_immunity            131   kind:u32 value:flags apply:bool?
     emote_target            118   emote:emote
+
+    # A creature's own m_AuraFlags, which is not an update field and so cannot
+    # be reached by set_unit_flag. One bit is defined -- UNIT_AURAFLAG_ALIVE_
+    # INVISIBLE, 0x01 -- and it is what lets a ghost stand in the world visible
+    # only to whoever is meant to see it.
+    set_aura_flags          144   value:flags apply:bool?
 
 category quest = 0x14
     quest_event             119   quest:quest all:bool?

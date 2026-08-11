@@ -173,6 +173,39 @@ namespace mai
         Creature* SourceCreature() const;
         Unit*     TargetUnit() const;
     };
+
+    /**
+     * The sequence kinds MAI has that `db_scripts` never did.
+     *
+     * Numbering carries on from DBScriptType's ten, and they are written HERE
+     * rather than appended to that enum on purpose: DBScriptType is the DB
+     * scripts' own vocabulary, one value per `dbscripts_on_*` table, and these
+     * three have no table behind them. Adding them there would have said that
+     * `dbscripts_on_aura_apply` exists.
+     */
+    enum : uint32
+    {
+        KindAuraApply  = 10,    ///< a dummy aura going on, keyed by spell
+        KindAuraRemove = 11,    ///< and coming off
+
+        /// A sequence nothing in the world starts: only `start_script` and
+        /// `random_script` do, which is what makes a branch a branch. Its ids
+        /// are its own and mean nothing outside MAI.
+        KindBranch     = 12
+    };
+
+    /**
+     * Start another sequence, on the same map, with these actors.
+     *
+     * Defined by the engine that owns the sequence table. Declared here
+     * because a VERB needs it, and the verbs must not include the engine --
+     * that direction is what keeps MaiPerform testable without a world.
+     *
+     * @return false when there is no such sequence, which is not an error: a
+     *         branch that has not been written yet is a branch not taken.
+     */
+    bool StartSequence(Map* map, uint32 kind, uint32 id, WorldObject* source,
+                       WorldObject* target, ObjectGuid owner);
 }
 
 #endif //MANGOS_MAI_ACTOR_H
