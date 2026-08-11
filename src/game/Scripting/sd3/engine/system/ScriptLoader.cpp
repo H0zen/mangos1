@@ -162,13 +162,11 @@ void AddSC_boss_zuljin();
 
 void AddSC_boss_arlokk();                            // zulgurub
 void AddSC_boss_hakkar();
-void AddSC_boss_hazzarah();
 void AddSC_boss_jeklik();
 void AddSC_boss_jindo();
 void AddSC_boss_mandokir();
 void AddSC_boss_marli();
 void AddSC_boss_ouro();
-void AddSC_boss_renataki();
 void AddSC_boss_thekal();
 void AddSC_boss_venoxis();
 void AddSC_instance_zulgurub();
@@ -360,13 +358,11 @@ void AddEasternKingdomsScripts()
 
     AddSC_boss_arlokk();                                    // zulgurub
     AddSC_boss_hakkar();
-    AddSC_boss_hazzarah();
     AddSC_boss_jeklik();
     AddSC_boss_jindo();
     AddSC_boss_mandokir();
     AddSC_boss_marli();
     AddSC_boss_ouro();
-    AddSC_boss_renataki();
     AddSC_boss_thekal();
     AddSC_boss_venoxis();
     AddSC_instance_zulgurub();
@@ -753,7 +749,6 @@ void AddSC_zuldrak();
 void AddSC_boss_exarch_maladaar();                   // auchindoun, auchenai_crypts
 void AddSC_boss_shirrak();
 void AddSC_boss_nexusprince_shaffar();               // auchindoun, mana_tombs
-void AddSC_boss_pandemonius();
 void AddSC_mana_tombs();
 void AddSC_boss_anzu();                              // auchindoun, sethekk_halls
 void AddSC_boss_darkweaver_syth();
@@ -840,7 +835,6 @@ void AddOutlandsScripts()
     AddSC_boss_exarch_maladaar();                           // auchindoun, auchenai_crypts
     AddSC_boss_shirrak();
     AddSC_boss_nexusprince_shaffar();                       // auchindoun, mana_tombs
-    AddSC_boss_pandemonius();
     AddSC_mana_tombs();
     AddSC_boss_anzu();                                      // auchindoun, sethekk_halls
     AddSC_boss_darkweaver_syth();
