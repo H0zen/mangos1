@@ -169,6 +169,7 @@ namespace mai
         { "range", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
+        { "creature", ParamType::Creature, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsSpawned[] =
@@ -391,7 +392,7 @@ namespace mai
         { RuleId::HitBySpell, "hit_by_spell", g_ruleParamsHitBySpell, 4, 4, 0 },
         { RuleId::TargetInRange, "target_in_range", g_ruleParamsTargetInRange, 4, 4, 0 },
         { RuleId::EnergyBelow, "energy_below", g_ruleParamsEnergyBelow, 4, 4, 0 },
-        { RuleId::SawUnit, "saw_unit", g_ruleParamsSawUnit, 4, 4, 0 },
+        { RuleId::SawUnit, "saw_unit", g_ruleParamsSawUnit, 5, 5, 0 },
         { RuleId::Spawned, "spawned", g_ruleParamsSpawned, 2, 2, 0 },
         { RuleId::ReachedWaypoint, "reached_waypoint", g_ruleParamsReachedWaypoint, 2, 2, 0 },
         { RuleId::ReachedHome, "reached_home", nullptr, 0, 0, 0 },

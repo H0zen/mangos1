@@ -1184,6 +1184,14 @@ namespace mai
                     continue;
                 }
 
+                // And may name exactly whose arrival it is about. Absent means
+                // anyone, which is what every converted row says.
+                if (armed.rule->Has(4) &&
+                    armed.rule->Param(4) != who->GetEntry())
+                {
+                    continue;
+                }
+
                 float const range = armed.rule->Has(1)
                                         ? armed.rule->operands[1].f
                                         : 0.0f;

@@ -425,9 +425,6 @@ void AddSC_instance_blackfathom_deeps();             // blackfathom_deeps
 void AddSC_blackfathom_deeps();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
-void AddSC_boss_aeonus();                            // COT, dark_portal
-void AddSC_boss_chrono_lord_deja();
-void AddSC_boss_temporus();
 void AddSC_dark_portal();
 void AddSC_instance_dark_portal();
 void AddSC_hyjal();                                  // COT, hyjal
@@ -513,9 +510,6 @@ void AddKalimdorScripts()
     AddSC_blackfathom_deeps();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
-    AddSC_boss_aeonus();                                    // CoT, dark_portal
-    AddSC_boss_chrono_lord_deja();
-    AddSC_boss_temporus();
     AddSC_dark_portal();
     AddSC_instance_dark_portal();
     AddSC_hyjal();                                          // CoT, hyjal

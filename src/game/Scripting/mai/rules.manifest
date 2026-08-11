@@ -45,7 +45,12 @@ category combat = 0x00
     energy_below            32   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
 
 category sight = 0x01
-    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms?
+    # `creature` is APPENDED, after the four EventAI wrote, so a converted row
+    # still fills the first four by position and leaves this absent -- which
+    # means "anyone", the behaviour it always had. Naming an entry narrows it
+    # to that one, which is what every "banish the helper the moment you see
+    # it" script needs and none of them could say.
+    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms? creature:creature?
     spawned                 11   condition:u32? value:u32?
     reached_waypoint        31   waypoint:u32? path:u32?
     reached_home            21
