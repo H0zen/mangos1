@@ -139,6 +139,7 @@ namespace mai
         // flow
         TerminateScript            = 31,
         TerminateCond              = 34,
+        RequireTarget              = 135,
         SendAiEventAround          = 35,
 
         // threat
@@ -451,6 +452,11 @@ namespace mai
         { "fail_quest", ParamType::Quest, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsRequireTarget[] =
+    {
+        { "entry", ParamType::Creature, false },
+    };
+
     inline constexpr ParamSpec g_actionParamsSendAiEventAround[] =
     {
         { "event", ParamType::U32, false },
@@ -710,6 +716,7 @@ namespace mai
         { ActionId::XpUser, "xp_user", g_actionParamsXpUser, 1, 1, 0 },
         { ActionId::TerminateScript, "terminate_script", g_actionParamsTerminateScript, 2, 2, 0 },
         { ActionId::TerminateCond, "terminate_cond", g_actionParamsTerminateCond, 2, 2, 0 },
+        { ActionId::RequireTarget, "require_target", g_actionParamsRequireTarget, 1, 1, 0 },
         { ActionId::SendAiEventAround, "send_ai_event_around", g_actionParamsSendAiEventAround, 2, 2, 0 },
         { ActionId::ThreatChange, "threat_change", g_actionParamsThreatChange, 2, 2, 0 },
         { ActionId::CallForHelp, "call_for_help", g_actionParamsCallForHelp, 1, 1, 0 },

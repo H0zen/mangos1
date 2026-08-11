@@ -686,24 +686,6 @@ struct spell_apply_salve : public SpellScript
     }
 };
 
-struct spell_sacred_cleansing : public SpellScript
-{
-    spell_sacred_cleansing() : SpellScript("spell_sacred_cleansing") {}
-
-    bool EffectDummy(Unit* pCaster, uint32 uiSpellId, SpellEffectIndex uiEffIndex, Object* pTarget, ObjectGuid /*originalCasterGuid*/) override
-    {
-        if (uiSpellId == SPELL_SACRED_CLEANSING && uiEffIndex == EFFECT_INDEX_1)
-        {
-            if (!pTarget->ToCreature() || pTarget->GetEntry() != NPC_MORBENT)
-            {
-                return true;
-            }
-            pTarget->ToCreature()->UpdateEntry(NPC_WEAKENED_MORBENT);
-        }
-        return true;
-    }
-};
-
 struct spell_melodious_rapture : public SpellScript
 {
     spell_melodious_rapture() : SpellScript("spell_melodious_rapture") {}
@@ -729,29 +711,6 @@ struct spell_melodious_rapture : public SpellScript
 };
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
-struct spell_administer_antidote : public SpellScript
-{
-    spell_administer_antidote() : SpellScript("spell_administer_antidote") {}
-
-    bool EffectDummy(Unit* pCaster, uint32 uiSpellId, SpellEffectIndex uiEffIndex, Object* pTarget, ObjectGuid /*originalCasterGuid*/) override
-    {
-        if (uiSpellId == SPELL_ADMINISTER_ANTIDOTE && uiEffIndex == EFFECT_INDEX_0)
-        {
-            if (pTarget->GetEntry() != NPC_HELBOAR)
-            {
-                return true;
-            }
-
-            // possible needs check for quest state, to not have any effect when quest really complete
-            //TODO implement it as a DB condition for CheckCast()
-
-            pTarget->ToCreature()->UpdateEntry(NPC_DREADTUSK);
-            return true;
-        }
-        return true;
-    }
-};
-
 struct spell_inoculate_owlkin : public SpellScript
 {
     spell_inoculate_owlkin() : SpellScript("spell_inoculate_owlkin") {}
@@ -1285,8 +1244,6 @@ void AddSC_spell_scripts()
     s->RegisterSelf();
     s = new spell_apply_salve();
     s->RegisterSelf();
-    s = new spell_sacred_cleansing();
-    s->RegisterSelf();
     s = new spell_melodious_rapture();
     s->RegisterSelf();
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
@@ -1308,8 +1265,6 @@ void AddSC_spell_scripts()
     s = new aura_kajacola_item_effect();
     s->RegisterSelf();
 #endif
-    s = new spell_administer_antidote();
-    s->RegisterSelf();
     s = new spell_inoculate_owlkin();
     s->RegisterSelf();
     s = new spell_fel_siphon_dummy();

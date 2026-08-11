@@ -140,6 +140,16 @@ category flow = 0x07
     # goes.
     terminate_script        31   entry:creature? search_dist:f32?
     terminate_cond          34   condition:u32 fail_quest:quest?
+
+    # Stop unless the step's TARGET is this creature. `terminate_script` asks
+    # whether one is NEARBY, which is a different question and the wrong one
+    # for a spell: a sequence started by a dummy effect knows exactly who was
+    # hit, and usually only means to act if it was the right sort of thing.
+    #
+    # Needed wherever a spell has no `spell_script_target` row to narrow it --
+    # where it does, the restriction is already enforced and this is a
+    # duplicate.
+    require_target          135   entry:creature
     send_ai_event_around    35   event:u32 radius:f32
 
 # ---------------------------------------------------------------------------

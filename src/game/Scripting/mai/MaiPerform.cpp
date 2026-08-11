@@ -443,6 +443,23 @@ namespace mai
             return false;
         }
 
+        /**
+         * Stop unless the target is the right sort of thing.
+         *
+         * `terminate_script` asks whether a named creature is NEARBY, which is
+         * a different question: a sequence started by a spell's dummy effect
+         * knows exactly who was hit, and Morbent's cleansing means to weaken
+         * Morbent rather than whoever happens to be standing next to him.
+         *
+         * @return true, which stops the sequence, when the target is not it.
+         */
+        bool RequireTarget(Doing& doing, Step const& step)
+        {
+            Creature const* victim = doing.target ? doing.target->ToCreature()
+                                                  : nullptr;
+            return !victim || victim->GetEntry() != Given(step, 0);
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -933,6 +950,7 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::RequireTarget:     return RequireTarget(doing, step);
             case ActionId::Chase:             return Chase(doing, step);
             case ActionId::RememberTarget:    return RememberTarget(doing, step);
             case ActionId::SummonAtTarget:    return SummonAtTarget(doing, step);
