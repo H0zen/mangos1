@@ -43,9 +43,6 @@ void AddSC_instance_blackrock_spire();
 void AddSC_boss_razorgore();                         // blackwing_lair
 void AddSC_boss_vaelastrasz();
 void AddSC_boss_broodlord();
-void AddSC_boss_firemaw();
-void AddSC_boss_ebonroc();
-void AddSC_boss_flamegor();
 void AddSC_boss_chromaggus();
 void AddSC_boss_nefarian();
 void AddSC_boss_victor_nefarius();
@@ -242,9 +239,6 @@ void AddEasternKingdomsScripts()
     AddSC_boss_razorgore();                                 // blackwing_lair
     AddSC_boss_vaelastrasz();
     AddSC_boss_broodlord();
-    AddSC_boss_firemaw();
-    AddSC_boss_ebonroc();
-    AddSC_boss_flamegor();
     AddSC_boss_chromaggus();
     AddSC_boss_nefarian();
     AddSC_boss_victor_nefarius();
