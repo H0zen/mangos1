@@ -245,7 +245,12 @@ namespace mai
         /// runs INLINE: its answer is whether the item's own spell may go
         /// ahead, and an answer that arrives on the next map tick is not an
         /// answer. `refuse_use` is what says no.
-        KindItemUse    = 13
+        KindItemUse    = 13,
+
+        /// A player stepping into an area trigger, keyed by trigger id. Runs
+        /// INLINE for the same reason `item_use` does: the seam asks whether
+        /// anything handled it, and a queued sequence has no answer yet.
+        KindAreaTrigger = 14
     };
 
     /**
@@ -258,8 +263,15 @@ namespace mai
      * @return false when there is no such sequence, which is not an error: a
      *         branch that has not been written yet is a branch not taken.
      */
+    /// @param cancel  non-null when the CALLER is running inline, in which
+    ///                case the branch runs inline too and its answer comes
+    ///                back through here. A branch of an inline sequence that
+    ///                queued itself could not refuse anything, because the
+    ///                thing it was refusing would have happened by the time it
+    ///                ran.
     bool StartSequence(Map* map, uint32 kind, uint32 id, WorldObject* source,
-                       WorldObject* target, ObjectGuid owner);
+                       WorldObject* target, ObjectGuid owner, ObjectGuid item,
+                       bool* cancel);
 }
 
 #endif //MANGOS_MAI_ACTOR_H

@@ -122,6 +122,7 @@ namespace mai
         RespawnGo                  = 9,
         DespawnGo                  = 40,
         OpenDoor                   = 11,
+        UseDoor                    = 150,
         CloseDoor                  = 12,
         ActivateObject             = 13,
         ResetGo                    = 43,
@@ -147,8 +148,10 @@ namespace mai
         RequireHealth              = 141,
         RequireStandState          = 142,
         RequireCreature            = 145,
-        RequireTaxi                = 147,
+        RequireSummoned            = 149,
+        RequirePlayer              = 147,
         RefuseUse                  = 146,
+        Claim                      = 151,
         StartScript                = 136,
         RandomScript               = 137,
         SendAiEventAround          = 35,
@@ -289,6 +292,7 @@ namespace mai
     inline constexpr ParamSpec g_actionParamsMoveTo[] =
     {
         { "speed", ParamType::U32, true },
+        { "scatter", ParamType::F32, true },
         { "x", ParamType::F32, true },
         { "y", ParamType::F32, true },
         { "z", ParamType::F32, true },
@@ -396,6 +400,11 @@ namespace mai
         { "reset_delay", ParamType::Ms, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsUseDoor[] =
+    {
+        { "reset_delay", ParamType::Ms, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsCloseDoor[] =
     {
         { "guid", ParamType::U32, false },
@@ -411,6 +420,7 @@ namespace mai
     {
         { "entry", ParamType::Creature, false },
         { "despawn_delay", ParamType::Ms, true },
+        { "scatter", ParamType::F32, true },
         { "x", ParamType::F32, true },
         { "y", ParamType::F32, true },
         { "z", ParamType::F32, true },
@@ -516,11 +526,21 @@ namespace mai
         { "entry", ParamType::Creature, false },
         { "range", ParamType::F32, false },
         { "present", ParamType::Bool, true },
+        { "alive", ParamType::U32, true },
     };
 
-    inline constexpr ParamSpec g_actionParamsRequireTaxi[] =
+    inline constexpr ParamSpec g_actionParamsRequireSummoned[] =
     {
         { "present", ParamType::Bool, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRequirePlayer[] =
+    {
+        { "alive", ParamType::Bool, true },
+        { "in_combat", ParamType::Bool, true },
+        { "gm", ParamType::Bool, true },
+        { "taxi", ParamType::Bool, true },
+        { "minipet", ParamType::Creature, true },
     };
 
     inline constexpr ParamSpec g_actionParamsRefuseUse[] =
@@ -787,7 +807,7 @@ namespace mai
         { ActionId::SetEquipmentSlots, "set_equipment_slots", g_actionParamsSetEquipmentSlots, 1, 1, 0 },
         { ActionId::ModifyNpcFlags, "modify_npc_flags", g_actionParamsModifyNpcFlags, 2, 2, 0 },
         { ActionId::SetFaction, "set_faction", g_actionParamsSetFaction, 2, 2, 0 },
-        { ActionId::MoveTo, "move_to", g_actionParamsMoveTo, 5, 1, FacetAt },
+        { ActionId::MoveTo, "move_to", g_actionParamsMoveTo, 6, 2, FacetAt },
         { ActionId::TeleportTo, "teleport_to", g_actionParamsTeleportTo, 5, 1, FacetAt },
         { ActionId::Movement, "movement", g_actionParamsMovement, 2, 2, 0 },
         { ActionId::SetRun, "set_run", g_actionParamsSetRun, 1, 1, 0 },
@@ -809,11 +829,12 @@ namespace mai
         { ActionId::RespawnGo, "respawn_go", g_actionParamsRespawnGo, 2, 2, 0 },
         { ActionId::DespawnGo, "despawn_go", g_actionParamsDespawnGo, 2, 2, 0 },
         { ActionId::OpenDoor, "open_door", g_actionParamsOpenDoor, 2, 2, 0 },
+        { ActionId::UseDoor, "use_door", g_actionParamsUseDoor, 1, 1, 0 },
         { ActionId::CloseDoor, "close_door", g_actionParamsCloseDoor, 2, 2, 0 },
         { ActionId::ActivateObject, "activate_object", nullptr, 0, 0, 0 },
         { ActionId::ResetGo, "reset_go", nullptr, 0, 0, 0 },
         { ActionId::GoLockState, "go_lock_state", g_actionParamsGoLockState, 1, 1, 0 },
-        { ActionId::TempSummonCreature, "temp_summon_creature", g_actionParamsTempSummonCreature, 6, 2, FacetAt },
+        { ActionId::TempSummonCreature, "temp_summon_creature", g_actionParamsTempSummonCreature, 7, 3, FacetAt },
         { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 9, 5, FacetAt },
         { ActionId::SetActiveobject, "set_activeobject", g_actionParamsSetActiveobject, 1, 1, 0 },
         { ActionId::ConsumeGo, "consume_go", g_actionParamsConsumeGo, 2, 2, 0 },
@@ -829,9 +850,11 @@ namespace mai
         { ActionId::RequireVictim, "require_victim", g_actionParamsRequireVictim, 1, 1, 0 },
         { ActionId::RequireHealth, "require_health", g_actionParamsRequireHealth, 2, 2, 0 },
         { ActionId::RequireStandState, "require_stand_state", g_actionParamsRequireStandState, 1, 1, 0 },
-        { ActionId::RequireCreature, "require_creature", g_actionParamsRequireCreature, 3, 3, 0 },
-        { ActionId::RequireTaxi, "require_taxi", g_actionParamsRequireTaxi, 1, 1, 0 },
+        { ActionId::RequireCreature, "require_creature", g_actionParamsRequireCreature, 4, 4, 0 },
+        { ActionId::RequireSummoned, "require_summoned", g_actionParamsRequireSummoned, 1, 1, 0 },
+        { ActionId::RequirePlayer, "require_player", g_actionParamsRequirePlayer, 5, 5, 0 },
         { ActionId::RefuseUse, "refuse_use", g_actionParamsRefuseUse, 3, 3, 0 },
+        { ActionId::Claim, "claim", nullptr, 0, 0, 0 },
         { ActionId::StartScript, "start_script", g_actionParamsStartScript, 2, 2, 0 },
         { ActionId::RandomScript, "random_script", g_actionParamsRandomScript, 5, 5, 0 },
         { ActionId::SendAiEventAround, "send_ai_event_around", g_actionParamsSendAiEventAround, 2, 2, 0 },

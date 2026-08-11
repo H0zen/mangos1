@@ -74,7 +74,7 @@ namespace scripting
         /// is a pointer rather than a lookup.
         static bool StartFrom(Map* map, uint32 kind, uint32 id,
                               WorldObject* source, WorldObject* target,
-                              ObjectGuid owner);
+                              ObjectGuid owner, ObjectGuid item, bool* cancel);
 
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;

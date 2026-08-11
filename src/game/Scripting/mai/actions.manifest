@@ -68,7 +68,7 @@ category field = 0x02
     set_faction             22   faction:faction flags:flags?
 
 category move = 0x03
-    move_to                  3   speed:u32? at
+    move_to                  3   speed:u32? scatter:f32? at
     teleport_to              6   map:map at
     movement                20   type:u32 wander_distance:u32?
     set_run                 25   run:bool
@@ -137,11 +137,24 @@ category world = 0x05
     respawn_go               9   guid:u32 despawn_delay:ms?
     despawn_go              40   guid:u32 respawn_time:ms?
     open_door               11   guid:u32 reset_delay:ms?
+
+    # Open or close whichever door or button the step is acting on -- found by
+    # the buddy search rather than named by guid, which is the difference from
+    # `open_door` above and the reason both exist. A waterfall that parts when
+    # somebody walks up to it is one of thirty-five yards, not one guid.
+    #
+    # Only if it is READY: an object already in use is mid-animation, and
+    # using it again is what makes a door stutter.
+    use_door                150   reset_delay:ms?
     close_door              12   guid:u32 reset_delay:ms?
     activate_object         13
     reset_go                43
     go_lock_state           27   state:flags
-    temp_summon_creature    10   entry:creature despawn_delay:ms? at
+    # `scatter` puts it at a random point on the ground within that many
+    # yards of the position, which is RandomGroundPointNear -- what every
+    # script does that spawns three of something and does not want them
+    # standing inside each other.
+    temp_summon_creature    10   entry:creature despawn_delay:ms?                                  scatter:f32? at
 
     # At the step's TARGET rather than at a written position. The missing
     # member of the summon family, exactly as teleport_to_target was of the
@@ -234,12 +247,36 @@ category flow = 0x07
     # step's target. Its OWN search rather than the step's buddy, and that is
     # the point: a buddy that is not there SKIPS the step, so a buddy can
     # never answer "is there one?". This verb can.
-    require_creature        145   entry:creature range:f32 present:bool?
+    # `alive` is three-valued and the C++ is why: GetClosestCreatureWithEntry
+    # takes onlyAlive and onlyDead as two booleans, and the Larkorwi and
+    # Murkdeep triggers pass FALSE to both -- "is there one at all, alive or a
+    # corpse". Absent means alive only, which is what every other caller wants;
+    # 0 means dead only; 2 means either.
+    require_creature        145   entry:creature range:f32 present:bool?                                   alive:u32?
 
-    # Stop unless the player is (or is not) on a flight path. The one check in
-    # the item scripts with no `conditions` type behind it -- zone, skill and
-    # target aura all have one, and a taxi does not.
-    require_taxi            147   present:bool?
+    # Stop unless the step's SOURCE is (or is not) a temporary summon. The
+    # difference between the three Greymist Coastrunners a quest put on the
+    # beach and the ones that live there: only the summoned ones run to the
+    # water, and only their deaths are counted.
+    require_summoned        149   present:bool?
+
+    # Stop unless the player passes every one of these. Each is checked only
+    # when it is written, so a step names the two it cares about and says
+    # nothing about the rest.
+    #
+    # ONE VERB RATHER THAN FIVE, and that is the shape of the question rather
+    # than a saving: ScriptDev asks these in clusters and almost never singly.
+    #
+    #     if (pPlayer->IsAlive() && !pPlayer->isGameMaster() && ...)
+    #     if (pPlayer->IsAlive() && !pPlayer->IsInCombat())
+    #
+    # None of the five has a `conditions` type behind it -- zone, skill,
+    # quest, reputation and team all do, which is why those stay in that table
+    # and these do not.
+    #
+    # `minipet` is an entry rather than a flag: Children's Week asks WHICH
+    # orphan is following you, not whether one is.
+    require_player          147   alive:bool? in_combat:bool? gm:bool?                                   taxi:bool? minipet:creature?
 
     # ---- saying no --------------------------------------------------------
     #
@@ -257,6 +294,17 @@ category flow = 0x07
     #   spell         which spell the failure is about. Defaults to the
     #                 item's own first spell, which is what it always is.
     refuse_use              146   equip_error:u32? cast_result:u32? spell:spell?
+
+    # "This sequence produced the behaviour; the core need look no further."
+    # The same channel `refuse_use` uses and the opposite meaning: one says the
+    # thing must not happen, the other says it already has.
+    #
+    # An area trigger is where it matters. A claimed one skips the quest credit
+    # the trigger would otherwise give, the tavern rest, the battleground
+    # handling and the teleport -- so `return true` in an AreaTriggerScript is
+    # a decision about four other systems, and every one of the six live
+    # scripts makes it differently on different paths.
+    claim                   151
 
     # ---- the branch -------------------------------------------------------
     #

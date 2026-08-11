@@ -84,7 +84,8 @@ CREATE TABLE `mai_script`
     `kind`    ENUM('quest_start','quest_end','spell','go_use',
                    'go_template_use','creature_death','creature_movement',
                    'gossip','event','internal',
-                   'aura_apply','aura_remove','branch','item_use') NOT NULL,
+                   'aura_apply','aura_remove','branch','item_use',
+                   'areatrigger') NOT NULL,
 
     -- What the id means depends on the kind: a quest id, a spell id, a
     -- creature entry, a gameobject guid. It was the same before; what is new
@@ -100,7 +101,8 @@ CREATE TABLE `mai_step`
     `kind`     ENUM('quest_start','quest_end','spell','go_use',
                     'go_template_use','creature_death','creature_movement',
                     'gossip','event','internal',
-                    'aura_apply','aura_remove','branch','item_use') NOT NULL,
+                    'aura_apply','aura_remove','branch','item_use',
+                    'areatrigger') NOT NULL,
     `script`   INT UNSIGNED NOT NULL,
 
     -- Ties are broken by this, so two steps at the same instant have a defined

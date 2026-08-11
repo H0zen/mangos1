@@ -290,12 +290,29 @@ namespace scripting
 
     bool MaiEngine::StartFrom(Map* map, uint32 kind, uint32 id,
                               WorldObject* source, WorldObject* target,
-                              ObjectGuid owner)
+                              ObjectGuid owner, ObjectGuid item, bool* cancel)
     {
+        if (!s_instance || !map)
+        {
+            return false;
+        }
+
+        // A branch of an INLINE sequence runs inline too, and that is not an
+        // optimisation: the caller is about to answer a question -- may this
+        // item be used, was this trigger handled -- and a branch that queued
+        // itself would answer after the answer was given.
+        if (cancel)
+        {
+            if (s_instance->RunNow(map, kind, id, source, target, owner, item))
+            {
+                *cancel = true;
+            }
+            return true;
+        }
+
         // A branch may run only once per step, so uniqueness is nobody's
         // policy here: whoever started the parent already decided that.
-        return s_instance && map &&
-               s_instance->Start(map, kind, id, source, target,
+        return s_instance->Start(map, kind, id, source, target,
                                  Map::SCRIPT_EXEC_PARAM_NONE, owner);
     }
 
@@ -378,6 +395,7 @@ namespace scripting
             { "aura_remove",       mai::KindAuraRemove },
             { "branch",            mai::KindBranch },
             { "item_use",          mai::KindItemUse },
+            { "areatrigger",       mai::KindAreaTrigger },
         };
         std::size_t const kindCount = sizeof(kinds) / sizeof(*kinds);
 
@@ -1090,6 +1108,35 @@ namespace scripting
                 break;
             }
 
+            case EventId::ServerEventTrigger:
+            {
+                MANGOS_ASSERT(count == ServerEventTrigger::Arity);
+
+                WorldObject* who = ObjectOn(ctx, args[0].AsEntity());
+                Handle const handle = args[1].AsNamed();
+                if (!who || !who->ToPlayer() ||
+                    handle.domain != Domain::AreaTrigger)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Inline, because the seam asks a question: a trigger script
+                // answers `true` when it produced the behaviour, and a
+                // sequence that has not run yet has no answer to give.
+                //
+                // And claiming is a DECISION, not a side effect. A claimed
+                // area trigger skips the quest credit the trigger would
+                // otherwise give, the tavern rest, the battleground handling
+                // and the teleport -- so only a sequence that says `claim`
+                // claims, and every one of the six scripts this replaces makes
+                // that call differently on different paths.
+                return RunNow(ctx.map, mai::KindAreaTrigger,
+                              static_cast<uint32>(handle.id), who, who,
+                              who->GetObjectGuid(), ObjectGuid())
+                           ? Verdict::Handled
+                           : Verdict::Continue;
+            }
+
             case EventId::ItemUse:
             {
                 MANGOS_ASSERT(count == ItemUse::Arity);
@@ -1259,9 +1306,10 @@ namespace scripting
 namespace mai
 {
     bool StartSequence(Map* map, uint32 kind, uint32 id, WorldObject* source,
-                       WorldObject* target, ObjectGuid owner)
+                       WorldObject* target, ObjectGuid owner, ObjectGuid item,
+                       bool* cancel)
     {
         return scripting::MaiEngine::StartFrom(map, kind, id, source, target,
-                                               owner);
+                                               owner, item, cancel);
     }
 }

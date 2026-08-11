@@ -430,6 +430,76 @@ namespace mai
          * expressible at all, only summoning where somebody stood when the
          * script was written.
          */
+        /**
+         * Summon at a written position, scattered.
+         *
+         * NATIVE ONLY WHEN `scatter` IS WRITTEN, and that is deliberate
+         * caution rather than indecision: 27,561 converted steps go through
+         * the borrowed body, which passes two flags this cannot see -- a run
+         * flag off the row's data_flags and a fourth argument off its first
+         * text id. Reproducing those from a Step that does not carry them
+         * would be a guess. A step that asks for scatter is a step written
+         * since, and it means exactly this.
+         *
+         * RandomGroundPointNear is what every script uses that spawns three of
+         * something and does not want them standing inside each other.
+         */
+        bool TempSummonCreature(Doing& doing, Step const& step, bool& handled)
+        {
+            if (!step.Has(2))
+            {
+                handled = false;
+                return false;
+            }
+
+            WorldObject* self = doing.source;
+            if (!self)
+            {
+                sLog.outErrorDb("MAI: temp_summon_creature needs somebody to "
+                                "summon");
+                return false;
+            }
+
+            Geometry::Vector3 const centre(GivenF(step, 3), GivenF(step, 4),
+                                           GivenF(step, 5));
+            Geometry::Vector3 const spot =
+                RandomGroundPointNear(*self, centre, GivenF(step, 2));
+
+            uint32 const despawn = Given(step, 1);
+            self->SummonCreature(Given(step, 0), spot.x, spot.y, spot.z,
+                                 GivenF(step, 6),
+                                 despawn ? TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN
+                                         : TEMPSPAWN_DEAD_DESPAWN,
+                                 despawn);
+            return false;
+        }
+
+        /// Walk to a written position, scattered. Native under the same
+        /// condition and for the same reason as the summon above.
+        bool MoveTo(Doing& doing, Step const& step, bool& handled)
+        {
+            if (!step.Has(1))
+            {
+                handled = false;
+                return false;
+            }
+
+            Unit* self = doing.SourceUnit();
+            if (!self)
+            {
+                sLog.outErrorDb("MAI: move_to needs somebody to move");
+                return false;
+            }
+
+            Geometry::Vector3 const centre(GivenF(step, 2), GivenF(step, 3),
+                                           GivenF(step, 4));
+            Geometry::Vector3 const spot =
+                RandomGroundPointNear(*self, centre, GivenF(step, 1));
+
+            self->GetMotionMaster()->MovePoint(0, spot.x, spot.y, spot.z);
+            return false;
+        }
+
         bool SummonAtTarget(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -637,10 +707,18 @@ namespace mai
                 return wanted;
             }
 
+            // Three-valued, and GetClosestCreatureWithEntry is why: it takes
+            // onlyAlive and onlyDead as two booleans, and the Larkorwi and
+            // Murkdeep triggers pass FALSE to both -- "is there one at all,
+            // alive or a corpse". Absent means alive only.
+            uint32 const state = step.Has(3) ? Given(step, 3) : 1;
+            bool const onlyAlive = state == 1;
+            bool const onlyDead = state == 0;
+
             Creature* found = nullptr;
             float const radius = GivenF(step, 1);
             MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck check(
-                *doing.target, Given(step, 0), true, false, radius);
+                *doing.target, Given(step, 0), onlyAlive, onlyDead, radius);
             MaNGOS::CreatureLastSearcher<
                 MaNGOS::NearestCreatureEntryWithLiveStateInObjectRangeCheck>
                     search(found, check);
@@ -649,14 +727,101 @@ namespace mai
             return (found != nullptr) != wanted;
         }
 
-        bool RequireTaxi(Doing& doing, Step const& step)
+        /**
+         * Everything a script asks about a player before it does anything.
+         *
+         * One verb rather than five because that is the shape of the question
+         * rather than a saving: ScriptDev asks these in clusters and almost
+         * never singly --
+         *
+         *     if (pPlayer->IsAlive() && !pPlayer->isGameMaster() && ...)
+         *
+         * Each is checked only when the step wrote it, so a step names the two
+         * it cares about and says nothing about the rest.
+         */
+        bool RequirePlayer(Doing& doing, Step const& step)
         {
             Player const* who = doing.owner.IsEmpty()
                                     ? nullptr
                                     : sObjectMgr.GetPlayer(doing.owner);
+            if (!who)
+            {
+                return true;
+            }
+
+            if (step.Has(0) && who->IsAlive() != (Given(step, 0) != 0))
+            {
+                return true;
+            }
+
+            if (step.Has(1) && who->IsInCombat() != (Given(step, 1) != 0))
+            {
+                return true;
+            }
+
+            if (step.Has(2) && who->isGameMaster() != (Given(step, 2) != 0))
+            {
+                return true;
+            }
+
+            if (step.Has(3) && who->IsTaxiFlying() != (Given(step, 3) != 0))
+            {
+                return true;
+            }
+
+            // An ENTRY rather than a flag: Children's Week asks which orphan
+            // is following you, not whether one is.
+            if (step.Has(4))
+            {
+                Pet const* pet = who->GetMiniPet();
+                if (!pet || pet->GetEntry() != Given(step, 4))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Whether the step's source is something a script put here.
+         *
+         * The difference between the three Greymist Coastrunners a quest put
+         * on the beach and the ones that live there: only the summoned ones
+         * run to the water, and only their deaths are counted.
+         */
+        bool RequireSummoned(Doing& doing, Step const& step)
+        {
+            Creature const* self = doing.SourceCreature();
             bool const wanted = !step.Has(0) || Given(step, 0) != 0;
 
-            return !who || who->IsTaxiFlying() != wanted;
+            return !self || self->IsTemporarySummon() != wanted;
+        }
+
+        /**
+         * Open or close whichever door the step is acting on.
+         *
+         * Found by the buddy search rather than named by guid, which is the
+         * difference from `open_door` and the reason both exist: a waterfall
+         * that parts when somebody walks up to it is one of thirty-five yards,
+         * not one guid.
+         */
+        bool UseDoor(Doing& doing, Step const& step)
+        {
+            GameObject* door = doing.source ? doing.source->ToGameObject()
+                                            : nullptr;
+            if (!door && doing.target)
+            {
+                door = doing.target->ToGameObject();
+            }
+
+            // Only if it is ready. An object already in use is mid-animation,
+            // and using it again is what makes a door stutter.
+            if (door && door->getLootState() == GO_READY)
+            {
+                door->UseDoorOrButton(Given(step, 0));
+            }
+            return false;
         }
 
         /**
@@ -729,7 +894,25 @@ namespace mai
         {
             StartSequence(doing.map, step.Has(0) ? Given(step, 0) : KindBranch,
                           Given(step, 1), doing.source, doing.target,
-                          doing.owner);
+                          doing.owner, doing.item, doing.cancel);
+            return false;
+        }
+
+        /**
+         * "I produced this; look no further."
+         *
+         * The same channel `refuse_use` uses and the opposite meaning: one
+         * says the thing must not happen, the other that it already has. An
+         * area trigger is where it matters -- a claimed one skips the quest
+         * credit the trigger would otherwise give, the tavern rest, the
+         * battleground handling and the teleport.
+         */
+        bool Claim(Doing& doing, Step const&)
+        {
+            if (doing.cancel)
+            {
+                *doing.cancel = true;
+            }
             return false;
         }
 
@@ -749,7 +932,8 @@ namespace mai
             {
                 StartSequence(doing.map, KindBranch,
                               Given(step, 3) + urand(0, Given(step, 4) - 1),
-                              doing.source, doing.target, doing.owner);
+                              doing.source, doing.target, doing.owner,
+                              doing.item, doing.cancel);
                 return false;
             }
 
@@ -770,7 +954,8 @@ namespace mai
             }
 
             StartSequence(doing.map, KindBranch, pick[urand(0, count - 1)],
-                          doing.source, doing.target, doing.owner);
+                          doing.source, doing.target, doing.owner, doing.item,
+                          doing.cancel);
             return false;
         }
 
@@ -1352,6 +1537,12 @@ namespace mai
         {
             case ActionId::CastSpell:         return CastSpell(doing, step,
                                                                 handled);
+            case ActionId::TempSummonCreature:
+                                              return TempSummonCreature(doing,
+                                                                        step,
+                                                                        handled);
+            case ActionId::MoveTo:            return MoveTo(doing, step,
+                                                            handled);
 
             case ActionId::SetState:          return SetState(doing, step);
             case ActionId::SetTimer:          return SetTimer(doing, step);
@@ -1382,8 +1573,11 @@ namespace mai
             case ActionId::RequireHealth:     return RequireHealth(doing, step);
             case ActionId::RequireStandState: return RequireStandState(doing, step);
             case ActionId::RequireCreature:   return RequireCreature(doing, step);
-            case ActionId::RequireTaxi:       return RequireTaxi(doing, step);
+            case ActionId::RequirePlayer:     return RequirePlayer(doing, step);
+            case ActionId::RequireSummoned:   return RequireSummoned(doing, step);
+            case ActionId::UseDoor:           return UseDoor(doing, step);
             case ActionId::RefuseUse:         return RefuseUse(doing, step);
+            case ActionId::Claim:             return Claim(doing, step);
             case ActionId::StartScript:       return StartScript(doing, step);
             case ActionId::RandomScript:      return RandomScript(doing, step);
             case ActionId::ConsumeGo:         return ConsumeGo(doing, step);
