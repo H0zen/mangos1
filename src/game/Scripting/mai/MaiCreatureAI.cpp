@@ -69,11 +69,33 @@ namespace mai
 {
     namespace
     {
-        /// Rules are looked at this often rather than every tick. EventAI's own
-        /// number, and its reason still holds: a boss with forty rules would
-        /// otherwise walk all forty at the map's full rate to discover that
-        /// nothing is due.
-        enum : uint32 { LookEveryMs = 500 };
+        /**
+         * How often the rules are looked at.
+         *
+         * EventAI used 500, and the reason given was that a boss with forty
+         * rules should not walk all forty at the map's full rate to discover
+         * that nothing is due. That reason is weaker than it sounds: the walk
+         * itself decrements a timer and tests a phase, and every rule that
+         * would do real work is gated behind a timer that is not yet zero.
+         *
+         * What 500 actually bought was a HALF-SECOND OF SLOP on everything.
+         * A health threshold is crossed and noticed up to half a second later;
+         * an ability due at seven seconds fires somewhere in [7.0, 7.5]. That
+         * was the last difference between MAI and ScriptDev, which tests
+         * everything on every tick, and it was the only one that could not be
+         * fixed by saying something new in a rule.
+         *
+         * WHAT IT COSTS. Three triggers query the grid and do NOT re-arm when
+         * they find nobody -- friendly_hurt, friendly_controlled,
+         * friendly_missing_buff -- so those search once per scan while their
+         * condition is unmet. On this world that is 291 rules across 220
+         * creature entries, and they now search ten times as often.
+         *
+         * That is affordable because it is what the scripts being matched
+         * already do: ScriptDev's own healers run that search every tick and
+         * always have. Ten times EventAI is one times ScriptDev.
+         */
+        enum : uint32 { LookEveryMs = 50 };
 
         /// The marks at which a creature announces how hurt it is, and what it
         /// announces. Both are the original's.
