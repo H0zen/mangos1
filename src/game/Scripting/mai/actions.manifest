@@ -220,6 +220,28 @@ category flow = 0x07
     # never answer "is there one?". This verb can.
     require_creature        145   entry:creature range:f32 present:bool?
 
+    # Stop unless the player is (or is not) on a flight path. The one check in
+    # the item scripts with no `conditions` type behind it -- zone, skill and
+    # target aura all have one, and a taxi does not.
+    require_taxi            147   present:bool?
+
+    # ---- saying no --------------------------------------------------------
+    #
+    # REFUSING is not doing, and it is the whole of what an ItemScript was for:
+    # every one of them checked something and then blocked the item's own
+    # spell. The verb ends the sequence AND tells the seam to cancel, which is
+    # why it can only appear in a kind that runs inline -- an answer that
+    # arrives on the next map tick is not an answer.
+    #
+    #   equip_error   an InventoryResult, sent as an equip error. ZERO --
+    #                 EQUIP_ERR_NONE -- is a real value here and not an
+    #                 absence: it is what unsticks the item on the cursor,
+    #                 which is why three of the four scripts send it.
+    #   cast_result   a SpellCastResult, sent as the failure the player sees.
+    #   spell         which spell the failure is about. Defaults to the
+    #                 item's own first spell, which is what it always is.
+    refuse_use              146   equip_error:u32? cast_result:u32? spell:spell?
+
     # ---- the branch -------------------------------------------------------
     #
     # A sequence is a straight line, and a straight line cannot say "one of

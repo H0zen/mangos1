@@ -147,6 +147,8 @@ namespace mai
         RequireHealth              = 141,
         RequireStandState          = 142,
         RequireCreature            = 145,
+        RequireTaxi                = 147,
+        RefuseUse                  = 146,
         StartScript                = 136,
         RandomScript               = 137,
         SendAiEventAround          = 35,
@@ -514,6 +516,18 @@ namespace mai
         { "present", ParamType::Bool, true },
     };
 
+    inline constexpr ParamSpec g_actionParamsRequireTaxi[] =
+    {
+        { "present", ParamType::Bool, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRefuseUse[] =
+    {
+        { "equip_error", ParamType::U32, true },
+        { "cast_result", ParamType::U32, true },
+        { "spell", ParamType::Spell, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsStartScript[] =
     {
         { "kind", ParamType::U32, true },
@@ -807,6 +821,8 @@ namespace mai
         { ActionId::RequireHealth, "require_health", g_actionParamsRequireHealth, 2, 2, 0 },
         { ActionId::RequireStandState, "require_stand_state", g_actionParamsRequireStandState, 1, 1, 0 },
         { ActionId::RequireCreature, "require_creature", g_actionParamsRequireCreature, 3, 3, 0 },
+        { ActionId::RequireTaxi, "require_taxi", g_actionParamsRequireTaxi, 1, 1, 0 },
+        { ActionId::RefuseUse, "refuse_use", g_actionParamsRefuseUse, 3, 3, 0 },
         { ActionId::StartScript, "start_script", g_actionParamsStartScript, 2, 2, 0 },
         { ActionId::RandomScript, "random_script", g_actionParamsRandomScript, 5, 5, 0 },
         { ActionId::SendAiEventAround, "send_ai_event_around", g_actionParamsSendAiEventAround, 2, 2, 0 },

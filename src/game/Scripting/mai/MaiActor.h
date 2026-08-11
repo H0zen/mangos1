@@ -169,6 +169,16 @@ namespace mai
         /// casts set it, and only a rule with a retry reads it.
         bool*        refused = nullptr;
 
+        /// The item whose use started this, when one did. A guid rather than
+        /// a pointer for the reason everything here is one -- and the player
+        /// in `owner` is who to ask for it.
+        ObjectGuid   item;
+
+        /// Set by a verb that REFUSES the thing that started the sequence.
+        /// Only `refuse_use` sets it, and only an inline run reads it: a
+        /// queued sequence has nothing left to refuse by the time it runs.
+        bool*        cancel = nullptr;
+
         Unit*     SourceUnit() const;
         Creature* SourceCreature() const;
         Unit*     TargetUnit() const;
@@ -191,7 +201,13 @@ namespace mai
         /// A sequence nothing in the world starts: only `start_script` and
         /// `random_script` do, which is what makes a branch a branch. Its ids
         /// are its own and mean nothing outside MAI.
-        KindBranch     = 12
+        KindBranch     = 12,
+
+        /// A player using an item, keyed by item entry, and the only kind that
+        /// runs INLINE: its answer is whether the item's own spell may go
+        /// ahead, and an answer that arrives on the next map tick is not an
+        /// answer. `refuse_use` is what says no.
+        KindItemUse    = 13
     };
 
     /**

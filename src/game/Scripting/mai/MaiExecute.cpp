@@ -338,6 +338,8 @@ namespace mai
         doing.owner = run.owner;
         doing.actor = run.actor;
         doing.refused = run.refused;
+        doing.item = run.item;
+        doing.cancel = run.cancel;
 
         // Before Redirect moved anything: who this is being done FOR.
         doing.ruleOwner = source;

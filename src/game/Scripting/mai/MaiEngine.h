@@ -119,6 +119,25 @@ namespace scripting
                    WorldObject* target, uint32 unique,
                    ObjectGuid owner = ObjectGuid());
 
+        /**
+         * Run a sequence NOW, rather than queueing it.
+         *
+         * Only one kind uses this and it is the reason the kind exists: an
+         * item's use has to be answered before the item's spell goes ahead,
+         * and an answer that arrives on the next map tick is not an answer.
+         *
+         * The steps at time zero run here, in order, and stop where a step
+         * says to. Anything with a later time is queued from where the inline
+         * part left off, so "say no, or else do this two seconds later" is
+         * still one sequence -- unless the refusal happened, in which case
+         * there is nothing left to do.
+         *
+         * @return true when a step REFUSED, which the caller turns into a
+         *         cancel.
+         */
+        bool RunNow(Map* map, uint32 type, uint32 id, WorldObject* source,
+                    WorldObject* target, ObjectGuid owner, ObjectGuid item);
+
         static MaiEngine* s_instance;
 
         /// Everything anything says, from `mai_text`.

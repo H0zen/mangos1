@@ -39,6 +39,9 @@
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "QuestDef.h"
+#include "Item.h"
+#include "Player.h"
+#include "Spell.h"
 #include "SpellAuras.h"
 #include "SharedDefines.h"
 #include "WaypointManager.h"
@@ -374,6 +377,7 @@ namespace scripting
             { "aura_apply",        mai::KindAuraApply },
             { "aura_remove",       mai::KindAuraRemove },
             { "branch",            mai::KindBranch },
+            { "item_use",          mai::KindItemUse },
         };
         std::size_t const kindCount = sizeof(kinds) / sizeof(*kinds);
 
@@ -833,6 +837,64 @@ namespace scripting
         return true;
     }
 
+    bool MaiEngine::RunNow(Map* map, uint32 type, uint32 id,
+                           WorldObject* source, WorldObject* target,
+                           ObjectGuid owner, ObjectGuid item)
+    {
+        auto found = m_sequences.find(Key{ type, id });
+        if (found == m_sequences.end() || found->second.steps.empty())
+        {
+            return false;
+        }
+
+        mai::Sequence const& sequence = found->second;
+
+        bool cancelled = false;
+        std::size_t at = 0;
+
+        mai::Run run;
+        run.map = map;
+        run.source = source ? source->GetObjectGuid() : ObjectGuid();
+        run.target = target ? target->GetObjectGuid() : ObjectGuid();
+        run.owner = owner;
+        run.item = item;
+        run.origin = sequence.origin;
+        run.cancel = &cancelled;
+
+        // The steps at time zero, in order, stopping where one says to. The
+        // rest -- if the sequence has any -- is an ordinary queued frame that
+        // starts from where this left off.
+        for (; at < sequence.steps.size(); ++at)
+        {
+            if (sequence.steps[at].atMs != 0)
+            {
+                break;
+            }
+
+            if (mai::Execute(run, sequence.steps[at]))
+            {
+                // Stopped. Whether it stopped because it refused or because a
+                // guard failed, nothing after it runs.
+                return cancelled;
+            }
+        }
+
+        if (at >= sequence.steps.size())
+        {
+            return cancelled;
+        }
+
+        mai::Frame frame;
+        frame.sequence = &sequence;
+        frame.next = at;
+        frame.source = run.source;
+        frame.target = run.target;
+        frame.owner = owner;
+
+        m_frames[map].push_back(frame);
+        return cancelled;
+    }
+
     void MaiEngine::Tick(Context const& ctx, uint32 diff)
     {
         if (ctx.scope != Context::Scope::Map || !ctx.map)
@@ -1013,6 +1075,44 @@ namespace scripting
                 source = args[0].AsEntity();     // the player
                 target = args[1].AsEntity();     // the gossip source
                 break;
+            }
+
+            case EventId::ItemUse:
+            {
+                MANGOS_ASSERT(count == ItemUse::Arity);
+
+                WorldObject* subject = ObjectOn(ctx, args[0].AsEntity());
+                Player* player = subject ? subject->ToPlayer() : nullptr;
+                Item* item = player
+                    ? player->GetItemByGuid(ObjectGuid(args[1].AsEntity().guid))
+                    : nullptr;
+                SpellCastTargets const* targets =
+                    Borrowed<SpellCastTargets const>(args[2].AsLent(),
+                                                     Domain::CastTargets);
+                if (!player || !item || !targets)
+                {
+                    return Verdict::Continue;
+                }
+
+                // Whatever the player aimed it at, which is what a check like
+                // "not on something that already has the ointment" is about.
+                // Himself when he aimed it at nothing, so a step always has
+                // somebody to ask about.
+                WorldObject* aimed = targets->getUnitTarget();
+                if (!aimed)
+                {
+                    aimed = player;
+                }
+
+                // INLINE, and the polarity is the opposite of every claim in
+                // this switch: a sequence that refuses has BLOCKED the item's
+                // own spell, which is a refusal rather than a substitute
+                // behaviour. That is why the event is cancellable.
+                return RunNow(ctx.map, mai::KindItemUse, item->GetEntry(),
+                              player, aimed, player->GetObjectGuid(),
+                              item->GetObjectGuid())
+                           ? Verdict::Cancel
+                           : Verdict::Continue;
             }
 
             case EventId::CoreAuraDummy:

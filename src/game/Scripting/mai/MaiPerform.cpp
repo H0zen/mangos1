@@ -58,6 +58,7 @@
 #include "MotionMaster.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "Spell.h"
 #include "Unit.h"
 
 namespace mai
@@ -611,6 +612,74 @@ namespace mai
             Cell::VisitGridObjects(doing.target, search, radius);
 
             return (found != nullptr) != wanted;
+        }
+
+        bool RequireTaxi(Doing& doing, Step const& step)
+        {
+            Player const* who = doing.owner.IsEmpty()
+                                    ? nullptr
+                                    : sObjectMgr.GetPlayer(doing.owner);
+            bool const wanted = !step.Has(0) || Given(step, 0) != 0;
+
+            return !who || who->IsTaxiFlying() != wanted;
+        }
+
+        /**
+         * Saying no.
+         *
+         * REFUSING is not doing, and it is the whole of what an ItemScript
+         * was for: every one of them checked something and then blocked the
+         * item's own spell. The verb ends the sequence and sets the flag the
+         * inline run reports back to the seam as a cancel.
+         *
+         * EQUIP_ERR_NONE -- zero -- is a real value here rather than an
+         * absence: sending it is what takes the item off the player's cursor,
+         * which is why three of the four scripts sent it before saying why.
+         */
+        bool RefuseUse(Doing& doing, Step const& step)
+        {
+            if (doing.cancel)
+            {
+                *doing.cancel = true;
+            }
+
+            Player* who = doing.owner.IsEmpty()
+                              ? nullptr
+                              : sObjectMgr.GetPlayer(doing.owner);
+            if (!who)
+            {
+                return true;
+            }
+
+            Item* item = doing.item.IsEmpty() ? nullptr
+                                              : who->GetItemByGuid(doing.item);
+
+            if (step.Has(0))
+            {
+                who->SendEquipError(InventoryResult(Given(step, 0)), item,
+                                    nullptr);
+            }
+
+            if (step.Has(1))
+            {
+                // Which spell the failure is about. The item's own first spell
+                // is what it always is, so a step that does not say means
+                // that.
+                uint32 spellId = Given(step, 2);
+                if (!spellId && item && item->GetProto())
+                {
+                    spellId = item->GetProto()->Spells[0].SpellId;
+                }
+
+                if (SpellEntry const* spell =
+                        sSpellStore.LookupEntry(spellId))
+                {
+                    Spell::SendCastResult(who, spell, 1,
+                                          SpellCastResult(Given(step, 1)));
+                }
+            }
+
+            return true;
         }
 
         bool RequireStandState(Doing& doing, Step const& step)
@@ -1259,6 +1328,8 @@ namespace mai
             case ActionId::RequireHealth:     return RequireHealth(doing, step);
             case ActionId::RequireStandState: return RequireStandState(doing, step);
             case ActionId::RequireCreature:   return RequireCreature(doing, step);
+            case ActionId::RequireTaxi:       return RequireTaxi(doing, step);
+            case ActionId::RefuseUse:         return RefuseUse(doing, step);
             case ActionId::StartScript:       return StartScript(doing, step);
             case ActionId::RandomScript:      return RandomScript(doing, step);
             case ActionId::ConsumeGo:         return ConsumeGo(doing, step);

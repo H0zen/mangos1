@@ -76,10 +76,15 @@ CREATE TABLE `mai_script`
     -- off, keyed by spell; `branch` is a sequence nothing in the world starts
     -- -- only `start_script` and `random_script` do, which is what lets a
     -- straight line say "one of these".
+    --
+    -- `item_use` is a player using an item, keyed by item entry, and it is the
+    -- only kind that runs INLINE: its answer is whether the item's own spell
+    -- may go ahead, and an answer that arrives on the next map tick is not an
+    -- answer. `refuse_use` is what says no.
     `kind`    ENUM('quest_start','quest_end','spell','go_use',
                    'go_template_use','creature_death','creature_movement',
                    'gossip','event','internal',
-                   'aura_apply','aura_remove','branch') NOT NULL,
+                   'aura_apply','aura_remove','branch','item_use') NOT NULL,
 
     -- What the id means depends on the kind: a quest id, a spell id, a
     -- creature entry, a gameobject guid. It was the same before; what is new
@@ -95,7 +100,7 @@ CREATE TABLE `mai_step`
     `kind`     ENUM('quest_start','quest_end','spell','go_use',
                     'go_template_use','creature_death','creature_movement',
                     'gossip','event','internal',
-                    'aura_apply','aura_remove','branch') NOT NULL,
+                    'aura_apply','aura_remove','branch','item_use') NOT NULL,
     `script`   INT UNSIGNED NOT NULL,
 
     -- Ties are broken by this, so two steps at the same instant have a defined

@@ -78,6 +78,13 @@ namespace mai
         /// every sequence the world starts.
         bool*      refused = nullptr;
 
+        /// The item whose use started this, when one did.
+        ObjectGuid item;
+
+        /// Set by `refuse_use`. Null unless somebody is waiting on the answer,
+        /// which is only ever an inline run.
+        bool*      cancel = nullptr;
+
         /// Whether the step's Selector applies. Only a rule sets one, and a
         /// DB-script step's zero means SelectSelf rather than "no selector" --
         /// so the two cases cannot be told apart from the step alone.
