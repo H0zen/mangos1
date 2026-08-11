@@ -156,6 +156,15 @@ namespace mai
         /// creature behind it at all.
         Actor*       actor = nullptr;
 
+        /// The creature whose RULE this is, before the four flags moved
+        /// anything. `source` is who ends up acting -- often a buddy or a
+        /// summon -- and this is who it is acting for.
+        ///
+        /// Only one verb reads it, and it is the reason it exists: a spell can
+        /// be cast BY one unit and credited TO another, which is how a poison
+        /// cloud's damage is attributed to the boss that made the cloud.
+        WorldObject* ruleOwner = nullptr;
+
         /// Set by a verb whose effect was refused rather than done. Only the
         /// casts set it, and only a rule with a retry reads it.
         bool*        refused = nullptr;

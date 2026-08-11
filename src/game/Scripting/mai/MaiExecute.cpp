@@ -339,6 +339,9 @@ namespace mai
         doing.actor = run.actor;
         doing.refused = run.refused;
 
+        // Before Redirect moved anything: who this is being done FOR.
+        doing.ruleOwner = source;
+
         bool handled = false;
         bool const stop = PerformNative(doing, step, handled);
         if (handled)

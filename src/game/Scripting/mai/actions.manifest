@@ -87,7 +87,15 @@ category move = 0x03
     stand_state             28   state:u32
 
 category combat = 0x04
-    cast_spell              15   spell:spell flags:flags?
+    # `credit_owner` casts the spell as though the creature whose RULE this is
+    # had cast it -- which is not the same as casting it. Broggok's poison
+    # clouds cast their aura on themselves and the damage is attributed to
+    # Broggok, so it is his kill and his threat; without it the cloud is
+    # credited and the boss is not.
+    #
+    # 34 places in ScriptDev pass an original caster, and DoCastSpellIfCan has
+    # always taken the argument. MAI simply never gave it one.
+    cast_spell              15   spell:spell flags:flags? credit_owner:bool?
     remove_aura             14   spell:spell
     attack_start            26
     despawn_self            18   delay:ms?

@@ -335,6 +335,7 @@ namespace mai
     {
         { "spell", ParamType::Spell, false },
         { "flags", ParamType::Flags, true },
+        { "credit_owner", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_actionParamsRemoveAura[] =
@@ -678,7 +679,7 @@ namespace mai
         { ActionId::PauseWaypoints, "pause_waypoints", g_actionParamsPauseWaypoints, 1, 1, 0 },
         { ActionId::SetFly, "set_fly", g_actionParamsSetFly, 1, 1, 0 },
         { ActionId::StandState, "stand_state", g_actionParamsStandState, 1, 1, 0 },
-        { ActionId::CastSpell, "cast_spell", g_actionParamsCastSpell, 2, 2, 0 },
+        { ActionId::CastSpell, "cast_spell", g_actionParamsCastSpell, 3, 3, 0 },
         { ActionId::RemoveAura, "remove_aura", g_actionParamsRemoveAura, 1, 1, 0 },
         { ActionId::AttackStart, "attack_start", nullptr, 0, 0, 0 },
         { ActionId::DespawnSelf, "despawn_self", g_actionParamsDespawnSelf, 1, 1, 0 },

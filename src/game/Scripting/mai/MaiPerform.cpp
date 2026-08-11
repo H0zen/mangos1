@@ -254,9 +254,18 @@ namespace mai
                 flags |= CAST_TRIGGERED;
             }
 
+            // Cast BY the source and credited TO the rule's owner, when the
+            // step says so. They are the same unit unless a buddy, a summon or
+            // a selector moved the acting away from the deciding.
+            ObjectGuid credited;
+            if (Given(step, 2) && doing.ruleOwner)
+            {
+                credited = doing.ruleOwner->GetObjectGuid();
+            }
+
             CanCastResult const result =
                 self->AI()->DoCastSpellIfCan(victim ? victim : self,
-                                             Given(step, 0), flags);
+                                             Given(step, 0), flags, credited);
 
             // Refused, not failed. Already casting, out of range, silenced,
             // the target immune -- all of them mean "not now" rather than

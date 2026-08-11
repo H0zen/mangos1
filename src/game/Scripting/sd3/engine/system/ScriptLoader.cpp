@@ -776,7 +776,6 @@ void AddSC_instance_steam_vault();
 void AddSC_boss_gruul();                             // gruuls_lair
 void AddSC_boss_high_king_maulgar();
 void AddSC_instance_gruuls_lair();
-void AddSC_boss_broggok();                           // HC, blood_furnace
 void AddSC_boss_kelidan_the_breaker();
 void AddSC_instance_blood_furnace();
 void AddSC_boss_nazan_and_vazruden();                // HC, hellfire_ramparts
@@ -856,7 +855,6 @@ void AddOutlandsScripts()
     AddSC_boss_gruul();                                     // gruuls_lair
     AddSC_boss_high_king_maulgar();
     AddSC_instance_gruuls_lair();
-    AddSC_boss_broggok();                                   // HC, blood_furnace
     AddSC_boss_kelidan_the_breaker();
     AddSC_instance_blood_furnace();
     AddSC_boss_nazan_and_vazruden();                        // HC, hellfire_ramparts
