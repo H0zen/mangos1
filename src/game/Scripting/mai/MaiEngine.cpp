@@ -266,6 +266,13 @@ namespace scripting
 
     void MaiEngine::LoadSequences()
     {
+        // `mai_script` and `mai_step`, read as they are written.
+        //
+        // This lowered `db_scripts` in memory at every start-up until now. The
+        // RULES moved off that path when EventAI left and the sequences
+        // quietly did not, so every row written into `mai_step` since then sat
+        // in a table nothing read: ported gameobjects and spell effects that
+        // loaded, validated, and never ran.
         m_sequences.clear();
 
         std::size_t sequences = 0;
@@ -273,44 +280,123 @@ namespace scripting
         std::size_t refusedSteps = 0;
         std::size_t refusedRows = 0;
 
-        for (int type = DBS_START; type < DBS_END; ++type)
+        // The ENUM's own order, which is the order the column declares it in.
+        // Spelled out rather than derived: `kind` is what a person types and
+        // DBScriptType is what the borrowed bodies expect, and the two exist
+        // for different reasons while only happening to agree.
+        static struct { char const* name; DBScriptType type; } const kinds[] =
         {
-            ScriptChainMap const* chains =
-                sDbScripts.GetScriptChainMap(DBScriptType(type));
-            if (!chains)
-            {
-                continue;
-            }
+            { "quest_start",       DBS_ON_QUEST_START },
+            { "quest_end",         DBS_ON_QUEST_END },
+            { "spell",             DBS_ON_SPELL },
+            { "go_use",            DBS_ON_GO_USE },
+            { "go_template_use",   DBS_ON_GOT_USE },
+            { "creature_death",    DBS_ON_CREATURE_DEATH },
+            { "creature_movement", DBS_ON_CREATURE_MOVEMENT },
+            { "gossip",            DBS_ON_GOSSIP },
+            { "event",             DBS_ON_EVENT },
+            { "internal",          DBS_ON_CREATURE_SPELL },
+        };
+        std::size_t const kindCount = sizeof(kinds) / sizeof(*kinds);
 
-            for (ScriptChainMap::const_iterator itr = chains->begin();
-                 itr != chains->end(); ++itr)
-            {
-                char name[64];
-                std::snprintf(name, sizeof(name), "db_scripts[%d] id %u",
-                              type, itr->first);
+        // Every step in one query, keyed as the sequences are so the join is a
+        // lookup rather than a query per script.
+        std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> byScript;
+        {
+            std::unique_ptr<QueryResult> rows(WorldDatabase.Query(
+                "SELECT `kind`+0, `script`, `at_ms`, `action`, `params`, "
+                "`buddy_entry`, `buddy_range`, `buddy_flags` FROM `mai_step` "
+                "ORDER BY `kind`, `script`, `seq`"));
 
-                mai::Sequence sequence;
-                std::string error;
-                if (!mai::Lower(itr->second, itr->first, name, sequence, error))
+            while (rows && rows->NextRow())
+            {
+                Field* field = rows->Fetch();
+
+                // MySQL numbers an ENUM from 1; the table above from 0.
+                uint32 const which = field[0].GetUInt32();
+                if (which == 0 || which > kindCount)
                 {
-                    sLog.outErrorDb("MAI: %s: %s", name, error.c_str());
-                    ++refusedRows;
+                    ++refusedSteps;
                     continue;
                 }
 
-                sequence.origin = uint32(type);
-                refusedSteps += mai::Validate(sequence);
+                uint32 const type = uint32(kinds[which - 1].type);
+                uint32 const script = field[1].GetUInt32();
 
-                steps += sequence.steps.size();
-                ++sequences;
-                m_sequences.emplace(Key{ uint32(type), itr->first },
-                                    std::move(sequence));
+                mai::Step step;
+                std::string error;
+                if (!mai::Parse(field[3].GetString(), field[4].GetString(),
+                                step, error))
+                {
+                    sLog.outErrorDb("MAI: %s script %u: %s",
+                                    kinds[which - 1].name, script,
+                                    error.c_str());
+                    ++refusedSteps;
+                    continue;
+                }
+
+                step.atMs = field[2].GetUInt32();
+                step.buddy.entry = field[5].GetUInt32();
+                step.buddy.guidOrRadius = field[6].GetUInt32();
+                step.buddy.flags = field[7].GetUInt8();
+
+                byScript[std::make_pair(type, script)].push_back(step);
             }
         }
 
-        sLog.outString("MAI: %u sequence(s), %u step(s) from the DB scripts; "
-                       "%u chain(s) refused, %u step(s) named something this "
-                       "world does not have.",
+        std::unique_ptr<QueryResult> result(WorldDatabase.Query(
+            "SELECT `kind`+0, `id`, `name` FROM `mai_script` "
+            "ORDER BY `kind`, `id`"));
+
+        if (!result)
+        {
+            sLog.outString("MAI: `mai_script` is empty; nothing the world does "
+                           "starts a sequence.");
+            return;
+        }
+
+        do
+        {
+            Field* field = result->Fetch();
+
+            uint32 const which = field[0].GetUInt32();
+            if (which == 0 || which > kindCount)
+            {
+                ++refusedRows;
+                continue;
+            }
+
+            uint32 const type = uint32(kinds[which - 1].type);
+            uint32 const id = field[1].GetUInt32();
+
+            mai::Sequence sequence;
+            sequence.id = id;
+            sequence.origin = type;
+            sequence.name = field[2].GetString();
+
+            auto found = byScript.find(std::make_pair(type, id));
+            if (found != byScript.end())
+            {
+                sequence.steps = std::move(found->second);
+
+                // The runner stops at the first step not yet due, so an
+                // unsorted list drops everything after the first out-of-order
+                // row. `seq` orders the query; this orders the clock.
+                std::stable_sort(sequence.steps.begin(), sequence.steps.end(),
+                                 [](mai::Step const& a, mai::Step const& b)
+                                 { return a.atMs < b.atMs; });
+            }
+
+            refusedSteps += mai::Validate(sequence);
+
+            steps += sequence.steps.size();
+            ++sequences;
+            m_sequences.emplace(Key{ type, id }, std::move(sequence));
+        }
+        while (result->NextRow());
+
+        sLog.outString("MAI: %u sequence(s), %u step(s); %u refused, %u step(s) "
+                       "refused or naming something this world does not have.",
                        uint32(sequences), uint32(steps), uint32(refusedRows),
                        uint32(refusedSteps));
     }
