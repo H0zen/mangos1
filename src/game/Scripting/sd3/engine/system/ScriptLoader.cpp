@@ -773,7 +773,6 @@ void AddSC_boss_ahune();                             // CR, slave_pens
 void AddSC_boss_mekgineer_steamrigger();
 void AddSC_boss_warlord_kalithresh();
 void AddSC_instance_steam_vault();
-void AddSC_boss_hungarfen();                         // CR, Underbog
 void AddSC_boss_gruul();                             // gruuls_lair
 void AddSC_boss_high_king_maulgar();
 void AddSC_instance_gruuls_lair();
@@ -854,7 +853,6 @@ void AddOutlandsScripts()
     AddSC_boss_mekgineer_steamrigger();
     AddSC_boss_warlord_kalithresh();
     AddSC_instance_steam_vault();
-    AddSC_boss_hungarfen();                                 // CR, Underbog
     AddSC_boss_gruul();                                     // gruuls_lair
     AddSC_boss_high_king_maulgar();
     AddSC_instance_gruuls_lair();
