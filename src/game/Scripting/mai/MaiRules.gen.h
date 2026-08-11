@@ -51,6 +51,7 @@ namespace mai
         Died                       = 6,
         Evaded                     = 7,
         HitBySpell                 = 8,
+        SpellHitTarget             = 35,
         TargetInRange              = 9,
         EnergyBelow                = 32,
 
@@ -144,6 +145,13 @@ namespace mai
     {
         { "spell", ParamType::Spell, true },
         { "school", ParamType::Flags, true },
+        { "repeat", ParamType::Ms, true },
+        { "repeat_max", ParamType::Ms, true },
+    };
+
+    inline constexpr ParamSpec g_ruleParamsSpellHitTarget[] =
+    {
+        { "spell", ParamType::Spell, true },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
     };
@@ -405,6 +413,7 @@ namespace mai
         { RuleId::Died, "died", nullptr, 0, 0, 0 },
         { RuleId::Evaded, "evaded", nullptr, 0, 0, 0 },
         { RuleId::HitBySpell, "hit_by_spell", g_ruleParamsHitBySpell, 4, 4, 0 },
+        { RuleId::SpellHitTarget, "spell_hit_target", g_ruleParamsSpellHitTarget, 3, 3, 0 },
         { RuleId::TargetInRange, "target_in_range", g_ruleParamsTargetInRange, 4, 4, 0 },
         { RuleId::EnergyBelow, "energy_below", g_ruleParamsEnergyBelow, 4, 4, 0 },
         { RuleId::SawUnit, "saw_unit", g_ruleParamsSawUnit, 7, 7, 0 },

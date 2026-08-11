@@ -41,6 +41,20 @@ category combat = 0x00
     died                     6
     evaded                   7
     hit_by_spell             8   spell:spell? school:flags? repeat:ms? repeat_max:ms?
+
+    # MY spell landed on somebody. The mirror of `hit_by_spell`, and the one
+    # trigger EventAI never had -- it could hear a spell arrive and had no way
+    # to notice one leave.
+    #
+    # ScriptDev reaches for it whenever a spell has to do something per person
+    # hit and has no script effect to hang it on: Lethon's Draw Spirit summons
+    # a shade for EACH player it touches, and the C++ comment beside it says
+    # exactly that -- "Need this code here, as SPELL_DRAW_SPIRIT has no Script-
+    # or Dummyeffect".
+    #
+    # The invoker is whoever was hit, so a step reaches them with `select=6`
+    # and acts AS them with `select_source=6`.
+    spell_hit_target        35   spell:spell? repeat:ms? repeat_max:ms?
     target_in_range          9   min:f32 max:f32 repeat:ms? repeat_max:ms?
     energy_below            32   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
 

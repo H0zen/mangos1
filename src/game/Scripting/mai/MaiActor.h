@@ -137,6 +137,8 @@ namespace mai
         }
     };
 
+    struct RuleTimers;
+
     /**
      * Everything one action needs, gathered once.
      *
@@ -179,9 +181,45 @@ namespace mai
         /// queued sequence has nothing left to refuse by the time it runs.
         bool*        cancel = nullptr;
 
+        /// This creature's own rule timers, when a creature is running the
+        /// step. Null for a sequence the world started, which has no rules to
+        /// arm.
+        RuleTimers*  timers = nullptr;
+
         Unit*     SourceUnit() const;
         Creature* SourceCreature() const;
         Unit*     TargetUnit() const;
+    };
+
+    /**
+     * Reaching this creature's own rule timers, from inside a step.
+     *
+     * A rule arms itself and re-arms itself, which is the whole of what a
+     * timer needed to be until a script wanted to say "and cancel that". The
+     * shape is always the same: something is given a deadline, something else
+     * may make the deadline moot, and whichever happens first must stop the
+     * other.
+     *
+     * Taerar is the example that forced it. He banishes himself and summons
+     * three shades; sixty seconds later he comes back, UNLESS the shades die
+     * first, in which case he comes back at once. Encoded as a delayed step
+     * the sixty-second half survives the shades' death and unbanishes the
+     * NEXT banish early; encoded as a guarded rule its timer freezes half-
+     * counted rather than resetting. Neither is what the C++ does, and both
+     * are wrong by twenty seconds in a fight that lasts three minutes.
+     *
+     * An interface rather than a pointer to the AI, because a verb must not
+     * know what a creature's AI is -- MaiPerform is testable with no world at
+     * all, and that is worth keeping.
+     */
+    struct RuleTimers
+    {
+        virtual ~RuleTimers() = default;
+
+        /// Set rule @a id's timer to @a ms, and enable or disable it. A rule
+        /// this creature does not have is ignored: a script naming one is a
+        /// mistake worth a log, not worth a crash.
+        virtual void Arm(uint32 id, uint32 ms, bool enable) = 0;
     };
 
     /**

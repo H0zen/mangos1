@@ -267,11 +267,30 @@ CREATE TABLE `mai_rule_step`
     --     if (!pTarget) { pTarget = m_creature->getVictim(); }
     `select_else`  TINYINT UNSIGNED NOT NULL DEFAULT 255,
 
+    -- Whom the step ACTS AS, when that is not the creature whose rule it is.
+    -- The symmetric half of `select`, and the lever that was missing: a
+    -- selector could always choose whom a step acts ON, and the only way to
+    -- change who acts was `buddy_flags` 2, ReverseDirection -- which does not
+    -- choose, it swaps.
+    --
+    -- "The thing I just summoned attacks a random player" needs both halves at
+    -- once and cannot be said with a swap. 255 is "leave the source alone",
+    -- which is what every converted step means.
+    `select_source` TINYINT UNSIGNED NOT NULL DEFAULT 255,
+
     -- What the selector will ACCEPT, as opposed to which one it is: a player,
     -- somebody with mana, somebody out of melee range. Creature.h SelectFlags.
     -- Orthogonal to `select`, which is why it is a second column and not more
     -- values in the first: every selector can be narrowed by every flag.
     `select_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- What this step is FOR, in words. `mai_step` has had one since the DB
+    -- scripts and this did not, which was an accident of where each table came
+    -- from rather than a decision: 20,732 converted rules had nothing to say,
+    -- so nobody missed it. A hand-written encounter has a great deal to say,
+    -- and a reader looking at `cast_spell spell=24883` deserves to be told it
+    -- is the self-stun that everything below depends on.
+    `comment`      VARCHAR(255) NOT NULL DEFAULT '',
 
     PRIMARY KEY (`creature`, `rule`, `seq`),
     CONSTRAINT `mai_rule_step_belongs_to_a_rule`

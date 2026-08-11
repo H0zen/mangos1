@@ -537,7 +537,7 @@ namespace scripting
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
                 "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
-                "`chance`, `at_ms`, `select_else` "
+                "`chance`, `at_ms`, `select_else`, `select_source` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -577,6 +577,19 @@ namespace scripting
                     sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
                                     "target selector", creature, rule,
                                     uint32(orElse));
+                    ++refusedSteps;
+                    continue;
+                }
+
+                // Whom the step acts AS. The same selectors answering the same
+                // question about the other end, so it is checked the same way.
+                uint8 const asWhom = field[12].GetUInt8();
+                step.selectSource = mai::Selector(asWhom);
+                if (asWhom != mai::SelectNone && asWhom >= mai::SelectEnd)
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
+                                    "source selector", creature, rule,
+                                    uint32(asWhom));
                     ++refusedSteps;
                     continue;
                 }

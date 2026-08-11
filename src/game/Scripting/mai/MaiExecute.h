@@ -69,6 +69,10 @@ namespace mai
         /// a sequence the world started, which has no creature behind it.
         Actor*     actor = nullptr;
 
+        /// Its rule timers, for the one verb that sets them. Null for the same
+        /// reason and in the same cases.
+        RuleTimers* timers = nullptr;
+
         /// Which `db_scripts` type the borrowed bodies should think they are.
         /// Migration scaffolding, and it leaves with them.
         uint32     origin = 0;

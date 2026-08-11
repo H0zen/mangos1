@@ -110,7 +110,16 @@ category combat = 0x04
     #
     # 34 places in ScriptDev pass an original caster, and DoCastSpellIfCan has
     # always taken the argument. MAI simply never gave it one.
-    cast_spell              15   spell:spell flags:flags? credit_owner:bool?
+    #
+    # `stop_if_refused` ends the SEQUENCE when the cast did not go ahead, which
+    # is what ScriptDev writes as
+    #
+    #     if (DoCastSpellIfCan(...) == CAST_OK) { DoScriptText(...); }
+    #
+    # everywhere an ability announces itself. Without it the boss says his line
+    # and does nothing, once per attempt, which is worse than silence: the raid
+    # is told to move out of something that is not there.
+    cast_spell              15   spell:spell flags:flags? credit_owner:bool?                                  stop_if_refused:bool?
     remove_aura             14   spell:spell
     attack_start            26
     despawn_self            18   delay:ms?
@@ -155,7 +164,14 @@ category world = 0x05
     # that the place is not known until it runs. `o` is the exception and is
     # absolute -- there is no orientation to offset from -- and it loses to
     # `face` when both are written.
-    summon_at_target        133   entry:creature despawn_delay:ms? mode:u32?                                   attack:bool? face:bool? at
+    #
+    # `face` is a small enum rather than a flag, because "which way is it
+    # looking" has three answers and only one of them is a number:
+    #   1  towards whoever summoned it
+    #   2  the same way as the thing it appeared at
+    # absent, or 0, means the `o` of the position facet -- zero by default,
+    # which is what every converted row already means.
+    summon_at_target        133   entry:creature despawn_delay:ms? mode:u32?                                   attack:bool? face:u32? at
     set_activeobject        21   activate:bool
 
     # Take a gameobject that is standing there ready, and use it up: it must
@@ -342,6 +358,20 @@ category random = 0x15
 # the name is interned to a slot when the creature's rules load.
 category memory = 0x16
     set_state               126   name:state value:u32
+
+    # Set one of THIS creature's rules to fire in `ms`, or stop it firing at
+    # all. The other half of a deadline: something is given one, something else
+    # makes it moot, and whichever happens first must stop the other.
+    #
+    # Taerar is why. He banishes himself and summons three shades; sixty
+    # seconds later he returns, UNLESS the shades die first, in which case he
+    # returns at once. Written as a delayed step the sixty-second half survives
+    # the shades' death and cuts the NEXT banish short; written as a guarded
+    # rule the timer freezes half-counted instead of resetting. Both are wrong
+    # by twenty seconds in a fight that lasts three minutes.
+    #
+    # `enable=0` disarms the rule outright and `ms` is then ignored.
+    set_timer               148   rule:u32 ms:ms? enable:bool?
 
     # Remember WHOM the step is acting on, so later steps can act on the same
     # one. The other half of `select=11`, and the reason a focus, a mark and a

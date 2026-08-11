@@ -182,6 +182,7 @@ namespace mai
 
         // memory
         SetState                   = 126,
+        SetTimer                   = 148,
         RememberTarget             = 132,
         AddState                   = 127,
 
@@ -364,6 +365,7 @@ namespace mai
         { "spell", ParamType::Spell, false },
         { "flags", ParamType::Flags, true },
         { "credit_owner", ParamType::Bool, true },
+        { "stop_if_refused", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_actionParamsRemoveAura[] =
@@ -421,7 +423,7 @@ namespace mai
         { "despawn_delay", ParamType::Ms, true },
         { "mode", ParamType::U32, true },
         { "attack", ParamType::Bool, true },
-        { "face", ParamType::Bool, true },
+        { "face", ParamType::U32, true },
         { "x", ParamType::F32, true },
         { "y", ParamType::F32, true },
         { "z", ParamType::F32, true },
@@ -659,6 +661,13 @@ namespace mai
         { "value", ParamType::U32, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsSetTimer[] =
+    {
+        { "rule", ParamType::U32, false },
+        { "ms", ParamType::Ms, true },
+        { "enable", ParamType::Bool, true },
+    };
+
     inline constexpr ParamSpec g_actionParamsAddState[] =
     {
         { "name", ParamType::State, false },
@@ -791,7 +800,7 @@ namespace mai
         { ActionId::PauseWaypoints, "pause_waypoints", g_actionParamsPauseWaypoints, 1, 1, 0 },
         { ActionId::SetFly, "set_fly", g_actionParamsSetFly, 1, 1, 0 },
         { ActionId::StandState, "stand_state", g_actionParamsStandState, 1, 1, 0 },
-        { ActionId::CastSpell, "cast_spell", g_actionParamsCastSpell, 3, 3, 0 },
+        { ActionId::CastSpell, "cast_spell", g_actionParamsCastSpell, 4, 4, 0 },
         { ActionId::RemoveAura, "remove_aura", g_actionParamsRemoveAura, 1, 1, 0 },
         { ActionId::AttackStart, "attack_start", nullptr, 0, 0, 0 },
         { ActionId::DespawnSelf, "despawn_self", g_actionParamsDespawnSelf, 1, 1, 0 },
@@ -848,6 +857,7 @@ namespace mai
         { ActionId::RandomEmote, "random_emote", g_actionParamsRandomEmote, 3, 3, 0 },
         { ActionId::RandomPhaseRange, "random_phase_range", g_actionParamsRandomPhaseRange, 2, 2, 0 },
         { ActionId::SetState, "set_state", g_actionParamsSetState, 2, 2, 0 },
+        { ActionId::SetTimer, "set_timer", g_actionParamsSetTimer, 3, 3, 0 },
         { ActionId::RememberTarget, "remember_target", nullptr, 0, 0, 0 },
         { ActionId::AddState, "add_state", g_actionParamsAddState, 2, 2, 0 },
         { ActionId::SetInstanceData, "set_instance_data", g_actionParamsSetInstanceData, 2, 2, 0 },

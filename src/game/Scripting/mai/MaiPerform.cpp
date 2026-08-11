@@ -243,16 +243,6 @@ namespace mai
             Creature* self = doing.SourceCreature();
             Unit* victim = doing.TargetUnit();
 
-            // Only a creature with an AI casts this way. A sequence the world
-            // started may have a game object or a player as its source, and
-            // neither has a creature AI to ask -- so those fall through to the
-            // borrowed body exactly as before.
-            if (!self || !self->AI())
-            {
-                handled = false;
-                return false;
-            }
-
             uint32 flags = Given(step, 1);
             if (step.buddy.flags & CommandAdditional)
             {
@@ -268,6 +258,33 @@ namespace mai
                 credited = doing.ruleOwner->GetObjectGuid();
             }
 
+            // Only a creature with an AI casts the AI way -- DoCastSpellIfCan
+            // asks whether it MAY, which is the whole reason MAI took this
+            // verb over. A sequence the world started may have a game object
+            // or a player as its source, and those fall through to the
+            // borrowed body exactly as before.
+            //
+            // With ONE exception, and it is the reason this check moved below
+            // the credit: the borrowed body cannot pass an original caster. A
+            // step that asked for one and whose source is a plain unit --
+            // "the player you just killed casts the mark on himself, and it is
+            // YOURS" -- would silently lose the attribution, which is the
+            // whole of what the step was for.
+            if (!self || !self->AI())
+            {
+                Unit* caster = doing.SourceUnit();
+                if (!caster || credited.IsEmpty())
+                {
+                    handled = false;
+                    return false;
+                }
+
+                caster->CastSpell(victim ? victim : caster, Given(step, 0),
+                                  (flags & CAST_TRIGGERED) != 0, nullptr,
+                                  nullptr, credited);
+                return false;
+            }
+
             CanCastResult const result =
                 self->AI()->DoCastSpellIfCan(victim ? victim : self,
                                              Given(step, 0), flags, credited);
@@ -275,11 +292,25 @@ namespace mai
             // Refused, not failed. Already casting, out of range, silenced,
             // the target immune -- all of them mean "not now" rather than
             // "never", and a rule with a retry wants to know.
-            if (result != CAST_OK && doing.refused)
+            if (result == CAST_OK)
+            {
+                return false;
+            }
+
+            if (doing.refused)
             {
                 *doing.refused = true;
             }
-            return false;
+
+            // And when the step says so, nothing after it happens. Every
+            // ability in ScriptDev that announces itself is written
+            //
+            //     if (DoCastSpellIfCan(...) == CAST_OK) { DoScriptText(...); }
+            //
+            // because a boss who says his line and then does nothing is worse
+            // than a silent one: the raid is told to move out of something
+            // that is not there.
+            return Given(step, 3) != 0;
         }
 
         /**
@@ -428,13 +459,17 @@ namespace mai
             float const y = where->Where().Y() + GivenF(step, 6);
             float const z = where->Where().Z() + GivenF(step, 7);
 
-            // Facing the summoner, when the step says so: a bearing FROM
-            // where it appears rather than the summoner's own heading, which
-            // is what `pGo->Where().BearingTo(pPlayer->Where())` said.
+            // Which way it looks. One means towards whoever summoned it -- a
+            // bearing FROM where it appears, which is what
+            // `pGo->Where().BearingTo(pPlayer->Where())` said. Two means the
+            // same way as the thing it appeared at. Absent means the `o` of
+            // the position facet, zero by default.
             float facing = GivenF(step, 8);
-            if (Given(step, 4))
+            switch (Given(step, 4))
             {
-                facing = where->Where().BearingTo(self->Where());
+                case 1: facing = where->Where().BearingTo(self->Where()); break;
+                case 2: facing = where->Where().Facing(); break;
+                default: break;
             }
 
             Creature* made =
@@ -840,6 +875,24 @@ namespace mai
         }
 
         // ---- what a creature remembers --------------------------------------
+
+        /**
+         * The other half of a deadline.
+         *
+         * Something is given one, something else makes it moot, and whichever
+         * happens first has to stop the other. Nothing before this could say
+         * the second half: a rule armed itself and re-armed itself and there
+         * was no way in from outside.
+         */
+        bool SetTimer(Doing& doing, Step const& step)
+        {
+            if (doing.timers)
+            {
+                doing.timers->Arm(Given(step, 0), Given(step, 1),
+                                  !step.Has(2) || Given(step, 2) != 0);
+            }
+            return false;
+        }
 
         bool SetState(Doing& doing, Step const& step)
         {
@@ -1301,6 +1354,7 @@ namespace mai
                                                                 handled);
 
             case ActionId::SetState:          return SetState(doing, step);
+            case ActionId::SetTimer:          return SetTimer(doing, step);
             case ActionId::AddState:          return AddState(doing, step);
 
             case ActionId::SetPhase:          return SetPhase(doing, step);

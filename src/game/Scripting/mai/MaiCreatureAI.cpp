@@ -640,6 +640,11 @@ namespace mai
             // the one that knows what hit us.
             return ReArm(armed, 2, 3);
 
+        case RuleId::SpellHitTarget:
+            // Same shape, one parameter fewer: there is no school to check
+            // when the spell is our own.
+            return ReArm(armed, 1, 2);
+
         case RuleId::SawUnit:
             return ReArm(armed, 2, 3);
 
@@ -739,6 +744,7 @@ namespace mai
             run.from.invoker = invoker;
             run.from.sender = sender;
             run.actor = &m_actor;
+            run.timers = this;
             run.fromRule = true;
 
             Execute(run, rule.steps.steps[pick]);
@@ -750,6 +756,26 @@ namespace mai
         // be a second execution path that only the common case takes, which is
         // how the two would drift.
         m_frames.push_back(frame);
+    }
+
+    void MaiCreatureAI::Arm(uint32 id, uint32 ms, bool enable)
+    {
+        for (Armed& armed : m_armed)
+        {
+            if (armed.rule->id != id)
+            {
+                continue;
+            }
+
+            armed.enabled = enable;
+            armed.timeMs = enable ? ms : 0;
+            return;
+        }
+
+        // A rule this creature does not have. Worth saying so -- it is always
+        // a mistyped id -- and not worth more than saying so.
+        sLog.outErrorDb("MAI: creature %u has no rule %u to arm",
+                        m_creature ? m_creature->GetEntry() : 0, id);
     }
 
     void MaiCreatureAI::Advance(uint32 diff)
@@ -778,6 +804,7 @@ namespace mai
             go.target = frame.target;
             go.owner = frame.owner;
             go.actor = &m_actor;
+            go.timers = this;
             go.refused = &refused;
             go.fromRule = true;
 
@@ -830,6 +857,13 @@ namespace mai
             if (armed.rule && &armed.rule->steps == frame.sequence &&
                 armed.rule->retryMs)
             {
+                // Re-ARMED, not merely re-timed, and that is the whole of what
+                // a retry means on a rule that fires once. A cast that was
+                // refused did not happen, so the rule is not spent: Emeriss
+                // corrupts the earth at three-quarters health and would
+                // otherwise never do it again because he happened to be
+                // mid-cast at the moment he crossed the line.
+                armed.enabled = true;
                 armed.timeMs = armed.rule->retryMs;
                 return;
             }
@@ -1191,6 +1225,40 @@ namespace mai
             }
 
             Fire(armed, caster);
+        }
+    }
+
+    /**
+     * My spell landed on somebody.
+     *
+     * The mirror of SpellHit, and the one trigger EventAI never had: it could
+     * hear a spell arrive and had no way to notice one leave. ScriptDev
+     * reaches for it whenever a spell must do something PER PERSON HIT and has
+     * no script effect to hang it on -- Lethon's Draw Spirit summons a shade
+     * for each player it touches, with the author's own note beside it saying
+     * the spell has neither a script nor a dummy effect to use instead.
+     */
+    void MaiCreatureAI::SpellHitTarget(Unit* victim, SpellEntry const* spell)
+    {
+        if (!spell || !victim)
+        {
+            return;
+        }
+
+        for (Armed& armed : m_armed)
+        {
+            if (armed.rule->trigger != RuleId::SpellHitTarget)
+            {
+                continue;
+            }
+
+            uint32 const wanted = armed.rule->Param(0);
+            if (wanted && spell->ID != wanted)
+            {
+                continue;
+            }
+
+            Fire(armed, victim);
         }
     }
 

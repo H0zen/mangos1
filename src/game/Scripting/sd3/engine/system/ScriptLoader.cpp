@@ -1042,7 +1042,6 @@ void AddNorthrendScripts()
 
 // world
 void AddSC_areatrigger_scripts();
-void AddSC_bosses_emerald_dragons();
 void AddSC_guards();
 void AddSC_npc_professions();
 void AddSC_npcs_special();
@@ -1054,7 +1053,6 @@ void AddSC_world_map_ebon_hold();
 void AddWorldScripts()
 {
     AddSC_areatrigger_scripts();
-    AddSC_bosses_emerald_dragons();
     AddSC_guards();
     AddSC_npc_professions();
     AddSC_npcs_special();

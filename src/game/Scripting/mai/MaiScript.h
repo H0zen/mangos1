@@ -288,6 +288,20 @@ namespace mai
         /// ten seconds, and nothing reports it.
         uint8 selectFlags = 0;
 
+        /// Whom the step ACTS AS, when that is not the creature whose rule it
+        /// is. The symmetric half of `select`, and the lever that was missing:
+        /// a selector could always choose whom a step acts ON, and the only
+        /// way to change who acts was `ReverseDirection`, which does not
+        /// choose -- it swaps.
+        ///
+        /// "The thing I just summoned attacks a random player" needs both
+        /// halves at once and cannot be said with a swap. Every add that comes
+        /// up angry is this shape, which is why it earns a column rather than
+        /// a trick.
+        ///
+        /// SelectNone -- the default -- leaves the source alone.
+        uint8 selectSource = SelectNone;
+
         /// Laid out in the order the action's ParamSpec table names them, so
         /// operand `n` is `SpecOf(action)->params[n]`. There is no other
         /// mapping to get wrong.

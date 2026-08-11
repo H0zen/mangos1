@@ -65,7 +65,7 @@
  */
 namespace mai
 {
-    class MaiCreatureAI : public CreatureAI
+    class MaiCreatureAI : public CreatureAI, public RuleTimers
     {
         public:
             /// @a rules may be null: an entry bound to MAI with no rows is not
@@ -90,6 +90,8 @@ namespace mai
             void AttackStart(Unit* who) override;
             void MoveInLineOfSight(Unit* who) override;
             void SpellHit(Unit* caster, SpellEntry const* spell) override;
+            void SpellHitTarget(Unit* victim,
+                                SpellEntry const* spell) override;
             void DamageTaken(Unit* dealer, uint32& damage) override;
             void HealedBy(Unit* healer, uint32& healed) override;
             void ReceiveEmote(Player* player, uint32 emote) override;
@@ -98,6 +100,10 @@ namespace mai
             void MovementInform(uint32 type, uint32 pointId) override;
 
             void UpdateAI(uint32 diff) override;
+
+            /// RuleTimers: set one of this creature's rules to fire in @a ms,
+            /// or stop it firing at all. What `set_timer` reaches.
+            void Arm(uint32 id, uint32 ms, bool enable) override;
             bool IsVisible(Unit* who) const override;
 
         private:

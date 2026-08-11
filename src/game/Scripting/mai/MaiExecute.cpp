@@ -252,6 +252,13 @@ namespace mai
         WorldObject* source = Resolve(run.map, run.source);
         WorldObject* target = Resolve(run.map, run.target);
 
+        // Whose RULE this is, remembered before anything moves it. A source
+        // selector replaces `source` outright, and `credit_owner` means "the
+        // creature that decided", not "whoever ended up acting" -- so reading
+        // it off `source` afterwards would credit the wrong unit exactly when
+        // the step went out of its way to say otherwise.
+        WorldObject* const decider = source;
+
         WorldObject* found = nullptr;
         if (!FindBuddy(run.map, step, source, target, found))
         {
@@ -316,6 +323,32 @@ namespace mai
             }
 
             found = picked;
+
+            // And whom it acts AS, when the step says. Answered with the same
+            // selectors and against the same creature -- "a random player" is
+            // the same question whether it names the actor or the acted-upon.
+            //
+            // Not finding anybody here is not a reason to skip: a step whose
+            // source selector is empty falls back to the creature whose rule
+            // it is, which is what the step meant before the column existed.
+            if (step.selectSource != SelectNone)
+            {
+                bool missingSource = false;
+                Unit* actor =
+                    step.selectSource == SelectRemembered
+                        ? ((run.actor && run.map)
+                               ? run.map->GetUnit(run.actor->remembered)
+                               : nullptr)
+                        : Select(source ? source->ToCreature() : nullptr,
+                                 Selector(step.selectSource), run.from,
+                                 missingSource,
+                                 SpellUnder(step), step.selectFlags);
+
+                if (actor)
+                {
+                    source = actor;
+                }
+            }
         }
 
         Cast<WorldObject*> cast;
@@ -337,12 +370,13 @@ namespace mai
         doing.target = finalTarget;
         doing.owner = run.owner;
         doing.actor = run.actor;
+        doing.timers = run.timers;
         doing.refused = run.refused;
         doing.item = run.item;
         doing.cancel = run.cancel;
 
         // Before Redirect moved anything: who this is being done FOR.
-        doing.ruleOwner = source;
+        doing.ruleOwner = decider;
 
         bool handled = false;
         bool const stop = PerformNative(doing, step, handled);
