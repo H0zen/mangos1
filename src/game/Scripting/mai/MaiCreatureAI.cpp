@@ -85,6 +85,25 @@ namespace mai
 
         float const AiEventRadius = 30.0f;
 
+        /// One of them. EventAI always took the first and 20,732 rules rest on
+        /// that; ScriptDev scripts routinely take a random one, and the two
+        /// are visibly different when the same friend keeps being chosen.
+        Creature* Pick(std::list<Creature*>& found, bool random)
+        {
+            if (found.empty())
+            {
+                return nullptr;
+            }
+            if (!random)
+            {
+                return found.front();
+            }
+
+            std::list<Creature*>::iterator at = found.begin();
+            std::advance(at, urand(0, uint32(found.size() - 1)));
+            return *at;
+        }
+
         uint32 Percent(uint32 part, uint32 whole)
         {
             return whole ? (part * 100) / whole : 0;
@@ -524,9 +543,7 @@ namespace mai
                 return false;
             }
 
-            // The first will do: the rule asks whether anyone is held, not
-            // which of them is worst off.
-            invoker = held.front();
+            invoker = Pick(held, rule.Param(5) != 0);
             return ReArm(armed, 2, 3);
         }
 
@@ -546,7 +563,7 @@ namespace mai
                 return false;
             }
 
-            invoker = lacking.front();
+            invoker = Pick(lacking, rule.Param(5) != 0);
             return ReArm(armed, 2, 3);
         }
 
@@ -993,6 +1010,16 @@ namespace mai
                 }
                 break;
 
+            case RuleId::FriendlyHurt:
+            case RuleId::FriendlyControlled:
+            case RuleId::FriendlyMissingBuff:
+                // The only triggers with an initial delay that is not the
+                // first of their parameters. EventAI had none and started
+                // searching at once, so absent keeps that.
+                armed.enabled = true;
+                armed.timeMs = armed.rule->Param(4);
+                break;
+
             default:
                 // Everything else starts the fight armed and due.
                 armed.enabled = true;
@@ -1220,7 +1247,7 @@ namespace mai
 
         // The hottest callback in the server, so the common case -- no rule
         // watching -- is a bool test and nothing else.
-        if (m_watchesSight && !m_creature->getVictim())
+        if (m_watchesSight)
         {
             for (Armed& armed : m_armed)
             {
@@ -1229,11 +1256,23 @@ namespace mai
                     continue;
                 }
 
-                // A rule watches for a friend or for an enemy, never both.
-                bool const wantsFriendly = armed.rule->Param(0) != 0;
-                if (wantsFriendly == m_creature->IsHostileTo(who))
+                // EventAI watched only while out of combat, and every
+                // converted row means that. A rule may say otherwise.
+                if (m_creature->getVictim() && !armed.rule->Param(6))
                 {
                     continue;
+                }
+
+                // A rule watches for a friend or for an enemy, never both --
+                // unless it says it does not care, which several ScriptDev
+                // scripts do by testing nothing at all.
+                if (!armed.rule->Param(5))
+                {
+                    bool const wantsFriendly = armed.rule->Param(0) != 0;
+                    if (wantsFriendly == m_creature->IsHostileTo(who))
+                    {
+                        continue;
+                    }
                 }
 
                 // And may name exactly whose arrival it is about. Absent means

@@ -50,7 +50,7 @@ category sight = 0x01
     # means "anyone", the behaviour it always had. Naming an entry narrows it
     # to that one, which is what every "banish the helper the moment you see
     # it" script needs and none of them could say.
-    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms? creature:creature?
+    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms? creature:creature? any_hostility:bool? while_fighting:bool?
     spawned                 11   condition:u32? value:u32?
     reached_waypoint        31   waypoint:u32? path:u32?
     reached_home            21
@@ -97,9 +97,16 @@ category self = 0x03
 # are both uint32 and both load. The symptom is a healer that watches a radius
 # of 3000 for a friend missing 30 health.
 category friendly = 0x04
-    friendly_hurt           14   missing_hp:u32 radius:f32 repeat:ms? repeat_max:ms?
-    friendly_controlled     15   dispel:u32? radius:f32 repeat:ms? repeat_max:ms?
-    friendly_missing_buff   16   spell:spell radius:f32 repeat:ms? repeat_max:ms?
+# `initial` and `random` are APPENDED, after the four the union has, so every
+# converted row still fills the first four by position and leaves these absent.
+#
+#   initial   the delay before the FIRST search. EventAI had none and started
+#             looking immediately; ScriptDev scripts routinely wait.
+#   random    pick any of the friends found rather than the first. EventAI took
+#             the first and 20,732 rules rest on that, so absent keeps it.
+    friendly_hurt           14   missing_hp:u32 radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
+    friendly_controlled     15   dispel:u32? radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
+    friendly_missing_buff   16   spell:spell radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
 
 category summons = 0x05
     summoned_unit           17   creature:creature? repeat:ms? repeat_max:ms?

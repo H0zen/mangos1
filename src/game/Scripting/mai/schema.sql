@@ -241,6 +241,15 @@ CREATE TABLE `mai_rule_step`
     -- cloud every time and comments on it half the time.
     `chance`       TINYINT UNSIGNED NOT NULL DEFAULT 100,
 
+    -- Whom to try when `select` finds nobody. 255 is "nothing", which is what
+    -- every converted step has and what makes a step whose selector came up
+    -- empty simply not happen. ScriptDev writes this fallback by hand at
+    -- almost every selection:
+    --
+    --     pTarget = SelectAttackingTarget(RANDOM, 1, 0, SELECT_FLAG_PLAYER);
+    --     if (!pTarget) { pTarget = m_creature->getVictim(); }
+    `select_else`  TINYINT UNSIGNED NOT NULL DEFAULT 255,
+
     -- What the selector will ACCEPT, as opposed to which one it is: a player,
     -- somebody with mana, somebody out of melee range. Creature.h SelectFlags.
     -- Orthogonal to `select`, which is why it is a second column and not more

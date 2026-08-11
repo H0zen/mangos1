@@ -221,7 +221,12 @@ namespace mai
         /// a second apart -- three beats that have to agree about who.
         SelectRemembered        = 11,
 
-        SelectEnd
+        SelectEnd,
+
+        /// Not a selector: the absence of one. `select_else` defaults to this,
+        /// and a step whose first choice finds nobody is simply skipped --
+        /// which is what every rule did before there was a second choice.
+        SelectNone              = 0xFF
     };
 
     /**
@@ -250,6 +255,18 @@ namespace mai
         /// ever sets this; a sequence started by the world has a source and a
         /// target already and leaves it at SelectSelf.
         Selector select = SelectSelf;
+
+        /// Whom to try when the first choice finds nobody. ScriptDev writes
+        /// this by hand and constantly:
+        ///
+        ///     pTarget = SelectAttackingTarget(RANDOM, 1, 0, SELECT_FLAG_PLAYER);
+        ///     if (!pTarget) { pTarget = m_creature->getVictim(); }
+        ///
+        /// Without it a step whose selector found nobody is skipped, which on
+        /// a pull with one player means the ability simply does not happen --
+        /// a difference that shows up exactly when a group is smallest and
+        /// least able to absorb it.
+        Selector selectElse = SelectNone;
 
         /// What the selector will accept: a player, someone with mana, someone
         /// out of melee range. The values are Creature.h's SelectFlags.

@@ -286,6 +286,22 @@ namespace mai
                                 step.select, run.from, missing,
                                 SpellUnder(step), step.selectFlags);
             }
+            // The second choice, when there was one. ScriptDev writes this by
+            // hand at every selection that has a sensible fallback, and
+            // without it the ability does not happen at all on the pulls where
+            // the first choice is empty.
+            if (!picked && step.selectElse != SelectNone)
+            {
+                missing = false;
+                picked = step.selectElse == SelectRemembered
+                             ? ((run.actor && run.map)
+                                    ? run.map->GetUnit(run.actor->remembered)
+                                    : nullptr)
+                             : Select(source ? source->ToCreature() : nullptr,
+                                      step.selectElse, run.from, missing,
+                                      SpellUnder(step), step.selectFlags);
+            }
+
             if (!picked)
             {
                 if (missing)

@@ -171,6 +171,8 @@ namespace mai
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
         { "creature", ParamType::Creature, true },
+        { "any_hostility", ParamType::Bool, true },
+        { "while_fighting", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsSpawned[] =
@@ -282,6 +284,8 @@ namespace mai
         { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
+        { "initial", ParamType::Ms, true },
+        { "random", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsFriendlyControlled[] =
@@ -290,6 +294,8 @@ namespace mai
         { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
+        { "initial", ParamType::Ms, true },
+        { "random", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsFriendlyMissingBuff[] =
@@ -298,6 +304,8 @@ namespace mai
         { "radius", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
+        { "initial", ParamType::Ms, true },
+        { "random", ParamType::Bool, true },
     };
 
     inline constexpr ParamSpec g_ruleParamsSummonedUnit[] =
@@ -399,7 +407,7 @@ namespace mai
         { RuleId::HitBySpell, "hit_by_spell", g_ruleParamsHitBySpell, 4, 4, 0 },
         { RuleId::TargetInRange, "target_in_range", g_ruleParamsTargetInRange, 4, 4, 0 },
         { RuleId::EnergyBelow, "energy_below", g_ruleParamsEnergyBelow, 4, 4, 0 },
-        { RuleId::SawUnit, "saw_unit", g_ruleParamsSawUnit, 5, 5, 0 },
+        { RuleId::SawUnit, "saw_unit", g_ruleParamsSawUnit, 7, 7, 0 },
         { RuleId::Spawned, "spawned", g_ruleParamsSpawned, 2, 2, 0 },
         { RuleId::ReachedWaypoint, "reached_waypoint", g_ruleParamsReachedWaypoint, 2, 2, 0 },
         { RuleId::ReachedHome, "reached_home", nullptr, 0, 0, 0 },
@@ -415,9 +423,9 @@ namespace mai
         { RuleId::HasAura, "has_aura", g_ruleParamsHasAura, 4, 4, 0 },
         { RuleId::MissingAura, "missing_aura", g_ruleParamsMissingAura, 4, 4, 0 },
         { RuleId::Timer, "timer", g_ruleParamsTimer, 4, 4, 0 },
-        { RuleId::FriendlyHurt, "friendly_hurt", g_ruleParamsFriendlyHurt, 4, 4, 0 },
-        { RuleId::FriendlyControlled, "friendly_controlled", g_ruleParamsFriendlyControlled, 4, 4, 0 },
-        { RuleId::FriendlyMissingBuff, "friendly_missing_buff", g_ruleParamsFriendlyMissingBuff, 4, 4, 0 },
+        { RuleId::FriendlyHurt, "friendly_hurt", g_ruleParamsFriendlyHurt, 6, 6, 0 },
+        { RuleId::FriendlyControlled, "friendly_controlled", g_ruleParamsFriendlyControlled, 6, 6, 0 },
+        { RuleId::FriendlyMissingBuff, "friendly_missing_buff", g_ruleParamsFriendlyMissingBuff, 6, 6, 0 },
         { RuleId::SummonedUnit, "summoned_unit", g_ruleParamsSummonedUnit, 3, 3, 0 },
         { RuleId::SummonDied, "summon_died", g_ruleParamsSummonDied, 3, 3, 0 },
         { RuleId::SummonDespawned, "summon_despawned", g_ruleParamsSummonDespawned, 3, 3, 0 },

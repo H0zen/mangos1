@@ -360,7 +360,7 @@ namespace scripting
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
                 "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
-                "`chance`, `at_ms` "
+                "`chance`, `at_ms`, `select_else` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -392,6 +392,17 @@ namespace scripting
                 step.buddy.guidOrRadius = field[8].GetUInt32();
                 step.chance = field[9].GetUInt8();
                 step.atMs = field[10].GetUInt32();
+
+                uint8 const orElse = field[11].GetUInt8();
+                step.selectElse = mai::Selector(orElse);
+                if (orElse != mai::SelectNone && orElse >= mai::SelectEnd)
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
+                                    "target selector", creature, rule,
+                                    uint32(orElse));
+                    ++refusedSteps;
+                    continue;
+                }
 
                 if (step.select >= mai::SelectEnd)
                 {
