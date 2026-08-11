@@ -772,7 +772,6 @@ void AddSC_boss_morogrim_tidewalker();
 void AddSC_boss_the_lurker_below();
 void AddSC_instance_serpentshrine_cavern();
 void AddSC_boss_ahune();                             // CR, slave_pens
-void AddSC_boss_hydromancer_thespia();               // CR, steam_vault
 void AddSC_boss_mekgineer_steamrigger();
 void AddSC_boss_warlord_kalithresh();
 void AddSC_instance_steam_vault();
@@ -782,7 +781,6 @@ void AddSC_boss_high_king_maulgar();
 void AddSC_instance_gruuls_lair();
 void AddSC_boss_broggok();                           // HC, blood_furnace
 void AddSC_boss_kelidan_the_breaker();
-void AddSC_boss_the_maker();
 void AddSC_instance_blood_furnace();
 void AddSC_boss_nazan_and_vazruden();                // HC, hellfire_ramparts
 void AddSC_boss_omor_the_unscarred();
@@ -858,7 +856,6 @@ void AddOutlandsScripts()
     AddSC_boss_the_lurker_below();
     AddSC_instance_serpentshrine_cavern();
     AddSC_boss_ahune();                                     // CR, slave_pens
-    AddSC_boss_hydromancer_thespia();                       // CR, steam_vault
     AddSC_boss_mekgineer_steamrigger();
     AddSC_boss_warlord_kalithresh();
     AddSC_instance_steam_vault();
@@ -868,7 +865,6 @@ void AddOutlandsScripts()
     AddSC_instance_gruuls_lair();
     AddSC_boss_broggok();                                   // HC, blood_furnace
     AddSC_boss_kelidan_the_breaker();
-    AddSC_boss_the_maker();
     AddSC_instance_blood_furnace();
     AddSC_boss_nazan_and_vazruden();                        // HC, hellfire_ramparts
     AddSC_boss_omor_the_unscarred();

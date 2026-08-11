@@ -241,6 +241,14 @@ namespace mai
 
     bool Execute(Run const& run, Step const& step)
     {
+        // Before anything is resolved: a step that is not going to happen
+        // should not search the grid to discover whom it would not have
+        // happened to.
+        if (step.chance == 0 || (step.chance < 100 && step.chance <= urand(0, 99)))
+        {
+            return false;
+        }
+
         WorldObject* source = Resolve(run.map, run.source);
         WorldObject* target = Resolve(run.map, run.target);
 

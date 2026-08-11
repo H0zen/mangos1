@@ -225,6 +225,13 @@ CREATE TABLE `mai_rule_step`
     -- (`set_unit_field`). The same flags `mai_step` uses.
     `buddy_flags` TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
+    -- Out of 100, and 100 is always -- the SAME meaning the rule chance has,
+    -- so nobody has to remember which of the two inverts. A rule chance asks
+    -- whether the whole thing happens and is rolled once for all its steps; a
+    -- step chance asks whether this one line gets said. Thespia casts her
+    -- cloud every time and comments on it half the time.
+    `chance`       TINYINT UNSIGNED NOT NULL DEFAULT 100,
+
     -- What the selector will ACCEPT, as opposed to which one it is: a player,
     -- somebody with mana, somebody out of melee range. Creature.h SelectFlags.
     -- Orthogonal to `select`, which is why it is a second column and not more

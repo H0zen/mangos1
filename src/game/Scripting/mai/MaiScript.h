@@ -258,6 +258,17 @@ namespace mai
         /// mapping to get wrong.
         Operand  operands[MaxOperands] = {};
 
+        /// Out of 100, and 100 is always. The SAME meaning the rule's chance
+        /// has -- zero is never -- so nobody has to remember which of the two
+        /// inverts.
+        ///
+        /// They are different questions and both are needed. A rule's chance
+        /// asks whether the whole thing happens, is rolled ONCE and shared, so
+        /// three steps do not disagree about it. A step's asks whether this one
+        /// line gets said, and Thespia is why: she casts her cloud every time
+        /// and comments on it half the time.
+        uint8    chance = 100;
+
         /// Which operands were actually given. An absent optional parameter is
         /// not the same as one set to zero: `despawn_self` with no delay means
         /// "now", and `despawn_self 0` means the same thing only by accident.

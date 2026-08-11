@@ -359,7 +359,8 @@ namespace scripting
         {
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
-                "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range` "
+                "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
+                "`chance` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -389,6 +390,7 @@ namespace scripting
                 step.selectFlags = field[6].GetUInt8();
                 step.buddy.entry = field[7].GetUInt32();
                 step.buddy.guidOrRadius = field[8].GetUInt32();
+                step.chance = field[9].GetUInt8();
 
                 if (step.select >= mai::SelectEnd)
                 {
