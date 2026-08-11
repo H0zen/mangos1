@@ -146,11 +146,16 @@ category world = 0x05
     # every converted row already means.
     #
     # `attack` points the new creature at whoever SUMMONED it, which is what
-    # "and it comes up angry" is in every script that has one.
+    # "and it comes up angry" is in every script that has one. `face` is the
+    # half of that without the fight: turned towards its summoner and doing
+    # nothing about it, which is what an Ethereum prisoner does when the
+    # prison opens.
     #
     # The `at` facet is an OFFSET here, not a place: the point of this verb is
-    # that the place is not known until it runs.
-    summon_at_target        133   entry:creature despawn_delay:ms? mode:u32?                                   attack:bool? at
+    # that the place is not known until it runs. `o` is the exception and is
+    # absolute -- there is no orientation to offset from -- and it loses to
+    # `face` when both are written.
+    summon_at_target        133   entry:creature despawn_delay:ms? mode:u32?                                   attack:bool? face:bool? at
     set_activeobject        21   activate:bool
 
     # Take a gameobject that is standing there ready, and use it up: it must
@@ -231,7 +236,13 @@ category flow = 0x07
     # Exactly ONE of up to three, uniformly. Repeating an id is how a script
     # says two-in-three: `a=7 b=7 c=8` is the shape every `urand(0, 2)` in
     # ScriptDev has, written down.
-    random_script           137   a:u32 b:u32? c:u32?
+    #
+    # `first`/`count` is the same verb for a longer list: one of `count`
+    # branches numbered from `first`. Thirteen Ethereum prisoners are two
+    # numbers rather than thirteen columns, and the ids being contiguous is
+    # the price -- which for a set of branches written together is no price at
+    # all.
+    random_script           137   a:u32? b:u32? c:u32?                                   first:u32? count:u32?
     send_ai_event_around    35   event:u32 radius:f32
 
 # ---------------------------------------------------------------------------

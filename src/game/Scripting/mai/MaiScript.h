@@ -66,9 +66,17 @@ namespace mai
     };
 
     /// The most parameters any verb takes, facets included. `talk` takes four
-    /// texts; `temp_summon_creature` takes two of its own plus a position.
+    /// texts; `summon_at_target` takes four of its own plus a position.
     /// Checked at load, so a manifest edit that outgrows it fails loudly.
-    enum : std::size_t { MaxOperands = 8 };
+    ///
+    /// EIGHT UNTIL IT WAS NOT. A position facet is four slots on its own, so
+    /// any verb that takes one had four left -- and `summon_at_target` used
+    /// all four the moment it learnt a spawn mode, an order to attack and an
+    /// order to face. The alternative was to bundle two named booleans into
+    /// one `flags` column, which is precisely the thing this format exists to
+    /// stop: `attack=1 face=1` says what `flags=3` does not. Twelve costs
+    /// sixteen bytes a step and buys the naming back.
+    enum : std::size_t { MaxOperands = 12 };
 
     /// How much a creature may remember. Eight is not a guess: it is what the
     /// scripts being converted actually use -- a phase, an "already enraged",
@@ -299,7 +307,7 @@ namespace mai
         /// Which operands were actually given. An absent optional parameter is
         /// not the same as one set to zero: `despawn_self` with no delay means
         /// "now", and `despawn_self 0` means the same thing only by accident.
-        uint8    given = 0;
+        uint16   given = 0;
 
         /**
          * The row this step was lowered from, while the DB tables still exist.

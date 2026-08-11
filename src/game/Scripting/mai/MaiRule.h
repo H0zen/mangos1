@@ -82,7 +82,7 @@ namespace mai
 
         /// Laid out in the order this trigger's ParamSpec table names them.
         Operand  operands[MaxOperands] = {};
-        uint8    given = 0;
+        uint16   given = 0;
 
         /// The phases this rule does NOT fire in. Inverted, as the tables have
         /// it, so a converted row means what it meant.

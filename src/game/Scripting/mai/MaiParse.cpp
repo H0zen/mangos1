@@ -77,7 +77,7 @@ namespace mai
         /// and a rule have in common -- and all this needs of either.
         template <class Spec>
         bool Fill(Spec const& spec, char const* params, Operand* operands,
-                  uint8& given, RuleSet* owner, std::string& error)
+                  uint16& given, RuleSet* owner, std::string& error)
             {
             char buffer[256];
 
@@ -160,7 +160,7 @@ namespace mai
                     }
 
                     operands[slot].u = uint32(at);
-                    given |= uint8(1u << slot);
+                    given |= uint16(1u << slot);
                     continue;
                 }
 
@@ -190,7 +190,7 @@ namespace mai
                     return false;
                 }
 
-                given |= uint8(1u << slot);
+                given |= uint16(1u << slot);
             }
 
             // A parameter the verb requires and the row did not give.

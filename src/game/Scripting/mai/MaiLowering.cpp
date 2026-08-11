@@ -137,7 +137,7 @@ namespace mai
             }
             if (Supplied(raw[i]) || !spec->params[slot].optional)
             {
-                out.given |= uint8(1u << slot);
+                out.given |= uint16(1u << slot);
             }
         }
 
@@ -151,7 +151,7 @@ namespace mai
                 // one, so the test here is not Supplied().
                 if (row.textId[i] >= 0)
                 {
-                    out.given |= uint8(1u << slot);
+                    out.given |= uint16(1u << slot);
                 }
             }
         }
@@ -162,7 +162,7 @@ namespace mai
             for (int i = 0; i < 4; ++i, ++slot)
             {
                 out.operands[slot].f = at[i];
-                out.given |= uint8(1u << slot);
+                out.given |= uint16(1u << slot);
             }
         }
 

@@ -1044,7 +1044,6 @@ void AddNorthrendScripts()
 void AddSC_areatrigger_scripts();
 void AddSC_bosses_emerald_dragons();
 void AddSC_generic_creature();
-void AddSC_go_scripts();
 void AddSC_guards();
 void AddSC_item_scripts();
 void AddSC_npc_professions();
@@ -1059,7 +1058,6 @@ void AddWorldScripts()
     AddSC_areatrigger_scripts();
     AddSC_bosses_emerald_dragons();
     AddSC_generic_creature();
-    AddSC_go_scripts();
     AddSC_guards();
     AddSC_item_scripts();
     AddSC_npc_professions();

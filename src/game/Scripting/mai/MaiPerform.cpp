@@ -421,13 +421,24 @@ namespace mai
                                        : TEMPSPAWN_DEAD_DESPAWN);
 
             // An OFFSET, not a place. The whole point of this verb is that the
-            // place is not known until it runs.
-            Creature* made = self->SummonCreature(
-                Given(step, 0),
-                where->Where().X() + GivenF(step, 4),
-                where->Where().Y() + GivenF(step, 5),
-                where->Where().Z() + GivenF(step, 6),
-                GivenF(step, 7), mode, despawn);
+            // place is not known until it runs. `o` is the exception and is
+            // absolute -- there is no orientation to offset from.
+            float const x = where->Where().X() + GivenF(step, 5);
+            float const y = where->Where().Y() + GivenF(step, 6);
+            float const z = where->Where().Z() + GivenF(step, 7);
+
+            // Facing the summoner, when the step says so: a bearing FROM
+            // where it appears rather than the summoner's own heading, which
+            // is what `pGo->Where().BearingTo(pPlayer->Where())` said.
+            float facing = GivenF(step, 8);
+            if (Given(step, 4))
+            {
+                facing = where->Where().BearingTo(self->Where());
+            }
+
+            Creature* made =
+                self->SummonCreature(Given(step, 0), x, y, z, facing, mode,
+                                     despawn);
 
             if (made && Given(step, 3) && made->AI())
             {
@@ -627,6 +638,17 @@ namespace mai
          */
         bool RandomScript(Doing& doing, Step const& step)
         {
+            // The range form: one of `count` branches numbered from `first`.
+            // Thirteen Ethereum prisoners are two numbers rather than thirteen
+            // columns.
+            if (step.Has(3) && step.Has(4) && Given(step, 4))
+            {
+                StartSequence(doing.map, KindBranch,
+                              Given(step, 3) + urand(0, Given(step, 4) - 1),
+                              doing.source, doing.target, doing.owner);
+                return false;
+            }
+
             uint32 pick[3];
             uint32 count = 0;
 

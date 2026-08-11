@@ -419,6 +419,7 @@ namespace mai
         { "despawn_delay", ParamType::Ms, true },
         { "mode", ParamType::U32, true },
         { "attack", ParamType::Bool, true },
+        { "face", ParamType::Bool, true },
         { "x", ParamType::F32, true },
         { "y", ParamType::F32, true },
         { "z", ParamType::F32, true },
@@ -521,9 +522,11 @@ namespace mai
 
     inline constexpr ParamSpec g_actionParamsRandomScript[] =
     {
-        { "a", ParamType::U32, false },
+        { "a", ParamType::U32, true },
         { "b", ParamType::U32, true },
         { "c", ParamType::U32, true },
+        { "first", ParamType::U32, true },
+        { "count", ParamType::U32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSendAiEventAround[] =
@@ -788,7 +791,7 @@ namespace mai
         { ActionId::ResetGo, "reset_go", nullptr, 0, 0, 0 },
         { ActionId::GoLockState, "go_lock_state", g_actionParamsGoLockState, 1, 1, 0 },
         { ActionId::TempSummonCreature, "temp_summon_creature", g_actionParamsTempSummonCreature, 6, 2, FacetAt },
-        { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 8, 4, FacetAt },
+        { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 9, 5, FacetAt },
         { ActionId::SetActiveobject, "set_activeobject", g_actionParamsSetActiveobject, 1, 1, 0 },
         { ActionId::ConsumeGo, "consume_go", g_actionParamsConsumeGo, 2, 2, 0 },
         { ActionId::QuestExplored, "quest_explored", g_actionParamsQuestExplored, 2, 2, 0 },
@@ -805,7 +808,7 @@ namespace mai
         { ActionId::RequireStandState, "require_stand_state", g_actionParamsRequireStandState, 1, 1, 0 },
         { ActionId::RequireCreature, "require_creature", g_actionParamsRequireCreature, 3, 3, 0 },
         { ActionId::StartScript, "start_script", g_actionParamsStartScript, 2, 2, 0 },
-        { ActionId::RandomScript, "random_script", g_actionParamsRandomScript, 3, 3, 0 },
+        { ActionId::RandomScript, "random_script", g_actionParamsRandomScript, 5, 5, 0 },
         { ActionId::SendAiEventAround, "send_ai_event_around", g_actionParamsSendAiEventAround, 2, 2, 0 },
         { ActionId::ThreatChange, "threat_change", g_actionParamsThreatChange, 2, 2, 0 },
         { ActionId::CallForHelp, "call_for_help", g_actionParamsCallForHelp, 1, 1, 0 },
