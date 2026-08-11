@@ -267,9 +267,25 @@ namespace mai
             // fighting one player has no second-highest threat. Skipping the
             // step is what EventAI did, and it is not an error.
             bool missing = false;
-            Unit* picked = Select(source ? source->ToCreature() : nullptr,
-                                  step.select, run.from, missing,
-                                  SpellUnder(step), step.selectFlags);
+            Unit* picked = nullptr;
+
+            if (step.select == SelectRemembered)
+            {
+                // Not one of EventAI's ten, so it is answered here rather than
+                // in MaiSelect: it is the only selector that asks the ACTOR
+                // rather than the world, and MaiSelect deliberately knows
+                // nothing about a creature's memory.
+                picked = (run.actor && run.map)
+                             ? run.map->GetUnit(run.actor->remembered)
+                             : nullptr;
+                missing = picked == nullptr;
+            }
+            else
+            {
+                picked = Select(source ? source->ToCreature() : nullptr,
+                                step.select, run.from, missing,
+                                SpellUnder(step), step.selectFlags);
+            }
             if (!picked)
             {
                 if (missing)

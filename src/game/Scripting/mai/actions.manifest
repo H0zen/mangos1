@@ -102,6 +102,12 @@ category world = 0x05
     reset_go                43
     go_lock_state           27   state:flags
     temp_summon_creature    10   entry:creature despawn_delay:ms? at
+
+    # At the step's TARGET rather than at a written position. The missing
+    # member of the summon family, exactly as teleport_to_target was of the
+    # movement one: MAI could summon at a PLACE and had no way to summon at a
+    # unit, which is what every "it appears under them" does.
+    summon_at_target        133   entry:creature despawn_delay:ms?
     set_activeobject        21   activate:bool
 
 category player = 0x06
@@ -191,6 +197,12 @@ category random = 0x15
 # the name is interned to a slot when the creature's rules load.
 category memory = 0x16
     set_state               126   name:state value:u32
+
+    # Remember WHOM the step is acting on, so later steps can act on the same
+    # one. The other half of `select=11`, and the reason a focus, a mark and a
+    # chain are expressible at all: they are all "pick one, then keep meaning
+    # that one".
+    remember_target         132
     add_state               127   name:state by:i32
 
 category instance = 0x12

@@ -372,6 +372,17 @@ namespace mai
             return ReArm(armed, 2, 3);
         }
 
+        case RuleId::VictimOutOfMelee:
+        {
+            Unit* victim = m_creature->getVictim();
+            if (!m_creature->IsInCombat() || !victim ||
+                InMeleeReach(*m_creature, *victim))
+            {
+                return false;
+            }
+            return ReArm(armed, 0, 1);
+        }
+
         case RuleId::TargetCasting:
         {
             Unit* victim = m_creature->getVictim();
@@ -833,6 +844,7 @@ namespace mai
             case RuleId::EnergyBelow:
             case RuleId::TargetHealthBelow:
             case RuleId::TargetManaBelow:
+            case RuleId::VictimOutOfMelee:
             case RuleId::TargetCasting:
             case RuleId::TargetInRange:
             case RuleId::HasAura:

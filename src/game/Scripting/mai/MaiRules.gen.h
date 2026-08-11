@@ -66,6 +66,7 @@ namespace mai
         // target
         TargetHealthBelow          = 12,
         TargetCasting              = 13,
+        VictimOutOfMelee           = 34,
         TargetManaBelow            = 18,
         TargetHasAura              = 24,
         TargetMissingAura          = 28,
@@ -216,6 +217,12 @@ namespace mai
     };
 
     inline constexpr ParamSpec g_ruleParamsTargetCasting[] =
+    {
+        { "repeat", ParamType::Ms, true },
+        { "repeat_max", ParamType::Ms, true },
+    };
+
+    inline constexpr ParamSpec g_ruleParamsVictimOutOfMelee[] =
     {
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },
@@ -401,6 +408,7 @@ namespace mai
         { RuleId::AwayFrom, "away_from", g_ruleParamsAwayFrom, 4, 4, 0 },
         { RuleId::TargetHealthBelow, "target_health_below", g_ruleParamsTargetHealthBelow, 4, 4, 0 },
         { RuleId::TargetCasting, "target_casting", g_ruleParamsTargetCasting, 2, 2, 0 },
+        { RuleId::VictimOutOfMelee, "victim_out_of_melee", g_ruleParamsVictimOutOfMelee, 2, 2, 0 },
         { RuleId::TargetManaBelow, "target_mana_below", g_ruleParamsTargetManaBelow, 4, 4, 0 },
         { RuleId::TargetHasAura, "target_has_aura", g_ruleParamsTargetHasAura, 4, 4, 0 },
         { RuleId::TargetMissingAura, "target_missing_aura", g_ruleParamsTargetMissingAura, 4, 4, 0 },

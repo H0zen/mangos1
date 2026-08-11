@@ -73,6 +73,13 @@ category sight = 0x01
 category target = 0x02
     target_health_below     12   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
     target_casting          13   repeat:ms? repeat_max:ms?
+
+    # The victim is NOT within melee reach. `target_in_range` asks the positive
+    # question and a min above melee range only approximates this one: combat
+    # reach depends on both models' sizes, so a number chosen by hand is right
+    # for one pair of models and wrong for the next. This asks the same
+    # question the C++ asks, InMeleeReach, and gets the same answer.
+    victim_out_of_melee     34   repeat:ms? repeat_max:ms?
     target_mana_below       18   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
     target_has_aura         24   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
     target_missing_aura     28   spell:spell stacks:u32? repeat:ms? repeat_max:ms?

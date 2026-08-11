@@ -353,6 +353,60 @@ namespace mai
             return false;
         }
 
+        /**
+         * Keep meaning this one.
+         *
+         * The other half of `select=11`. A focus, a mark and a chain are all
+         * "pick one, then keep meaning that one", and until now MAI could pick
+         * and could not keep: every step chose again from scratch, so three
+         * beats of the same ability would land on three different players.
+         */
+        bool RememberTarget(Doing& doing, Step const& step)
+        {
+            (void)step;
+
+            if (!doing.actor)
+            {
+                return false;
+            }
+
+            doing.actor->remembered = doing.target ? doing.target->GetObjectGuid()
+                                                   : ObjectGuid();
+            return false;
+        }
+
+        /**
+         * Summon at the target's feet.
+         *
+         * The missing member of the summon family, exactly as
+         * teleport_to_target was of the movement one. `temp_summon_creature`
+         * takes a written position, and the borrowed body reads it straight
+         * out of the row -- so summoning where somebody is standing was not
+         * expressible at all, only summoning where somebody stood when the
+         * script was written.
+         */
+        bool SummonAtTarget(Doing& doing, Step const& step)
+        {
+            Unit* self = doing.SourceUnit();
+            Unit* where = doing.TargetUnit();
+
+            if (!self || !where)
+            {
+                sLog.outErrorDb("MAI: summon_at_target needs somebody to summon "
+                                "and somebody to summon at");
+                return false;
+            }
+
+            uint32 const despawn = Given(step, 1);
+
+            self->SummonCreature(Given(step, 0), where->Where().X(),
+                                 where->Where().Y(), where->Where().Z(), 0.0f,
+                                 despawn ? TEMPSPAWN_TIMED_DESPAWN
+                                         : TEMPSPAWN_DEAD_DESPAWN,
+                                 despawn);
+            return false;
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -843,6 +897,8 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::RememberTarget:    return RememberTarget(doing, step);
+            case ActionId::SummonAtTarget:    return SummonAtTarget(doing, step);
             case ActionId::SetImmunity:       return SetImmunity(doing, step);
             case ActionId::SendAiEvent:       return SendAiEvent(doing, step);
             case ActionId::TeleportToTarget:  return TeleportToTarget(doing, step);

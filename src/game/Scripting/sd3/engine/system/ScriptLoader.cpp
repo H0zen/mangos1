@@ -741,7 +741,6 @@ void AddSC_zuldrak();
 
 // outland
 void AddSC_boss_exarch_maladaar();                   // auchindoun, auchenai_crypts
-void AddSC_boss_shirrak();
 void AddSC_boss_nexusprince_shaffar();               // auchindoun, mana_tombs
 void AddSC_mana_tombs();
 void AddSC_boss_anzu();                              // auchindoun, sethekk_halls
@@ -823,7 +822,6 @@ void AddSC_zangarmarsh();
 void AddOutlandsScripts()
 {
     AddSC_boss_exarch_maladaar();                           // auchindoun, auchenai_crypts
-    AddSC_boss_shirrak();
     AddSC_boss_nexusprince_shaffar();                       // auchindoun, mana_tombs
     AddSC_mana_tombs();
     AddSC_boss_anzu();                                      // auchindoun, sethekk_halls

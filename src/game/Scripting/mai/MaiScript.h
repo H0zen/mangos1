@@ -211,6 +211,16 @@ namespace mai
         SelectRandomPlayerNotTop = 9,
         SelectEventSender       = 10,   ///< the creature that threw the AI event
 
+        /// Whoever this creature was told to remember. Numbered after
+        /// EventAI's ten because it is not one of them: EventAI could ask
+        /// about the threat list and about who caused the event, and had no
+        /// way to say "the one from a moment ago".
+        ///
+        /// That is what a focus, a mark and a chain all need. Shirrak picks a
+        /// player, announces them, and then summons at their feet three times
+        /// a second apart -- three beats that have to agree about who.
+        SelectRemembered        = 11,
+
         SelectEnd
     };
 

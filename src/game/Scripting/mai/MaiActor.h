@@ -97,6 +97,14 @@ namespace mai
         /// already enraged IN THIS FIGHT.
         uint32 states[MaxStates] = {};
 
+        /// Whoever this creature was told to remember, for the steps that come
+        /// after the one that chose. A guid rather than a pointer for the
+        /// reason everything here is: the fight outlives the choosing, and
+        /// whoever was picked can die between two beats of it.
+        ///
+        /// Cleared by Reset, so a focus does not survive a wipe.
+        ObjectGuid remembered;
+
         /// Health this creature refuses to drop below, and whether the number
         /// is a percentage. Zero means it dies like anything else.
         uint32 invincibilityHp = 0;
@@ -116,6 +124,7 @@ namespace mai
         void Reset()
         {
             phases = Phases();
+            remembered.Clear();
             for (uint32& state : states)
             {
                 state = 0;

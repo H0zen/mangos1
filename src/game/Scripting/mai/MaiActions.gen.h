@@ -124,6 +124,7 @@ namespace mai
         ResetGo                    = 43,
         GoLockState                = 27,
         TempSummonCreature         = 10,
+        SummonAtTarget             = 133,
         SetActiveobject            = 21,
 
         // player
@@ -168,6 +169,7 @@ namespace mai
 
         // memory
         SetState                   = 126,
+        RememberTarget             = 132,
         AddState                   = 127,
 
         // instance
@@ -382,6 +384,12 @@ namespace mai
         { "y", ParamType::F32, true },
         { "z", ParamType::F32, true },
         { "o", ParamType::F32, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsSummonAtTarget[] =
+    {
+        { "entry", ParamType::Creature, false },
+        { "despawn_delay", ParamType::Ms, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSetActiveobject[] =
@@ -683,6 +691,7 @@ namespace mai
         { ActionId::ResetGo, "reset_go", nullptr, 0, 0, 0 },
         { ActionId::GoLockState, "go_lock_state", g_actionParamsGoLockState, 1, 1, 0 },
         { ActionId::TempSummonCreature, "temp_summon_creature", g_actionParamsTempSummonCreature, 6, 2, FacetAt },
+        { ActionId::SummonAtTarget, "summon_at_target", g_actionParamsSummonAtTarget, 2, 2, 0 },
         { ActionId::SetActiveobject, "set_activeobject", g_actionParamsSetActiveobject, 1, 1, 0 },
         { ActionId::QuestExplored, "quest_explored", g_actionParamsQuestExplored, 2, 2, 0 },
         { ActionId::KillCredit, "kill_credit", g_actionParamsKillCredit, 2, 2, 0 },
@@ -715,6 +724,7 @@ namespace mai
         { ActionId::RandomEmote, "random_emote", g_actionParamsRandomEmote, 3, 3, 0 },
         { ActionId::RandomPhaseRange, "random_phase_range", g_actionParamsRandomPhaseRange, 2, 2, 0 },
         { ActionId::SetState, "set_state", g_actionParamsSetState, 2, 2, 0 },
+        { ActionId::RememberTarget, "remember_target", nullptr, 0, 0, 0 },
         { ActionId::AddState, "add_state", g_actionParamsAddState, 2, 2, 0 },
         { ActionId::SetInstanceData, "set_instance_data", g_actionParamsSetInstanceData, 2, 2, 0 },
         { ActionId::SetInstanceDataGuid, "set_instance_data_guid", g_actionParamsSetInstanceDataGuid, 1, 1, 0 },
