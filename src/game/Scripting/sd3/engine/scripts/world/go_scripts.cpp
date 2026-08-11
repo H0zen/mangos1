@@ -170,31 +170,6 @@ struct go_ethereum_stasis : public GameObjectScript
         return false;
     }
 };
-
-/*######
-## go_jump_a_tron
-######*/
-
-enum
-{
-    SPELL_JUMP_A_TRON = 33382,
-    NPC_JUMP_A_TRON   = 19041
-};
-
-struct go_jump_a_tron : public GameObjectScript
-{
-    go_jump_a_tron() : GameObjectScript("go_jump_a_tron") {}
-
-    bool OnUse(Player* pPlayer, GameObject* pGo) override
-    {
-        if (Creature* pCreature = GetClosestCreatureWithEntry(pGo, NPC_JUMP_A_TRON, INTERACTION_DISTANCE))
-        {
-            pCreature->CastSpell(pPlayer, SPELL_JUMP_A_TRON, false);
-        }
-
-        return false;
-    }
-};
 #endif
 #if defined (WOTLK) || defined (CATA) || defined(MISTS)
 /*######
@@ -457,8 +432,6 @@ void AddSC_go_scripts()
     s = new go_ethereum_stasis();
     s->RegisterSelf();
 
-    s = new go_jump_a_tron();
-    s->RegisterSelf();
 #endif
 
 #if defined (WOTLK) || defined (CATA) || defined(MISTS)
