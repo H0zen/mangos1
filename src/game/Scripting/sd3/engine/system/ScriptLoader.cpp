@@ -751,7 +751,6 @@ void AddSC_instance_sethekk_halls();
 void AddSC_boss_ambassador_hellmaw();                // auchindoun, shadow_labyrinth
 void AddSC_boss_blackheart_the_inciter();
 void AddSC_boss_grandmaster_vorpil();
-void AddSC_boss_murmur();
 void AddSC_instance_shadow_labyrinth();
 void AddSC_black_temple();                           // black_temple
 void AddSC_boss_illidan();
@@ -834,7 +833,6 @@ void AddOutlandsScripts()
     AddSC_boss_ambassador_hellmaw();                        // auchindoun, shadow_labyrinth
     AddSC_boss_blackheart_the_inciter();
     AddSC_boss_grandmaster_vorpil();
-    AddSC_boss_murmur();
     AddSC_instance_shadow_labyrinth();
     AddSC_black_temple();                                   // black_temple
     AddSC_boss_illidan();

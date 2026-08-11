@@ -196,9 +196,18 @@ CREATE TABLE `mai_rule_step`
     `rule`     INT UNSIGNED NOT NULL,
     `seq`      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
 
-    -- No at_ms yet. A rule's steps run together, as EventAI's three slots did;
-    -- giving them times is the improvement that comes after the conversion is
-    -- proved, not during it.
+    -- Milliseconds from the moment the rule fired, and the whole point of
+    -- folding the two systems together. EventAI's three action slots were
+    -- simultaneous because a table needs a fixed width, so a creature that
+    -- said one line, waited three seconds and said another was three rows, a
+    -- phase and two timers -- there was nowhere to write "then".
+    --
+    -- Zero on all 27,561 converted steps, because that is what they were. It
+    -- is written the moment something wants it: Shirrak summons his focus fire
+    -- three times, one second apart, and in C++ that is a counter cycling
+    -- 1-2-3 with a timer rewritten at each beat.
+    `at_ms`    INT UNSIGNED NOT NULL DEFAULT 0,
+
     `action`   VARCHAR(48) NOT NULL,
     `params`   VARCHAR(512) NOT NULL DEFAULT '',
 

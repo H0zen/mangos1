@@ -360,7 +360,7 @@ namespace scripting
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
                 "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
-                "`chance` "
+                "`chance`, `at_ms` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -391,6 +391,7 @@ namespace scripting
                 step.buddy.entry = field[7].GetUInt32();
                 step.buddy.guidOrRadius = field[8].GetUInt32();
                 step.chance = field[9].GetUInt8();
+                step.atMs = field[10].GetUInt32();
 
                 if (step.select >= mai::SelectEnd)
                 {
@@ -443,6 +444,16 @@ namespace scripting
             if (found != steps.end())
             {
                 rule.steps.steps = std::move(found->second);
+
+                // The runner walks steps in order and stops at the first one
+                // not yet due, so an unsorted list silently drops everything
+                // after the first out-of-order row. `seq` orders the query;
+                // this orders the clock, and stable_sort keeps `seq` as the
+                // tie-break for steps sharing an instant.
+                std::stable_sort(rule.steps.steps.begin(),
+                                 rule.steps.steps.end(),
+                                 [](mai::Step const& a, mai::Step const& b)
+                                 { return a.atMs < b.atMs; });
             }
 
             rule.steps.id = id;
