@@ -41,7 +41,6 @@
  * go_mysterious_snow_mound (WOTLK onwards)
  * go_tele_to_dalaran_crystal (WOTLK onwards)
  * go_tele_to_violet_stand (WOTLK onwards)
- * go_andorhal_tower
  * go_scourge_enclosure (WOTLK onwards)
  * go_lab_work_reagents (WOTLK onwards)
  * EndContentData
@@ -254,57 +253,6 @@ struct go_tele_to_violet_stand : public GameObjectScript
 };
 #endif
 
-/*######
-## go_andorhal_tower
-######*/
-
-enum
-{
-    QUEST_ALL_ALONG_THE_WATCHTOWERS_ALLIANCE = 5097,
-    QUEST_ALL_ALONG_THE_WATCHTOWERS_HORDE    = 5098,
-    NPC_ANDORHAL_TOWER_1                     = 10902,
-    NPC_ANDORHAL_TOWER_2                     = 10903,
-    NPC_ANDORHAL_TOWER_3                     = 10904,
-    NPC_ANDORHAL_TOWER_4                     = 10905,
-    GO_ANDORHAL_TOWER_1                      = 176094,
-    GO_ANDORHAL_TOWER_2                      = 176095,
-    GO_ANDORHAL_TOWER_3                      = 176096,
-    GO_ANDORHAL_TOWER_4                      = 176097
-};
-
-struct go_andorhal_tower : public GameObjectScript
-{
-    go_andorhal_tower() : GameObjectScript("go_andorhal_tower") {}
-
-    bool OnUse(Player* pPlayer, GameObject* pGo) override
-    {
-        if (pPlayer->GetQuestStatus(QUEST_ALL_ALONG_THE_WATCHTOWERS_ALLIANCE) == QUEST_STATUS_INCOMPLETE || pPlayer->GetQuestStatus(QUEST_ALL_ALONG_THE_WATCHTOWERS_HORDE) == QUEST_STATUS_INCOMPLETE)
-        {
-            uint32 uiKillCredit = 0;
-            switch (pGo->GetEntry())
-            {
-                case GO_ANDORHAL_TOWER_1:
-                    uiKillCredit = NPC_ANDORHAL_TOWER_1;
-                    break;
-                case GO_ANDORHAL_TOWER_2:
-                    uiKillCredit = NPC_ANDORHAL_TOWER_2;
-                    break;
-                case GO_ANDORHAL_TOWER_3:
-                    uiKillCredit = NPC_ANDORHAL_TOWER_3;
-                    break;
-                case GO_ANDORHAL_TOWER_4:
-                    uiKillCredit = NPC_ANDORHAL_TOWER_4;
-                    break;
-            }
-            if (uiKillCredit)
-            {
-                pPlayer->KilledMonsterCredit(uiKillCredit);
-            }
-        }
-        return true;
-    }
-};
-
 #if defined (CLASSIC) || defined (TBC)
 enum
 {
@@ -415,8 +363,6 @@ void AddSC_go_scripts()
 {
     Script* s;
     s = new go_barov_journal();
-    s->RegisterSelf();
-    s = new go_andorhal_tower();
     s->RegisterSelf();
 
 #if defined (CLASSIC) || defined (TBC)
