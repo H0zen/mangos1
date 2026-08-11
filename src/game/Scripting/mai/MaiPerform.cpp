@@ -416,6 +416,33 @@ namespace mai
             return false;
         }
 
+        /**
+         * Follow, without fighting.
+         *
+         * `attack_start` makes a creature fight what it is chasing -- it sets
+         * a victim, adds threat and swings -- which is a different instruction
+         * and the wrong one for anything not meant to swing. Sepethrea's
+         * Raging Flames are immune to every school of damage and exist only to
+         * be run away from; told to attack, they would stand and hit somebody
+         * they cannot hurt instead of herding the raid.
+         */
+        bool Chase(Doing& doing, Step const& step)
+        {
+            Creature* self = doing.SourceCreature();
+            Unit* who = doing.TargetUnit();
+
+            if (!self || !who)
+            {
+                sLog.outErrorDb("MAI: chase needs a creature and somebody to "
+                                "follow");
+                return false;
+            }
+
+            self->GetMotionMaster()->MoveChase(who, GivenF(step, 0),
+                                               GivenF(step, 1));
+            return false;
+        }
+
         bool SetHealth(Doing& doing, Step const& step)
         {
             Unit* self = doing.SourceUnit();
@@ -906,6 +933,7 @@ namespace mai
             case ActionId::Die:               return Die(doing, step);
             case ActionId::SetInvincibility:  return SetInvincibility(doing, step);
             case ActionId::SetHealth:         return SetHealth(doing, step);
+            case ActionId::Chase:             return Chase(doing, step);
             case ActionId::RememberTarget:    return RememberTarget(doing, step);
             case ActionId::SummonAtTarget:    return SummonAtTarget(doing, step);
             case ActionId::SetImmunity:       return SetImmunity(doing, step);

@@ -103,6 +103,7 @@ namespace mai
         TurnTo                     = 36,
         MoveDynamic                = 37,
         TeleportToTarget           = 129,
+        Chase                      = 134,
         SendTaxiPath               = 30,
         PauseWaypoints             = 32,
         SetFly                     = 59,
@@ -309,6 +310,12 @@ namespace mai
     {
         { "max_dist", ParamType::F32, false },
         { "min_dist", ParamType::F32, true },
+    };
+
+    inline constexpr ParamSpec g_actionParamsChase[] =
+    {
+        { "distance", ParamType::F32, true },
+        { "angle", ParamType::F32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsSendTaxiPath[] =
@@ -675,6 +682,7 @@ namespace mai
         { ActionId::TurnTo, "turn_to", g_actionParamsTurnTo, 1, 1, 0 },
         { ActionId::MoveDynamic, "move_dynamic", g_actionParamsMoveDynamic, 2, 2, 0 },
         { ActionId::TeleportToTarget, "teleport_to_target", nullptr, 0, 0, 0 },
+        { ActionId::Chase, "chase", g_actionParamsChase, 2, 2, 0 },
         { ActionId::SendTaxiPath, "send_taxi_path", g_actionParamsSendTaxiPath, 1, 1, 0 },
         { ActionId::PauseWaypoints, "pause_waypoints", g_actionParamsPauseWaypoints, 1, 1, 0 },
         { ActionId::SetFly, "set_fly", g_actionParamsSetFly, 1, 1, 0 },

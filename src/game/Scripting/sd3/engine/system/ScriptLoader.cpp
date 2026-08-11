@@ -800,7 +800,6 @@ void AddSC_boss_high_astromancer_solarian();
 void AddSC_boss_kaelthas();
 void AddSC_boss_void_reaver();
 void AddSC_instance_the_eye();
-void AddSC_boss_nethermancer_sepethrea();            // TK, the_mechanar
 void AddSC_boss_pathaleon_the_calculator();
 void AddSC_instance_mechanar();
 
@@ -879,7 +878,6 @@ void AddOutlandsScripts()
     AddSC_boss_kaelthas();
     AddSC_boss_void_reaver();
     AddSC_instance_the_eye();
-    AddSC_boss_nethermancer_sepethrea();                    // TK, the_mechanar
     AddSC_boss_pathaleon_the_calculator();
     AddSC_instance_mechanar();
 

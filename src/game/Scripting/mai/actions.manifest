@@ -81,6 +81,13 @@ category move = 0x03
     # charge and gate does. Written as a verb rather than as a spell's private
     # hack, because it is not one boss's trick.
     teleport_to_target      129
+
+    # Follow the step's target, without attacking it. `attack_start` makes a
+    # creature fight what it is chasing, which is a different instruction and
+    # the wrong one for anything that is not supposed to swing: Sepethrea's
+    # Raging Flames are immune to all damage and exist only to be run away
+    # from.
+    chase                   134   distance:f32? angle:f32?
     send_taxi_path          30   path:taxi
     pause_waypoints         32   pause:bool
     set_fly                 59   enable:bool
