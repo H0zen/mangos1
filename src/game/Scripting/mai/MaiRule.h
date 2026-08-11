@@ -88,6 +88,20 @@ namespace mai
         /// it, so a converted row means what it meant.
         uint32   inversePhaseMask = 0;
 
+        /// How soon to try again when a step's cast was REFUSED -- silenced,
+        /// out of range, already casting. Zero, and every converted rule has
+        /// zero, means the ordinary repeat: EventAI re-armed on FIRING and
+        /// never learnt whether the cast worked, and 20,732 rules rest on
+        /// that.
+        ///
+        /// ScriptDev re-arms only on success, so a refused cast is retried on
+        /// the very next tick -- twenty times a second until it lands. This is
+        /// the same idea with the interval written down instead of implied,
+        /// which is what Pandemonius's author did by hand:
+        ///
+        ///     m_uiVoidBlastTimer = 500;   // it did not go off; soon, then
+        uint32   retryMs = 0;
+
         /// What must be true as well, all of it. Empty on almost every rule
         /// converted from EventAI, because EventAI had no way to say it.
         std::vector<Guard> guards;

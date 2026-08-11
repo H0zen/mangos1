@@ -336,7 +336,7 @@ namespace scripting
         // written in -- which is the order they fire in when both are due.
         std::unique_ptr<QueryResult> result(WorldDatabase.Query(
             "SELECT `creature`, `id`, `rule`, `params`, `phase_mask`, "
-            "`chance`, `flags`, `guard` FROM `mai_rule` "
+            "`chance`, `flags`, `guard`, `retry` FROM `mai_rule` "
             "ORDER BY `creature`, `id`"));
 
         if (!result)
@@ -424,6 +424,7 @@ namespace scripting
             rule.inversePhaseMask = field[4].GetUInt32();
             rule.chance = field[5].GetUInt8();
             rule.flags = field[6].GetUInt8();
+            rule.retryMs = field[8].GetUInt32();
 
             mai::RuleSet& set = m_rules[creature];
             set.creature = creature;

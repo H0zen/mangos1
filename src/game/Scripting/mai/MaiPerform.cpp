@@ -254,8 +254,17 @@ namespace mai
                 flags |= CAST_TRIGGERED;
             }
 
-            self->AI()->DoCastSpellIfCan(victim ? victim : self,
-                                         Given(step, 0), flags);
+            CanCastResult const result =
+                self->AI()->DoCastSpellIfCan(victim ? victim : self,
+                                             Given(step, 0), flags);
+
+            // Refused, not failed. Already casting, out of range, silenced,
+            // the target immune -- all of them mean "not now" rather than
+            // "never", and a rule with a retry wants to know.
+            if (result != CAST_OK && doing.refused)
+            {
+                *doing.refused = true;
+            }
             return false;
         }
 

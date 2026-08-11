@@ -73,6 +73,11 @@ namespace mai
         /// Migration scaffolding, and it leaves with them.
         uint32     origin = 0;
 
+        /// Set when a step's cast was refused, so the rule that started it can
+        /// decide to try again sooner. Null when nobody is listening, which is
+        /// every sequence the world starts.
+        bool*      refused = nullptr;
+
         /// Whether the step's Selector applies. Only a rule sets one, and a
         /// DB-script step's zero means SelectSelf rather than "no selector" --
         /// so the two cases cannot be told apart from the step alone.

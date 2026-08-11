@@ -297,6 +297,7 @@ namespace mai
         doing.target = finalTarget;
         doing.owner = run.owner;
         doing.actor = run.actor;
+        doing.refused = run.refused;
 
         bool handled = false;
         bool const stop = PerformNative(doing, step, handled);

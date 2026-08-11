@@ -154,6 +154,10 @@ namespace mai
             /// Advance every running sequence by @a diff.
             void Advance(uint32 diff);
 
+            /// A refused cast asks its rule to come round again sooner, when
+            /// the rule said how soon.
+            void Retry(Frame const& frame);
+
             /// The rules whose timers tick rather than waiting for a callback.
             void Tick(uint32 diff);
 

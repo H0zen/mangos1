@@ -170,6 +170,16 @@ CREATE TABLE `mai_rule`
     -- needs more is a program and belongs in C++.
     `guard`      VARCHAR(255) NOT NULL DEFAULT '',
 
+    -- How soon to come round again when a step's cast was REFUSED: already
+    -- casting, silenced, out of range, target immune. Zero -- and every
+    -- converted rule is zero -- means the ordinary repeat.
+    --
+    -- EventAI re-armed on FIRING and never learnt whether the cast worked, so
+    -- 20,732 rules rest on zero meaning what it always meant. ScriptDev
+    -- re-arms only on SUCCESS, retrying every tick until it lands, and this is
+    -- that idea with the interval written down instead of implied.
+    `retry`      INT UNSIGNED NOT NULL DEFAULT 0,
+
     -- The phases this rule does NOT fire in. Inverted, as EventAI had it, and
     -- kept inverted so a converted row means what it meant.
     `phase_mask` INT UNSIGNED NOT NULL DEFAULT 0,

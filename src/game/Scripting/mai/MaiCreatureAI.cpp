@@ -718,12 +718,17 @@ namespace mai
         {
             Frame& frame = m_frames[i];
 
+            // Whether anything in this frame was refused rather than done.
+            // Only a rule with a retry cares, and finding out costs a bool.
+            bool refused = false;
+
             Run go;
             go.map = map;
             go.source = frame.source;
             go.target = frame.target;
             go.owner = frame.owner;
             go.actor = &m_actor;
+            go.refused = &refused;
             go.fromRule = true;
 
             // Resolved fresh each tick and never stored: anything a rule named
@@ -739,11 +744,46 @@ namespace mai
                     runner.Stop();
                 }
             }
+
+            if (refused)
+            {
+                Retry(frame);
+            }
         }
 
         m_frames.erase(std::remove_if(m_frames.begin(), m_frames.end(),
                            [](Frame const& frame) { return frame.Finished(); }),
                        m_frames.end());
+    }
+
+    /**
+     * A refused cast asks its rule to come round again sooner.
+     *
+     * ScriptDev re-arms only on success, so a cast that was refused -- already
+     * casting, silenced, out of range -- is retried on the very next tick. MAI
+     * re-arms on FIRING, which is EventAI's rule and what 20,732 converted
+     * rules rest on, so the whole interval is lost instead.
+     *
+     * `retry` is the difference written down. A rule that sets one gets
+     * ScriptDev's persistence with an interval somebody chose; a rule that does
+     * not is unchanged, which is every rule the conversion produced.
+     *
+     * The owning rule is found by its sequence rather than remembered on the
+     * frame: a creature has tens of rules, the scan is over a small vector, and
+     * it costs nothing on the overwhelmingly common path where nothing was
+     * refused at all.
+     */
+    void MaiCreatureAI::Retry(Frame const& frame)
+    {
+        for (Armed& armed : m_armed)
+        {
+            if (armed.rule && &armed.rule->steps == frame.sequence &&
+                armed.rule->retryMs)
+            {
+                armed.timeMs = armed.rule->retryMs;
+                return;
+            }
+        }
     }
 
     void MaiCreatureAI::Tick(uint32 diff)

@@ -147,6 +147,10 @@ namespace mai
         /// creature behind it at all.
         Actor*       actor = nullptr;
 
+        /// Set by a verb whose effect was refused rather than done. Only the
+        /// casts set it, and only a rule with a retry reads it.
+        bool*        refused = nullptr;
+
         Unit*     SourceUnit() const;
         Creature* SourceCreature() const;
         Unit*     TargetUnit() const;
