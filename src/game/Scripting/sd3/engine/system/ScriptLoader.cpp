@@ -168,7 +168,6 @@ void AddSC_boss_thekal();
 void AddSC_boss_venoxis();
 void AddSC_instance_zulgurub();
 
-void AddSC_alterac_mountains();
 void AddSC_arathi_highlands();
 void AddSC_blasted_lands();
 
@@ -176,9 +175,7 @@ void AddSC_blasted_lands();
 void AddSC_boss_kazzakAI();
 #endif
 void AddSC_burning_steppes();
-void AddSC_dun_morogh();
 void AddSC_eastern_plaguelands();
-void AddSC_elwynn_forest();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
 void AddSC_eversong_woods();
@@ -186,7 +183,6 @@ void AddSC_ghostlands();
 #endif
 
 void AddSC_hinterlands();
-void AddSC_ironforge();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
 void AddSC_isle_of_queldanas();
@@ -197,7 +193,6 @@ void AddSC_redridge_mountains();
 void AddSC_searing_gorge();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
-void AddSC_silvermoon_city();
 #endif
 
 void AddSC_silverpine_forest();
@@ -212,10 +207,7 @@ void AddSC_wetlands();
 
 // Cata zones
 #if defined (CATA) || defined(MISTS)
-void AddSC_gilneas();
 void AddSC_gilneas_city();
-void AddSC_twilight_highlands();
-void AddSC_vashjir();
 void AddSC_instance_baradin_hold();
 void AddSC_boss_alizabal();
 #endif
@@ -361,7 +353,6 @@ void AddEasternKingdomsScripts()
     AddSC_boss_venoxis();
     AddSC_instance_zulgurub();
 
-    AddSC_alterac_mountains();
     AddSC_arathi_highlands();
     AddSC_blasted_lands();
 
@@ -370,9 +361,7 @@ void AddEasternKingdomsScripts()
 #endif
 
     AddSC_burning_steppes();
-    AddSC_dun_morogh();
     AddSC_eastern_plaguelands();
-    AddSC_elwynn_forest();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
     AddSC_eversong_woods();
@@ -380,7 +369,6 @@ void AddEasternKingdomsScripts()
 #endif
 
     AddSC_hinterlands();
-    AddSC_ironforge();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
     AddSC_isle_of_queldanas();
@@ -391,7 +379,6 @@ void AddEasternKingdomsScripts()
     AddSC_searing_gorge();
 
 #if defined (TBC) || defined (WOTLK) || defined (CATA) || defined(MISTS)
-    AddSC_silvermoon_city();
 #endif
 
     AddSC_silverpine_forest();
@@ -406,7 +393,6 @@ void AddEasternKingdomsScripts()
 
     // Cata zones
 #if defined (CATA) || defined(MISTS)
-    AddSC_gilneas();
     AddSC_gilneas_city();
     AddSC_instance_baradin_hold();
     AddSC_boss_alizabal();
@@ -488,14 +474,11 @@ void AddSC_tanaris();
 void AddSC_teldrassil();
 void AddSC_the_barrens();
 void AddSC_thousand_needles();
-void AddSC_thunder_bluff();
 void AddSC_ungoro_crater();
 void AddSC_winterspring();
 
 // Cata zones
 #if defined (CATA) || defined(MISTS)
-void AddSC_uldum();
-void AddSC_mount_hyjal();
 #endif
 
 void AddKalimdorScripts()
@@ -573,14 +556,11 @@ void AddKalimdorScripts()
     AddSC_teldrassil();
     AddSC_the_barrens();
     AddSC_thousand_needles();
-    AddSC_thunder_bluff();
     AddSC_ungoro_crater();
     AddSC_winterspring();
 
     // Cata zones
 #if defined (CATA) || defined(MISTS)
-    AddSC_uldum();
-    AddSC_mount_hyjal();
 #endif
 }
 
