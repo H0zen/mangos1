@@ -2166,8 +2166,25 @@ void Unit::_UpdateAutoRepeatSpell()
     if (isAttackReady(RANGED_ATTACK))
     {
         // Check if able to cast
-        if (m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->CheckCast(true) != SPELL_CAST_OK)
+        const SpellCastResult autoRepeatResult =
+            m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->CheckCast(true);
+
+        if (autoRepeatResult != SPELL_CAST_OK)
         {
+            // The interrupt below is SILENT -- no SMSG_CAST_FAILED reaches the client and
+            // nothing else records why -- so an auto shot that stops firing leaves the
+            // player, and the log, with no reason at all. The refusal is named here or it
+            // is not named anywhere.
+            Unit* autoRepeatTarget =
+                m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_targets.getUnitTarget();
+
+            DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST,
+                             "AUTOREPEAT %s dropped spell %u on %s: CheckCast = %u",
+                             GetGuidStr().c_str(),
+                             m_currentSpells[CURRENT_AUTOREPEAT_SPELL]->m_spellInfo->ID,
+                             autoRepeatTarget ? autoRepeatTarget->GetGuidStr().c_str() : "no target",
+                             uint32(autoRepeatResult));
+
             InterruptSpell(CURRENT_AUTOREPEAT_SPELL);
             return;
         }

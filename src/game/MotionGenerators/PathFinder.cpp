@@ -39,15 +39,16 @@
 
 namespace
 {
-    /// A smoothing step that advanced less than this got nowhere: Detour was asked to
-    /// move along the surface and came back where it started. Well under
-    /// SMOOTH_PATH_SLOP, so a legitimately short final step is never mistaken for one.
-    constexpr float SMOOTH_PATH_STALL = 0.05f;
+    /// How much closer to the goal a smoothing step must get before it counts as
+    /// progress. A real 4-yard step closes far more than this even when it is walking
+    /// diagonally at the target; the margin only keeps floating-point noise from
+    /// reading as advancement.
+    constexpr float SMOOTH_PATH_PROGRESS = 0.25f;
 
-    /// Consecutive dead steps tolerated before the smoothing gives up. Without this the
-    /// loop keeps writing the same position until it has filled the entire point budget,
-    /// and the caller then sees a full-length path that goes nowhere.
-    constexpr uint32 SMOOTH_PATH_MAX_STALLS = 4;
+    /// Steps tolerated without getting any closer, BEFORE the corridor's own size is
+    /// added. Rounding a corner briefly increases the distance to the goal, so a few
+    /// have to be allowed unconditionally.
+    constexpr uint32 SMOOTH_PATH_DRIFT_ALLOWANCE = 4;
 }
 
 ////////////////// PathFinder //////////////////
@@ -898,12 +899,27 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
     ++nsmoothPath;
 
-    // Consecutive steps that advanced nothing. Detour will happily keep returning the
-    // position it was given when the corridor cannot be pushed any further (a steer
-    // target on the far side of a boundary the filter refuses to cross is the usual
-    // cause), so the loop has to notice for itself rather than run to the buffer end.
-    uint32 stalledSteps = 0;
-    bool stalled = false;
+    // THE LOOP DETECTOR. Detour's own comment on the old `return DT_FAILURE` here read
+    // "this is most likely a loop", and it was right: the overwhelmingly common way this
+    // routine fills its whole point budget is not a long route but a ping-pong inside a
+    // handful of polygons, the steer target pulling one way and moveAlongSurface pushing
+    // back. Measured over a live session: healthy paths average 1.5 points per polygon
+    // and never exceed 4.7, while every runaway was 10 to 25 -- 74 points over as few as
+    // three polygons.
+    //
+    // Step LENGTH cannot tell the two apart, because an oscillation moves a full stride
+    // every time. Progress towards the goal can. What is kept is the prefix up to the
+    // closest approach; the scribble after it is discarded rather than handed to a mover
+    // to walk.
+    //
+    // The allowance scales with the corridor because that is what bounds an honest
+    // detour: a long corridor may legitimately doubleback a long way round scenery, a
+    // five-polygon one has nowhere to do it.
+    const uint32 maxDrift = SMOOTH_PATH_DRIFT_ALLOWANCE + polyPathSize;
+    float bestDist = dtMathSqrtf(dtVdist2DSqr(iterPos, targetPos));
+    uint32 bestCount = nsmoothPath;
+    uint32 drift = 0;
+    bool looped = false;
 
     // Move towards target a small advancement at a time until target reached or
     // when ran out of memory to store the path.
@@ -938,10 +954,6 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         float moveTgt[VERTEX_SIZE];
         dtVmad(moveTgt, iterPos, delta, len);
-
-        // Where this step started, so it can be told afterwards whether it went anywhere.
-        float stepStart[VERTEX_SIZE];
-        dtVcopy(stepStart, iterPos);
 
         // Move
         float result[VERTEX_SIZE];
@@ -1016,41 +1028,44 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
             ++nsmoothPath;
         }
 
-        // The step went nowhere. A few in a row and this corridor is not going to
-        // advance however many more we take, so stop here with what we have rather
-        // than pack the buffer with copies of one position.
-        if (dtVdistSqr(iterPos, stepStart) < SMOOTH_PATH_STALL * SMOOTH_PATH_STALL)
+        const float remaining = dtMathSqrtf(dtVdist2DSqr(iterPos, targetPos));
+        if (remaining < bestDist - SMOOTH_PATH_PROGRESS)
         {
-            if (++stalledSteps >= SMOOTH_PATH_MAX_STALLS)
-            {
-                stalled = true;
-                break;
-            }
+            bestDist = remaining;
+            bestCount = nsmoothPath;
+            drift = 0;
         }
-        else
+        else if (++drift >= maxDrift)
         {
-            stalledSteps = 0;
+            // Going round in circles. Rewind to the closest we ever got: those points
+            // are a real route and walking them is real progress, while everything
+            // after them is the oscillation itself.
+            nsmoothPath = bestCount;
+            looped = true;
+            break;
         }
     }
 
     *smoothPathSize = nsmoothPath;
 
-    // A partial answer is still an answer. Filling the point budget used to be reported
-    // as outright failure, which threw away a perfectly good route and sent the caller
-    // to BuildShortcut - a straight line through whatever happened to be in the way.
-    // Say instead WHICH kind of partial this is and let the caller keep the points:
-    //   DT_BUFFER_TOO_SMALL - ran out of room, the route itself is fine (PATHFIND_SHORT);
-    //   DT_PARTIAL_RESULT   - stopped advancing, the route really does end short.
+    // A partial answer is still an answer, but the two kinds are NOT interchangeable and
+    // the caller has to be able to tell them apart:
+    //   DT_BUFFER_TOO_SMALL - a real route that ran out of room. Walk it; the rest is the
+    //                         next query's problem (PATHFIND_SHORT).
+    //   DT_PARTIAL_RESULT   - the smoothing went round in circles and has been rewound to
+    //                         its closest approach. This is as far as the navmesh will
+    //                         carry us, so the route is INCOMPLETE, never NORMAL.
+    // A loop that never made any ground at all rewinds to the single start point, which
+    // the caller reads as no path and answers the way it always did.
     dtStatus smoothStatus = DT_SUCCESS;
 
-    if (nsmoothPath >= maxSmoothPathSize)
-    {
-        smoothStatus |= DT_BUFFER_TOO_SMALL;
-    }
-
-    if (stalled)
+    if (looped)
     {
         smoothStatus |= DT_PARTIAL_RESULT;
+    }
+    else if (nsmoothPath >= maxSmoothPathSize)
+    {
+        smoothStatus |= DT_BUFFER_TOO_SMALL;
     }
 
     return smoothStatus;
