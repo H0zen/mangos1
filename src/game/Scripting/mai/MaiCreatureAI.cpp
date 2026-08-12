@@ -271,7 +271,26 @@ namespace mai
         Rule const& rule = *armed.rule;
 
         uint32 const least = rule.Param(minSlot);
-        uint32 const most = rule.Param(maxSlot);
+
+        // An absent max is the min, not zero. Every one of these pairs is
+        // declared optional in the manifests, and reading the missing half as
+        // 0 made it worse than useless: 0 is below any min, so the branch
+        // below called it inverted and DISABLED the rule. A hand-written
+        //
+        //     timer_in_combat  initial=4000 repeat=7000 repeat_max=11000
+        //
+        // has no `initial_max`, so its very first arming refused it and the
+        // rule never fired at all -- reported once, in a line about a repeat
+        // range, for a rule whose repeat range was fine.
+        //
+        // Converted rows never showed it because EventAI's table has four
+        // columns and always writes all four. Only a rule written by hand,
+        // which is the whole point of the parameters being optional, could
+        // reach it.
+        //
+        // An explicitly inverted pair is still an error: that is somebody
+        // saying two things and meaning neither.
+        uint32 const most = rule.Has(maxSlot) ? rule.Param(maxSlot) : least;
 
         if (least == most)
         {
