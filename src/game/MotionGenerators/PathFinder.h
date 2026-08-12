@@ -61,7 +61,13 @@ enum PathType
     PATHFIND_SHORTCUT       = 0x0002,   // travel through obstacles, terrain, air, etc (old behavior)
     PATHFIND_INCOMPLETE     = 0x0004,   // we have partial path to follow - getting closer to target
     PATHFIND_NOPATH         = 0x0008,   // no valid path at all or error in generating one
-    PATHFIND_NOT_USING_PATH = 0x0010    // used when we are either flying/swimming or on map w/o mmaps
+    PATHFIND_NOT_USING_PATH = 0x0010,   // used when we are either flying/swimming or on map w/o mmaps
+
+    /// A REAL route that ran out of point budget before it reached the goal. The points
+    /// are a walkable prefix of it and are meant to be walked: the remainder is simply
+    /// the next query's problem. This is emphatically not PATHFIND_NOPATH — treating it
+    /// as one is what put a following pet on a straight line across open water.
+    PATHFIND_SHORT          = 0x0020
 };
 
 /**

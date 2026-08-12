@@ -92,6 +92,12 @@ class TargetedMovementGenerator : public IntentMovementGenerator,
 
         virtual bool EnableWalking(Unit& /*owner*/) const { return false; }
 
+        /// The router could not lay a leg to the spot we asked for. Return true when the
+        /// kind dealt with it and the tracking state should be started over. The default
+        /// is to do nothing: a chase that cannot reach its victim gives up through
+        /// IsReachable, which the threat code already watches.
+        virtual bool RecoverFromBlocked(Unit& /*owner*/) { return false; }
+
         /// How often the standing spot is re-derived. Deriving it is the expensive half
         /// (it snaps to the ground), so it is throttled — and a follower looks twice as
         /// often as a chaser, because a pet lagging behind its master reads far worse
@@ -101,16 +107,18 @@ class TargetedMovementGenerator : public IntentMovementGenerator,
         /// Reset the tracking state. Call from Initialize/Interrupt.
         void ResetTracking();
 
+        /// Where the unit wants to stand, relative to the target.
+        Motion::Vector3 ComputeDestination(Unit& owner) const;
+
+        /// Has the target moved far enough from `spot` that it is stale? Handed the
+        /// unit's OWN position, it answers the other useful question: is the unit still
+        /// where it is supposed to be standing, or has it been left behind?
+        bool RequiresNewPosition(Unit& owner, Motion::Vector3 const& spot) const;
+
         float m_offset; ///< Distance to keep from the target.
         float m_angle;  ///< Bearing to keep, relative to the target's facing.
 
     private:
-        /// Where the unit wants to stand, relative to the target.
-        Motion::Vector3 ComputeDestination(Unit& owner) const;
-
-        /// Has the target moved far enough from `spot` that it is stale?
-        bool RequiresNewPosition(Unit& owner, Motion::Vector3 const& spot) const;
-
         TimeTracker m_recheckTime{0};
         Motion::Vector3 m_dest;      ///< The standing spot we are heading for.
         bool m_haveDest = false;     ///< False before the first spot has been derived.
@@ -165,6 +173,7 @@ class FollowMovementGenerator final : public TargetedMovementGenerator
         float TargetDistance(Unit& owner, bool forRangeCheck) const override;
         bool EnableWalking(Unit& owner) const override;
         uint32 RecheckIntervalMs() const override { return 50; }
+        bool RecoverFromBlocked(Unit& owner) override;
 
     private:
         /// A pet mirrors its master's speed, so it can actually keep up.

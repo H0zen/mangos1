@@ -37,6 +37,19 @@
 #include <cmath>
 #include <cstring>
 
+namespace
+{
+    /// A smoothing step that advanced less than this got nowhere: Detour was asked to
+    /// move along the surface and came back where it started. Well under
+    /// SMOOTH_PATH_SLOP, so a legitimately short final step is never mistaken for one.
+    constexpr float SMOOTH_PATH_STALL = 0.05f;
+
+    /// Consecutive dead steps tolerated before the smoothing gives up. Without this the
+    /// loop keeps writing the same position until it has filled the entire point budget,
+    /// and the caller then sees a full-length path that goes nowhere.
+    constexpr uint32 SMOOTH_PATH_MAX_STALLS = 4;
+}
+
 ////////////////// PathFinder //////////////////
 
 /**
@@ -531,6 +544,18 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
                        m_pointPathLimit);    // maximum number of points
     }
 
+    // Two ways of arriving with LESS than the whole route, both of which still hand back
+    // a walkable prefix of a real path:
+    //   * the point budget ran out (DT_BUFFER_TOO_SMALL) - the rest is the next query's
+    //     problem, and the poly corridor may still have reached the goal;
+    //   * the smoothing stopped advancing (DT_PARTIAL_RESULT) - we got as far as the
+    //     navmesh will carry us and no further.
+    // Neither is a failure, and neither may fall back to the straight line: a shortcut
+    // ignores every piece of terrain between the two ends, which is precisely how a pet
+    // that could not be routed round a stretch of water ended up swimming across it.
+    const bool truncated = dtStatusDetail(dtResult, DT_BUFFER_TOO_SMALL);
+    const bool stalled = dtStatusDetail(dtResult, DT_PARTIAL_RESULT);
+
     if (pointCount < 2 || dtStatusFailed(dtResult))
     {
         // only happens if pass bad data to findStraightPath or navmesh is broken
@@ -551,8 +576,22 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
     // first point is always our current location - we need the next one
     setActualEndPosition(m_pathPoints[pointCount - 1]);
 
+    if (truncated)
+    {
+        m_type = PathType(m_type | PATHFIND_SHORT);
+    }
+
+    if (stalled)
+    {
+        m_type = PathType((m_type | PATHFIND_INCOMPLETE) & ~PATHFIND_NORMAL);
+    }
+
     // force the given destination, if needed
-    if (m_forceDestination &&
+    //
+    // Never for a merely SHORT path: its end is where the budget ran out, not where the
+    // route ends, so dragging the last point onto the goal would teleport the mover the
+    // whole remaining distance the moment it finished the spline.
+    if (!(m_type & PATHFIND_SHORT) && m_forceDestination &&
         (!(m_type & PATHFIND_NORMAL) || !inRange(getEndPosition(), getActualEndPosition(), 1.0f, 1.0f)))
     {
         // we may want to keep partial subpath
@@ -859,6 +898,13 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
     ++nsmoothPath;
 
+    // Consecutive steps that advanced nothing. Detour will happily keep returning the
+    // position it was given when the corridor cannot be pushed any further (a steer
+    // target on the far side of a boundary the filter refuses to cross is the usual
+    // cause), so the loop has to notice for itself rather than run to the buffer end.
+    uint32 stalledSteps = 0;
+    bool stalled = false;
+
     // Move towards target a small advancement at a time until target reached or
     // when ran out of memory to store the path.
     while (npolys && nsmoothPath < maxSmoothPathSize)
@@ -892,6 +938,10 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         float moveTgt[VERTEX_SIZE];
         dtVmad(moveTgt, iterPos, delta, len);
+
+        // Where this step started, so it can be told afterwards whether it went anywhere.
+        float stepStart[VERTEX_SIZE];
+        dtVcopy(stepStart, iterPos);
 
         // Move
         float result[VERTEX_SIZE];
@@ -965,12 +1015,45 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
             dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
             ++nsmoothPath;
         }
+
+        // The step went nowhere. A few in a row and this corridor is not going to
+        // advance however many more we take, so stop here with what we have rather
+        // than pack the buffer with copies of one position.
+        if (dtVdistSqr(iterPos, stepStart) < SMOOTH_PATH_STALL * SMOOTH_PATH_STALL)
+        {
+            if (++stalledSteps >= SMOOTH_PATH_MAX_STALLS)
+            {
+                stalled = true;
+                break;
+            }
+        }
+        else
+        {
+            stalledSteps = 0;
+        }
     }
 
     *smoothPathSize = nsmoothPath;
 
-    // Return success if the smooth path size is within the maximum limit.
-    return nsmoothPath < MAX_POINT_PATH_LENGTH ? DT_SUCCESS : DT_FAILURE;
+    // A partial answer is still an answer. Filling the point budget used to be reported
+    // as outright failure, which threw away a perfectly good route and sent the caller
+    // to BuildShortcut - a straight line through whatever happened to be in the way.
+    // Say instead WHICH kind of partial this is and let the caller keep the points:
+    //   DT_BUFFER_TOO_SMALL - ran out of room, the route itself is fine (PATHFIND_SHORT);
+    //   DT_PARTIAL_RESULT   - stopped advancing, the route really does end short.
+    dtStatus smoothStatus = DT_SUCCESS;
+
+    if (nsmoothPath >= maxSmoothPathSize)
+    {
+        smoothStatus |= DT_BUFFER_TOO_SMALL;
+    }
+
+    if (stalled)
+    {
+        smoothStatus |= DT_PARTIAL_RESULT;
+    }
+
+    return smoothStatus;
 }
 
 /**

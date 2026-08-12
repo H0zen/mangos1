@@ -25,6 +25,7 @@
 
 #include "TargetedMovementGenerator.h"
 #include "Creature.h"
+#include "Map.h"
 #include "MotionFrame.h"
 #include "World.h"
 
@@ -43,6 +44,12 @@ namespace
     /// re-routed for every step its target takes.
     constexpr float FOLLOW_DIST_GAP_FOR_DIST_FACTOR = 3.0f;
     constexpr float FOLLOW_DIST_RECALCULATE_FACTOR = 1.0f;
+
+    /// How long to wait after the router refused a leg before asking it again. The
+    /// recheck interval is tuned for a route that SUCCEEDS; re-running a full navmesh
+    /// query at that rate against a destination that has no route is pure load — the
+    /// one in the world log ran 1009 of them in a single minute.
+    constexpr uint32 BLOCKED_RETRY_MS = 500;
 }
 
 void TargetedMovementGenerator::ResetTracking()
@@ -141,6 +148,21 @@ Motion::MoveIntent TargetedMovementGenerator::Intent(Unit& owner,
         {
             owner.StopMoving();
         }
+        return Motion::MoveIntent::Hold();
+    }
+
+    // The router refused the last leg: there is no route from here to the spot we asked
+    // for. Hammering it again every recheck interval neither finds one nor moves the
+    // unit, so back off — and give the kind a chance to recover, which for a pet cut off
+    // from its master means catching it up rather than leaving it behind to be lost.
+    if (status.blocked)
+    {
+        if (RecoverFromBlocked(owner))
+        {
+            ResetTracking();
+        }
+
+        m_recheckTime.Reset(BLOCKED_RETRY_MS);
         return Motion::MoveIntent::Hold();
     }
 
@@ -311,6 +333,46 @@ void FollowMovementGenerator::SyncSpeedWithMaster(Unit& owner) const
     creature.UpdateSpeed(MOVE_RUN, true);
     creature.UpdateSpeed(MOVE_WALK, true);
     creature.UpdateSpeed(MOVE_SWIM, true);
+}
+
+bool FollowMovementGenerator::RecoverFromBlocked(Unit& owner)
+{
+    // Only a MINION is caught up to its master. An escorted NPC that cannot route is
+    // simply stuck where it stands, and moving it there by fiat would be a far worse bug
+    // than a quest escort that has to be walked round the long way.
+    if (owner.GetTypeId() != TYPEID_UNIT || !i_target.isValid() ||
+        owner.GetCharmerOrOwnerGuid() != i_target->GetObjectGuid())
+    {
+        return false;
+    }
+
+    // Not while the master is in the air. There is no ground under him to appear on yet,
+    // and a moment later he will land somewhere else anyway.
+    if (i_target->m_movementInfo.HasMovementFlag(MovementFlags(MOVEFLAG_FALLING | MOVEFLAG_FALLINGFAR)))
+    {
+        return false;
+    }
+
+    // Still at heel, just momentarily unroutable — a step round a rock the master walked
+    // over. Nothing to recover from; the next attempt will find its way.
+    Motion::IMotionFrame const& frame = Motion::FrameFor(owner);
+    if (!RequiresNewPosition(owner, frame.MoverPosition(owner)))
+    {
+        return false;
+    }
+
+    // The follow spot is derived exactly as it is for a normal leg, so it lands beside
+    // the master on ground he can see — the placement already rejects points behind
+    // scenery and drops them onto the floor. Frame in, frame out: on a deck those are the
+    // vessel map's own coordinates, which is what CreatureRelocation wants there.
+    const Motion::Vector3 spot = ComputeDestination(owner);
+
+    owner.InterruptMoving();
+    owner.GetMap()->CreatureRelocation(static_cast<Creature*>(&owner),
+                                       spot.x, spot.y, spot.z, i_target->Where().Facing());
+    owner.SendHeartBeat();
+
+    return true;
 }
 
 float FollowMovementGenerator::TargetDistance(Unit& owner, bool forRangeCheck) const
