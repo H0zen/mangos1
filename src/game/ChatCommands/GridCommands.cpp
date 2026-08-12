@@ -81,7 +81,7 @@ namespace
 
     // Static DB spawn-definition occupancy for one grid. Read-only: reads only the
     // ObjectMgr per-cell spawn store. Never loads/creates grids, never spawns.
-    GridOccupancy ComputeGridOccupancy(uint16 mapId, uint32 gridX, uint32 gridY)
+    GridOccupancy ComputeGridOccupancy(uint32 mapId, uint8 spawnMode, uint32 gridX, uint32 gridY)
     {
         GridOccupancy occ;
         for (uint32 cellX = 0; cellX < MAX_NUMBER_OF_CELLS; ++cellX)
@@ -92,7 +92,7 @@ namespace
                 uint32 globalY = (gridY * MAX_NUMBER_OF_CELLS) + cellY;
                 uint32 cellId = (globalY * TOTAL_NUMBER_OF_CELLS_PER_MAP) + globalX;
 
-                CellObjectGuids const* guids = sObjectMgr.GetCellObjectGuidsReadOnly(mapId, cellId);
+                CellObjectGuids const* guids = sObjectMgr.GetCellObjectGuidsReadOnly(mapId, spawnMode, cellId);
                 if (!guids)
                 {
                     continue;
@@ -146,7 +146,7 @@ bool ChatHandler::HandleGridInfoCommand(char* args)
         return false;
     }
 
-    uint16 mapId = player->GetMapId();
+    uint32 mapId = player->GetMapId();
     uint32 gridX = 0;
     uint32 gridY = 0;
 
@@ -176,7 +176,7 @@ bool ChatHandler::HandleGridInfoCommand(char* args)
     }
 
     bool gridLoaded = player->GetMap()->IsGridLoaded(gridX, gridY);
-    GridOccupancy occ = ComputeGridOccupancy(mapId, gridX, gridY);
+    GridOccupancy occ = ComputeGridOccupancy(mapId, player->GetMap()->GetSpawnMode(), gridX, gridY);
 
     bool isEnv = player->GetMap()->IsGridEnvelope(gridX, gridY);
     bool isFull = player->GetMap()->IsGridLoaded(gridX, gridY);
@@ -240,7 +240,7 @@ bool ChatHandler::HandleGridAnchorsCommand(char* /*args*/)
         return false;
     }
 
-    uint16 mapId = player->GetMapId();
+    uint32 mapId = player->GetMapId();
 
     // Startup-active anchor set restricted to the player's current map. This is the
     // *enabled* startup anchor set (extra-active + enabled LivingWorld anchors), not
@@ -286,7 +286,7 @@ bool ChatHandler::HandleGridAnchorsCommand(char* /*args*/)
         uint32 anchorsHere = itr->second;
 
         bool gridLoaded = player->GetMap()->IsGridLoaded(gridX, gridY);
-        GridOccupancy occ = ComputeGridOccupancy(mapId, gridX, gridY);
+        GridOccupancy occ = ComputeGridOccupancy(mapId, player->GetMap()->GetSpawnMode(), gridX, gridY);
         occupancies.push_back(occ.occupiedCells);
 
         PSendSysMessage("  grid=(%u,%u) anchors=%u loaded=%s occupied=%u/%u "

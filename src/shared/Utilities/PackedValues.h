@@ -30,17 +30,26 @@
 
 /**
  * @file
- * @brief Packing two 16-bit halves into one 32-bit value, and back.
+ * @brief Fusing two halves into one integer key, and taking them apart again.
  *
  * Used for composite keys -- map/zone, entry/index -- where the database and the
  * client both expect the halves fused into a single integer.
  *
- * The 64-bit MAKE_PAIR64 / PAIR64_HIPART / PAIR64_LOPART variants that used to
- * live alongside these had no callers left anywhere in the tree and are gone.
+ * WHICH WIDTH TO USE IS NOT A MATTER OF TASTE. MAKE_PAIR32 casts its low half to
+ * uint16, silently and by construction, so it may only ever key a value that is
+ * genuinely 16-bit -- a zone, a DBC index. A MAP ID IS NOT ONE OF THOSE: a vessel's
+ * deck is a map whose id is minted at runtime as VESSEL_MAP_BASE + goEntry, upwards
+ * of a million, and putting one through MAKE_PAIR32 wraps it (1181646 becomes 1998)
+ * onto a key belonging to some other map entirely. Anything keyed by map id takes
+ * MAKE_PAIR64.
  */
 
 #define MAKE_PAIR32(l, h)  uint32(uint16(l) | (uint32(h) << 16))
 #define PAIR32_HIPART(x)   uint16((uint32(x) >> 16) & 0x0000FFFF)
 #define PAIR32_LOPART(x)   uint16(uint32(x)         & 0x0000FFFF)
+
+#define MAKE_PAIR64(l, h)  uint64(uint32(l) | (uint64(h) << 32))
+#define PAIR64_HIPART(x)   uint32((uint64(x) >> 32) & UI64LIT(0x00000000FFFFFFFF))
+#define PAIR64_LOPART(x)   uint32(uint64(x)         & UI64LIT(0x00000000FFFFFFFF))
 
 #endif
