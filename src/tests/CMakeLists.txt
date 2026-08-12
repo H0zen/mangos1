@@ -57,6 +57,9 @@ set(SRC_GRP_TESTS
     # source from src/game at all -- which is the point of the split.
     ProcIndexTest.cpp
     AuraTypeIndexTest.cpp
+    # Likewise header-only: the stacking rows are matched against three plain
+    # fields, so this needs neither SpellEntry nor a DBC store.
+    SpellStackOverridesTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These four know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp

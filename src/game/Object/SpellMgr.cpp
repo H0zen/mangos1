@@ -27,6 +27,7 @@
 #include "SpellMgr.h"
 #include "ObjectMgr.h"
 #include "SpellAuraDefines.h"
+#include "SpellStackOverrides.h"
 #include "ProgressBar.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
@@ -1353,6 +1354,14 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
         return false;
     }
 
+    // The recorded exceptions test only these four fields; building them once
+    // keeps the rows independent of SpellEntry, so a test can drive them.
+    const StackSpellFacts facts_1 = { spellInfo_1->ID, spellInfo_1->SpellIconID,
+                                      spellInfo_1->SpellVisualID, spellInfo_1->SpellClassMask.Flags };
+    const StackSpellFacts facts_2 = { spellInfo_2->ID, spellInfo_2->SpellIconID,
+                                      spellInfo_2->SpellVisualID, spellInfo_2->SpellClassMask.Flags };
+    bool recorded = false;
+
     // Specific spell family spells
     switch (spellInfo_1->SpellClassSet)
     {
@@ -1361,213 +1370,67 @@ bool SpellMgr::IsNoStackSpellDueToSpell(uint32 spellId_1, uint32 spellId_2) cons
             {
                 case SPELLFAMILY_GENERIC:                   // same family case
                 {
-                    // Thunderfury
-                    if ((spellInfo_1->ID == 21992 && spellInfo_2->ID == 27648) ||
-                        (spellInfo_2->ID == 21992 && spellInfo_1->ID == 27648))
+                    // Seventeen recorded pairs, every one of them saying "these
+                    // may stack". @see SpellStackOverrides.h
+                    if (FindStackOverride(SOC_GENERIC_GENERIC, facts_1, facts_2, recorded))
                     {
-                        return false;
-                    }
-
-                    // Lightning Speed (Mongoose) and Fury of the Crashing Waves (Tsunami Talisman)
-                    if ((spellInfo_1->ID == 28093 && spellInfo_2->ID == 42084) ||
-                        (spellInfo_2->ID == 28093 && spellInfo_1->ID == 42084))
-                    {
-                        return false;
-                    }
-
-                    // Soulstone Resurrection and Twisting Nether (resurrector)
-                    if (spellInfo_1->SpellIconID == 92 && spellInfo_2->SpellIconID == 92 && (
-                            (spellInfo_1->SpellVisualID == 99 && spellInfo_2->SpellVisualID == 0) ||
-                            (spellInfo_2->SpellVisualID == 99 && spellInfo_1->SpellVisualID == 0)))
-                            {
-                                return false;
-                            }
-
-                    // Heart of the Wild, Agility and various Idol Triggers
-                    if (spellInfo_1->SpellIconID == 240 && spellInfo_2->SpellIconID == 240)
-                    {
-                        return false;
-                    }
-
-                    // Personalized Weather (thunder effect should overwrite rainy aura)
-                    if (spellInfo_1->SpellIconID == 2606 && spellInfo_2->SpellIconID == 2606)
-                    {
-                        return false;
-                    }
-
-                    // Brood Affliction: Bronze
-                    if ((spellInfo_1->ID == 23170 && spellInfo_2->ID == 23171) ||
-                        (spellInfo_2->ID == 23170 && spellInfo_1->ID == 23171))
-                    {
-                        return false;
-                    }
-
-                    // Male Shadowy Disguise
-                    if ((spellInfo_1->ID == 32756 && spellInfo_2->ID == 38080) ||
-                            (spellInfo_2->ID == 32756 && spellInfo_1->ID == 38080))
-                        return false;
-
-                    // Female Shadowy Disguise
-                    if ((spellInfo_1->ID == 32756 && spellInfo_2->ID == 38081) ||
-                            (spellInfo_2->ID == 32756 && spellInfo_1->ID == 38081))
-                        return false;
-
-                    // Regular and Night Elf Ghost
-                    if ((spellInfo_1->ID == 8326 && spellInfo_2->ID == 20584) ||
-                        (spellInfo_2->ID == 8326 && spellInfo_1->ID == 20584))
-                    {
-                        return false;
-                    }
-
-                    // Blood Fury and Rage of the Unraveller
-                    if (spellInfo_1->SpellIconID == 1662 && spellInfo_2->SpellIconID == 1662)
-                    {
-                        return false;
-                    }
-
-                    // Possess visual and Possess
-                    if ((spellInfo_1->ID == 23014 && spellInfo_2->ID == 19832) ||
-                        (spellInfo_2->ID == 23014 && spellInfo_1->ID == 19832))
-                    {
-                        return false;
-                    }
-
-                    // Shade Soul Channel and Akama Soul Channel
-                    if ((spellInfo_1->ID == 40401 && spellInfo_2->ID == 40447) ||
-                            (spellInfo_2->ID == 40401 && spellInfo_1->ID == 40447))
-                    {
-                        return false;
-                    }
-
-                    // Eye Blast visual and Eye Blast
-                    if ((spellInfo_1->ID == 39908 && spellInfo_2->ID == 40017) ||
-                            (spellInfo_2->ID == 39908 && spellInfo_1->ID == 40017))
-                    {
-                        return false;
-                    }
-
-                    // Encapsulate and Encapsulate (channeled)
-                    if ((spellInfo_1->ID == 45665 && spellInfo_2->ID == 45661) ||
-                            (spellInfo_2->ID == 45665 && spellInfo_1->ID == 45661))
-                    {
-                        return false;
-                    }
-
-                    // Felblaze Visual and Fog of Corruption
-                    if ((spellInfo_1->ID == 45068 && spellInfo_2->ID == 45582) ||
-                            (spellInfo_2->ID == 45068 && spellInfo_1->ID == 45582))
-                    {
-                        return false;
-                    }
-
-                    // Simon Game START timer, (DND) and Simon Game Pre-game timer
-                    if ((spellInfo_1->ID == 39993 && spellInfo_2->ID == 40041) ||
-                            (spellInfo_2->ID == 39993 && spellInfo_1->ID == 40041))
-                    {
-                        return false;
-                    }
-
-                    // Karazhan - Chess: Is Square OCCUPIED aura Karazhan - Chess: Create Move Marker
-                    if ((spellInfo_1->ID == 39400 && spellInfo_2->ID == 32261) ||
-                            (spellInfo_2->ID == 39400 && spellInfo_1->ID == 32261))
-                    {
-                        return false;
+                        return recorded;
                     }
                     break;
                 }
                 case SPELLFAMILY_MAGE:
                 {
-                    // Arcane Intellect and Insight
-                    if (spellInfo_2->SpellIconID == 125 && spellInfo_1->ID == 18820)
+                    if (FindStackOverride(SOC_GENERIC_MAGE, facts_1, facts_2, recorded))
                     {
-                        return false;
+                        return recorded;
                     }
                     break;
                 }
                 case SPELLFAMILY_WARRIOR:
                 {
-                    // Scroll of Protection and Defensive Stance (multi-family check)
-                    if (spellInfo_1->SpellIconID == 276 && spellInfo_1->SpellVisualID == 196 && spellInfo_2->ID == 71)
+                    if (FindStackOverride(SOC_GENERIC_WARRIOR, facts_1, facts_2, recorded))
                     {
-                        return false;
+                        return recorded;
                     }
-
-                    // Improved Hamstring -> Hamstring (multi-family check)
-                    if ((spellInfo_2->SpellClassMask & UI64LIT(0x2)) && spellInfo_1->ID == 23694)
-                    {
-                        return false;
-                    }
-
                     break;
                 }
                 case SPELLFAMILY_DRUID:
                 {
-                    // Scroll of Stamina and Leader of the Pack (multi-family check)
-                    if (spellInfo_1->SpellIconID == 312 && spellInfo_1->SpellVisualID == 216 && spellInfo_2->ID == 24932)
+                    if (FindStackOverride(SOC_GENERIC_DRUID, facts_1, facts_2, recorded))
                     {
-                        return false;
+                        return recorded;
                     }
-
-                    // Dragonmaw Illusion (multi-family check)
-                    if (spellId_1 == 40216 && spellId_2 == 42016)
-                    {
-                        return false;
-                    }
-
                     break;
                 }
                 case SPELLFAMILY_ROGUE:
                 {
-                    // Garrote-Silence -> Garrote (multi-family check)
-                    if (spellInfo_1->SpellIconID == 498 && spellInfo_1->SpellVisualID == 0 && spellInfo_2->SpellIconID == 498)
+                    if (FindStackOverride(SOC_GENERIC_ROGUE, facts_1, facts_2, recorded))
                     {
-                        return false;
+                        return recorded;
                     }
-
                     break;
                 }
                 case SPELLFAMILY_HUNTER:
                 {
-                    // Concussive Shot and Imp. Concussive Shot (multi-family check)
-                    if (spellInfo_1->ID == 19410 && spellInfo_2->ID == 5116)
+                    if (FindStackOverride(SOC_GENERIC_HUNTER, facts_1, facts_2, recorded))
                     {
-                        return false;
-                    }
-
-                    // Improved Wing Clip -> Wing Clip (multi-family check)
-                    if ((spellInfo_2->SpellClassMask & UI64LIT(0x40)) && spellInfo_1->ID == 19229)
-                    {
-                        return false;
+                        return recorded;
                     }
                     break;
                 }
                 case SPELLFAMILY_PALADIN:
                 {
-                    // Unstable Currents and other -> *Sanctity Aura (multi-family check)
-                    if (spellInfo_2->SpellIconID == 502 && spellInfo_1->SpellIconID == 502 && spellInfo_1->SpellVisualID == 969)
+                    if (FindStackOverride(SOC_GENERIC_PALADIN, facts_1, facts_2, recorded))
                     {
-                        return false;
+                        return recorded;
                     }
-
-                    // *Band of Eternal Champion and Seal of Command(multi-family check)
-                    if (spellId_1 == 35081 && spellInfo_2->SpellIconID == 561 && spellInfo_2->SpellVisualID == 7992)
-                    {
-                        return false;
-                    }
-
-                    // Seal of Righteousness and Head Crack
-                    if (spellInfo_1->SpellIconID == 25 && spellInfo_2->SpellIconID == 25 && spellInfo_2->SpellVisualID == 7986)
-                    {
-                        return false;
-                    }
-
                     break;
                 }
             }
-            // Dragonmaw Illusion, Blood Elf Illusion, Human Illusion, Illidari Agent Illusion, Scarlet Crusade Disguise
-            if (spellInfo_1->SpellIconID == 1691 && spellInfo_2->SpellIconID == 1691)
+            // Reached whatever the second family was, so it is its own context.
+            if (FindStackOverride(SOC_GENERIC_ANY, facts_1, facts_2, recorded))
             {
-                return false;
+                return recorded;
             }
             break;
         case SPELLFAMILY_MAGE:
