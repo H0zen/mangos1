@@ -506,6 +506,20 @@ class Aura
         bool IsLastAuraOnHolder();
 
         bool HasMechanic(uint32 mechanic) const;
+
+        /// @name Links owned by Unit's per-aura-type index
+        /// The chain that replaces the old `AuraList m_modAuras[TOTAL_AURAS]`
+        /// lives in these two pointers rather than in list nodes, so joining a
+        /// modifier list costs no allocation. They belong to AuraTypeIndex --
+        /// nothing else may write them, and an aura is on at most one chain.
+        /// @{
+        Aura* GetNextOfAuraType() const { return m_nextOfAuraType; }
+        void SetNextOfAuraType(Aura* aura) { m_nextOfAuraType = aura; }
+        Aura* GetPrevOfAuraType() const { return m_prevOfAuraType; }
+        void SetPrevOfAuraType(Aura* aura) { m_prevOfAuraType = aura; }
+        bool GetAuraTypeIndexed() const { return m_auraTypeIndexed; }
+        void SetAuraTypeIndexed(bool state) { m_auraTypeIndexed = state; }
+        /// @}
     protected:
         Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster = NULL, Item* castItem = NULL);
 
@@ -539,6 +553,10 @@ class Aura
         uint32 m_in_use;                                    // > 0 while in Aura::ApplyModifier call/Aura::Update/etc
 
         SpellAuraHolder* const m_spellAuraHolder;
+
+        Aura* m_nextOfAuraType;                             // AuraTypeIndex chain, forward
+        Aura* m_prevOfAuraType;                             // AuraTypeIndex chain, backward
+        bool m_auraTypeIndexed: 1;                          // true while on a chain
     private:
         void ReapplyAffectedPassiveAuras(Unit* target, bool owner_mode);
 };

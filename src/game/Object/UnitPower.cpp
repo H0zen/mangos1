@@ -277,25 +277,6 @@ void Unit::ApplyMaxPowerMod(Powers power, uint32 val, bool apply)
 }
 
 /**
- * @brief Registers or unregisters an aura in the proc-trigger-damage list.
- *
- * @param aura The aura to add or remove.
- * @param apply True to add the aura; false to remove it.
- */
-void Unit::ApplyAuraProcTriggerDamage(Aura* aura, bool apply)
-{
-    AuraList& tAuraProcTriggerDamage = m_modAuras[SPELL_AURA_PROC_TRIGGER_DAMAGE];
-    if (apply)
-    {
-        tAuraProcTriggerDamage.push_back(aura);
-    }
-    else
-    {
-        tAuraProcTriggerDamage.remove(aura);
-    }
-}
-
-/**
  * @brief Gets the default base value for a power type.
  *
  * @param power The power type to query.

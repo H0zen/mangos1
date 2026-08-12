@@ -304,18 +304,20 @@ bool Unit::SelectHostileTarget()
     if (!target)
     {
         const AuraList& tauntAuras = GetAurasByType(SPELL_AURA_MOD_TAUNT);
-        Unit* caster;
 
-        // Find first available taunter target
-        // Auras are pushed_back, last caster will be on the end
-        for (AuraList::const_reverse_iterator aura = tauntAuras.rbegin(); aura != tauntAuras.rend(); ++aura)
+        // Auras are appended, so the most recently applied taunt sits at the end
+        // and it is the one that wins. Walking forward and keeping the last
+        // valid caster names that same aura as a reverse scan stopping at the
+        // first one, and asks the list for nothing but a forward walk.
+        for (AuraList::const_iterator aura = tauntAuras.begin(); aura != tauntAuras.end(); ++aura)
         {
-            if ((caster = (*aura)->GetCaster()) && caster->Where().ShareFrame(this->Where()) &&
+            Unit* caster = (*aura)->GetCaster();
+
+            if (caster && caster->Where().ShareFrame(this->Where()) &&
                 caster->IsTargetableForAttack() && caster->isInAccessablePlaceFor((Creature*)this) &&
                 !IsSecondChoiceTarget(caster, true))
             {
                 target = caster;
-                break;
             }
         }
     }

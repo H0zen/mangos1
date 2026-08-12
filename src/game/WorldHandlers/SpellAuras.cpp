@@ -358,7 +358,8 @@ pAuraHandler AuraHandler[TOTAL_AURAS] =
 Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32* currentBasePoints, SpellAuraHolder* holder, Unit* target, Unit* caster, Item* castItem) :
     m_spellmod(NULL), m_periodicTimer(0), m_periodicTick(0), m_removeMode(AURA_REMOVE_BY_DEFAULT),
     m_effIndex(eff), m_positive(false), m_isPeriodic(false), m_isAreaAura(false),
-    m_isPersistent(false), m_in_use(0), m_spellAuraHolder(holder)
+    m_isPersistent(false), m_in_use(0), m_spellAuraHolder(holder),
+    m_nextOfAuraType(NULL), m_prevOfAuraType(NULL), m_auraTypeIndexed(false)
 {
     MANGOS_ASSERT(target);
     MANGOS_ASSERT(spellproto && spellproto == sSpellStore.LookupEntry(spellproto->ID));     // `info` must be pointer to sSpellStore element

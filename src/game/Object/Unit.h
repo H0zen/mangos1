@@ -63,6 +63,7 @@
 #include "Object.h"
 #include "Opcodes.h"
 #include "SpellAuraDefines.h"
+#include "AuraTypeIndex.h"
 #include "ProcIndex.h"
 #include "UpdateFields.h"
 #include "SharedDefines.h"
@@ -1173,11 +1174,25 @@ class Unit : public WorldObject
         typedef std::pair<SpellAuraHolderMap::const_iterator, SpellAuraHolderMap::const_iterator> SpellAuraHolderConstBounds;
         typedef std::list<SpellAuraHolder*> SpellAuraHolderList;
         /**
-         * List of \ref Aura used in \ref Unit::GetAurasByType and more and also in the members
-         * \ref Unit::m_modAuras and \ref Unit::m_deletedAuras
+         * The \ref Aura sequence handed back by \ref Unit::GetAurasByType.
+         *
+         * No longer a std::list: the auras of one type are chained through link
+         * pointers stored in the auras themselves (\ref AuraTypeIndex), so this
+         * is a begin/end pair of two words rather than a container. It is
+         * returned **by value**; binding it to `AuraList const&` is still
+         * correct -- the temporary's lifetime is extended -- but it may not be
+         * bound to a non-const reference, and it cannot be copied into a
+         * `std::list<Aura*>` or walked backwards.
          * \see Aura
+         * \see Unit::m_modAuras
          */
-        typedef std::list<Aura*> AuraList;
+        typedef AuraChainRange<Aura> AuraList;
+        /**
+         * A genuine owning list of \ref Aura pointers, for the places that must
+         * hold auras that are no longer indexed by type.
+         * \see Unit::m_deletedAuras
+         */
+        typedef std::list<Aura*> AuraPtrList;
         /**
          * List of \ref DiminishingReturn used for calculation of the same thing.
          * \see DiminishingReturn
@@ -3613,8 +3628,7 @@ class Unit : public WorldObject
          * @return A list of the auras currently applied to the \ref Unit with the given \ref AuraType
          * \see Unit::m_modAuras
          */
-        AuraList const& GetAurasByType(AuraType type) const { return m_modAuras[type]; }
-        void ApplyAuraProcTriggerDamage(Aura* aura, bool apply);
+        AuraList GetAurasByType(AuraType type) const { return m_modAuras.Get(type); }
 
         int32 GetTotalAuraModifier(AuraType auratype) const;
         float GetTotalAuraMultiplier(AuraType auratype) const;
@@ -3821,7 +3835,7 @@ class Unit : public WorldObject
 
         ProcIndex m_procIndex;                              // union of held auras' effective proc flags
 
-        AuraList m_deletedAuras;                            // auras removed while in ApplyModifier and waiting deleted
+        AuraPtrList m_deletedAuras;                         // auras removed while in ApplyModifier and waiting deleted
         SpellAuraHolderList m_deletedHolders;
 
         // Store Auras for which the target must be tracked
@@ -3836,7 +3850,7 @@ class Unit : public WorldObject
         bool m_isSorted;
         uint32 m_transform;
 
-        AuraList m_modAuras[TOTAL_AURAS];
+        AuraTypeIndex<Aura> m_modAuras;
         float m_auraModifiersGroup[UNIT_MOD_END][MODIFIER_TYPE_END];
         float m_weaponDamage[MAX_ATTACK][2];
         bool m_canModifyStats;

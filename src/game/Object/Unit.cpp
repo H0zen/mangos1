@@ -647,10 +647,12 @@ bool InMeleeReach(Unit const& attacker, Unit const& victim, float flat_mod)
  */
 void Unit::RemoveSpellsCausingAura(AuraType auraType)
 {
-    for (AuraList::const_iterator iter = m_modAuras[auraType].begin(); iter != m_modAuras[auraType].end();)
+    // Each removal unlinks at least the aura we named, so the chain shrinks and
+    // taking the head again terminates; re-reading it is also what keeps us
+    // right when the removal cascades into other auras of the same type.
+    while (Aura* aura = m_modAuras.Get(auraType).front())
     {
-        RemoveAurasDueToSpell((*iter)->GetId());
-        iter = m_modAuras[auraType].begin();
+        RemoveAurasDueToSpell(aura->GetId());
     }
 }
 
@@ -662,17 +664,25 @@ void Unit::RemoveSpellsCausingAura(AuraType auraType)
  */
 void Unit::RemoveSpellsCausingAura(AuraType auraType, SpellAuraHolder* except)
 {
-    for (AuraList::const_iterator iter = m_modAuras[auraType].begin(); iter != m_modAuras[auraType].end();)
+    // Removing an aura can cascade into others of the same type, so the chain is
+    // re-read after every removal rather than iterated across one.
+    for (bool removed = true; removed;)
     {
-        // skip `except` aura
-        if ((*iter)->GetHolder() == except)
-        {
-            ++iter;
-            continue;
-        }
+        removed = false;
 
-        RemoveAurasDueToSpell((*iter)->GetId(), except);
-        iter = m_modAuras[auraType].begin();
+        AuraList const auras = m_modAuras.Get(auraType);
+        for (AuraList::const_iterator iter = auras.begin(); iter != auras.end(); ++iter)
+        {
+            // skip `except` aura
+            if ((*iter)->GetHolder() == except)
+            {
+                continue;
+            }
+
+            RemoveAurasDueToSpell((*iter)->GetId(), except);
+            removed = true;
+            break;
+        }
     }
 }
 
@@ -684,16 +694,21 @@ void Unit::RemoveSpellsCausingAura(AuraType auraType, SpellAuraHolder* except)
  */
 void Unit::RemoveSpellsCausingAura(AuraType auraType, ObjectGuid casterGuid)
 {
-    for (AuraList::const_iterator iter = m_modAuras[auraType].begin(); iter != m_modAuras[auraType].end();)
+    // One stack comes off per call, so the same aura is found again until it is
+    // gone; the chain is re-read each time because that removal can cascade.
+    for (bool removed = true; removed;)
     {
-        if ((*iter)->GetCasterGuid() == casterGuid)
+        removed = false;
+
+        AuraList const auras = m_modAuras.Get(auraType);
+        for (AuraList::const_iterator iter = auras.begin(); iter != auras.end(); ++iter)
         {
-            RemoveAuraHolderFromStack((*iter)->GetId(), 1, casterGuid);
-            iter = m_modAuras[auraType].begin();
-        }
-        else
-        {
-            ++iter;
+            if ((*iter)->GetCasterGuid() == casterGuid)
+            {
+                RemoveAuraHolderFromStack((*iter)->GetId(), 1, casterGuid);
+                removed = true;
+                break;
+            }
         }
     }
 }
@@ -6189,7 +6204,7 @@ void Unit::CleanupDeletedAuras()
     m_deletedHolders.clear();
 
     // really delete auras "deleted" while processing its ApplyModify code
-    for (AuraList::const_iterator itr = m_deletedAuras.begin(); itr != m_deletedAuras.end(); ++itr)
+    for (AuraPtrList::const_iterator itr = m_deletedAuras.begin(); itr != m_deletedAuras.end(); ++itr)
     {
         delete *itr;
     }

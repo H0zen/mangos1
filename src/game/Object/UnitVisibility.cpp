@@ -349,26 +349,27 @@ void Unit::UpdateVisibilityAndView()
     static const AuraType auratypes[] = {SPELL_AURA_BIND_SIGHT, SPELL_AURA_FAR_SIGHT, SPELL_AURA_NONE};
     for (AuraType const* type = &auratypes[0]; *type != SPELL_AURA_NONE; ++type)
     {
-        AuraList& alist = m_modAuras[*type];
-        if (alist.empty())
+        // RemoveAura unlinks the aura from this list itself, as its first act, so
+        // the list is never erased from here: doing both would unlink it twice.
+        // That also guarantees the rescan terminates -- every removal shortens
+        // the list -- while re-reading it keeps us safe against the cascade of
+        // further removals RemoveAura can set off.
+        for (bool rescan = true; rescan;)
         {
-            continue;
-        }
+            rescan = false;
 
-        for (AuraList::iterator it = alist.begin(); it != alist.end();)
-        {
-            Aura* aura = (*it);
-            Unit* owner = aura->GetCaster();
+            AuraList const alist = GetAurasByType(*type);
+            for (AuraList::const_iterator it = alist.begin(); it != alist.end(); ++it)
+            {
+                Aura* aura = (*it);
+                Unit* owner = aura->GetCaster();
 
-            if (!owner || !IsVisibleForOrDetect(owner, this, false))
-            {
-                alist.erase(it);
-                RemoveAura(aura);
-                it = alist.begin();
-            }
-            else
-            {
-                ++it;
+                if (!owner || !IsVisibleForOrDetect(owner, this, false))
+                {
+                    RemoveAura(aura);
+                    rescan = true;
+                    break;
+                }
             }
         }
     }

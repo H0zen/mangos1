@@ -598,7 +598,9 @@ void Unit::AddAuraToModList(Aura* aura)
 {
     if (aura->GetModifier()->m_auraname < TOTAL_AURAS)
     {
-        m_modAuras[aura->GetModifier()->m_auraname].push_back(aura);
+        // Appended, not prepended: several handlers read front(), and taunt
+        // priority is the order the auras were applied in.
+        m_modAuras.AddToBack(aura, aura->GetModifier()->m_auraname);
     }
 }
 
@@ -1351,7 +1353,7 @@ void Unit::RemoveAura(Aura* Aur, AuraRemoveMode mode)
     // remove from list before mods removing (prevent cyclic calls, mods added before including to aura list - use reverse order)
     if (Aur->GetModifier()->m_auraname < TOTAL_AURAS)
     {
-        m_modAuras[Aur->GetModifier()->m_auraname].remove(Aur);
+        m_modAuras.Remove(Aur, Aur->GetModifier()->m_auraname);
     }
 
     // Set remove mode
