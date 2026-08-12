@@ -422,3 +422,96 @@ TEST(SpellCatalog_DeriveHelpersMatchTheCatalogFields)
              int(DeriveIsPositiveEffect(spell.Ptr(), EFFECT_INDEX_0, nullptr, nullptr)));
     CHECK_EQ(int(info.specific), int(DeriveSpellSpecific(spell.Ptr(), 0)));
 }
+
+TEST(SpellCatalog_DeepTriggerChainIsCutShortAndCounted)
+{
+    // Only a direct self-trigger is excluded by the derivation, so a chain that
+    // is merely long -- or an outright cycle -- would recurse without end. The
+    // cap stops it; the counter is the only way anyone finds out, because
+    // SpellCatalog.Verify runs the same cap and so agrees with itself.
+    ResetPositiveTriggerTruncations();
+    CHECK_EQ(GetPositiveTriggerTruncationCount(), 0u);
+
+    // 2000 -> 2001 -> 2002 -> ... a chain longer than the cap.
+    const uint32 CHAIN = 12;
+    std::vector<std::unique_ptr<FakeSpell>> chain;
+    std::vector<SpellEntry const*> rows;
+
+    for (uint32 i = 0; i < CHAIN; ++i)
+    {
+        chain.push_back(std::unique_ptr<FakeSpell>(new FakeSpell(2000 + i)));
+        SpellEntry& e = chain.back()->Get();
+        e.Effect[EFFECT_INDEX_0] = SPELL_EFFECT_APPLY_AURA;
+        e.EffectAura[EFFECT_INDEX_0] = SPELL_AURA_PERIODIC_TRIGGER_SPELL;
+        e.EffectTriggerSpell[EFFECT_INDEX_0] = 2000 + i + 1;
+        e.ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+    }
+
+    for (std::unique_ptr<FakeSpell> const& s : chain)
+    {
+        rows.push_back(s->Ptr());
+    }
+
+    SpellCatalog catalog;
+    catalog.Build(rows, NoSources());
+
+    CHECK(GetPositiveTriggerTruncationCount() > 0);
+
+    // Whatever was recorded must name a spell that really is in the chain.
+    REQUIRE(!GetPositiveTriggerTruncations().empty());
+    for (SpellTriggerTruncation const& cut : GetPositiveTriggerTruncations())
+    {
+        CHECK(cut.spellId >= 2000 && cut.spellId < 2000 + CHAIN);
+        CHECK_EQ(cut.triggeredId, cut.spellId + 1);
+        CHECK_EQ(cut.effIndex, uint32(EFFECT_INDEX_0));
+    }
+}
+
+TEST(SpellCatalog_TriggerCycleTerminates)
+{
+    // A -> B -> A. Without the cap this never returns; the case existing at all
+    // is the check. It must also be counted, not silently swallowed.
+    ResetPositiveTriggerTruncations();
+
+    FakeSpell a(2100);
+    a.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_APPLY_AURA;
+    a.Get().EffectAura[EFFECT_INDEX_0] = SPELL_AURA_PERIODIC_TRIGGER_SPELL;
+    a.Get().EffectTriggerSpell[EFFECT_INDEX_0] = 2101;
+    a.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    FakeSpell b(2101);
+    b.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_APPLY_AURA;
+    b.Get().EffectAura[EFFECT_INDEX_0] = SPELL_AURA_PERIODIC_TRIGGER_SPELL;
+    b.Get().EffectTriggerSpell[EFFECT_INDEX_0] = 2100;
+    b.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    SpellCatalog catalog;
+    catalog.Build({a.Ptr(), b.Ptr()}, NoSources());
+
+    CHECK(catalog.Find(2100) != nullptr);
+    CHECK(catalog.Find(2101) != nullptr);
+    CHECK(GetPositiveTriggerTruncationCount() > 0);
+}
+
+TEST(SpellCatalog_ShortChainIsNotCounted)
+{
+    // A chain inside the cap must not be reported -- otherwise the boot warning
+    // cries wolf on every ordinary triggered spell and stops being read.
+    ResetPositiveTriggerTruncations();
+
+    FakeSpell a(2200);
+    a.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_APPLY_AURA;
+    a.Get().EffectAura[EFFECT_INDEX_0] = SPELL_AURA_PERIODIC_TRIGGER_SPELL;
+    a.Get().EffectTriggerSpell[EFFECT_INDEX_0] = 2201;
+    a.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    FakeSpell b(2201);
+    b.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_HEAL;
+    b.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    SpellCatalog catalog;
+    catalog.Build({a.Ptr(), b.Ptr()}, NoSources());
+
+    CHECK_EQ(GetPositiveTriggerTruncationCount(), 0u);
+    CHECK(catalog.Get(2200).positive);
+}

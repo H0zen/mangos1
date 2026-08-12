@@ -369,6 +369,40 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto,
                             void const* ctx, uint32 depth = 0);
 
 /**
+ * @brief Diagnostics for the one derivation that can be cut short.
+ *
+ * DeriveIsPositiveEffect follows a chain of triggered spells and stops at
+ * MAX_POSITIVE_TRIGGER_DEPTH. That cap exists because only a direct
+ * self-trigger is excluded, so a cycle would otherwise recurse without end --
+ * but a chain that is merely long, not cyclic, gets truncated too, and there
+ * its verdict may differ from the uncapped derivation this replaced.
+ *
+ * SpellCatalog.Verify cannot see it: the verifier runs the same cap and so
+ * truncates identically and agrees. These counters are how the truncation
+ * becomes visible at all.
+ *
+ * Written from Build() only, which is single-threaded at start-up.
+ */
+struct SpellTriggerTruncation
+{
+    /// Spell whose trigger chain was cut short.
+    uint32 spellId;
+    /// Effect index that carried the periodic trigger.
+    uint32 effIndex;
+    /// Spell the chain was about to step into.
+    uint32 triggeredId;
+};
+
+/// @brief Number of trigger chains cut short since the last reset.
+uint32 GetPositiveTriggerTruncationCount();
+
+/// @brief The recorded truncations, capped at a handful for reporting.
+std::vector<SpellTriggerTruncation> const& GetPositiveTriggerTruncations();
+
+/// @brief Clears both of the above. Called at the top of SpellCatalog::Build().
+void ResetPositiveTriggerTruncations();
+
+/**
  * @brief Derives the exclusion class for a spell.
  *
  * @param spellInfo  The DBC row.

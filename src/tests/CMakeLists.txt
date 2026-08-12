@@ -53,6 +53,9 @@ set(SRC_GRP_TESTS
     GeometryMathTest.cpp
     DataIntegrityTest.cpp
     SpellCatalogTest.cpp
+    # ProcIndex is header-only and knows nothing of Unit, so this one needs no
+    # source from src/game at all -- which is the point of the split.
+    ProcIndexTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These four know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp

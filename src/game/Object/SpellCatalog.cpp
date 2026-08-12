@@ -50,6 +50,13 @@ namespace
     /// How far DeriveIsPositiveEffect will follow a chain of triggered spells.
     const uint32 MAX_POSITIVE_TRIGGER_DEPTH = 4;
 
+    /// How many truncations get recorded in detail before only the count grows.
+    const size_t MAX_RECORDED_TRUNCATIONS = 16;
+
+    /// Written from Build() only, which is single-threaded at start-up.
+    uint32 g_truncationCount = 0;
+    std::vector<SpellTriggerTruncation> g_truncations;
+
     /**
      * @brief Maps a spell_elixir mask onto an exclusion class.
      *
@@ -416,6 +423,20 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
                     if (spellproto->ID != spellproto->EffectTriggerSpell[effIndex])
                     {
                         uint32 spellTriggeredId = spellproto->EffectTriggerSpell[effIndex];
+
+                        if (resolve && depth >= MAX_POSITIVE_TRIGGER_DEPTH)
+                        {
+                            ++g_truncationCount;
+                            if (g_truncations.size() < MAX_RECORDED_TRUNCATIONS)
+                            {
+                                SpellTriggerTruncation cut;
+                                cut.spellId = spellproto->ID;
+                                cut.effIndex = uint32(effIndex);
+                                cut.triggeredId = spellTriggeredId;
+                                g_truncations.push_back(cut);
+                            }
+                        }
+
                         SpellEntry const* spellTriggeredProto =
                             (resolve && depth < MAX_POSITIVE_TRIGGER_DEPTH)
                             ? resolve(ctx, spellTriggeredId) : NULL;
@@ -592,6 +613,22 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
     return true;
 }
 
+uint32 GetPositiveTriggerTruncationCount()
+{
+    return g_truncationCount;
+}
+
+std::vector<SpellTriggerTruncation> const& GetPositiveTriggerTruncations()
+{
+    return g_truncations;
+}
+
+void ResetPositiveTriggerTruncations()
+{
+    g_truncationCount = 0;
+    g_truncations.clear();
+}
+
 SpellCatalog& SpellCatalog::Instance()
 {
     static SpellCatalog instance;
@@ -692,6 +729,8 @@ void SpellCatalog::DeriveCrossReferenced(SpellInfo& info,
 void SpellCatalog::Build(std::vector<SpellEntry const*> const& entries,
                          SpellCatalogSources const& sources)
 {
+    ResetPositiveTriggerTruncations();
+
     m_entries.clear();
     m_slotById.clear();
     m_count = 0;

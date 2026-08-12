@@ -1632,45 +1632,43 @@ bool Unit::HasAura(uint32 spellId, SpellEffectIndex effIndex) const
 }
 
 /**
- * @brief Recomputes the aggregate proc mask from the currently held auras.
+ * @brief Tells whether any aura held here could proc from an event.
  *
  * The per-holder value must be the same one IsTriggeredAtSpellProcEvent will
  * use, or the early-out could hide a proc that would really have fired: the SQL
  * override wins whenever it is nonzero, and only then does ProcTypeMask apply.
  * SpellInfo::procFlags is that merge, resolved once at boot.
  */
-void Unit::RebuildProcMask() const
+bool Unit::CanAnyAuraProcFrom(uint32 eventFlags) const
 {
-    uint32 aggregate = 0;
-
-    for (SpellAuraHolderMap::const_iterator itr = m_spellAuraHolders.begin();
-         itr != m_spellAuraHolders.end(); ++itr)
+    return m_procIndex.Matches(eventFlags, [this](auto const& sink)
     {
-        SpellAuraHolder const* holder = itr->second;
-        if (!holder || holder->IsDeleted())
+        for (SpellAuraHolderMap::const_iterator itr = m_spellAuraHolders.begin();
+             itr != m_spellAuraHolders.end(); ++itr)
         {
-            continue;
+            SpellAuraHolder const* holder = itr->second;
+            if (!holder || holder->IsDeleted())
+            {
+                continue;
+            }
+
+            SpellEntry const* spellProto = holder->GetSpellProto();
+            if (!spellProto)
+            {
+                continue;
+            }
+
+            SpellInfo const& info = sSpellCatalog.Get(spellProto->ID);
+            if (info.dbc == spellProto)
+            {
+                sink(info.procFlags);
+                continue;
+            }
+
+            // Catalog miss: reproduce the override rule inline rather than assume.
+            SpellProcEventEntry const* procEvent = sSpellMgr.GetSpellProcEvent(spellProto->ID);
+            sink((procEvent && procEvent->procFlags) ? procEvent->procFlags
+                                                     : spellProto->ProcTypeMask);
         }
-
-        SpellEntry const* spellProto = holder->GetSpellProto();
-        if (!spellProto)
-        {
-            continue;
-        }
-
-        SpellInfo const& info = sSpellCatalog.Get(spellProto->ID);
-        if (info.dbc == spellProto)
-        {
-            aggregate |= info.procFlags;
-            continue;
-        }
-
-        // Catalog miss: reproduce the override rule inline rather than assume.
-        SpellProcEventEntry const* procEvent = sSpellMgr.GetSpellProcEvent(spellProto->ID);
-        aggregate |= (procEvent && procEvent->procFlags) ? procEvent->procFlags
-                                                         : spellProto->ProcTypeMask;
-    }
-
-    m_procMaskAggregate = aggregate;
-    m_procMaskDirty = false;
+    });
 }

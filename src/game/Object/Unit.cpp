@@ -245,8 +245,7 @@ Unit::Unit() :
     m_spellAuraHoldersUpdateIterator = m_spellAuraHolders.end();
     m_AuraFlags = 0;
 
-    m_procMaskAggregate = 0;
-    m_procMaskDirty = false;                                // no holders yet, so 0 is already correct
+    m_procIndex.Clear();                                    // no holders yet, so 0 is already correct
 
     m_Visibility = VISIBILITY_ON;
     m_AINotifyScheduled = false;

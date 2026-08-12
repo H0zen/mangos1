@@ -767,6 +767,28 @@ void SpellMgr::BuildSpellCatalog()
     sSpellCatalog.Build(entries, sources);
 
     sLog.outString(">> Compiled spell catalog: %u spells", sSpellCatalog.GetSpellCount());
+
+    // A truncated trigger chain is the one place the catalog can answer
+    // differently from the uncapped derivation it replaced, and it is invisible
+    // to SpellCatalog.Verify because the verifier runs the same cap. Say so
+    // here or it goes unnoticed forever.
+    if (const uint32 cut = GetPositiveTriggerTruncationCount())
+    {
+        sLog.outError(">> Spell catalog: %u triggered-spell chain(s) cut short at the recursion cap; "
+                      "their positive/negative verdict may differ from an uncapped derivation", cut);
+
+        for (SpellTriggerTruncation const& t : GetPositiveTriggerTruncations())
+        {
+            sLog.outError("   spell %u effect %u -> spell %u", t.spellId, t.effIndex, t.triggeredId);
+        }
+
+        if (cut > GetPositiveTriggerTruncations().size())
+        {
+            sLog.outError("   ... and %u more not listed",
+                          cut - uint32(GetPositiveTriggerTruncations().size()));
+        }
+    }
+
     sLog.outString();
 }
 

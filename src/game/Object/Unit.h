@@ -63,6 +63,7 @@
 #include "Object.h"
 #include "Opcodes.h"
 #include "SpellAuraDefines.h"
+#include "ProcIndex.h"
 #include "UpdateFields.h"
 #include "SharedDefines.h"
 #include "ThreatManager.h"
@@ -3601,17 +3602,10 @@ class Unit : public WorldObject
          * @param eventFlags The PROC_FLAG_* mask of the event being resolved.
          * @return true when at least one aura might proc; false when none can.
          */
-        bool CanAnyAuraProcFrom(uint32 eventFlags) const
-        {
-            if (m_procMaskDirty)
-            {
-                RebuildProcMask();
-            }
-            return (m_procMaskAggregate & eventFlags) != 0;
-        }
+        bool CanAnyAuraProcFrom(uint32 eventFlags) const;
 
         /// @brief Marks the aggregate proc mask stale. Called on any aura change.
-        void InvalidateProcMask() { m_procMaskDirty = true; }
+        void InvalidateProcMask() { m_procIndex.Invalidate(); }
         /**
          * Get's a list of all the \ref Aura s of the given \ref AuraType that are currently
          * affecting this \ref Unit.
@@ -3825,11 +3819,7 @@ class Unit : public WorldObject
         SpellAuraHolderMap m_spellAuraHolders;
         SpellAuraHolderMap::iterator m_spellAuraHoldersUpdateIterator; // != end() in Unit::m_spellAuraHolders update and point to next element
 
-        /// Recomputes m_procMaskAggregate from the current holders.
-        void RebuildProcMask() const;
-
-        mutable uint32 m_procMaskAggregate;                 // OR of every holder's effective proc flags
-        mutable bool   m_procMaskDirty;                     // set by InvalidateProcMask(), cleared by RebuildProcMask()
+        ProcIndex m_procIndex;                              // union of held auras' effective proc flags
 
         AuraList m_deletedAuras;                            // auras removed while in ApplyModifier and waiting deleted
         SpellAuraHolderList m_deletedHolders;
