@@ -43,6 +43,7 @@
 #include "TestHarness.h"
 
 #include "SpellCatalog.h"
+#include "SpellPositiveOverrides.h"
 
 #include <cstring>
 #include <memory>
@@ -665,4 +666,49 @@ TEST(SpellCatalog_AbsentSideDbcRowsLeaveZeroes)
     bare.Build({spell.Ptr()}, NoSources());
     CHECK_EQ(bare.Get(3400).durationMs, 0);
     CHECK(!bare.Get(3400).hasCastTimeRow);
+}
+
+TEST(SpellCatalog_PositiveOverrideIsKeyedOnContextNotJustId)
+{
+    // 38449 is recorded twice, positive under MOD_SCALE and under MOD_MELEE_HASTE,
+    // and 36893 is recorded negative under MOD_SCALE only. Keying on the id alone
+    // would apply a verdict to branches it was never meant to reach, so check that
+    // a recorded id in the WRONG branch is not found.
+    CHECK_EQ(int(LookupSpellPositiveOverride(38449, POC_AURA_MOD_SCALE)), int(POR_POSITIVE));
+    CHECK_EQ(int(LookupSpellPositiveOverride(38449, POC_AURA_MELEE_HASTE)), int(POR_POSITIVE));
+    CHECK_EQ(int(LookupSpellPositiveOverride(38449, POC_AURA_TRANSFORM)), int(POR_NONE));
+    CHECK_EQ(int(LookupSpellPositiveOverride(38449, POC_EFFECT_DUMMY)), int(POR_NONE));
+
+    CHECK_EQ(int(LookupSpellPositiveOverride(36893, POC_AURA_MOD_SCALE)), int(POR_NEGATIVE));
+    CHECK_EQ(int(LookupSpellPositiveOverride(36893, POC_AURA_TRANSFORM)), int(POR_NONE));
+
+    // 36897 is TRANSFORM-only; it must not answer for MOD_SCALE.
+    CHECK_EQ(int(LookupSpellPositiveOverride(36897, POC_AURA_TRANSFORM)), int(POR_NEGATIVE));
+    CHECK_EQ(int(LookupSpellPositiveOverride(36897, POC_AURA_MOD_SCALE)), int(POR_NONE));
+
+    // An id nobody recorded is never found, in any branch.
+    for (int c = POC_EFFECT_DUMMY; c <= POC_AURA_FORCE_REACTION; ++c)
+    {
+        CHECK_EQ(int(LookupSpellPositiveOverride(999999, PositiveOverrideContext(c))), int(POR_NONE));
+    }
+}
+
+TEST(SpellCatalog_OverrideTableReachesTheDerivation)
+{
+    // The table is only useful if the derivation actually consults it. Drive a
+    // DUMMY effect whose target modes would otherwise read as positive, and a
+    // recorded id that says it is not.
+    FakeSpell flagged(28441);                               // AB Effect 000, recorded false
+    flagged.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_DUMMY;
+    flagged.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    FakeSpell plain(28442);                                 // same shape, not recorded
+    plain.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_DUMMY;
+    plain.Get().ImplicitTargetA[EFFECT_INDEX_0] = TARGET_SINGLE_FRIEND;
+
+    SpellCatalog catalog;
+    catalog.Build({flagged.Ptr(), plain.Ptr()}, NoSources());
+
+    CHECK(!catalog.Get(28441).IsEffectPositive(EFFECT_INDEX_0));
+    CHECK(catalog.Get(28442).IsEffectPositive(EFFECT_INDEX_0));
 }

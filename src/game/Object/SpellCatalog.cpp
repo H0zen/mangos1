@@ -42,6 +42,7 @@
  */
 
 #include "SpellCatalog.h"
+#include "SpellPositiveOverrides.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -321,30 +322,16 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
     switch (spellproto->Effect[effIndex])
     {
         case SPELL_EFFECT_DUMMY:
-            // some explicitly required dummy effect sets
-            switch (spellproto->ID)
+            // a dummy effect carries no intent of its own -- see the table
+            if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_EFFECT_DUMMY))
             {
-                case 28441:                                 // AB Effect 000
-                    return false;
-                case 10258:                                 // Awaken Vault Warder
-                case 18153:                                 // Kodo Kombobulator
-                case 32312:                                 // Move 1
-                case 37388:                                 // Move 2
-                    return true;
-                default:
-                    break;
+                return r == POR_POSITIVE;
             }
             break;
         case SPELL_EFFECT_SCRIPT_EFFECT:
-            // some explicitly required script effect sets
-            switch (spellproto->ID)
+            if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_EFFECT_SCRIPT))
             {
-                case 46650:                                 // Open Brutallus Back Door
-                    return true;
-                case 5249 : // Ice Block - fixed trap dire maul
-                    return false;
-                default:
-                    break;
+                return r == POR_POSITIVE;
             }
             break;
             // always positive effects (check before target checks that provided non-positive result in some case for positive effects)
@@ -366,28 +353,9 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
                 case SPELL_AURA_DUMMY:
                 {
                     // dummy aura can be positive or negative dependent from casted spell
-                    switch (spellproto->ID)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_DUMMY))
                     {
-                        case 13139:                         // net-o-matic special effect
-                        case 18172:                         // Quest Kodo Roundup player debuff
-                        case 23445:                         // evil twin
-                        case 35679:                         // Protectorate Demolitionist
-                        case 37695:                         // Stanky
-                        case 38637:                         // Nether Exhaustion (red)
-                        case 38638:                         // Nether Exhaustion (green)
-                        case 38639:                         // Nether Exhaustion (blue)
-                        case 44689:                         // Relay Race Accept Hidden Debuff - DND
-                            return false;
-                            // some spells have unclear target modes for selection, so just make effect positive
-                        case 27184:
-                        case 27190:
-                        case 27191:
-                        case 27201:
-                        case 27202:
-                        case 27203:
-                            return true;
-                        default:
-                            break;
+                        return r == POR_POSITIVE;
                     }
                 }   break;
                 case SPELL_AURA_MOD_DAMAGE_DONE:            // dependent from base point sign (negative -> negative)
@@ -475,16 +443,16 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
                         return false;                        // but all single stun aura spells is negative
                     }
 
-                    // Petrification
-                    if (spellproto->ID == 17624)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_MOD_STUN))
                     {
-                        return false;
+                        return r == POR_POSITIVE;
                     }
                     break;
                 case SPELL_AURA_MOD_PACIFY_SILENCE:
-                    if (spellproto->ID == 24740)            // Wisp Costume
+                    // negative unless the table records otherwise
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_PACIFY_SILENCE))
                     {
-                        return true;
+                        return r == POR_POSITIVE;
                     }
                     return false;
                 case SPELL_AURA_MOD_ROOT:
@@ -518,25 +486,16 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
                     break;
                 case SPELL_AURA_TRANSFORM:
                     // some spells negative
-                    switch (spellproto->ID)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_TRANSFORM))
                     {
-                        case 36897:                         // Transporter Malfunction (race mutation to horde)
-                        case 36899:                         // Transporter Malfunction (race mutation to alliance)
-                            return false;
+                        return r == POR_POSITIVE;
                     }
                     break;
                 case SPELL_AURA_MOD_SCALE:
                     // some spells negative
-                    switch (spellproto->ID)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_MOD_SCALE))
                     {
-                        case 802:                           // Mutate Bug, wrongly negative by target modes
-                        case 38449:                         // Blessing of the Tides
-                            return true;
-                        case 36900:                         // Soul Split: Evil!
-                        case 36901:                         // Soul Split: Good
-                        case 36893:                         // Transporter Malfunction (decrease size case)
-                        case 36895:                         // Transporter Malfunction (increase size case)
-                            return false;
+                        return r == POR_POSITIVE;
                     }
                     break;
                 case SPELL_AURA_MECHANIC_IMMUNITY:
@@ -571,20 +530,17 @@ bool DeriveIsPositiveEffect(SpellEntry const* spellproto, SpellEffectIndex effIn
                 }   break;
                 case SPELL_AURA_MOD_MELEE_HASTE:
                 {
-                    switch (spellproto->ID)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_MELEE_HASTE))
                     {
-                        case 38449:                         // Blessing of the Tides
-                            return true;
-                        default:
-                            break;
+                        return r == POR_POSITIVE;
                     }
                     break;
                 }
                 case SPELL_AURA_FORCE_REACTION:
                 {
-                    if (spellproto->ID == 42792)            // Recently Dropped Flag (prevent cancel)
+                    if (PositiveOverrideResult r = LookupSpellPositiveOverride(spellproto->ID, POC_AURA_FORCE_REACTION))
                     {
-                        return false;
+                        return r == POR_POSITIVE;
                     }
                     break;
                 }
