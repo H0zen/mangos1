@@ -50,6 +50,32 @@ namespace mai
             return c == ' ' || c == '\t' || c == '\r' || c == '\n';
         }
 
+        /**
+         * Base 10, or base 16 when the value says so with `0x`.
+         *
+         * A `flags` parameter IS a bitmask -- the manifest says so and prints
+         * it in hex -- so `value=0x02000000` is the form a person writes and
+         * the form every hand port used. Read in base 10 it stops at the `x`,
+         * and the row is refused with "which is not a number" over a value
+         * that is perfectly well formed. Seven of Nefarian's rules and four
+         * aura scripts went that way.
+         *
+         * NOT `strtoul`'s base 0, which would also read a leading zero as
+         * octal: `010` means ten to everyone writing a table and eight to C.
+         * Nothing in the manifest is octal, so nothing here should guess it.
+         */
+        int BaseOf(std::string const& text)
+        {
+            std::size_t at = 0;
+            if (at < text.size() && (text[at] == '+' || text[at] == '-'))
+            {
+                ++at;
+            }
+
+            return (at + 1 < text.size() && text[at] == '0' &&
+                    (text[at + 1] == 'x' || text[at + 1] == 'X')) ? 16 : 10;
+        }
+
         /// The slot @a name occupies in @a spec, or the arity when it has none.
         ///
         /// Templated over the spec, and so is everything below it. ActionSpec
@@ -172,12 +198,12 @@ namespace mai
                 else if (type == ParamType::I32 || type == ParamType::Text)
                 {
                     operands[slot].i = int32(std::strtol(text.c_str(), &end,
-                                                             10));
+                                                             BaseOf(text)));
                 }
                 else
                 {
                     operands[slot].u = uint32(std::strtoul(text.c_str(), &end,
-                                                               10));
+                                                               BaseOf(text)));
                 }
 
                 if (end == text.c_str() || (end && *end))
