@@ -458,9 +458,13 @@ namespace scripting
         // lookup rather than a query per script.
         std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> byScript;
         {
+            // `seq` is selected only to be able to NAME the row in an error.
+            // (kind, script, seq) is the primary key, and a refusal that says
+            // "aura_apply script 10848" leaves whoever reads it to find which
+            // of that script's steps was meant.
             std::unique_ptr<QueryResult> rows(WorldDatabase.Query(
                 "SELECT `kind`+0, `script`, `at_ms`, `action`, `params`, "
-                "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance` "
+                "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance`, `seq` "
                 "FROM `mai_step` ORDER BY `kind`, `script`, `seq`"));
 
             while (rows && rows->NextRow())
@@ -483,9 +487,9 @@ namespace scripting
                 if (!mai::Parse(field[3].GetString(), field[4].GetString(),
                                 step, error))
                 {
-                    sLog.outErrorDb("MAI: %s script %u: %s",
+                    sLog.outErrorDb("MAI: %s script %u seq %u: %s",
                                     kinds[which - 1].name, script,
-                                    error.c_str());
+                                    field[9].GetUInt32(), error.c_str());
                     ++refusedSteps;
                     continue;
                 }
@@ -536,6 +540,7 @@ namespace scripting
             mai::Sequence sequence;
             sequence.id = id;
             sequence.origin = type;
+            sequence.kind = kinds[which - 1].name;
             sequence.name = field[2].GetString();
 
             auto found = byScript.find(std::make_pair(type, id));
@@ -610,7 +615,7 @@ namespace scripting
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
                 "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
-                "`chance`, `at_ms`, `select_else`, `select_source` "
+                "`chance`, `at_ms`, `select_else`, `select_source`, `seq` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -628,8 +633,9 @@ namespace scripting
                 if (!mai::Parse(field[2].GetString(), field[3].GetString(),
                                 step, owner, error))
                 {
-                    sLog.outErrorDb("MAI: creature %u rule %u: %s", creature,
-                                    rule, error.c_str());
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: %s",
+                                    creature, rule, field[13].GetUInt32(),
+                                    error.c_str());
                     ++refusedSteps;
                     continue;
                 }
@@ -647,9 +653,9 @@ namespace scripting
                 step.selectElse = mai::Selector(orElse);
                 if (orElse != mai::SelectNone && orElse >= mai::SelectEnd)
                 {
-                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
-                                    "target selector", creature, rule,
-                                    uint32(orElse));
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: %u is "
+                                    "not a target selector", creature, rule,
+                                    field[13].GetUInt32(), uint32(orElse));
                     ++refusedSteps;
                     continue;
                 }
@@ -660,17 +666,18 @@ namespace scripting
                 step.selectSource = mai::Selector(asWhom);
                 if (asWhom != mai::SelectNone && asWhom >= mai::SelectEnd)
                 {
-                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
-                                    "source selector", creature, rule,
-                                    uint32(asWhom));
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: %u is "
+                                    "not a source selector", creature, rule,
+                                    field[13].GetUInt32(), uint32(asWhom));
                     ++refusedSteps;
                     continue;
                 }
 
                 if (step.select >= mai::SelectEnd)
                 {
-                    sLog.outErrorDb("MAI: creature %u rule %u: %u is not a "
-                                    "target selector", creature, rule,
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: %u is "
+                                    "not a target selector", creature, rule,
+                                    field[13].GetUInt32(),
                                     uint32(step.select));
                     ++refusedSteps;
                     continue;

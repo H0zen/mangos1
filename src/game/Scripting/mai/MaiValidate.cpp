@@ -175,10 +175,31 @@ namespace mai
             // people, and refusing to start a server over one bad row would
             // teach an administrator to turn the check off -- which costs more
             // than the row does. What must not happen is silence.
-            sLog.outErrorDb("MAI: %s step %u at %ums: %s",
-                            sequence.name.empty() ? "script"
-                                                  : sequence.name.c_str(),
-                            uint32(i), sequence.steps[i].atMs, error.c_str());
+            //
+            // NAME THE ROW. This used to lead with `name`, and fall back to
+            // the word "script" when there was none -- so a converted sequence,
+            // which mostly has no name, reported itself as
+            //
+            //     MAI: script step 0 at 0ms: update_template.faction is 0 ...
+            //
+            // twenty-two times in one start-up, and none of the twenty-two
+            // said WHICH script. (`kind`, `script`) is the primary key of both
+            // `mai_script` and `mai_step`, so leading with it makes every line
+            // a row somebody can go and open. The name follows when there is
+            // one, because it is the thing a person recognises.
+            if (sequence.name.empty())
+            {
+                sLog.outErrorDb("MAI: %s %u step %u at %ums: %s",
+                                sequence.kind, sequence.id, uint32(i),
+                                sequence.steps[i].atMs, error.c_str());
+            }
+            else
+            {
+                sLog.outErrorDb("MAI: %s %u '%s' step %u at %ums: %s",
+                                sequence.kind, sequence.id,
+                                sequence.name.c_str(), uint32(i),
+                                sequence.steps[i].atMs, error.c_str());
+            }
         }
 
         return refused;

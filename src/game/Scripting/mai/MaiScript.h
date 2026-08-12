@@ -363,6 +363,18 @@ namespace mai
         /// running" test. It leaves with them.
         uint32            origin = 0;
 
+        /// The `kind` column, by the name a person typed into it.
+        ///
+        /// Not derived from `origin`: three of the fifteen kinds share an
+        /// origin with another, because MAI's own kinds borrow the nearest
+        /// `dbscripts_on_*` type for the bodies that still expect one. Derived,
+        /// an `aura_apply` would report itself as a `spell`.
+        ///
+        /// A string literal out of the loader's own table, so it outlives
+        /// everything that reads it and costs a pointer rather than a copy on
+        /// each of 800 sequences.
+        char const*       kind = "script";
+
         std::string       name;     ///< as reported in an error
         std::vector<Step> steps;    ///< sorted by atMs
 
