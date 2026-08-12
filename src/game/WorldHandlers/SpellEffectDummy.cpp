@@ -64,7 +64,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "dbscripts/DbScriptStore.h"
+#include "dbscripts/DbScripts.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -2229,7 +2229,7 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
     }
 
     // Previous effect might have started script
-    if (!DbScriptStore::CanSpellEffectStartDBScript(m_spellInfo, eff_idx))
+    if (!SpellEffectStartsScript(m_spellInfo, eff_idx))
     {
         return;
     }

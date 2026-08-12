@@ -60,7 +60,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "dbscripts/DbScriptStore.h"
+#include "dbscripts/DbScripts.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -446,7 +446,7 @@ void Spell::EffectTriggerSpellWithValue(SpellEffectIndex eff_idx)
     if (!spellInfo)
     {
         // No previous Effect might have started a script
-        bool startDBScript = unitTarget && DbScriptStore::CanSpellEffectStartDBScript(m_spellInfo, eff_idx);
+        bool startDBScript = unitTarget && SpellEffectStartsScript(m_spellInfo, eff_idx);
         if (startDBScript)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerSpell", m_spellInfo->ID);

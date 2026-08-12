@@ -523,7 +523,11 @@ bool ChatHandler::HandleWpModifyCommand(char* args)
 
         if (!sWaypointMgr.SetNodeScriptId(wpOwner->GetEntry(), wpOwner->GetGUIDLow(), wpId, wpPathId, wpSource, scriptId))
         {
-            PSendSysMessage(LANG_WAYPOINT_INFO_UNK_SCRIPTID, scriptId);
+            PSendSysMessage(LANG_WAYPOINT_NOTFOUND, wpId,
+                            wpOwner->GetGuidStr().c_str(), wpPathId,
+                            WaypointManager::GetOriginString(wpSource).c_str());
+            SetSentErrorMessage(true);
+            return false;
         }
     }
     else if (subCmd == "orientation")

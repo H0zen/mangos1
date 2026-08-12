@@ -280,8 +280,8 @@ namespace scripting
      * whatever of their own data that makes readable.
      *
      * The world says where it has got to; it does not say what to load. What
-     * `creature_ai_scripts` needs in place before it can be checked is a fact
-     * about EventAI, and it now lives in EventAI.
+     * `mai_rule` needs in place before a rule's parameters can be checked is a
+     * fact about MAI, and it lives in MAI.
      */
     void LoadData(LoadPhase phase);
 

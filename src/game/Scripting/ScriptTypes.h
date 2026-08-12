@@ -330,12 +330,20 @@ namespace scripting
      * The world announces where it has got to instead. Each engine decides
      * what that means for its own tables, and a new engine with a new
      * dependency adds a case rather than a line in World.cpp.
+     *
+     * There were two more, BeforeGossip and AfterWaypoints, and they went with
+     * the coupling that justified them: the gossip and waypoint loaders used
+     * to cross-check a `script_id` against an engine's table, so the engine
+     * had to have read it by then. Nothing does that now -- which sequences
+     * exist is the engine's business and a dangling id is a no-op, not a
+     * dropped row -- and no engine subscribed to either. AfterWaypoints was
+     * also emitted BEFORE the waypoints loaded, so as a statement about the
+     * world's progress it was simply false. Add a phase back when an engine
+     * needs one, and name it after what has actually happened.
      */
     enum class LoadPhase : uint8
     {
         Bindings,        ///< nothing world-specific yet; script names may bind
-        BeforeGossip,    ///< the gossip menus are about to be read
-        AfterWaypoints,  ///< waypoint paths exist
         AfterTemplates,  ///< creature and gameobject templates, and quests
         Final            ///< every world table is in place
     };

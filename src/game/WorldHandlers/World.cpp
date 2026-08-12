@@ -71,7 +71,6 @@
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
 #include "DataIntegrity/DataManifest.h"
-#include "sd3/ScriptBindings.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"
@@ -539,9 +538,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading SpellTemplate...");
     sObjectMgr.LoadSpellTemplate();
 
-    sLog.outString("Loading Script Names...");
-    sScriptBindings.LoadScriptNames();
-
     sLog.outString("Loading InstanceTemplate...");
     sObjectMgr.LoadInstanceTemplate();
 
@@ -800,10 +796,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Skill Fishing base level requirements...");
     sObjectMgr.LoadFishingBaseSkillLevel();
 
-    ///- The gossip menus are next, and they are checked against whatever the
-    ///  engines have bound to them, so the engines read first.
-    scripting::LoadData(scripting::LoadPhase::BeforeGossip);
-
     sObjectMgr.LoadGossipMenus();
 
     sLog.outString("Loading Vendors...");
@@ -813,9 +805,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Trainers...");
     sObjectMgr.LoadTrainerTemplates();                      // must be after load CreatureTemplate
     sObjectMgr.LoadTrainers();                              // must be after load CreatureTemplate, TrainerTemplate
-
-    ///- Same again for the waypoint paths.
-    scripting::LoadData(scripting::LoadPhase::AfterWaypoints);
 
     sLog.outString("Loading Waypoints...");
     sWaypointMgr.Load();

@@ -1366,8 +1366,8 @@ class ObjectMgr
         void LoadVendors(char const* tableName, bool isTemplates);
         void LoadTrainers(char const* tableName, bool isTemplates);
 
-        void LoadGossipMenu(std::set<uint32>& gossipScriptSet);
-        void LoadGossipMenuItems(std::set<uint32>& gossipScriptSet);
+        void LoadGossipMenu();
+        void LoadGossipMenuItems();
 
         MailLevelRewardMap m_mailLevelRewardMap;
 

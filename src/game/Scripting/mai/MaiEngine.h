@@ -140,6 +140,11 @@ namespace scripting
 
         static MaiEngine* s_instance;
 
+        /// Whether this world database carries MAI's five tables. False means
+        /// the migration has not been applied, which is reported once instead
+        /// of as ten lines of SQL errors and four "table is empty" notices.
+        static bool HasSchema();
+
         /// Everything anything says, from `mai_text`.
         void LoadTexts();
 

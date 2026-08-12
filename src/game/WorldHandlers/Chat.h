@@ -464,15 +464,7 @@ class ChatHandler
         bool HandleReloadCreatureQuestRelationsCommand(char* args);
         bool HandleReloadCreatureQuestInvRelationsCommand(char* args);
         bool HandleReloadCreaturesStatsCommand(char* args);
-        bool HandleReloadDbScriptStringCommand(char* args);
-        bool HandleReloadDBScriptsOnCreatureDeathCommand(char* args);
-        bool HandleReloadDBScriptsOnEventCommand(char* args);
-        bool HandleReloadDBScriptsOnGossipCommand(char* args);
-        bool HandleReloadDBScriptsOnGoUseCommand(char* args);
-        bool HandleReloadDBScriptsOnQuestEndCommand(char* args);
-        bool HandleReloadDBScriptsOnQuestStartCommand(char* args);
-        bool HandleReloadDBScriptsOnSpellCommand(char* args);
-
+        bool HandleReloadMaiScriptsCommand(char* args);
         bool HandleReloadMaiTextsCommand(char* args);
         bool HandleReloadLuauCommand(char* args);
         bool HandleReloadGameGraveyardZoneCommand(char* args);

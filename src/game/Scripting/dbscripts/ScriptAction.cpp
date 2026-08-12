@@ -35,7 +35,7 @@
 
 #include <algorithm>
 #include "Utilities/MathDefines.h"
-#include "DbScriptStore.h"
+#include "DbScripts.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "GridNotifiers.h"

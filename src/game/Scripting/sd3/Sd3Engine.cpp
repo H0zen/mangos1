@@ -222,6 +222,18 @@ namespace scripting
                 // loaded, and everything that asks GetBoundScriptId() -- the
                 // bids, the spell and map-event lookups -- needs it, so it is
                 // the first thing that happens.
+                //
+                // The NAME table comes first and comes from here too. The world
+                // used to read it itself, four hundred lines earlier and with
+                // no #ifdef at all, so a build with SD3 configured out still
+                // queried `script_binding` at start-up for a registry only SD3
+                // reads. It sat that early because the SQLStorage loaders
+                // convert a `ScriptName` column through it -- and no world
+                // table in this core has such a column any more; `ScriptName`
+                // exists only in `script_binding` itself.
+                sLog.outString("Loading Script Names...");
+                sScriptBindings.LoadScriptNames();
+
                 sLog.outString("Loading all script bindings...");
                 sScriptBindings.LoadScriptBinding();
                 break;

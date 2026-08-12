@@ -29,17 +29,20 @@
 /**
  * The DB-script engine's own vocabulary.
  *
- * This is what `dbscripts_on_*` IS: ten table types, a command set, the row
+ * This is what `dbscripts_on_*` WAS: ten table types, a command set, the row
  * that holds one command, the chain those rows form, and the action that runs
  * one step of a chain on a map. None of it describes anything the world does
  * -- it describes one engine's tables -- so it lives with that engine rather
  * than in WorldHandlers, where every file that wanted a script id dragged the
  * whole command set in behind it.
  *
- * DbScriptStore.h includes this and owns the tables; ScriptAction.cpp runs
- * them; DbScriptEngine decides that one should start. A file that wants only
- * the vocabulary -- Map.h wants ScriptInfo and ScriptAction, and nothing else
- * -- includes this and stops here.
+ * Nothing reads those tables now: MAI reads `mai_script` and `mai_step`
+ * through its own model, and the store that held the chains is gone. What
+ * survives here is the part MAI still uses -- ScriptInfo, the command numbers
+ * (which are MAI's verb ids, unchanged, so the migration was mechanical) and
+ * ScriptAction, whose bodies MAI borrows for the verbs it has not rewritten.
+ * They go one at a time as it does. ScriptStart.cpp holds the two functions
+ * that survived the store.
  */
 
 #include "Platform/Define.h"
@@ -56,6 +59,7 @@ class Object;
 class Player;
 class WorldObject;
 class Unit;
+struct SpellEntry;
 
 enum DBScriptType
 {
@@ -588,5 +592,22 @@ class ScriptAction
 // Starters for events
 bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target,
                        bool isStart = true, Unit* forwardToPvp = NULL);
+
+/**
+ * Whether @a effIdx is THE effect of @a spellinfo that starts a script.
+ *
+ * A spell may carry several effects that could each start one -- a script
+ * effect, a dummy, a trigger of a spell that does not exist -- and exactly one
+ * of them must, or the sequence runs two or three times. The rule is priority
+ * first (script effect over dummy over non-existent trigger) and lowest effect
+ * index to break a tie, and it is a fact about the SPELL, so it is a free
+ * function rather than a question for whatever engine happens to be listening.
+ *
+ * It was a static member of DbScriptStore, which was the last live thing in
+ * that class; the chain maps, the ten loaders and the scheduled-step counter
+ * around it had no reader left once MAI took the sequences.
+ */
+bool SpellEffectStartsScript(SpellEntry const* spellinfo,
+                             SpellEffectIndex effIdx);
 
 #endif //MANGOS_DBSCRIPTS_H

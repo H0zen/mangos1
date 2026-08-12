@@ -30,7 +30,6 @@
 #include "ProgressBar.h"
 #include "MapManager.h"
 #include "ObjectMgr.h"
-#include "dbscripts/DbScriptStore.h"
 #include <set>
 #include <utility>
 
@@ -85,20 +84,14 @@ void WaypointManager::Load()
     uint32 total_nodes = 0;
     uint32 total_behaviors = 0;
 
-    /* Getting the script chain map for the DBS_ON_CREATURE_MOVEMENT event. */
-    ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
-    if (!scm)
-    {
-        return;
-    }
-
-    std::set<uint32> movementScriptSet;
-
-    /* Iterating through the map and printing out the key and value. */
-    for (ScriptChainMap::const_iterator itr = scm->begin(); itr != scm->end(); ++itr)
-    {
-        movementScriptSet.insert(itr->first);
-    }
+    // A node's `script_id` is NOT checked against a script store here any
+    // more. It used to be, and the check outlived the store: nothing fills
+    // the DB-script chains now, so every lookup missed and the node was
+    // skipped -- 507 waypoints in a live world silently dropped out of their
+    // paths, which is a creature walking a different route, not a logged
+    // warning. Which sequences exist is the engine's own table, read at the
+    // last load phase and long after this one; a node naming one that is gone
+    // is still walked, and simply runs nothing when it is reached.
 
     // /////////////////////////////////////////////////////
     // creature_movement
@@ -193,17 +186,6 @@ void WaypointManager::Load()
                 }
 
                 WorldDatabase.PExecute("UPDATE `creature_movement` SET `position_x` = '%f', `position_y` = '%f', `position_z` = '%f' WHERE `id` = '%u' AND `point` = '%u'", node.x, node.y, node.z, id, point);
-            }
-
-            if (node.script_id)
-            {
-                if (scm->find(node.script_id) == scm->end())
-                {
-                    sLog.outErrorDb("Table creature_movement for id %u, point %u have script_id %u that does not exist in `dbscripts_on_creature_movement`, ignoring", id, point, node.script_id);
-                    continue;
-                }
-
-                movementScriptSet.erase(node.script_id);
             }
 
             // WaypointBehavior can be dropped in time. Script_id added may 2010 and can handle all the below behavior.
@@ -356,17 +338,6 @@ void WaypointManager::Load()
                 WorldDatabase.PExecute("UPDATE `creature_movement_template` SET `position_x` = '%f', `position_y` = '%f' WHERE `entry` = %u AND `point` = %u", node.x, node.y, entry, point);
             }
 
-            if (node.script_id)
-            {
-                if (scm->find(node.script_id) == scm->end())
-                {
-                    sLog.outErrorDb("Table creature_movement_template for entry %u, point %u have script_id %u that does not exist in `dbscripts_on_creature_movement`, ignoring", entry, point, node.script_id);
-                    continue;
-                }
-
-                movementScriptSet.erase(node.script_id);
-            }
-
             WaypointBehavior be;
             be.model1           = fields[15].GetUInt32();
             be.model2           = fields[16].GetUInt32();
@@ -417,15 +388,6 @@ void WaypointManager::Load()
         delete result;
 
         sLog.outString(">> Loaded %u path templates with %u nodes and %u behaviors from waypoint templates", total_paths, total_nodes, total_behaviors);
-        sLog.outString();
-    }
-
-    if (!movementScriptSet.empty())
-    {
-        for (std::set<uint32>::const_iterator itr = movementScriptSet.begin(); itr != movementScriptSet.end(); ++itr)
-        {
-            sLog.outErrorDb("Table `db_scripts` (on creature movement) contain unused script, id %u.", *itr);
-        }
         sLog.outString();
     }
 }
@@ -739,7 +701,13 @@ void WaypointManager::SetNodeOrientation(uint32 entry, uint32 dbGuid, uint32 poi
  * @param pathId The path ID of the waypoint path you want to modify.
  * @param wpOrigin This is the type of waypoint path you want to modify.
  * @param scriptId The scriptId of the script you want to run.
- * @return The script_id of the waypoint.
+ * @return true when the node was found and its script id written.
+ *
+ * It used to answer a different question -- whether a DB-script chain with
+ * that id existed -- and answered it out of a store nothing fills any more,
+ * so every use of the command warned that a perfectly good id was unknown.
+ * Which sequences exist belongs to the engine that owns them, and the seam
+ * has no way to ask; so this reports only what it actually did.
  */
 bool WaypointManager::SetNodeScriptId(uint32 entry, uint32 dbGuid, uint32 point, int32 pathId, WaypointPathOrigin wpOrigin, uint32 scriptId)
 {
@@ -761,18 +729,13 @@ bool WaypointManager::SetNodeScriptId(uint32 entry, uint32 dbGuid, uint32 point,
     WorldDatabase.PExecuteLog("UPDATE `%s` SET `script_id`=%u WHERE `%s`=%u AND `point`=%u", table, scriptId, key_field, key, point);
 
     WaypointPath::iterator find = path->find(point);
-    if (find != path->end())
-    {
-        find->second.script_id = scriptId;
-    }
-
-    ScriptChainMap const* scm = sDbScripts.GetScriptChainMap(DBS_ON_CREATURE_MOVEMENT);
-    if (!scm)
+    if (find == path->end())
     {
         return false;
     }
 
-    return scm->find(scriptId) != scm->end();
+    find->second.script_id = scriptId;
+    return true;
 }
 
 /**

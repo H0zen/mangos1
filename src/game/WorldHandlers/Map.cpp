@@ -44,7 +44,6 @@
 
 #include "ScriptHost.h"
 #include "Time/SimulationTime.h"
-#include "dbscripts/DbScriptStore.h"
 #include "sd3/ScriptBindings.h"
 #include "Utilities/Errors.h"
 #include <vector>
@@ -109,11 +108,6 @@ Map::~Map()
 
 
     UnloadAll(true);
-
-    if (!m_scriptSchedule.empty())
-    {
-        sDbScripts.DecreaseScheduledScriptCount(m_scriptSchedule.size());
-    }
 
     if (m_persistentState)
     {
@@ -2865,68 +2859,12 @@ bool Map::CanEnter(Player* player)
 }
 
 /// Put scripts in the execution queue
-
-/**
- * @brief Queues all steps of a database script chain for later execution.
- *
- * @param type The script table type.
- * @param id The script chain identifier.
- * @param source The source object used by the script.
- * @param target The optional target object used by the script.
- * @param execParams Flags controlling uniqueness checks for queued scripts.
- * @return true if the script chain exists and was queued or intentionally skipped as duplicate.
- */
-bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams /*=SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET*/)
-{
-    MANGOS_ASSERT(source);
-
-    ///- Find the script chain map
-    ScriptChainMap const *scm = sDbScripts.GetScriptChainMap(type);
-    if (!scm)
-    {
-        return false;
-    }
-
-    ScriptChainMap::const_iterator s = scm->find(id);
-    if (s == scm->end())
-    {
-        return false;
-    }
-
-    // prepare static data
-    ObjectGuid sourceGuid = source->GetObjectGuid();
-    ObjectGuid targetGuid = target ? target->GetObjectGuid() : ObjectGuid();
-    ObjectGuid ownerGuid  = source->isType(TYPEMASK_ITEM) ? ((Item*)source)->GetOwnerGuid() : ObjectGuid();
-
-    if (execParams)                                         // Check if the execution should be uniquely
-    {
-        for (ScriptScheduleMap::const_iterator searchItr = m_scriptSchedule.begin(); searchItr != m_scriptSchedule.end(); ++searchItr)
-        {
-            if (searchItr->second.IsSameScript(type, id,
-                                               (execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE) ? sourceGuid : ObjectGuid(),
-                                               (execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET) ? targetGuid : ObjectGuid(), ownerGuid))
-            {
-                DEBUG_FILTER_LOG(LOG_FILTER_DB_SCRIPTS, "DB-SCRIPTS: Process table `dbscripts [type=%d]` id %u. Skip script as script already started for source %s, target %s - ScriptsStartParams %u", type, id, sourceGuid.GetString().c_str(), targetGuid.GetString().c_str(), execParams);
-                return true;
-            }
-        }
-    }
-
-    ///- Schedule script execution for all scripts in the script map
-    ScriptChain const* s2 = &(s->second);
-    for (ScriptChain::const_iterator iter = s2->begin(); iter != s2->end(); ++iter)
-    {
-        ScriptAction sa(type, this, sourceGuid, targetGuid, ownerGuid, &(*iter));
-
-        // The column is in seconds; the schedule is in milliseconds.
-        m_scriptSchedule.insert(ScriptScheduleMap::value_type(
-            Simulation::Now() + uint64(iter->delay) * 1000u, sa));
-
-        sDbScripts.IncreaseScheduledScriptsCount();
-    }
-
-    return true;
-}
+///
+/// ScriptsStart -- start a whole `dbscripts_on_*` chain by (type, id) -- was
+/// here and is gone. MAI owns the chains: it reads them from its own tables,
+/// keeps its own frames, and never touched this schedule. What is left below
+/// is the one thing MAI does not start, a single command with a delay, plus
+/// the schedule that runs it.
 
 /**
  * @brief Queues an internally generated script command for delayed execution.
@@ -2949,8 +2887,6 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delayMs, Object* s
 
     m_scriptSchedule.insert(ScriptScheduleMap::value_type(
         Simulation::Now() + delayMs, sa));
-
-    sDbScripts.IncreaseScheduledScriptsCount();
 }
 
 /// Process queued scripts
@@ -2984,7 +2920,6 @@ void Map::ScriptsProcess()
                 if (rmItr->second.IsSameScript(type, id, sourceGuid, targetGuid, ownerGuid))
                 {
                     m_scriptSchedule.erase(rmItr++);
-                    sDbScripts.DecreaseScheduledScriptCount();
                 }
                 else
                 {
@@ -2995,8 +2930,6 @@ void Map::ScriptsProcess()
         else
         {
             m_scriptSchedule.erase(iter);
-
-            sDbScripts.DecreaseScheduledScriptCount();
         }
         iter = m_scriptSchedule.begin();
     }

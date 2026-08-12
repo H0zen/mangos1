@@ -45,9 +45,9 @@
 #include "SpellAuras.h"
 #include "SharedDefines.h"
 #include "WaypointManager.h"
-#include "dbscripts/DbScriptStore.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -316,11 +316,62 @@ namespace scripting
                                  Map::SCRIPT_EXEC_PARAM_NONE, owner);
     }
 
+    /**
+     * Whether this world database has MAI's tables at all.
+     *
+     * Asked once, in one query, and the reason is what happens otherwise: a
+     * world that has not run the migration yet answers five SELECTs with
+     * "Table 'x.mai_step' doesn't exist", which the database layer logs as ten
+     * lines of `SQL:` / `query ERROR:` before each loader shrugs and reports
+     * the table as EMPTY. Empty and absent are the same silence to the loader
+     * and completely different facts to whoever is reading the log in the
+     * middle of a migration -- one is a world with no scripts, the other is a
+     * world whose scripts have not been converted yet.
+     *
+     * @return false when ANY of them is missing. A half-migrated schema is not
+     *         a state to load through: the rules would come up without the
+     *         sequences they start, or the other way round.
+     */
+    bool MaiEngine::HasSchema()
+    {
+        static char const* const tables[] =
+        {
+            "mai_script", "mai_rule", "mai_step", "mai_rule_step", "mai_text",
+        };
+        std::size_t const wanted = sizeof(tables) / sizeof(*tables);
+
+        std::unique_ptr<QueryResult> result(WorldDatabase.Query(
+            "SELECT COUNT(*) FROM `information_schema`.`tables` "
+            "WHERE `table_schema` = DATABASE() AND `table_name` IN "
+            "('mai_script', 'mai_rule', 'mai_step', 'mai_rule_step', "
+            "'mai_text')"));
+
+        std::size_t const found =
+            result ? std::size_t(result->Fetch()[0].GetUInt32()) : 0;
+
+        if (found == wanted)
+        {
+            return true;
+        }
+
+        sLog.outErrorDb("MAI: this world database has %u of MAI's %u tables. "
+                        "Nothing is scripted -- no creature has an AI and no "
+                        "sequence can start -- until the migration that "
+                        "creates and fills them has been applied.",
+                        uint32(found), uint32(wanted));
+        return false;
+    }
+
     void MaiEngine::LoadData(LoadPhase phase)
     {
         // Last: every table a step's parameters are checked against has to be
         // in place before any of them can be checked at all.
         if (phase != LoadPhase::Final)
+        {
+            return;
+        }
+
+        if (!HasSchema())
         {
             return;
         }
@@ -746,17 +797,20 @@ namespace scripting
 
     bool MaiEngine::ReloadData(char const* table)
     {
-        // The DB-script tables are MAI's now, so the reload commands are too.
-        // The store still reads them; this rebuilds the sequences from what it
-        // read.
+        // MAI's own tables, and only those. This used to answer to the ten
+        // `dbscripts_on_*` names as well, with a comment saying the store
+        // still read them and this rebuilt the sequences from what it read --
+        // which stopped being true when LoadSequences started reading
+        // `mai_script` and `mai_step` directly. Answering to a table name it
+        // does not read is worse than not answering: the administrator is told
+        // the reload happened.
+        //
+        // `mai_step` is not listed separately on purpose. A sequence is its
+        // steps; there is no reload of one without the other, and a name that
+        // reloaded half of a sequence would be a trap.
         static char const* const owned[] =
         {
-            "dbscripts_on_quest_start", "dbscripts_on_quest_end",
-            "dbscripts_on_spell", "dbscripts_on_go_use",
-            "dbscripts_on_go_template_use", "dbscripts_on_event",
-            "dbscripts_on_gossip", "dbscripts_on_creature_death",
-            "dbscripts_on_creature_movement", "db_script_string",
-            "db_scripts",
+            "mai_script",
             "mai_text",
         };
 
@@ -773,6 +827,14 @@ namespace scripting
         if (!mine)
         {
             return false;
+        }
+
+        // The name is MAI's, so the answer is yes even when the reload cannot
+        // happen -- returning false here would tell the administrator that no
+        // engine owns `mai_script`, which is not what is wrong.
+        if (!HasSchema())
+        {
+            return true;
         }
 
         // Safe only because of WHERE a reload runs: on the world thread, with

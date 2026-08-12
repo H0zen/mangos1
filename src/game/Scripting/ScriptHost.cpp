@@ -57,14 +57,14 @@ namespace scripting
     {
         // Is there any engine at all in this build?
         //
-        // Constant today, and honestly so: DbScriptEngine and EventAiEngine
-        // are not behind an #ifdef, so MakeHostState always pushes at least
-        // two and there is no build of this server with nothing listening. The
-        // flag is the seam's promise rather than a live switch -- an emit site
-        // costs one test on it, and if the last engine ever became optional
-        // this is the one line that would have to change. Whether a *state*
-        // exists for a given map stays a runtime question for the engine,
-        // which answers Continue when it has none.
+        // Constant today, and honestly so: MAI is not behind an #ifdef, so
+        // MakeHostState always pushes at least one and there is no build of
+        // this server with nothing listening. The flag is the seam's promise
+        // rather than a live switch -- an emit site costs one test on it, and
+        // if the last engine ever became optional this is the one line that
+        // would have to change. Whether a *state* exists for a given map stays
+        // a runtime question for the engine, which answers Continue when it
+        // has none.
         bool g_scriptsEnabled = true;
     }
 
@@ -91,9 +91,10 @@ namespace scripting
          * fall back to the DB scripts only when SD3 declined. That is what
          * this order preserves; it is not alphabetical and not arbitrary.
          *
-         * EventAI is last and it does not matter where it goes: it subscribes
-         * to no event at all and only ever competes at the auction, where its
-         * bid and not its position decides.
+         * MAI is last, and it is last for both of the roles it plays: it holds
+         * the sequences the DB scripts used to hold, so it goes where they
+         * went, and it drives creatures through rules, where its position does
+         * not matter at all -- that is settled at the auction by its bid.
          */
         HostState MakeHostState()
         {
