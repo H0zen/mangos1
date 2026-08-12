@@ -52,11 +52,17 @@ set(SRC_GRP_TESTS
     PlacementTest.cpp
     GeometryMathTest.cpp
     DataIntegrityTest.cpp
+    SpellCatalogTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
-    # database globals that only mangosd defines. These three know nothing of it.
+    # database globals that only mangosd defines. These four know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/GameObjectModel.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Server/SessionMailbox.cpp
+    # The spell derivation is kept free of Unit/Player/ObjectMgr/database on
+    # purpose, precisely so it can be compiled in here. If this line ever starts
+    # failing to link, something reached back into the server -- fix that rather
+    # than linking `game`.
+    ${CMAKE_SOURCE_DIR}/src/game/Object/SpellCatalog.cpp
     ByteBufferStressTest.cpp
     CryptoStressTest.cpp
     # AuthCryptTest is deliberately absent. 2.4.3's packet crypt is a
@@ -81,7 +87,8 @@ add_executable(mangos_tests ${SRC_GRP_TESTS})
 target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
-        ${CMAKE_SOURCE_DIR}/src/game/Server)
+        ${CMAKE_SOURCE_DIR}/src/game/Server
+        ${CMAKE_SOURCE_DIR}/src/game/Object)
 
 target_link_libraries(mangos_tests
     PRIVATE

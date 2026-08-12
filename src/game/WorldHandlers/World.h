@@ -416,6 +416,9 @@ enum eConfigBoolValues
     // Cinematic flyover
     CONFIG_BOOL_CINEMATIC_FLYOVER_ENABLE,
     CONFIG_BOOL_CINEMATIC_FLYOVER_DEBUG,
+
+    // Spell catalog
+    CONFIG_BOOL_SPELL_CATALOG_VERIFY,
     CONFIG_BOOL_VALUE_COUNT
 };
 

@@ -682,6 +682,11 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_CINEMATIC_FLYOVER_TIMEOUT_SEC, "CinematicFlyover.TimeoutSec", 120, 1, 600);
     setConfig(CONFIG_UINT32_CINEMATIC_FLYOVER_BODY_ENTRY, "CinematicFlyover.BodyEntry", 12999);
 
+    ///- Re-derive every spell after the catalog is built and report any
+    ///  entry that disagrees. Off by default: it costs a second at boot and
+    ///  only earns it while the catalog or its inputs are being changed.
+    setConfig(CONFIG_BOOL_SPELL_CATALOG_VERIFY, "SpellCatalog.Verify", false);
+
     ///- How hard to check the baked data set against the manifest the extractor wrote.
     ///  1 (report) by default: the check is what turns "one corner of one map behaves
     ///  oddly" into a line naming the file, and a server whose data is intact pays a few

@@ -37,6 +37,7 @@
 #include "SpellAuraDefines.h"
 #include "DBCStructure.h"
 #include "DBCStores.h"
+#include "SpellCatalog.h"
 
 
 #include <map>
@@ -53,37 +54,6 @@ enum SpellCategories
 {
     SPELLCATEGORY_HEALTH_MANA_POTIONS = 4,
     SPELLCATEGORY_DEVOUR_MAGIC        = 12
-};
-
-/**
- * Spell clasification (Taken from comments)
- * \todo Properly document this
- */
-enum SpellSpecific
-{
-    SPELL_NORMAL            = 0,
-    SPELL_SEAL              = 1,
-    SPELL_BLESSING          = 2,
-    SPELL_AURA              = 3,
-    SPELL_STING             = 4,
-    SPELL_CURSE             = 5,
-    SPELL_ASPECT            = 6,
-    SPELL_TRACKER           = 7,
-    SPELL_WARLOCK_ARMOR     = 8,
-    SPELL_MAGE_ARMOR        = 9,
-    SPELL_ELEMENTAL_SHIELD  = 10,
-    SPELL_MAGE_POLYMORPH    = 11,
-    SPELL_POSITIVE_SHOUT    = 12,
-    SPELL_JUDGEMENT         = 13,
-    SPELL_BATTLE_ELIXIR     = 14,
-    SPELL_GUARDIAN_ELIXIR   = 15,
-    SPELL_FLASK_ELIXIR      = 16,
-    // SPELL_PRESENCE          = 17,                        // used in 3.x
-    // SPELL_HAND              = 18,                        // used in 3.x
-    SPELL_WELL_FED          = 19,
-    SPELL_FOOD              = 20,
-    SPELL_DRINK             = 21,
-    SPELL_FOOD_AND_DRINK    = 22,
 };
 
 /**
@@ -209,19 +179,6 @@ inline bool IsPeriodicRegenerateEffect(SpellEntry const* spellInfo, SpellEffectI
     }
 }
 
-inline bool IsSpellHaveAura(SpellEntry const* spellInfo, AuraType aura, uint32 effectMask = (1 << EFFECT_INDEX_0) | (1 << EFFECT_INDEX_1) | (1 << EFFECT_INDEX_2))
-{
-    for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
-    {
-        if (effectMask & (1 << i))
-            if (AuraType(spellInfo->EffectAura[i]) == aura)
-            {
-                return true;
-            }
-    }
-    return false;
-}
-
 inline bool IsSpellLastAuraEffect(SpellEntry const* spellInfo, SpellEffectIndex effecIdx)
 {
     for (int i = effecIdx + 1; i < MAX_EFFECT_INDEX; ++i)
@@ -238,20 +195,6 @@ inline bool IsSpellLastAuraEffect(SpellEntry const* spellInfo, SpellEffectIndex 
  * Checks whether two auras are prevented from stacking because of their aura definitions.
  */
 bool IsNoStackAuraDueToAura(uint32 spellId_1, uint32 spellId_2);
-
-inline bool IsSealSpell(SpellEntry const* spellInfo)
-{
-    // Collection of all the seal family flags. No other paladin spell has any of those.
-    return spellInfo->IsFitToFamily(SPELLFAMILY_PALADIN, UI64LIT(0x000004000A000200)) &&
-           // avoid counting target triggered effect as seal for avoid remove it or seal by it.
-           spellInfo->ImplicitTargetA[0] == TARGET_SELF;
-}
-
-inline bool IsElementalShield(SpellEntry const* spellInfo)
-{
-    // family flags 10 (Lightning), 42 (Earth), 37 (Water), proc shield from T2 8 pieces bonus
-    return (spellInfo->SpellClassMask & UI64LIT(0x42000000400)) || spellInfo->ID == 23552;
-}
 
 /**
  * Compares two aura ranks and returns their relative ordering.
@@ -495,19 +438,6 @@ inline bool IsAreaOfEffectSpell(SpellEntry const* spellInfo)
     {
         return true;
     }
-    return false;
-}
-
-inline bool IsAreaAuraEffect(uint32 effect)
-{
-    if (effect == SPELL_EFFECT_APPLY_AREA_AURA_PARTY    ||
-            effect == SPELL_EFFECT_APPLY_AREA_AURA_FRIEND   ||
-            effect == SPELL_EFFECT_APPLY_AREA_AURA_ENEMY    ||
-            effect == SPELL_EFFECT_APPLY_AREA_AURA_PET      ||
-            effect == SPELL_EFFECT_APPLY_AREA_AURA_OWNER)
-            {
-                return true;
-            }
     return false;
 }
 
@@ -825,35 +755,8 @@ enum ProcFlagsEx
     PROC_EX_PERIODIC_POSITIVE   = 0x0040000
 };
 
-struct SpellProcEventEntry
-{
-    uint32      schoolMask;                                 // if nonzero - bit mask for matching proc condition based on spell candidate's school: Fire=2, Mask=1<<(2-1)=2
-    uint32      spellFamilyName;                            // if nonzero - for matching proc condition based on candidate spell's SpellFamilyNamer value
-    ClassFamilyMask spellFamilyMask[MAX_EFFECT_INDEX];      // if nonzero - for matching proc condition based on candidate spell's SpellFamilyFlags  (like auras 107 and 108 do)
-    uint32      procFlags;                                  // bitmask for matching proc event
-    uint32      procEx;                                     // proc Extend info (see ProcFlagsEx)
-    float       ppmRate;                                    // for melee (ranged?) damage spells - proc rate per minute. if zero, falls back to flat chance from Spell.dbc
-    float       customChance;                               // Owerride chance (in most cases for debug only)
-    uint32      cooldown;                                   // hidden cooldown used for some spell proc events, applied to _triggered_spell_
-};
-
-struct SpellBonusEntry
-{
-    float  direct_damage;                                   // Direct Damage Spell Bonus Coeff
-    float  dot_damage;                                        // Dot Damage Spell Bonus Coeff
-    float  ap_bonus;                                        // ??
-    float  ap_dot_bonus;
-};
-
 typedef std::unordered_map<uint32, SpellProcEventEntry> SpellProcEventMap;
 typedef std::unordered_map<uint32, SpellBonusEntry>     SpellBonusMap;
-
-#define ELIXIR_BATTLE_MASK    0x01
-#define ELIXIR_GUARDIAN_MASK  0x02
-#define ELIXIR_FLASK_MASK     (ELIXIR_BATTLE_MASK|ELIXIR_GUARDIAN_MASK)
-#define ELIXIR_UNSTABLE_MASK  0x04
-#define ELIXIR_SHATTRATH_MASK 0x08
-#define ELIXIR_WELL_FED       0x10                          // Some foods have SPELLFAMILY_POTION
 
 struct SpellThreatEntry
 {
@@ -1415,6 +1318,33 @@ class SpellMgr
         void LoadSkillRaceClassInfoMap();
         void LoadSpellPetAuras();
         void LoadSpellAreas();
+
+        /**
+         * @brief Compiles the immutable SpellCatalog from the DBC and the
+         *        override tables loaded above.
+         *
+         * Must run last: it reads spell_elixir, spell_proc_event and
+         * spell_bonus_data, and it also has to see the DBC after
+         * ModDBCSpellAttributes() has finished patching it. Safe to call again
+         * after a .reload of any of those tables -- it rebuilds in place.
+         */
+        void BuildSpellCatalog();
+
+        /**
+         * @brief Re-derives every spell and reports entries the catalog got wrong.
+         *
+         * Gated on SpellCatalog.Verify, off by default. What it can actually
+         * catch is the catalog *machinery*, not the derivation rules -- both
+         * sides run the same Derive* code, so a wrong rule is wrong twice. What
+         * differs is everything around it: Build() resolves the one recursive
+         * case against the half-built catalog while this resolves against the
+         * DBC store, so a pass-ordering slip shows up as a disagreement; and the
+         * id-to-slot table, the proc-flag merge and the state left by a .reload
+         * are all re-checked from scratch.
+         *
+         * @return The number of mismatching spells; 0 when the catalog is sound.
+         */
+        uint32 VerifySpellCatalog() const;
 
         // Edit DBC data spells at startup
         void ModDBCSpellAttributes();

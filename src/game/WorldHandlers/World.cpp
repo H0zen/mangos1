@@ -856,6 +856,17 @@ void World::SetInitialWorldSettings()
     sLog.outString("Modifying in-memory dbc spell attributes...");
     sSpellMgr.ModDBCSpellAttributes();
 
+    // Last of the spell steps on purpose: the catalog freezes what the DBC and
+    // the override tables say, so it has to see both in their final state.
+    sLog.outString("Compiling spell catalog...");
+    sSpellMgr.BuildSpellCatalog();
+
+    if (getConfig(CONFIG_BOOL_SPELL_CATALOG_VERIFY))
+    {
+        sLog.outString("Verifying spell catalog...");
+        sSpellMgr.VerifySpellCatalog();
+    }
+
     sLog.outString("Loading ReservedNames...");
     sObjectMgr.LoadReservedPlayersNames();
 

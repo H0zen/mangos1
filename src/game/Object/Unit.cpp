@@ -245,6 +245,9 @@ Unit::Unit() :
     m_spellAuraHoldersUpdateIterator = m_spellAuraHolders.end();
     m_AuraFlags = 0;
 
+    m_procMaskAggregate = 0;
+    m_procMaskDirty = false;                                // no holders yet, so 0 is already correct
+
     m_Visibility = VISIBILITY_ON;
     m_AINotifyScheduled = false;
 
@@ -5160,6 +5163,15 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* pTarget, uint32 procFlag, 
                 }
             }
         }
+    }
+
+    // Nothing held here can match this event, so the scan below would reject
+    // every holder one at a time and find nothing. Skip it. This is the common
+    // case: most units carry no proc aura at all, and those that do carry them
+    // for a handful of the thirty-odd event flags.
+    if (!CanAnyAuraProcFrom(procFlag))
+    {
+        return;
     }
 
     RemoveSpellList removedSpells;

@@ -723,3 +723,248 @@ void SpellMgr::LoadSpellScriptTarget()
     sLog.outString(">> Loaded %u spell_script_target definitions", sSpellScriptTargetStorage.GetRecordCount());
     sLog.outString();
 }
+
+/**
+ * @brief Compiles the immutable SpellCatalog from the DBC and the SQL overrides.
+ *
+ * The three callbacks below hand the catalog the values it is not allowed to go
+ * looking for itself. Two of them return pointers straight into this manager's
+ * maps: that is safe because both are node-based containers, so the addresses
+ * survive any later insert -- but not a clear(). Every .reload that refills one
+ * of those tables must therefore call this again, and ReloadCommands does.
+ */
+void SpellMgr::BuildSpellCatalog()
+{
+    std::vector<SpellEntry const*> entries;
+    entries.reserve(sSpellStore.GetNumRows());
+
+    for (uint32 id = 0; id < sSpellStore.GetNumRows(); ++id)
+    {
+        if (SpellEntry const* spellInfo = sSpellStore.LookupEntry(id))
+        {
+            entries.push_back(spellInfo);
+        }
+    }
+
+    SpellCatalogSources sources;
+    sources.ctx = this;
+
+    sources.GetElixirMask = [](void const* ctx, uint32 spellId) -> uint32
+    {
+        return static_cast<SpellMgr const*>(ctx)->GetSpellElixirMask(spellId);
+    };
+
+    sources.GetProcEvent = [](void const* ctx, uint32 spellId) -> SpellProcEventEntry const*
+    {
+        return static_cast<SpellMgr const*>(ctx)->GetSpellProcEvent(spellId);
+    };
+
+    sources.GetBonus = [](void const* ctx, uint32 spellId) -> SpellBonusEntry const*
+    {
+        return static_cast<SpellMgr const*>(ctx)->GetSpellBonusData(spellId);
+    };
+
+    sSpellCatalog.Build(entries, sources);
+
+    sLog.outString(">> Compiled spell catalog: %u spells", sSpellCatalog.GetSpellCount());
+    sLog.outString();
+}
+
+namespace
+{
+    /// Resolves a triggered spell straight from the DBC store.
+    ///
+    /// Deliberately not the resolver Build() uses. Build() walks the catalog it
+    /// is still filling; this walks the store. Any spell where those two answer
+    /// differently is a pass-ordering bug, and having the verifier take the
+    /// other road is what makes it able to see one.
+    SpellEntry const* VerifyResolveFromStore(void const* /*ctx*/, uint32 spellId)
+    {
+        return sSpellStore.LookupEntry(spellId);
+    }
+
+    /// How many differing spells get named before the log gives up listing them.
+    const uint32 MAX_REPORTED_CATALOG_MISMATCHES = 20;
+}
+
+uint32 SpellMgr::VerifySpellCatalog() const
+{
+    if (!sSpellCatalog.IsBuilt())
+    {
+        sLog.outError("SpellCatalog.Verify is set but the catalog was never built.");
+        return 0;
+    }
+
+    uint32 mismatches = 0;
+    uint32 checked = 0;
+
+    for (uint32 id = 0; id < sSpellStore.GetNumRows(); ++id)
+    {
+        SpellEntry const* proto = sSpellStore.LookupEntry(id);
+        if (!proto)
+        {
+            // A row the store does not have must not be in the catalog either.
+            if (sSpellCatalog.Find(id))
+            {
+                ++mismatches;
+                if (mismatches <= MAX_REPORTED_CATALOG_MISMATCHES)
+                {
+                    sLog.outError("SpellCatalog: spell %u is catalogued but absent from Spell.dbc", id);
+                }
+            }
+            continue;
+        }
+
+        ++checked;
+
+        SpellInfo const& info = sSpellCatalog.Get(id);
+        if (info.dbc != proto)
+        {
+            ++mismatches;
+            if (mismatches <= MAX_REPORTED_CATALOG_MISMATCHES)
+            {
+                sLog.outError("SpellCatalog: spell %u resolves to the wrong row (%s)",
+                              id, info.dbc ? "different entry" : "no entry");
+            }
+            continue;
+        }
+
+        bool bad = false;
+        const char* what = "";
+
+        if (info.passive != DeriveIsPassiveSpell(proto))
+        {
+            bad = true;
+            what = "passive";
+        }
+
+        uint8 effectMask = 0;
+        uint8 auraEffectMask = 0;
+        uint8 positiveMask = 0;
+        bool allPositive = true;
+
+        for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+        {
+            if (proto->Effect[i] == SPELL_EFFECT_NONE)
+            {
+                continue;
+            }
+
+            effectMask |= uint8(1 << i);
+
+            if (IsAreaAuraEffect(proto->Effect[i]) ||
+                proto->Effect[i] == SPELL_EFFECT_APPLY_AURA)
+            {
+                auraEffectMask |= uint8(1 << i);
+            }
+
+            if (DeriveIsPositiveEffect(proto, SpellEffectIndex(i), &VerifyResolveFromStore, NULL))
+            {
+                positiveMask |= uint8(1 << i);
+            }
+            else
+            {
+                allPositive = false;
+            }
+        }
+
+        if (!bad && info.effectMask != effectMask)
+        {
+            bad = true;
+            what = "effectMask";
+        }
+        if (!bad && info.auraEffectMask != auraEffectMask)
+        {
+            bad = true;
+            what = "auraEffectMask";
+        }
+        if (!bad && info.positiveMask != positiveMask)
+        {
+            bad = true;
+            what = "positiveMask";
+        }
+        if (!bad && info.positive != allPositive)
+        {
+            bad = true;
+            what = "positive";
+        }
+
+        if (!bad && info.specific != DeriveSpellSpecific(proto, GetSpellElixirMask(id)))
+        {
+            bad = true;
+            what = "specific";
+        }
+
+        SpellProcEventEntry const* procEvent = GetSpellProcEvent(id);
+        const uint32 procFlags = (procEvent && procEvent->procFlags) ? procEvent->procFlags
+                                                                    : proto->ProcTypeMask;
+        if (!bad && info.procEvent != procEvent)
+        {
+            bad = true;
+            what = "procEvent";
+        }
+        if (!bad && info.procFlags != procFlags)
+        {
+            bad = true;
+            what = "procFlags";
+        }
+        if (!bad && info.bonus != GetSpellBonusData(id))
+        {
+            bad = true;
+            what = "bonus";
+        }
+
+        // Aura-type bitset: every effect's aura must be present, and no bit may
+        // be set that no effect asked for.
+        if (!bad)
+        {
+            uint64 auraTypes[SPELL_AURA_TYPE_WORDS] = {};
+            for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
+            {
+                const uint32 auraType = proto->EffectAura[i];
+                if (proto->Effect[i] != SPELL_EFFECT_NONE && auraType != 0 && auraType < TOTAL_AURAS)
+                {
+                    auraTypes[auraType >> 6] |= uint64(1) << (auraType & 63);
+                }
+            }
+
+            for (uint32 w = 0; w < SPELL_AURA_TYPE_WORDS; ++w)
+            {
+                if (info.auraTypes[w] != auraTypes[w])
+                {
+                    bad = true;
+                    what = "auraTypes";
+                    break;
+                }
+            }
+        }
+
+        if (bad)
+        {
+            ++mismatches;
+            if (mismatches <= MAX_REPORTED_CATALOG_MISMATCHES)
+            {
+                sLog.outError("SpellCatalog: spell %u disagrees on %s", id, what);
+            }
+        }
+    }
+
+    if (mismatches > MAX_REPORTED_CATALOG_MISMATCHES)
+    {
+        sLog.outError("SpellCatalog: %u further mismatches not listed",
+                      mismatches - MAX_REPORTED_CATALOG_MISMATCHES);
+    }
+
+    if (mismatches)
+    {
+        sLog.outError(">> Spell catalog verification FAILED: %u of %u spells differ",
+                      mismatches, checked);
+    }
+    else
+    {
+        sLog.outString(">> Spell catalog verified: %u spells agree", checked);
+    }
+    sLog.outString();
+
+    return mismatches;
+}

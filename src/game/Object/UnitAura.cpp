@@ -564,6 +564,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     // add aura, register in lists and arrays
     holder->_AddSpellAuraHolder();
     m_spellAuraHolders.insert(SpellAuraHolderMap::value_type(holder->GetId(), holder));
+    InvalidateProcMask();
 
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
@@ -1267,6 +1268,7 @@ void Unit::RemoveSpellAuraHolder(SpellAuraHolder* holder, AuraRemoveMode mode)
         if (itr->second == holder)
         {
             m_spellAuraHolders.erase(itr);
+            InvalidateProcMask();
             break;
         }
     }
@@ -1627,4 +1629,48 @@ bool Unit::HasAura(uint32 spellId, SpellEffectIndex effIndex) const
     }
 
     return false;
+}
+
+/**
+ * @brief Recomputes the aggregate proc mask from the currently held auras.
+ *
+ * The per-holder value must be the same one IsTriggeredAtSpellProcEvent will
+ * use, or the early-out could hide a proc that would really have fired: the SQL
+ * override wins whenever it is nonzero, and only then does ProcTypeMask apply.
+ * SpellInfo::procFlags is that merge, resolved once at boot.
+ */
+void Unit::RebuildProcMask() const
+{
+    uint32 aggregate = 0;
+
+    for (SpellAuraHolderMap::const_iterator itr = m_spellAuraHolders.begin();
+         itr != m_spellAuraHolders.end(); ++itr)
+    {
+        SpellAuraHolder const* holder = itr->second;
+        if (!holder || holder->IsDeleted())
+        {
+            continue;
+        }
+
+        SpellEntry const* spellProto = holder->GetSpellProto();
+        if (!spellProto)
+        {
+            continue;
+        }
+
+        SpellInfo const& info = sSpellCatalog.Get(spellProto->ID);
+        if (info.dbc == spellProto)
+        {
+            aggregate |= info.procFlags;
+            continue;
+        }
+
+        // Catalog miss: reproduce the override rule inline rather than assume.
+        SpellProcEventEntry const* procEvent = sSpellMgr.GetSpellProcEvent(spellProto->ID);
+        aggregate |= (procEvent && procEvent->procFlags) ? procEvent->procFlags
+                                                         : spellProto->ProcTypeMask;
+    }
+
+    m_procMaskAggregate = aggregate;
+    m_procMaskDirty = false;
 }

@@ -1422,6 +1422,18 @@ CinematicFlyover.TimeoutSec         = 120
 CinematicFlyover.Debug              = 0
 CinematicFlyover.BodyEntry          = 12999
 CinematicFlyover.VisibilityDistance = 250
+#
+#    SpellCatalog.Verify
+#        Re-derive every spell straight after the catalog is compiled and log any
+#        entry whose cached answer differs from a fresh derivation.
+#        This checks the catalog machinery -- pass ordering, id indexing, the
+#        spell_proc_event merge, and that a .reload left nothing stale. It does
+#        not check the derivation rules themselves: both sides run the same code.
+#        Costs about a second at start-up and prints nothing when clean.
+#        Default: 0 (disabled)
+#
+
+SpellCatalog.Verify                 = 0
 
 ################################################################################
 # SERVER RATES
