@@ -108,7 +108,8 @@ HEADER = """-- MAI: the conversion and everything ported by hand since, as one f
 --   3. world/spell_scripts.cpp, ported by hand
 --   4. the SD3 ports, one file per entity, after the converted rules because
 --      each one deletes the rules of the creature it is about to describe
---   5. `creature_template`.`AIName`, last
+--   5. the `command` row for `.reload all_eventai`, which no longer exists
+--   6. `creature_template`.`AIName`, last
 --
 -- Run it with the `mysql` client, against a world database with no MAI tables:
 --
@@ -120,6 +121,28 @@ HEADER = """-- MAI: the conversion and everything ported by hand since, as one f
 """
 
 BANNER = '-- ' + '-' * 73
+
+COMMANDS = """-- 5. The one `command` row EventAI took with it.
+--
+--    `command` holds help text keyed by command name, and the world checks
+--    every row against the command table it actually has:
+--
+--        Table `command` have unexpected subcommand 'all_eventai' in
+--        command 'reload all_eventai', skip.
+--
+--    `.reload all_eventai` reloaded the three EventAI tables. There is no
+--    EventAI, so there is no command, so the row is a line of noise at every
+--    start-up. Deleted here because this is the change that removed it.
+--
+--    THREE OTHER ROWS COMPLAIN THE SAME WAY and are deliberately left alone:
+--    'honor add', 'honor addkill', 'honor update' (the `honor` command table
+--    is commented out in Chat.cpp), and 'modify arena' / 'modify fly' (both
+--    verbs exist, under `debug` and `gm`, never under `modify`). None of
+--    those has anything to do with MAI, and a migration that quietly deletes
+--    rows outside its own subject is one nobody can review.
+
+DELETE FROM `command` WHERE `command_text` = 'reload all_eventai';
+"""
 
 
 def read(path):
@@ -282,7 +305,10 @@ def main():
         parts.append('')
 
     parts.append(BANNER)
-    parts.append('-- 5. LAST, for the reason the migration gives.')
+    parts.append(COMMANDS)
+
+    parts.append(BANNER)
+    parts.append('-- 6. LAST, for the reason the migration gives.')
     parts.append('')
     parts.append(footer)
     parts.append('')
