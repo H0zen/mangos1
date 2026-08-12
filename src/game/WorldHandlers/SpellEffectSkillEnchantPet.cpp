@@ -422,7 +422,7 @@ void Spell::EffectTeleUnitsFaceCaster(SpellEffectIndex eff_idx)
     }
     else
     {
-        float dis = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[eff_idx]));
+        float dis = GetSpellRadius(m_spellInfo, SpellEffectIndex(eff_idx));
         ClosePointNear(*m_caster, fx, fy, fz, unitTarget->Where().Extent(), dis);
     }
 

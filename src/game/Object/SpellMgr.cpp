@@ -90,12 +90,77 @@ SpellMgr& SpellMgr::Instance()
  * @param spellInfo The spell entry.
  * @return The base duration in milliseconds, or 0 if unavailable.
  */
+/**
+ * @brief Returns an effect's radius in yards, from the catalogue.
+ */
+float GetSpellRadius(SpellEntry const* spellInfo, SpellEffectIndex effIndex)
+{
+    if (!spellInfo)
+    {
+        return 0.0f;
+    }
+
+    SpellInfo const& info = sSpellCatalog.Get(spellInfo->ID);
+    if (info.dbc == spellInfo)
+    {
+        return info.radius[effIndex];
+    }
+
+    // Pointer form on purpose: the overload above would call this back.
+    return GetSpellRadius(sSpellRadiusStore.LookupEntry(spellInfo->EffectRadiusIndex[effIndex]));
+}
+
+/**
+ * @brief Returns the spell's minimum range in yards, from the catalogue.
+ */
+float GetSpellMinRange(SpellEntry const* spellInfo)
+{
+    if (!spellInfo)
+    {
+        return 0.0f;
+    }
+
+    SpellInfo const& info = sSpellCatalog.Get(spellInfo->ID);
+    if (info.dbc == spellInfo)
+    {
+        return info.rangeMin;
+    }
+
+    return GetSpellMinRange(sSpellRangeStore.LookupEntry(spellInfo->RangeIndex));
+}
+
+/**
+ * @brief Returns the spell's maximum range in yards, from the catalogue.
+ */
+float GetSpellMaxRange(SpellEntry const* spellInfo)
+{
+    if (!spellInfo)
+    {
+        return 0.0f;
+    }
+
+    SpellInfo const& info = sSpellCatalog.Get(spellInfo->ID);
+    if (info.dbc == spellInfo)
+    {
+        return info.rangeMax;
+    }
+
+    return GetSpellMaxRange(sSpellRangeStore.LookupEntry(spellInfo->RangeIndex));
+}
+
 int32 GetSpellDuration(SpellEntry const* spellInfo)
 {
     if (!spellInfo)
     {
         return 0;
     }
+
+    SpellInfo const& info = sSpellCatalog.Get(spellInfo->ID);
+    if (info.dbc == spellInfo)
+    {
+        return info.durationMs;
+    }
+
     SpellDurationEntry const* du = sSpellDurationStore.LookupEntry(spellInfo->DurationIndex);
     if (!du)
     {
@@ -116,6 +181,13 @@ int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
     {
         return 0;
     }
+
+    SpellInfo const& info = sSpellCatalog.Get(spellInfo->ID);
+    if (info.dbc == spellInfo)
+    {
+        return info.maxDurationMs;
+    }
+
     SpellDurationEntry const* du = sSpellDurationStore.LookupEntry(spellInfo->DurationIndex);
     if (!du)
     {
@@ -186,15 +258,29 @@ uint32 GetSpellCastTime(SpellEntry const* spellInfo, Spell const* spell)
                     }
     }
 
-    SpellCastTimesEntry const* spellCastTimeEntry = sSpellCastTimesStore.LookupEntry(spellInfo->CastingTimeIndex);
+    // Base cast time only: everything below this point -- SPELLMOD_CASTING_TIME,
+    // UNIT_MOD_CAST_SPEED, the ranged attack-speed scaling -- still varies per
+    // cast and is applied here as before.
+    int32 castTime = 0;
+    bool hasRow = false;
+
+    SpellInfo const& catalogued = sSpellCatalog.Get(spellInfo->ID);
+    if (catalogued.dbc == spellInfo)
+    {
+        castTime = catalogued.castTimeMs;
+        hasRow = catalogued.hasCastTimeRow;
+    }
+    else if (SpellCastTimesEntry const* ct = sSpellCastTimesStore.LookupEntry(spellInfo->CastingTimeIndex))
+    {
+        castTime = ct->CastTime;
+        hasRow = true;
+    }
 
     // not all spells have cast time index and this is all is pasiive abilities
-    if (!spellCastTimeEntry)
+    if (!hasRow)
     {
         return 0;
     }
-
-    int32 castTime = spellCastTimeEntry->CastTime;
 
     if (spell)
     {

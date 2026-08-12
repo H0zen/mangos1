@@ -234,6 +234,40 @@ struct SpellInfo
     /// spell_bonus_data row for this spell, or NULL.
     SpellBonusEntry const* bonus = nullptr;
 
+    /*
+     * Spell.dbc stores four of its most-read quantities as indices into side
+     * tables -- CastingTimeIndex, DurationIndex, RangeIndex, EffectRadiusIndex
+     * -- so asking a spell how long it lasts used to mean a second DBC lookup,
+     * every time, from 59 call sites. They are resolved here once and kept in
+     * the units the engine actually works in.
+     *
+     * These are the unmodified base values. Everything that varies per cast --
+     * haste on the cast time, SPELLMOD_DURATION, SPELLMOD_RANGE, a caster's
+     * level scaling -- still happens at the call site, exactly as before.
+     */
+
+    /// SpellCastTimes.dbc CastTime; meaningless unless hasCastTimeRow.
+    int32 castTimeMs = 0;
+    /**
+     * Whether the spell has a SpellCastTimes.dbc row at all.
+     *
+     * Not the same question as "is castTimeMs zero", and the difference is
+     * load-bearing: GetSpellCastTime returns 0 outright for a spell with no
+     * row, but a spell that HAS a row saying zero still goes on to collect
+     * SPELLMOD_CASTING_TIME and the +500ms every ranged spell gets. Collapsing
+     * the two would silently make instant ranged shots lose that 500ms.
+     */
+    bool hasCastTimeRow = false;
+    /// Base duration. -1 means infinite, matching the old GetSpellDuration.
+    int32 durationMs = 0;
+    /// Maximum duration, same -1 convention. The old GetSpellMaxDuration.
+    int32 maxDurationMs = 0;
+    /// SpellRange.dbc RangeMin/RangeMax, in yards; 0 with no range row.
+    float rangeMin = 0.0f;
+    float rangeMax = 0.0f;
+    /// SpellRadius.dbc Radius per effect, in yards; 0 with no radius row.
+    float radius[MAX_EFFECT_INDEX] = {};
+
     /// @brief Tests whether any effect of this spell applies the given aura type.
     bool HasAuraType(AuraType type) const
     {
@@ -267,6 +301,16 @@ struct SpellCatalogSources
     SpellProcEventEntry const* (*GetProcEvent)(void const* ctx, uint32 spellId) = nullptr;
     /// spell_bonus_data row for a spell id, or NULL.
     SpellBonusEntry const* (*GetBonus)(void const* ctx, uint32 spellId) = nullptr;
+
+    /*
+     * The four side DBCs, by index. Supplied as callbacks for the same reason
+     * as everything else here: the stores live in DBCStores.h, and this
+     * translation unit must stay linkable without the server.
+     */
+    SpellCastTimesEntry const* (*GetCastTimes)(void const* ctx, uint32 index) = nullptr;
+    SpellDurationEntry const* (*GetDuration)(void const* ctx, uint32 index) = nullptr;
+    SpellRangeEntry const* (*GetRange)(void const* ctx, uint32 index) = nullptr;
+    SpellRadiusEntry const* (*GetRadius)(void const* ctx, uint32 index) = nullptr;
     /// Passed back to each callback; the catalog never dereferences it.
     void const* ctx = nullptr;
 };
@@ -341,7 +385,7 @@ class SpellCatalog
         static constexpr uint32 INVALID_SLOT = 0xFFFFFFFF;
 
         /// Fills the fields that need only this spell's own DBC row.
-        void DeriveLocal(SpellInfo& info) const;
+        void DeriveLocal(SpellInfo& info, SpellCatalogSources const& sources) const;
         /// Fills the fields whose derivation may consult other spells.
         void DeriveCrossReferenced(SpellInfo& info,
                                    SpellCatalogSources const& sources) const;

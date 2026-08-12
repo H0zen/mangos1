@@ -440,7 +440,7 @@ AreaAura::AreaAura(SpellEntry const* spellproto, SpellEffectIndex eff, int32* cu
     // caster==NULL in constructor args if target==caster in fact
     Unit* caster_ptr = caster ? caster : target;
 
-    m_radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(spellproto->EffectRadiusIndex[m_effIndex]));
+    m_radius = GetSpellRadius(spellproto, SpellEffectIndex(m_effIndex));
     if (Player* modOwner = caster_ptr->GetSpellModOwner())
     {
         modOwner->ApplySpellMod(spellproto->ID, SPELLMOD_RADIUS, m_radius);
@@ -4205,7 +4205,7 @@ void SpellAuraHolder::Update(uint32 diff)
         if (caster->GetChannelObjectGuid() == m_target->GetObjectGuid())
         {
             // Get spell range
-            float max_range = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellProto->RangeIndex));
+            float max_range = GetSpellMaxRange(m_spellProto);
 
             if (Player* modOwner = caster->GetSpellModOwner())
             {

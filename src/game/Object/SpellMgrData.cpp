@@ -764,6 +764,26 @@ void SpellMgr::BuildSpellCatalog()
         return static_cast<SpellMgr const*>(ctx)->GetSpellBonusData(spellId);
     };
 
+    sources.GetCastTimes = [](void const*, uint32 index) -> SpellCastTimesEntry const*
+    {
+        return sSpellCastTimesStore.LookupEntry(index);
+    };
+
+    sources.GetDuration = [](void const*, uint32 index) -> SpellDurationEntry const*
+    {
+        return sSpellDurationStore.LookupEntry(index);
+    };
+
+    sources.GetRange = [](void const*, uint32 index) -> SpellRangeEntry const*
+    {
+        return sSpellRangeStore.LookupEntry(index);
+    };
+
+    sources.GetRadius = [](void const*, uint32 index) -> SpellRadiusEntry const*
+    {
+        return sSpellRadiusStore.LookupEntry(index);
+    };
+
     sSpellCatalog.Build(entries, sources);
 
     sLog.outString(">> Compiled spell catalog: %u spells", sSpellCatalog.GetSpellCount());

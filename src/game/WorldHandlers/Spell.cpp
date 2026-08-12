@@ -1273,11 +1273,11 @@ void Spell::GetSpellRangeAndRadius(SpellEffectIndex effIndex, float& radius, uin
 {
     if (m_spellInfo->EffectRadiusIndex[effIndex])
     {
-        radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[effIndex]));
+        radius = GetSpellRadius(m_spellInfo, SpellEffectIndex(effIndex));
     }
     else
     {
-        radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(m_spellInfo->RangeIndex));
+        radius = GetSpellMaxRange(m_spellInfo);
     }
 
     if (Unit* realCaster = GetAffectiveCaster())
@@ -1382,7 +1382,7 @@ void Spell::GetSpellRangeAndRadius(SpellEffectIndex effIndex, float& radius, uin
                 {
                     if (effIndex == EFFECT_INDEX_0)         // Copy range from EFF_1 to 0
                     {
-                        radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[EFFECT_INDEX_1]));
+                        radius = GetSpellRadius(m_spellInfo, SpellEffectIndex(EFFECT_INDEX_1));
                     }
                     break;
                 }

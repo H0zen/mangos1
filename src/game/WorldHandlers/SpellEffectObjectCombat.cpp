@@ -956,7 +956,7 @@ void Spell::EffectBlock(SpellEffectIndex /*eff_idx*/)
  */
 void Spell::EffectLeapForward(SpellEffectIndex eff_idx)
 {
-    float dist = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[eff_idx]));
+    float dist = GetSpellRadius(m_spellInfo, SpellEffectIndex(eff_idx));
     const float IN_OR_UNDER_LIQUID_RANGE = 0.8f;                // range to make player under liquid or on liquid surface from liquid level
 
     Geometry::Vector3 prevPos, nextPos;

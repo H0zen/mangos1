@@ -936,7 +936,7 @@ void GameObject::TriggerLinkedGameObject(Unit* target)
 
     if (trapSpell)                                          // checked at load already
     {
-        range = GetSpellMaxRange(sSpellRangeStore.LookupEntry(trapSpell->RangeIndex));
+        range = GetSpellMaxRange(trapSpell);
     }
 
     // search nearest linked GO

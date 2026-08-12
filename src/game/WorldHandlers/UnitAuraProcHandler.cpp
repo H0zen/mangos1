@@ -2683,11 +2683,11 @@ SpellAuraProcResult Unit::HandleMendingAuraProc(Unit* /*pVictim*/, uint32 /*dama
         float radius;
         if (spellProto->EffectRadiusIndex[effIdx])
         {
-            radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(spellProto->EffectRadiusIndex[effIdx]));
+            radius = GetSpellRadius(spellProto, SpellEffectIndex(effIdx));
         }
         else
         {
-            radius = GetSpellMaxRange(sSpellRangeStore.LookupEntry(spellProto->RangeIndex));
+            radius = GetSpellMaxRange(spellProto);
         }
 
         if (Player* caster = ((Player*)triggeredByAura->GetCaster()))

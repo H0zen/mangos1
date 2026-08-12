@@ -63,6 +63,16 @@ SpellSpecific GetSpellSpecific(uint32 spellId);
 
 // Different spell properties
 inline float GetSpellRadius(SpellRadiusEntry const* radius) { return (radius ? radius->Radius : 0); }
+
+/*
+ * Catalogue-backed overloads. Same values as the pointer forms above, without
+ * the SpellRadius.dbc / SpellRange.dbc lookup: the index was resolved once at
+ * boot. Prefer these -- the pointer forms remain for the few call sites that
+ * bind the row and read other columns off it.
+ */
+float GetSpellRadius(SpellEntry const* spellInfo, SpellEffectIndex effIndex);
+float GetSpellMinRange(SpellEntry const* spellInfo);
+float GetSpellMaxRange(SpellEntry const* spellInfo);
 /**
  * Returns the effective cast time for the specified spell.
  */

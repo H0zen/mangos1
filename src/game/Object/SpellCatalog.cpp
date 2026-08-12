@@ -44,6 +44,7 @@
 #include "SpellCatalog.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace
 {
@@ -638,12 +639,42 @@ SpellCatalog& SpellCatalog::Instance()
 /**
  * @brief Fills the fields derivable from this spell's own DBC row alone.
  */
-void SpellCatalog::DeriveLocal(SpellInfo& info) const
+void SpellCatalog::DeriveLocal(SpellInfo& info, SpellCatalogSources const& sources) const
 {
     SpellEntry const* proto = info.dbc;
 
     info.id = proto->ID;
     info.passive = DeriveIsPassiveSpell(proto);
+
+    // Resolve the four side-DBC indices into the units the engine works in.
+    // The -1 convention on duration is load-bearing: it means "infinite", and
+    // abs() on the others reproduces GetSpellDuration exactly.
+    if (sources.GetCastTimes)
+    {
+        if (SpellCastTimesEntry const* ct = sources.GetCastTimes(sources.ctx, proto->CastingTimeIndex))
+        {
+            info.castTimeMs = ct->CastTime;
+            info.hasCastTimeRow = true;
+        }
+    }
+
+    if (sources.GetDuration)
+    {
+        if (SpellDurationEntry const* du = sources.GetDuration(sources.ctx, proto->DurationIndex))
+        {
+            info.durationMs = (du->Duration[0] == -1) ? -1 : abs(du->Duration[0]);
+            info.maxDurationMs = (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
+        }
+    }
+
+    if (sources.GetRange)
+    {
+        if (SpellRangeEntry const* range = sources.GetRange(sources.ctx, proto->RangeIndex))
+        {
+            info.rangeMin = range->RangeMin;
+            info.rangeMax = range->RangeMax;
+        }
+    }
 
     for (int i = 0; i < MAX_EFFECT_INDEX; ++i)
     {
@@ -664,6 +695,14 @@ void SpellCatalog::DeriveLocal(SpellInfo& info) const
         if (auraType != 0 && auraType < TOTAL_AURAS)
         {
             info.auraTypes[auraType >> 6] |= uint64(1) << (auraType & 63);
+        }
+
+        if (sources.GetRadius)
+        {
+            if (SpellRadiusEntry const* r = sources.GetRadius(sources.ctx, proto->EffectRadiusIndex[i]))
+            {
+                info.radius[i] = r->Radius;
+            }
         }
     }
 }
@@ -770,7 +809,7 @@ void SpellCatalog::Build(std::vector<SpellEntry const*> const& entries,
 
         SpellInfo& info = m_entries[slot];
         info.dbc = proto;
-        DeriveLocal(info);
+        DeriveLocal(info, sources);
 
         m_slotById[proto->ID] = slot;
         ++slot;

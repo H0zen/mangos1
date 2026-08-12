@@ -636,7 +636,7 @@ void Spell::EffectPersistentAA(SpellEffectIndex eff_idx)
         pCaster = m_caster;
     }
 
-    float radius = GetSpellRadius(sSpellRadiusStore.LookupEntry(m_spellInfo->EffectRadiusIndex[eff_idx]));
+    float radius = GetSpellRadius(m_spellInfo, SpellEffectIndex(eff_idx));
 
     if (Player* modOwner = pCaster->GetSpellModOwner())
     {

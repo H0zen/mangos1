@@ -515,3 +515,154 @@ TEST(SpellCatalog_ShortChainIsNotCounted)
     CHECK_EQ(GetPositiveTriggerTruncationCount(), 0u);
     CHECK(catalog.Get(2200).positive);
 }
+
+namespace
+{
+    // Fake side-DBC rows. The four index columns Spell.dbc carries are resolved
+    // against these once at build, so nothing downstream looks them up again.
+    SpellCastTimesEntry g_castTimes;
+    SpellDurationEntry  g_duration;
+    SpellRangeEntry     g_range;
+    SpellRadiusEntry    g_radius;
+
+    SpellCatalogSources SideDbcSources()
+    {
+        SpellCatalogSources s;
+        s.GetCastTimes = [](void const*, uint32 index) -> SpellCastTimesEntry const*
+        {
+            return index ? &g_castTimes : nullptr;
+        };
+        s.GetDuration = [](void const*, uint32 index) -> SpellDurationEntry const*
+        {
+            return index ? &g_duration : nullptr;
+        };
+        s.GetRange = [](void const*, uint32 index) -> SpellRangeEntry const*
+        {
+            return index ? &g_range : nullptr;
+        };
+        s.GetRadius = [](void const*, uint32 index) -> SpellRadiusEntry const*
+        {
+            return index ? &g_radius : nullptr;
+        };
+        return s;
+    }
+}
+
+TEST(SpellCatalog_SideDbcIndicesAreResolvedIntoRealUnits)
+{
+    g_castTimes.CastTime = 1500;
+    g_duration.Duration[0] = 12000;
+    g_duration.Duration[1] = 0;
+    g_duration.Duration[2] = 18000;
+    g_range.RangeMin = 5.0f;
+    g_range.RangeMax = 30.0f;
+    g_radius.Radius = 8.0f;
+
+    FakeSpell spell(3000);
+    SpellEntry& e = spell.Get();
+    e.CastingTimeIndex = 1;
+    e.DurationIndex = 1;
+    e.RangeIndex = 1;
+    e.Effect[EFFECT_INDEX_0] = SPELL_EFFECT_SCHOOL_DAMAGE;
+    e.EffectRadiusIndex[EFFECT_INDEX_0] = 1;
+
+    SpellCatalog catalog;
+    catalog.Build({spell.Ptr()}, SideDbcSources());
+    SpellInfo const& info = catalog.Get(3000);
+
+    REQUIRE(info.dbc != nullptr);
+    CHECK_EQ(info.castTimeMs, 1500);
+    CHECK(info.hasCastTimeRow);
+    CHECK_EQ(info.durationMs, 12000);
+    CHECK_EQ(info.maxDurationMs, 18000);
+    CHECK(info.rangeMin == 5.0f);
+    CHECK(info.rangeMax == 30.0f);
+    CHECK(info.radius[EFFECT_INDEX_0] == 8.0f);
+
+    // An effect with no radius index keeps zero rather than borrowing its neighbour's.
+    CHECK(info.radius[EFFECT_INDEX_1] == 0.0f);
+}
+
+TEST(SpellCatalog_InfiniteDurationKeepsItsMinusOne)
+{
+    // -1 means "never expires" and must survive as -1; abs() would turn a
+    // permanent aura into a one-millisecond one.
+    g_duration.Duration[0] = -1;
+    g_duration.Duration[1] = 0;
+    g_duration.Duration[2] = -1;
+
+    FakeSpell spell(3100);
+    spell.Get().DurationIndex = 1;
+
+    SpellCatalog catalog;
+    catalog.Build({spell.Ptr()}, SideDbcSources());
+
+    CHECK_EQ(catalog.Get(3100).durationMs, -1);
+    CHECK_EQ(catalog.Get(3100).maxDurationMs, -1);
+}
+
+TEST(SpellCatalog_NegativeDurationIsTakenAbsolute)
+{
+    // GetSpellDuration returned abs() for anything other than -1, and some rows
+    // really are negative. Reproduce that, or those auras get a negative timer.
+    g_duration.Duration[0] = -8000;
+    g_duration.Duration[1] = 0;
+    g_duration.Duration[2] = -9000;
+
+    FakeSpell spell(3200);
+    spell.Get().DurationIndex = 1;
+
+    SpellCatalog catalog;
+    catalog.Build({spell.Ptr()}, SideDbcSources());
+
+    CHECK_EQ(catalog.Get(3200).durationMs, 8000);
+    CHECK_EQ(catalog.Get(3200).maxDurationMs, 9000);
+}
+
+TEST(SpellCatalog_MissingCastTimeRowIsNotTheSameAsZero)
+{
+    // GetSpellCastTime returns 0 outright for a spell with no row, but a spell
+    // that HAS a row saying zero still collects SPELLMOD_CASTING_TIME and the
+    // +500ms every ranged spell gets. Collapsing the two loses that 500ms.
+    g_castTimes.CastTime = 0;
+
+    FakeSpell withRow(3300);
+    withRow.Get().CastingTimeIndex = 1;
+
+    FakeSpell without(3301);
+    without.Get().CastingTimeIndex = 0;
+
+    SpellCatalog catalog;
+    catalog.Build({withRow.Ptr(), without.Ptr()}, SideDbcSources());
+
+    CHECK(catalog.Get(3300).hasCastTimeRow);
+    CHECK_EQ(catalog.Get(3300).castTimeMs, 0);
+
+    CHECK(!catalog.Get(3301).hasCastTimeRow);
+    CHECK_EQ(catalog.Get(3301).castTimeMs, 0);
+}
+
+TEST(SpellCatalog_AbsentSideDbcRowsLeaveZeroes)
+{
+    // Every index zero, and callbacks that answer null. Nothing may be invented.
+    FakeSpell spell(3400);
+    spell.Get().Effect[EFFECT_INDEX_0] = SPELL_EFFECT_SCHOOL_DAMAGE;
+
+    SpellCatalog catalog;
+    catalog.Build({spell.Ptr()}, SideDbcSources());
+    SpellInfo const& info = catalog.Get(3400);
+
+    CHECK_EQ(info.castTimeMs, 0);
+    CHECK(!info.hasCastTimeRow);
+    CHECK_EQ(info.durationMs, 0);
+    CHECK_EQ(info.maxDurationMs, 0);
+    CHECK(info.rangeMin == 0.0f);
+    CHECK(info.rangeMax == 0.0f);
+    CHECK(info.radius[EFFECT_INDEX_0] == 0.0f);
+
+    // And with no callbacks supplied at all, the same.
+    SpellCatalog bare;
+    bare.Build({spell.Ptr()}, NoSources());
+    CHECK_EQ(bare.Get(3400).durationMs, 0);
+    CHECK(!bare.Get(3400).hasCastTimeRow);
+}
