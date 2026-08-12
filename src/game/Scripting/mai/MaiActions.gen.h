@@ -269,7 +269,7 @@ namespace mai
     inline constexpr ParamSpec g_actionParamsUpdateTemplate[] =
     {
         { "entry", ParamType::Creature, false },
-        { "faction", ParamType::Faction, false },
+        { "faction", ParamType::Bool, false },
     };
 
     inline constexpr ParamSpec g_actionParamsSetEquipmentSlots[] =
@@ -285,7 +285,7 @@ namespace mai
 
     inline constexpr ParamSpec g_actionParamsSetFaction[] =
     {
-        { "faction", ParamType::Faction, false },
+        { "faction", ParamType::Faction, true },
         { "flags", ParamType::Flags, true },
     };
 
@@ -459,7 +459,7 @@ namespace mai
 
     inline constexpr ParamSpec g_actionParamsKillCredit[] =
     {
-        { "entry", ParamType::Creature, false },
+        { "entry", ParamType::Creature, true },
         { "group_credit", ParamType::Bool, true },
     };
 

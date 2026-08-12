@@ -62,10 +62,19 @@ category field = 0x02
     morph_to_entry_or_model 23   entry:u32
     mount_to_entry_or_model 24   entry:u32
     change_entry            39   entry:creature
-    update_template         44   entry:creature faction:faction
+    # `faction` here is NOT a faction. The body reads it as
+    # `faction ? HORDE : ALLIANCE` -- one bit, which team the new template
+    # belongs to -- and the column keeps the name it had in `datalong2`.
+    # Typed as a faction it refused every alliance-side row in the world for
+    # naming faction 0, and every horde-side one written as -1 for naming
+    # faction 4294967295.
+    update_template         44   entry:creature faction:bool
     set_equipment_slots     42   reset_default:bool
     modify_npc_flags        29   flag:flags change:u32
-    set_faction             22   faction:faction flags:flags?
+    # OPTIONAL because 0 is a real instruction: it clears the temporary
+    # faction and puts the creature back to its own. Required, it read as
+    # "faction 0", which no world has.
+    set_faction             22   faction:faction? flags:flags?
 
 category move = 0x03
     move_to                  3   speed:u32? scatter:f32? at
@@ -200,7 +209,10 @@ category world = 0x05
 
 category player = 0x06
     quest_explored           7   quest:quest distance:f32?
-    kill_credit              8   entry:creature group_credit:bool?
+    # OPTIONAL for the same reason as set_faction: 0 means "credit whichever
+    # end of this step is the creature", which is how a script gives credit
+    # for a kill it did not name in advance.
+    kill_credit              8   entry:creature? group_credit:bool?
     create_item             17   item:item amount:u32?
     send_mail               38   template:mail alt_sender:creature?
     join_lfg                33   area:area
