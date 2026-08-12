@@ -147,9 +147,13 @@ namespace mai
             for (int i = 0; i < MAX_TEXT_ID; ++i, ++slot)
             {
                 out.operands[slot].i = row.textId[i];
-                // A text id of -1 is "none" in this schema, and 0 is a real
-                // one, so the test here is not Supplied().
-                if (row.textId[i] >= 0)
+
+                // Non-zero, and the sign is the whole point: text ids in this
+                // core are NEGATIVE. `>= 0` was here, which marked a slot
+                // given exactly when it did not hold a text and called every
+                // real one absent. Supplied() would have been right all along;
+                // it is spelled out because the reasoning above it was not.
+                if (row.textId[i] != 0)
                 {
                     out.given |= uint16(1u << slot);
                 }
@@ -248,11 +252,32 @@ namespace mai
         out.searchRadiusOrGuid = step.buddy.guidOrRadius;
         out.data_flags = step.buddy.flags;
 
-        // A row's textId is -1 for "none", and 0 is a real text id, so the
-        // absent ones cannot be left zeroed.
+        // An absent text is ZERO, and it took a talking sentinel to prove it.
+        //
+        // This filled the four slots with -1 for "none", on the belief that 0
+        // was a real text id. Both halves are wrong, and the second one is
+        // wrong in a way that speaks out loud:
+        //
+        //   * 0 is not a text id and never can be. LoadMangosStrings refuses
+        //     it by name -- "contain reserved entry 0, ignored" -- so nothing
+        //     can be stored there to be said.
+        //
+        //   * -1 IS a text id. MIN_CREATURE_AI_TEXT_STRING_ID is (-1), which
+        //     makes it the FIRST valid one, and this world has a row there:
+        //     "I see those fools at the Abbey sent some fresh meat for us."
+        //
+        // The borrowed TALK body picks one of the four at random whenever the
+        // SECOND is non-zero, and stops counting at the first zero. Handed
+        // -1, -1, -1 for the three a step did not write, it saw four texts
+        // where there was one and said the Abbey line three times in four.
+        //
+        // Converted rows never showed it because the conversion writes
+        // `text1=0 text2=0` explicitly. Only a hand-written step that leaves
+        // the unused texts out -- which is what a person writing MAI does --
+        // could reach it.
         for (int i = 0; i < MAX_TEXT_ID; ++i)
         {
-            out.textId[i] = -1;
+            out.textId[i] = 0;
         }
 
         std::size_t slot = 0;
