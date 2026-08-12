@@ -67,7 +67,13 @@ class MapPersistentState
 {
         friend class MapPersistentStateManager;
     protected:
-        MapPersistentState(uint16 MapId, uint32 InstanceId, Difficulty difficulty);
+        /// uint32, and it MUST stay uint32. A vessel's deck is a map whose id is minted
+        /// at runtime as VESSEL_MAP_BASE + goEntry -- upwards of a million, where
+        /// Map.dbc's own ids end in the hundreds. Taken as uint16 the id silently
+        /// wraps, the state is filed under a map that does not exist, and the first
+        /// creature to die on that deck looks its map entry up, gets NULL and
+        /// dereferences it.
+        MapPersistentState(uint32 MapId, uint32 InstanceId, Difficulty difficulty);
 
     public:
 
@@ -162,7 +168,9 @@ class WorldPersistentState : public MapPersistentState
            - any new non-instanceable map created
            - respawn data loading for non-instanceable map
         */
-        explicit WorldPersistentState(uint16 MapId) : MapPersistentState(MapId, 0, REGULAR_DIFFICULTY) {}
+        /// The one a vessel gets: a deck is not instanceable, so a minted seven-digit
+        /// map id arrives HERE. See the base constructor on why the width matters.
+        explicit WorldPersistentState(uint32 MapId) : MapPersistentState(MapId, 0, REGULAR_DIFFICULTY) {}
 
         ~WorldPersistentState() {}
 
@@ -190,7 +198,7 @@ class DungeonPersistentState : public MapPersistentState
            - any new instance is being generated
            - the first time a player bound to InstanceId logs in
            - when a group bound to the instance is loaded */
-        DungeonPersistentState(uint16 MapId, uint32 InstanceId, Difficulty difficulty, time_t resetTime, bool canReset);
+        DungeonPersistentState(uint32 MapId, uint32 InstanceId, Difficulty difficulty, time_t resetTime, bool canReset);
 
         ~DungeonPersistentState();
 
@@ -256,7 +264,7 @@ class BattleGroundPersistentState : public MapPersistentState
         /* Created either when:
            - any new BG/arena is being generated
         */
-        BattleGroundPersistentState(uint16 MapId, uint32 InstanceId, Difficulty difficulty)
+        BattleGroundPersistentState(uint32 MapId, uint32 InstanceId, Difficulty difficulty)
             : MapPersistentState(MapId, InstanceId, difficulty) {}
 
         ~BattleGroundPersistentState() {}
@@ -289,7 +297,7 @@ enum ResetEventType
 struct DungeonResetEvent
 {
     ResetEventType type   : 8;                              // if RESET_EVENT_DUNGEON then InstanceID == 0 and applied to all instances for map)
-    uint16 mapid;                                           // used with mapid used as for select reset for global cooldown instances (instanceid==0 for event)
+    uint32 mapid;                                           // used with mapid used as for select reset for global cooldown instances (instanceid==0 for event)
     uint32 instanceId;                                      // used for select reset for normal dungeons
 
     DungeonResetEvent() : type(RESET_EVENT_NORMAL_DUNGEON), mapid(0), instanceId(0) {}

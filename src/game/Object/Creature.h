@@ -272,7 +272,11 @@ struct EquipmentInfoRaw
 struct CreatureData
 {
     uint32 id;                                              // entry in creature_template
-    uint16 mapid;
+    /// uint32, as GameObjectData's has always been. The loader reads this column with
+    /// GetUInt32 and a vessel's deck is a map minted above a million, so as a uint16 it
+    /// wrapped and the row was then rejected as "spawned at nonexistent map" -- which is
+    /// why a hull's crew never appeared.
+    uint32 mapid;
     uint32 modelid_override;                                // overrides any model defined in creature_template
     int32 equipmentId;
     float posX;
