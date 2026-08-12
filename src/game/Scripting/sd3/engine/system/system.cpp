@@ -48,11 +48,19 @@ SystemMgr& SystemMgr::Instance()
 
 /**
  * @brief Loads script texts from the database.
+ *
+ * `script_texts` is NOT read any more: the migration merged it into
+ * `mai_text` with not one id changed, and MAI loads that whole table. Both
+ * would land in the same string map over the same range, and the second one
+ * there loses -- every row reported as "already loaded entry (from another
+ * table?)", 2,473 of them. The ids are unchanged, so DoScriptText finds
+ * exactly what it found before; only the table it came out of is different.
+ *
+ * `custom_texts` and `gossip_texts` below were not part of that merge and
+ * still read their own.
  */
 void SystemMgr::LoadScriptTexts()
 {
-    outstring_log("[SD3]: Loading Script Texts...");
-    LoadMangosStrings(WorldDatabase, "script_texts", TEXT_SOURCE_TEXT_START, TEXT_SOURCE_TEXT_END, true);
 }
 
 /**

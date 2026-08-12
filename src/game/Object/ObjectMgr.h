@@ -136,6 +136,17 @@ typedef std::unordered_map < uint32/*(mapid,spawnMode) pair*/, CellObjectGuidsMa
 #define MAX_CREATURE_AI_TEXT_STRING_ID (-1000000)
 // Anything below MAX_CREATURE_AI_TEXT_STRING_ID is handled by the external script lib
 
+// `mai_text` owns every id it holds, so it names no range at all.
+//
+// The three tables above were three ranges because they were three tables
+// sharing one map. `mai_text` is all three merged, with not one id changed --
+// which is what let every existing reference keep pointing at what it pointed
+// at -- so it spans EventAI's range, the script library's range below that and
+// the DB scripts' positive range at once. No (min, max) pair describes that,
+// and asking for one is how 3,010 of its 4,026 rows were being refused as
+// "out of allowed range" while the range it was given held the other 1,016.
+#define ANY_TEXT_STRING_ID             0
+
 static_assert(MAX_DB_SCRIPT_STRING_ID < INT32_MAX, "Must scope with int32 range");
 
 struct MangosStringLocale

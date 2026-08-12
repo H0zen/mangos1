@@ -395,14 +395,18 @@ namespace scripting
         // merge is a union and every existing reference still points at what
         // it pointed at.
         //
-        // Only the creature-AI range is read here. `db_script_string` is still
-        // loaded by the DB-script store and `script_texts` by SD3, over ranges
-        // that do not overlap this one; both move here when those go, and
-        // loading a range twice is what this avoids in the meantime.
+        // THE WHOLE TABLE, and it has to be. This read the creature-AI range
+        // alone, because `db_script_string` was still being loaded by the
+        // DB-script store and `script_texts` by SD3, and loading a range twice
+        // was what that avoided. Both of those are gone -- the store with this
+        // change, SD3 whenever it is configured out -- so their ranges arrive
+        // here or nowhere. On a live world that was 3,010 of 4,026 rows
+        // refused one line at a time: every ported ScriptDev script's speech
+        // and every DB-script `talk`.
         sLog.outString("Loading MAI texts...");
         sObjectMgr.LoadMangosStrings(WorldDatabase, "mai_text",
-                                     MIN_CREATURE_AI_TEXT_STRING_ID,
-                                     MAX_CREATURE_AI_TEXT_STRING_ID, true);
+                                     ANY_TEXT_STRING_ID, ANY_TEXT_STRING_ID,
+                                     true);
     }
 
     void MaiEngine::LoadSequences()
