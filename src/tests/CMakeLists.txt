@@ -68,6 +68,19 @@ set(SRC_GRP_TESTS
     PacketCodecTest.cpp
 )
 
+# The routing decisions -- Route's states, MoveProfile's permissions, the baked tile
+# header. They need Detour's headers and, above all, its DT_POLYREF64 definition: the
+# header assertion is that the tile records the polyref width, and it means nothing
+# unless the test compiles against the same width the server does.
+#
+# Detour is only configured when the server or the tools are being built (see
+# dep/CMakeLists.txt), so this follows the target rather than forcing it. A tests-only
+# tree still configures; it just does not carry these cases, and every CI job builds
+# with BUILD_MANGOSD=1, so they run where it matters.
+if(TARGET RecastNavigation::Detour)
+    list(APPEND SRC_GRP_TESTS RouteTest.cpp)
+endif()
+
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)
     list(APPEND SRC_GRP_TESTS GracefulCloseTest.cpp)
@@ -81,6 +94,7 @@ add_executable(mangos_tests ${SRC_GRP_TESTS})
 target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
+        ${CMAKE_SOURCE_DIR}/src/game/MotionGenerators
         ${CMAKE_SOURCE_DIR}/src/game/Server)
 
 target_link_libraries(mangos_tests
@@ -93,6 +107,14 @@ target_link_libraries(mangos_tests
         Threads::Threads
         mangos_openssl_strict
 )
+
+# Headers and DT_POLYREF64, not code. Linking the target rather than reaching for its
+# include directory is the point: the definition is PUBLIC on it, so this is what keeps
+# the test's idea of sizeof(dtPolyRef) identical to the server's. Reaching for the
+# directory alone would let the test agree with a server it in fact disagrees with.
+if(TARGET RecastNavigation::Detour)
+    target_link_libraries(mangos_tests PRIVATE RecastNavigation::Detour)
+endif()
 
 add_test(NAME mangos_tests COMMAND mangos_tests)
 
