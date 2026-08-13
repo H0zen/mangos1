@@ -67,7 +67,6 @@ PathFinder::PathFinder(const Unit* owner) :
 }
 
 PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
-    m_polyLength(0),
     m_useStraightPath(false), m_forceDestination(false), m_pointPathLimit(MAX_POINT_PATH_LENGTH),
     m_budgetStop(RouteStop::Reached),
     m_sourceUnit(owner), m_navMesh(NULL), m_navMeshQuery(NULL)
@@ -229,7 +228,7 @@ dtPolyRef PathFinder::getPolyByLocation(const float* point, float* distance) con
     // first we check the current path
     // if the current path doesn't contain the current poly,
     // we need to use the expensive navMesh.findNearestPoly
-    dtPolyRef polyRef = getPathPolyByPosition(m_pathPolyRefs, m_polyLength, point, distance);
+    dtPolyRef polyRef = getPathPolyByPosition(m_corridor.Polys(), m_corridor.Length(), point, distance);
     if (polyRef != INVALID_POLYREF)
     {
         return polyRef;
@@ -273,12 +272,12 @@ bool PathFinder::BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
 {
     float t = 0.0f;
     float hitNormal[VERTEX_SIZE] = {0.0f, 0.0f, 0.0f};
-    dtPolyRef path[MAX_PATH_LENGTH];
+    dtPolyRef path[Corridor::CAPACITY];
     int pathLength = 0;
 
     dtStatus dtResult = m_navMeshQuery->raycast(startPoly, startPoint, endPoint,
                                                 &m_filter, &t, hitNormal,
-                                                path, &pathLength, MAX_PATH_LENGTH);
+                                                path, &pathLength, int(Corridor::CAPACITY));
 
     // A truncated corridor is rejected rather than trusted: past the buffer the ray
     // keeps travelling but stops recording, so the last polygon written is no longer
@@ -337,8 +336,7 @@ bool PathFinder::BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
         }
     }
 
-    memcpy(m_pathPolyRefs, path, size_t(pathLength) * sizeof(dtPolyRef));
-    m_polyLength = uint32(pathLength);
+    m_corridor.Assign(path, uint32(pathLength));
 
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
                      "++ PathFinder::BuildStraightShortcut :: %u walks the segment "
@@ -378,7 +376,7 @@ void PathFinder::noteSearchLimit(dtStatus status, const char* where)
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
                          "++ PathFinder::%s :: %u filled the polygon buffer (%d); the "
                          "route is longer than one path may describe\n",
-                         where, m_sourceUnit->GetGUIDLow(), MAX_PATH_LENGTH);
+                         where, m_sourceUnit->GetGUIDLow(), int(Corridor::CAPACITY));
     }
 }
 
@@ -459,8 +457,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 
         BuildShortcut();
 
-        m_pathPolyRefs[0] = startPoly;
-        m_polyLength = 1;
+        m_corridor.Assign(&startPoly, 1);
 
         m_route.outcome = farFromPoly ? RouteOutcome::Partial : RouteOutcome::Routed;
         m_route.stop = farFromPoly ? RouteStop::Wall : RouteStop::Reached;
@@ -483,34 +480,18 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     }
 
     // look for startPoly/endPoly in current path
-    // TODO: we can merge it with getPathPolyByPosition() loop
-    bool startPolyFound = false;
-    bool endPolyFound = false;
-    uint32 pathStartIndex, pathEndIndex;
+    // here to catch few bugs
+    MANGOS_ASSERT(!m_corridor.HasInvalid() ||
+                  m_sourceUnit->PrintEntryError("PathFinder::BuildPolyPath"));
 
-    if (m_polyLength)
-    {
-        for (pathStartIndex = 0; pathStartIndex < m_polyLength; ++pathStartIndex)
-        {
-            // here to catch few bugs
-            MANGOS_ASSERT(m_pathPolyRefs[pathStartIndex] != INVALID_POLYREF || m_sourceUnit->PrintEntryError("PathFinder::BuildPolyPath"));
-
-            if (m_pathPolyRefs[pathStartIndex] == startPoly)
-            {
-                startPolyFound = true;
-                break;
-            }
-        }
-
-        for (pathEndIndex = m_polyLength - 1; pathEndIndex > pathStartIndex; --pathEndIndex)
-        {
-            if (m_pathPolyRefs[pathEndIndex] == endPoly)
-            {
-                endPolyFound = true;
-                break;
-            }
-        }
-    }
+    // Where the mover has got to, and how much of the old route still leads to the
+    // goal. FindLastAfter takes the LAST occurrence deliberately -- a corridor that
+    // doubles back round an obstacle visits a polygon twice, and cutting at the first
+    // visit throws away the half that goes somewhere.
+    const uint32 startIndex = m_corridor.Find(startPoly);
+    const uint32 endIndex = m_corridor.FindLastAfter(endPoly, startIndex);
+    const bool startPolyFound = (startIndex != Corridor::NPOS);
+    const bool endPolyFound = (endIndex != Corridor::NPOS);
 
     if (startPolyFound && endPolyFound)
     {
@@ -520,8 +501,8 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         // our path is a simple subpath case, we have all the data we need
         // just "cut" it out
 
-        m_polyLength = pathEndIndex - pathStartIndex + 1;
-        memmove(m_pathPolyRefs, m_pathPolyRefs + pathStartIndex, m_polyLength * sizeof(dtPolyRef));
+        m_corridor.Advance(startIndex);
+        m_corridor.Truncate(endIndex - startIndex + 1);
     }
     else if (startPolyFound && !endPolyFound)
     {
@@ -530,7 +511,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         // we are moving on the old path but target moved out
         // so we have atleast part of poly-path ready
 
-        m_polyLength -= pathStartIndex;
+        m_corridor.Advance(startIndex);
 
         // try to adjust the suffix of the path instead of recalculating entire length
         // at given interval the target can not get too far from its last location
@@ -539,10 +520,9 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 
         // take ~80% of the original length
         // TODO : play with the values here
-        uint32 prefixPolyLength = uint32(m_polyLength * 0.8f + 0.5f);
-        memmove(m_pathPolyRefs, m_pathPolyRefs + pathStartIndex, prefixPolyLength * sizeof(dtPolyRef));
+        uint32 prefixPolyLength = uint32(m_corridor.Length() * 0.8f + 0.5f);
 
-        dtPolyRef suffixStartPoly = m_pathPolyRefs[prefixPolyLength - 1];
+        dtPolyRef suffixStartPoly = m_corridor.At(prefixPolyLength - 1);
 
         // we need any point on our suffix start poly to generate poly-path, so we need last poly in prefix data
         float suffixEndPoint[VERTEX_SIZE];
@@ -551,8 +531,19 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         {
             // we can hit offmesh connection as last poly - closestPointOnPoly() don't like that
             // try to recover by using prev polyref
+            //
+            // Only when there IS a previous one. With a single-polygon prefix the
+            // decrement below reached zero and the subscript underflowed to
+            // 0xFFFFFFFF, reading the corridor array a long way past its end.
+            if (prefixPolyLength < 2)
+            {
+                BuildShortcut();
+                m_route.stop = RouteStop::Failed;
+                return;
+            }
+
             --prefixPolyLength;
-            suffixStartPoly = m_pathPolyRefs[prefixPolyLength - 1];
+            suffixStartPoly = m_corridor.At(prefixPolyLength - 1);
             dtResult = m_navMeshQuery->closestPointOnPoly(suffixStartPoly, endPoint, suffixEndPoint, NULL);
             if (dtStatusFailed(dtResult))
             {
@@ -563,17 +554,19 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             }
         }
 
-        // generate suffix
-        uint32 suffixPolyLength = 0;
+        // generate suffix. It is written OVER the prefix's last polygon, which is the
+        // suffix's first: the two overlap by exactly one, which is why the lengths are
+        // added and one subtracted below.
+        int suffixPolyLength = 0;
         dtResult = m_navMeshQuery->findPath(
                        suffixStartPoly,    // start polygon
                        endPoly,            // end polygon
                        suffixEndPoint,     // start position
                        endPoint,           // end position
                        &m_filter,            // polygon search filter
-                       m_pathPolyRefs + prefixPolyLength - 1,    // [out] path
-                       (int*)&suffixPolyLength,
-                       MAX_PATH_LENGTH - prefixPolyLength); // max number of polygons in output path
+                       m_corridor.Buffer() + prefixPolyLength - 1,    // [out] path
+                       &suffixPolyLength,
+                       int(Corridor::CAPACITY - prefixPolyLength)); // max polygons out
 
         noteSearchLimit(dtResult, "BuildPolyPath(suffix)");
 
@@ -582,14 +575,26 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             // this is probably an error state, but we'll leave it
             // and hopefully recover on the next Update
             // we still need to copy our preffix
-            sLog.outError("%u's Path Build failed: suffix length %u, status 0x%08x",
+            sLog.outError("%u's Path Build failed: suffix length %d, status 0x%08x",
                           m_sourceUnit->GetGUIDLow(), suffixPolyLength, dtResult);
         }
 
-        DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++  m_polyLength=%u prefixPolyLength=%u suffixPolyLength=%u \n", m_polyLength, prefixPolyLength, suffixPolyLength);
+        DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++  corridor=%u prefixPolyLength=%u suffixPolyLength=%d \n", m_corridor.Length(), prefixPolyLength, suffixPolyLength);
 
         // new path = prefix + suffix - overlap
-        m_polyLength = prefixPolyLength + suffixPolyLength - 1;
+        m_corridor.SetLength(prefixPolyLength + uint32(suffixPolyLength) - 1);
+
+        // A one-polygon prefix and an empty suffix leave nothing behind, and the
+        // verdict below reads the corridor's last polygon. The arithmetic above
+        // underflowed to 0xFFFFFFFF and that read went far off the end; the error was
+        // already logged just above, so this only stops it being logged and then
+        // acted upon.
+        if (m_corridor.Empty())
+        {
+            BuildShortcut();
+            m_route.stop = RouteStop::Failed;
+            return;
+        }
     }
      else
     {
@@ -603,19 +608,21 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         // free and invalidate old path data
         clear();
 
+        int polyLength = 0;
         dtResult = m_navMeshQuery->findPath(
                        startPoly,          // start polygon
                        endPoly,            // end polygon
                        startPoint,         // start position
                        endPoint,           // end position
                        &m_filter,           // polygon search filter
-                       m_pathPolyRefs,     // [out] path
-                       (int*)&m_polyLength,
-                       MAX_PATH_LENGTH);   // max number of polygons in output path
+                       m_corridor.Buffer(),// [out] path
+                       &polyLength,
+                       int(Corridor::CAPACITY)); // max number of polygons in output path
+        m_corridor.SetLength(uint32(polyLength));
 
         noteSearchLimit(dtResult, "BuildPolyPath");
 
-        if (!m_polyLength || dtStatusFailed(dtResult))
+        if (!polyLength || dtStatusFailed(dtResult))
         {
             // only happens if we passed bad data to findPath(), or navmesh is messed up
             sLog.outError("%u's Path Build failed: 0 length path, status 0x%08x",
@@ -633,7 +640,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     // the same field being decided here. On a REUSED router that read the previous
     // call's verdict whenever the branch had not run this time, so a route that did
     // reach its goal was demoted to partial because an earlier one had not.
-    if (m_pathPolyRefs[m_polyLength - 1] == endPoly && !farFromPoly)
+    if (m_corridor.Last() == endPoly && !farFromPoly)
     {
         m_route.outcome = RouteOutcome::Routed;
         m_route.stop = RouteStop::Reached;
@@ -664,8 +671,8 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
         dtResult = m_navMeshQuery->findStraightPath(
                        startPoint,         // start position
                        endPoint,           // end position
-                       m_pathPolyRefs,     // current path
-                       m_polyLength,       // length of current path
+                       m_corridor.Polys(), // current path
+                       m_corridor.Length(),// length of current path
                        pathPoints,         // [out] path corner points
                        NULL,               // [out] flags
                        NULL,               // [out] shortened path
@@ -677,8 +684,8 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
         dtResult = findSmoothPath(
                        startPoint,         // start position
                        endPoint,           // end position
-                       m_pathPolyRefs,     // current path
-                       m_polyLength,       // length of current path
+                       m_corridor.Polys(), // current path
+                       m_corridor.Length(),// length of current path
                        pathPoints,         // [out] path corner points
                        (int*)&pointCount,
                        m_pointPathLimit);    // maximum number of points
@@ -729,7 +736,7 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
         m_route.stop = RouteStop::Forced;
     }
 
-    DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::BuildPointPath outcome %d size %d poly-size %d\n", int(m_route.outcome), pointCount, m_polyLength);
+    DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::BuildPointPath outcome %d size %d poly-size %d\n", int(m_route.outcome), pointCount, m_corridor.Length());
 }
 
 /**
@@ -946,7 +953,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     *smoothPathSize = 0;
     uint32 nsmoothPath = 0;
 
-    dtPolyRef polys[MAX_PATH_LENGTH];
+    dtPolyRef polys[Corridor::CAPACITY];
     memcpy(polys, polyPath, sizeof(dtPolyRef)*polyPathSize);
     uint32 npolys = polyPathSize;
 
@@ -1007,7 +1014,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         uint32 nvisited = 0;
         m_navMeshQuery->moveAlongSurface(polys[0], iterPos, moveTgt, &m_filter, result, visited, (int*)&nvisited, MAX_VISIT_POLY);
-        npolys = fixupCorridor(polys, npolys, MAX_PATH_LENGTH, visited, nvisited);
+        npolys = fixupCorridor(polys, npolys, Corridor::CAPACITY, visited, nvisited);
 
         m_navMeshQuery->getPolyHeight(polys[0], result, &result[1]);
         result[1] += 0.5f;

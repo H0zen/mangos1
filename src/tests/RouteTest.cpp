@@ -33,11 +33,14 @@
 
 #include "TestHarness.h"
 
+#include "Corridor.h"
 #include "MoveMapSharedDefines.h"
 #include "MoveProfile.h"
 #include "Route.h"
 
 #include <cstddef>
+#include <initializer_list>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Route: four states, and the three questions consumers ask of them.
@@ -247,4 +250,128 @@ TEST(NavAreaToFlags_KeepsSurfacesTellingThemselvesApart)
     // lets the surfaces be PRICED rather than merely permitted.
     CHECK(NAV_SLIME < DT_MAX_AREAS);
     CHECK(NAV_WATER < DT_MAX_AREAS);
+}
+
+// ---------------------------------------------------------------------------
+// Corridor: the index arithmetic that decides how much of the last leg survives.
+// ---------------------------------------------------------------------------
+
+static Corridor MakeCorridor(std::initializer_list<dtPolyRef> polys)
+{
+    Corridor c;
+    std::vector<dtPolyRef> v(polys);
+    c.Assign(v.data(), uint32(v.size()));
+    return c;
+}
+
+TEST(Corridor_StartsEmpty)
+{
+    const Corridor c;
+    CHECK(c.Empty());
+    CHECK_EQ(c.Length(), uint32(0));
+    CHECK_EQ(c.Find(1), Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(1, 0), Corridor::NPOS);
+}
+
+TEST(Corridor_FindTakesTheFirstOccurrence)
+{
+    // Where the mover has got to. Earliest wins: the mover is at the START of the part
+    // of the corridor it has not walked yet.
+    const Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
+    CHECK_EQ(c.Find(20), uint32(1));
+    CHECK_EQ(c.Find(40), uint32(4));
+    CHECK_EQ(c.Find(99), Corridor::NPOS);
+}
+
+TEST(Corridor_FindLastAfterTakesTheLastOccurrence)
+{
+    // How much of the corridor still leads to the goal, and the reason it is the LAST
+    // occurrence rather than the first: a route that doubles back round an obstacle
+    // enters the same polygon twice, and cutting at the first visit discards the half
+    // that actually goes somewhere.
+    const Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
+
+    CHECK_EQ(c.FindLastAfter(20, 0), uint32(3));
+    CHECK_EQ(c.FindLastAfter(40, 0), uint32(4));
+
+    // Strictly after: a polygon that is only where the mover already stands is not a
+    // remaining route.
+    CHECK_EQ(c.FindLastAfter(10, 0), Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(20, 3), Corridor::NPOS);
+}
+
+TEST(Corridor_FindLastAfterSurvivesNotFound)
+{
+    // Composed straight out of Find, whose miss is NPOS. Unguarded, NPOS + 1 wraps to
+    // zero and the search sweeps the whole corridor as though it had been asked to
+    // start from the front -- the opposite of what "I found nothing" means.
+    const Corridor c = MakeCorridor({ 10, 20, 30 });
+    CHECK_EQ(c.FindLastAfter(30, Corridor::NPOS), Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(30, 99), Corridor::NPOS);
+}
+
+TEST(Corridor_AdvanceDropsWhatIsBehind)
+{
+    Corridor c = MakeCorridor({ 10, 20, 30, 40 });
+
+    c.Advance(2);
+    CHECK_EQ(c.Length(), uint32(2));
+    CHECK_EQ(c.At(0), dtPolyRef(30));
+    CHECK_EQ(c.Last(), dtPolyRef(40));
+
+    // Advancing nowhere leaves it alone; advancing past the end leaves nothing, which
+    // is the honest answer when the mover is no longer on its own corridor at all.
+    c.Advance(0);
+    CHECK_EQ(c.Length(), uint32(2));
+
+    c.Advance(99);
+    CHECK(c.Empty());
+}
+
+TEST(Corridor_SubpathCutMatchesTheOldArithmetic)
+{
+    // The reuse case in full: the mover has reached polygon 30 and the goal is still
+    // in 50, so what survives is exactly [30 .. 50] -- Advance to the front of it,
+    // Truncate to its length.
+    Corridor c = MakeCorridor({ 10, 20, 30, 40, 50, 60 });
+
+    const uint32 start = c.Find(30);
+    const uint32 end = c.FindLastAfter(50, start);
+    REQUIRE(start != Corridor::NPOS);
+    REQUIRE(end != Corridor::NPOS);
+
+    c.Advance(start);
+    c.Truncate(end - start + 1);
+
+    CHECK_EQ(c.Length(), uint32(3));
+    CHECK_EQ(c.At(0), dtPolyRef(30));
+    CHECK_EQ(c.At(1), dtPolyRef(40));
+    CHECK_EQ(c.Last(), dtPolyRef(50));
+}
+
+TEST(Corridor_TruncateNeverGrows)
+{
+    Corridor c = MakeCorridor({ 10, 20 });
+    c.Truncate(50);
+    CHECK_EQ(c.Length(), uint32(2));
+    c.Truncate(1);
+    CHECK_EQ(c.Length(), uint32(1));
+    CHECK_EQ(c.Last(), dtPolyRef(10));
+}
+
+TEST(Corridor_LengthIsClampedToCapacity)
+{
+    // Detour is handed Buffer() and a maximum, and SetLength is how it reports back.
+    // A length past the array is not a number to trust: everything downstream indexes
+    // the buffer with it and nothing else bounds-checks.
+    Corridor c;
+    c.SetLength(Corridor::CAPACITY + 1000);
+    CHECK_EQ(c.Length(), Corridor::CAPACITY);
+}
+
+TEST(Corridor_HasInvalidSpotsANullReference)
+{
+    CHECK(!MakeCorridor({ 10, 20, 30 }).HasInvalid());
+    CHECK(MakeCorridor({ 10, 0, 30 }).HasInvalid());
+    CHECK(!Corridor().HasInvalid());
 }

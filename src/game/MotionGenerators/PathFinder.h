@@ -30,6 +30,7 @@
 #include "DetourNavMesh.h"
 #include "DetourNavMeshQuery.h"
 
+#include "Corridor.h"
 #include "MoveMapSharedDefines.h"
 #include "MoveProfile.h"
 #include "Route.h"
@@ -43,7 +44,9 @@ class Unit;
 // 74*4.0f=296y  number_of_points*interval = max_path_len
 // this is way more than actual evade range
 // I think we can safely cut those down even more
-#define MAX_PATH_LENGTH         74
+//
+// The polygon half of that pair now lives on Corridor, whose business it is; this is
+// the POINT limit, which is a different bound reached in a different place.
 #define MAX_POINT_PATH_LENGTH   74
 
 #define SMOOTH_PATH_STEP_SIZE   4.0f
@@ -144,8 +147,7 @@ class PathFinder
 
     private:
 
-        dtPolyRef      m_pathPolyRefs[MAX_PATH_LENGTH];   // Array of detour polygon references
-        uint32         m_polyLength;                      // Number of polygons in the path
+        Corridor       m_corridor;         // Polygons this mover is following
 
         Route          m_route;            // The answer to the last calculate()
 
@@ -197,7 +199,7 @@ class PathFinder
          */
         void clear()
         {
-            m_polyLength = 0;
+            m_corridor.Clear();
             m_route.points.clear();
         }
 
@@ -284,7 +286,7 @@ class PathFinder
          * Detour reports both budgets as DETAIL bits on a SUCCESS status, so
          * dtStatusFailed() is false and the caller sees a short path with no reason
          * attached. Which budget it was matters to whoever has to fix it -- the node
-         * pool is a server setting, the polygon buffer is MAX_PATH_LENGTH -- so the two
+         * pool is a server setting, the polygon buffer is Corridor::CAPACITY -- so the two
          * are logged apart even though both land in RouteStop.
          *
          * @param status The status returned by the Detour query.
@@ -300,7 +302,7 @@ class PathFinder
          * @param startPoint Start position, in Detour's axis order.
          * @param endPoint End position, in Detour's axis order.
          * @return True when the segment is walkable AND provably optimal, in which case
-         *         m_pathPolyRefs/m_polyLength describe it; false to run the full search.
+         *         the corridor describes it; false to run the full search.
          */
         bool BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
                                    const float* startPoint, const float* endPoint);
