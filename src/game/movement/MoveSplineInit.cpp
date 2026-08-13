@@ -33,6 +33,8 @@
 #include "CourseWire.h"
 #include "Log.h"
 
+#include <atomic>
+
 namespace
 {
     /// The vessel whose deck this unit is standing on, or an empty guid. Derived from the
@@ -51,6 +53,30 @@ namespace
             }
         }
         return ObjectGuid();
+    }
+
+    /**
+     * @brief The next spline identity.
+     *
+     * `MoveSplineInitArgs::splineId` was initialised to zero and then assigned by
+     * nothing, anywhere, so every leg this server has ever sent carried the id 0 --
+     * confirmed on a live capture: 31 monster-moves, all `id=0`. Retail's is a counter
+     * shared by the whole world, visibly climbing across unrelated creatures in the
+     * sniffs (20,097,790 then 820, 848, 849, 945 for the units one client could see).
+     *
+     * It is not decoration. The repair scheduler recognises a REPLACEMENT leg by its
+     * id, and a leg that is replaced 53% to 85% of the time is the common case; with a
+     * constant zero it never noticed, so it kept the schedule of a leg that no longer
+     * existed and anchored the cadence to the wrong start.
+     *
+     * Atomic because maps update in parallel and each drives its own movement. The
+     * value is an identity, not a count -- nothing reads it back except for equality,
+     * so wrapping after four billion legs costs nothing.
+     */
+    uint32 NextSplineId()
+    {
+        static std::atomic<uint32> counter(1);
+        return counter.fetch_add(1, std::memory_order_relaxed);
     }
 
     /// The pace this leg travels at, as a property rather than a flag. Read from the
@@ -186,6 +212,7 @@ namespace Movement
         }
 
         unit.m_movementInfo.SetMovementFlags((MovementFlags)moveFlags);
+        args.splineId = NextSplineId();
         move_spline.Initialize(args);
 
         // === The leg as a PLAN, and the plan is what goes on the wire. ===
@@ -309,6 +336,7 @@ namespace Movement
         args.path[0] = real_position;
 
         args.flags = MoveSplineFlag::Done;
+        args.splineId = NextSplineId();
         unit.m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_FORWARD | MOVEFLAG_SPLINE_ENABLED));
         move_spline.Initialize(args);
 
