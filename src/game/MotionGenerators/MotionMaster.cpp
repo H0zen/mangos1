@@ -71,6 +71,42 @@ inline static bool isTargeted(MovementGenerator* mv)
     return type == CHASE_MOTION_TYPE || type == FOLLOW_MOTION_TYPE;
 }
 
+
+/**
+ * @brief What a generator's claim on the unit is worth.
+ *
+ * The table is the whole policy, in one readable place, where it used to be an ordering
+ * implied by the sequence of pushes and two special cases inside Mutate.
+ */
+inline static Helm::Rank rankOf(MovementGenerator* mv)
+{
+    switch (mv->GetMovementGeneratorType())
+    {
+        case CONFUSED_MOTION_TYPE:
+        case FLEEING_MOTION_TYPE:
+        case TIMED_FLEEING_MOTION_TYPE:
+            return Helm::Rank::Panic;
+
+        case CHASE_MOTION_TYPE:
+        case FOLLOW_MOTION_TYPE:
+            return Helm::Rank::Combat;
+
+        case POINT_MOTION_TYPE:
+        case ASSISTANCE_MOTION_TYPE:
+        case ASSISTANCE_DISTRACT_MOTION_TYPE:
+        case HOME_MOTION_TYPE:
+        case EFFECT_MOTION_TYPE:
+        case FLIGHT_MOTION_TYPE:
+        case DISTRACT_MOTION_TYPE:
+            return Helm::Rank::Errand;
+
+        // Idle, wander and the waypoint patrol: what the unit does when nothing else
+        // is happening. The default sits at the bottom and is only ever covered.
+        default:
+            return Helm::Rank::Routine;
+    }
+}
+
 /**
  * @brief Initializes the MotionMaster.
  */
@@ -86,7 +122,9 @@ void MotionMaster::Initialize()
     if (m_owner->GetTypeId() == TYPEID_UNIT && !m_owner->hasUnitState(UNIT_STAT_CONTROLLED))
     {
         MovementGenerator* movement = FactorySelector::selectMovementGenerator((Creature*)m_owner);
-        m_roster.Add(movement == nullptr ? &si_idleMovement : movement);
+        MovementGenerator* const first =
+            (movement == nullptr) ? &si_idleMovement : movement;
+        m_roster.Add(first, rankOf(first));
         top()->Initialize(*m_owner);
         if (top()->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -95,7 +133,7 @@ void MotionMaster::Initialize()
     }
     else
     {
-        m_roster.Add(&si_idleMovement);
+        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
     }
 }
 
@@ -260,7 +298,7 @@ void MotionMaster::MoveIdle()
 {
     if (empty() || !isStatic(top()))
     {
-        m_roster.Add(&si_idleMovement);
+        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
     }
 }
 
@@ -595,7 +633,7 @@ void MotionMaster::Mutate(MovementGenerator* m)
     }
 
     m->Initialize(*m_owner);
-    m_roster.Add(m);
+    m_roster.Add(m, rankOf(m));
 }
 
 /**

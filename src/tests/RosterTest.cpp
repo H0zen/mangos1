@@ -67,6 +67,86 @@ TEST(Roster_TheNewestEntryDrives)
     CHECK_EQ(r.Active(), 10);
 }
 
+// ---------------------------------------------------------------------------------
+// Ranks.
+// ---------------------------------------------------------------------------------
+
+/**
+ * A uniform roster behaves exactly as the stack it replaces.
+ *
+ * This is what let ranks land without changing behaviour: give everything the same rank
+ * and "highest wins, newest among equals" degenerates to "newest wins". Every case above
+ * exercises that path, which is why they were written before ranks existed and did not
+ * have to change when ranks arrived.
+ */
+TEST(Roster_UniformRanksDegenerateToAStack)
+{
+    Roster<int> r;
+    r.Add(1, Helm::Rank::Combat);
+    r.Add(2, Helm::Rank::Combat);
+    r.Add(3, Helm::Rank::Combat);
+
+    CHECK_EQ(r.Active(), 3);
+    r.RemoveActive();
+    CHECK_EQ(r.Active(), 2);
+}
+
+/// The highest rank drives, whatever the order of arrival.
+TEST(Roster_TheHighestRankDrives)
+{
+    Roster<int> r;
+    r.Add(10, Helm::Rank::Routine);   // a patrol
+    r.Add(20, Helm::Rank::Panic);     // feared
+    r.Add(30, Helm::Rank::Combat);    // told to chase, AFTER the fear
+
+    // Under the old rule the chase arrived last and took over, and the creature
+    // pursued its target while feared. Losing control of yourself outranks it.
+    CHECK_EQ(r.Active(), 20);
+    CHECK(r.ActiveRank() == Helm::Rank::Panic);
+
+    // When the fear ends the chase takes over -- it was never lost, only covered.
+    r.RemoveActive();
+    CHECK_EQ(r.Active(), 30);
+    CHECK(r.ActiveRank() == Helm::Rank::Combat);
+
+    r.RemoveActive();
+    CHECK_EQ(r.Active(), 10);
+}
+
+/// Removal takes the DRIVING entry, which is no longer necessarily the last added.
+TEST(Roster_RemovalTakesTheDriverNotTheLast)
+{
+    Roster<int> r;
+    r.Add(1, Helm::Rank::Routine);
+    r.Add(2, Helm::Rank::Panic);
+    r.Add(3, Helm::Rank::Errand);
+
+    CHECK_EQ(r.Active(), 2);
+    r.RemoveActive();
+
+    // 3 is still there: it was added after 2 and outlived it.
+    CHECK_EQ(r.Size(), std::size_t(2));
+    CHECK_EQ(r.Active(), 3);
+
+    const std::vector<int> freed = r.TakeRetired();
+    CHECK_EQ(freed.size(), std::size_t(1));
+    CHECK_EQ(freed[0], 2);
+}
+
+/// Among equals, the newest still wins -- so a second chase supersedes the first.
+TEST(Roster_RecencyBreaksTiesWithinARank)
+{
+    Roster<int> r;
+    r.Add(1, Helm::Rank::Routine);
+    r.Add(2, Helm::Rank::Combat);
+    r.Add(3, Helm::Rank::Combat);
+    CHECK_EQ(r.Active(), 3);
+
+    // And a lower rank added afterwards does not steal the wheel.
+    r.Add(4, Helm::Rank::Errand);
+    CHECK_EQ(r.Active(), 3);
+}
+
 /// Oldest first, so the bottom of the roster is the unit's default behaviour.
 TEST(Roster_IteratesOldestFirst)
 {
@@ -75,7 +155,11 @@ TEST(Roster_IteratesOldestFirst)
     r.Add(2);
     r.Add(3);
 
-    std::vector<int> seen(r.begin(), r.end());
+    std::vector<int> seen;
+    for (int v : r)
+    {
+        seen.push_back(v);
+    }
     CHECK_EQ(seen.size(), std::size_t(3));
     CHECK_EQ(seen[0], 1);
     CHECK_EQ(seen[2], 3);

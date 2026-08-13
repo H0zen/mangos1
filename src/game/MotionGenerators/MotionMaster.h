@@ -118,7 +118,7 @@ class MotionMaster
         bool empty() const { return m_roster.Empty(); }
 
         /// Oldest first: the bottom is the unit's default behaviour.
-        typedef std::vector<MovementGenerator*>::const_iterator const_iterator;
+        typedef Helm::Roster<MovementGenerator*>::Cursor const_iterator;
         const_iterator begin() const { return m_roster.begin(); }
         const_iterator end() const { return m_roster.end(); }
 

@@ -63,6 +63,39 @@
  */
 namespace Helm
 {
+    /**
+     * @brief How much an entry's claim on a unit is worth.
+     *
+     * The old master already ranked things; it just did it as two special cases in the
+     * middle of a push. "HomeMovement is not that important, delete it if meanwhile a
+     * new comes" and "DistractMovement interrupted by any other movement" are rank
+     * statements, written as an enum switch, applying to exactly the two types someone
+     * had needed them for.
+     *
+     * As an order they generalise, and the ordering answers a question tracing push
+     * order cannot: what beats what.
+     */
+    enum class Rank : uint8
+    {
+        /// Idle, wander, a waypoint patrol -- what the unit does when nothing else is
+        /// happening. Always at the bottom, never displaced, only covered.
+        Routine = 0,
+
+        /// Go somewhere because something asked: a point move, seeking assistance,
+        /// returning home, an effect.
+        Errand = 1,
+
+        /// Chase and follow. Above an errand because a creature in combat that has been
+        /// told to walk somewhere should still be fighting.
+        Combat = 2,
+
+        /// Feared, confused. Nothing outranks losing control of yourself, and that is
+        /// the one ordering here that is a DECISION rather than a description: under
+        /// the old rule a chase pushed onto a feared creature took over, because it
+        /// arrived later.
+        Panic = 3
+    };
+
     template <class T>
     class Roster
     {
@@ -78,34 +111,66 @@ namespace Helm
              * Only call it when the roster is not empty; there is no null payload to
              * return and inventing one would put the check in every caller.
              */
-            T const& Active() const { return m_entries.back(); }
-            T& Active() { return m_entries.back(); }
+            T const& Active() const { return m_entries[ActiveIndex()].payload; }
+            T& Active() { return m_entries[ActiveIndex()].payload; }
 
-            /// Oldest first. The bottom of the roster is the unit's default behaviour.
-            typename std::vector<T>::const_iterator begin() const
-            {
-                return m_entries.begin();
-            }
+            /// What the driving entry is worth.
+            Rank ActiveRank() const { return m_entries[ActiveIndex()].rank; }
 
-            typename std::vector<T>::const_iterator end() const
+            /// An entry and what it is worth. Iteration yields payloads, not these:
+            /// nothing outside needs the rank to walk the list.
+            struct Slot
             {
-                return m_entries.end();
-            }
+                T    payload;
+                Rank rank;
+            };
+
+            /// Oldest first, yielding payloads, so every existing loop reads unchanged.
+            class Cursor
+            {
+                public:
+                    explicit Cursor(typename std::vector<Slot>::const_iterator it)
+                        : m_it(it) {}
+                    T const& operator*() const { return m_it->payload; }
+                    Cursor& operator++() { ++m_it; return *this; }
+                    bool operator!=(Cursor const& o) const { return m_it != o.m_it; }
+                private:
+                    typename std::vector<Slot>::const_iterator m_it;
+            };
+
+            Cursor begin() const { return Cursor(m_entries.begin()); }
+            Cursor end() const { return Cursor(m_entries.end()); }
 
             /// Newest first. What a search for "the most recent entry of some kind"
             /// wants -- the waypoint generator parked under whatever is driving now.
-            typename std::vector<T>::const_reverse_iterator rbegin() const
+            class ReverseCursor
             {
-                return m_entries.rbegin();
-            }
+                public:
+                    explicit ReverseCursor(
+                        typename std::vector<Slot>::const_reverse_iterator it)
+                        : m_it(it) {}
+                    T const& operator*() const { return m_it->payload; }
+                    ReverseCursor& operator++() { ++m_it; return *this; }
+                    bool operator!=(ReverseCursor const& o) const
+                    {
+                        return m_it != o.m_it;
+                    }
+                private:
+                    typename std::vector<Slot>::const_reverse_iterator m_it;
+            };
 
-            typename std::vector<T>::const_reverse_iterator rend() const
+            ReverseCursor rbegin() const { return ReverseCursor(m_entries.rbegin()); }
+            ReverseCursor rend() const { return ReverseCursor(m_entries.rend()); }
+
+            /// Put `entry` in the roster at `rank`. WHETHER IT DRIVES is Active()'s
+            /// answer, not this one -- which is the whole difference from a push.
+            void Add(T const& entry, Rank rank = Rank::Routine)
             {
-                return m_entries.rend();
+                Slot slot;
+                slot.payload = entry;
+                slot.rank = rank;
+                m_entries.push_back(slot);
             }
-
-            /// Put `entry` in charge.
-            void Add(T const& entry) { m_entries.push_back(entry); }
 
             /**
              * @brief Mark the roster as being driven, or no longer being driven.
@@ -132,8 +197,11 @@ namespace Helm
                 {
                     return false;
                 }
-                Retire(m_entries.back());
-                m_entries.pop_back();
+
+                // The driving entry, which is no longer necessarily the last one.
+                const std::size_t at = ActiveIndex();
+                Retire(m_entries[at].payload);
+                m_entries.erase(m_entries.begin() + std::ptrdiff_t(at));
                 return true;
             }
 
@@ -147,7 +215,7 @@ namespace Helm
                 std::size_t removed = 0;
                 while (m_entries.size() > floor)
                 {
-                    Retire(m_entries.back());
+                    Retire(m_entries.back().payload);
                     m_entries.pop_back();
                     ++removed;
                 }
@@ -173,10 +241,9 @@ namespace Helm
                 }
 
                 std::size_t removed = 1;
-                while (m_entries.size() > floor && pred(m_entries.back()))
+                while (m_entries.size() > floor && pred(Active()))
                 {
-                    Retire(m_entries.back());
-                    m_entries.pop_back();
+                    RemoveActive(floor);
                     ++removed;
                 }
                 return removed;
@@ -219,8 +286,29 @@ namespace Helm
             /// when it is not.
             void Retire(T const& entry) { m_retired.push_back(entry); }
 
-            std::vector<T> m_entries;
-            std::vector<T> m_retired;
+            /**
+             * @brief Where the driving entry sits.
+             *
+             * Highest rank wins; among equals the newest. Walking forwards and taking
+             * `>=` is what makes "newest among equals" fall out with no second test --
+             * and it is why a roster of uniform rank behaves exactly as the stack this
+             * replaces, which is what let the change land without touching behaviour.
+             */
+            std::size_t ActiveIndex() const
+            {
+                std::size_t best = 0;
+                for (std::size_t i = 1; i < m_entries.size(); ++i)
+                {
+                    if (m_entries[i].rank >= m_entries[best].rank)
+                    {
+                        best = i;
+                    }
+                }
+                return best;
+            }
+
+            std::vector<Slot> m_entries;
+            std::vector<T>    m_retired;
             uint32         m_driving = 0;
     };
 }
