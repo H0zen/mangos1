@@ -61,7 +61,12 @@ enum PathType
     PATHFIND_SHORTCUT       = 0x0002,   // travel through obstacles, terrain, air, etc (old behavior)
     PATHFIND_INCOMPLETE     = 0x0004,   // we have partial path to follow - getting closer to target
     PATHFIND_NOPATH         = 0x0008,   // no valid path at all or error in generating one
-    PATHFIND_NOT_USING_PATH = 0x0010    // used when we are either flying/swimming or on map w/o mmaps
+    PATHFIND_NOT_USING_PATH = 0x0010,   // used when we are either flying/swimming or on map w/o mmaps
+    // The search stopped at a BUDGET -- the node pool or the polygon buffer -- rather
+    // than at anything in the world. It accompanies PATHFIND_INCOMPLETE and says why
+    // the path is short: nothing is blocking, so re-planning from further along the
+    // path makes progress, where a genuine PATHFIND_NOPATH never would.
+    PATHFIND_SEARCH_LIMIT   = 0x0020
 };
 
 /**
@@ -164,6 +169,11 @@ class PathFinder
         bool           m_useStraightPath;  // Type of path that will be generated
         bool           m_forceDestination; // When set, we will always arrive at the given point
         uint32         m_pointPathLimit;   // Limit point path size; min(this, MAX_POINT_PATH_LENGTH)
+
+        // Set by noteSearchLimit() while the path is being built, folded into m_type at
+        // the end. It cannot live in m_type directly: the type is overwritten wholesale
+        // once the poly path is known, which would drop the bit that explains it.
+        bool           m_hitSearchLimit;
 
         Vector3        m_startPosition;    // {x, y, z} of current location
         Vector3        m_endPosition;      // {x, y, z} of the destination
@@ -273,6 +283,33 @@ class PathFinder
          * @brief Build a shortcut path.
          */
         void BuildShortcut();
+
+        /**
+         * @brief Record that a Detour search stopped at a budget rather than at the world.
+         *
+         * Detour reports both budgets as DETAIL bits on a SUCCESS status, so
+         * dtStatusFailed() is false and the caller sees a short path with no reason
+         * attached. Which budget it was matters to whoever has to fix it -- the node
+         * pool is a server setting, the polygon buffer is MAX_PATH_LENGTH -- so the two
+         * are logged apart even though both raise the same PATHFIND_SEARCH_LIMIT.
+         *
+         * @param status The status returned by the Detour query.
+         * @param where Name of the call site, for the log line.
+         */
+        void noteSearchLimit(dtStatus status, const char* where);
+
+        /**
+         * @brief Try to replace the whole search with the straight segment.
+         *
+         * @param startPoly Polygon the start position sits on.
+         * @param endPoly Polygon the end position sits on.
+         * @param startPoint Start position, in Detour's axis order.
+         * @param endPoint End position, in Detour's axis order.
+         * @return True when the segment is walkable AND provably optimal, in which case
+         *         m_pathPolyRefs/m_polyLength describe it; false to run the full search.
+         */
+        bool BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
+                                   const float* startPoint, const float* endPoint);
 
         /**
          * @brief Get the navigation terrain at the given position.

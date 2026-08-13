@@ -37,7 +37,26 @@
 // walker is cleared to cross magma. The two are indistinguishable at load time -- both
 // are "a poly with flags set" -- so the version is what makes a stale bake say so
 // instead of pathing wrongly for as long as it stays on disk.
-#define MMAP_VERSION 7
+// Version 8 records the WIDTH OF dtPolyRef, and drops the bool bitfield.
+//
+// DT_POLYREF64 widens dtPolyRef to 64 bits, and dtLink -- the per-link record that
+// dtCreateNavMeshData sizes the tile blob from -- CONTAINS a dtPolyRef. So the whole
+// on-disk layout moves with that width, exactly as Detour's own header warns ("tiles
+// build using 32bit refs are not compatible with 64bit refs"). DT_NAVMESH_VERSION does
+// NOT change when DT_POLYREF64 is defined, so nothing here caught it: a tile baked by a
+// 32-bit-ref binary passed magic, dtVersion and mmapVersion, and was then read with
+// every offset past the header shifted. The width is now part of the header and part of
+// what load verifies.
+//
+// The bitfield went with it because a `bool : 1` is a layout the standard leaves to the
+// implementation, and this struct is written to a file with fwrite and read back by a
+// possibly different compiler. A plain uint32 of flags costs the same and cannot drift.
+#define MMAP_VERSION 8
+
+enum MmapTileFlags
+{
+    MMAP_TILE_USES_LIQUIDS = 0x1    ///< the bake found liquid geometry in this tile
+};
 
 struct MmapTileHeader
 {
@@ -45,10 +64,12 @@ struct MmapTileHeader
     uint32 dtVersion;
     uint32 mmapVersion;
     uint32 size;
-    bool usesLiquids : 1;
+    uint32 polyRefSize;   ///< sizeof(dtPolyRef) when this tile was baked
+    uint32 flags;         ///< MmapTileFlags
 
     MmapTileHeader() : mmapMagic(MMAP_MAGIC), dtVersion(DT_NAVMESH_VERSION),
-        mmapVersion(MMAP_VERSION), size(0), usesLiquids(true) {}
+        mmapVersion(MMAP_VERSION), size(0),
+        polyRefSize(uint32(sizeof(dtPolyRef))), flags(MMAP_TILE_USES_LIQUIDS) {}
 };
 
 enum NavTerrain
@@ -64,5 +85,27 @@ enum NavTerrain
     NAV_UNUSED4 = 0x80
     // we only have 8 bits
 };
+
+/**
+ * @brief The polygon flags a baked surface of the given area carries.
+ *
+ * Detour keeps two independent per-polygon fields and asks a different question of
+ * each. `dtPoly::area` is an INDEX (0..DT_MAX_AREAS) and its only consumer is
+ * dtQueryFilter::getCost, which multiplies the segment length by m_areaCost[area] --
+ * it answers "how expensive is this surface". `dtPoly::flags` is a BITMASK tested
+ * against the filter's include/exclude masks -- it answers "may this mover be here at
+ * all". Cost and permission are not the same question, and only the second one can be
+ * expressed by refusing the polygon.
+ *
+ * The mapping is the identity today because the NAV_* values are single bits and
+ * therefore serve as both. Naming it anyway is the point: it is the one place a future
+ * area that is not its own permission bit -- a road that is merely cheaper than the
+ * ground beside it, a steep slope that is merely dearer -- gets written down, and it
+ * stops `flags = areas` from reading like the two fields are the same thing.
+ */
+inline uint16 NavAreaToFlags(unsigned char area)
+{
+    return uint16(area);
+}
 
 #endif  // _MOVE_MAP_SHARED_DEFINES_H

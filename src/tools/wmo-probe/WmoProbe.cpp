@@ -1029,6 +1029,18 @@ namespace
                     std::fclose(tf);
                     continue;
                 }
+                // The probe exists to ask the navmesh the same question the server
+                // asks it, so it has to refuse the same tiles the server refuses.
+                // Reading a stale blob with shifted offsets here would answer
+                // confidently and wrongly, which is worse than answering nothing.
+                if (header.mmapMagic != MMAP_MAGIC ||
+                    header.mmapVersion != MMAP_VERSION ||
+                    header.dtVersion != uint32(DT_NAVMESH_VERSION) ||
+                    header.polyRefSize != uint32(sizeof(dtPolyRef)))
+                {
+                    std::fclose(tf);
+                    continue;
+                }
                 unsigned char* data =
                     static_cast<unsigned char*>(dtAlloc(header.size, DT_ALLOC_PERM));
                 if (!data || std::fread(data, header.size, 1, tf) != 1)

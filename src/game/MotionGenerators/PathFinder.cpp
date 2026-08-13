@@ -39,6 +39,22 @@
 
 ////////////////// PathFinder //////////////////
 
+namespace
+{
+    // A yard of water costs a yard of ground times how much longer it takes to cross it:
+    // base run is 7.0 yd/s against base swim 4.722 yd/s, so about 1.48. Rounded to 1.5,
+    // because the ratio is not exact for every creature and the search does not need it
+    // to be -- what it needs is for water to stop being free.
+    const float PATH_COST_SWIM = 1.5f;
+
+    // Magma and slime stay REACHABLE and merely expensive. Creatures take no
+    // environmental damage and their include mask has always cleared them to swim in
+    // both, so excluding them here would strand anything whose target genuinely sits in
+    // lava -- a fire elemental pulled into its own pool. At 5.0 a detour wins until it
+    // is five times longer, and where no detour exists the path is still found.
+    const float PATH_COST_HAZARD = 5.0f;
+}
+
 /**
  * @brief Constructor for PathFinder.
  * @param owner The unit that owns this PathFinder.
@@ -51,6 +67,7 @@ PathFinder::PathFinder(const Unit* owner) :
 PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
     m_polyLength(0), m_type(PATHFIND_BLANK),
     m_useStraightPath(false), m_forceDestination(false), m_pointPathLimit(MAX_POINT_PATH_LENGTH),
+    m_hitSearchLimit(false),
     m_sourceUnit(owner), m_navMesh(NULL), m_navMeshQuery(NULL)
 {
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::PathInfo for %u \n", m_sourceUnit->GetGUIDLow());
@@ -117,6 +134,7 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
     setEndPosition(dest);
 
     m_forceDestination = forceDest;
+    m_hitSearchLimit = false;
 
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::calculate() for %u \n", m_sourceUnit->GetGUIDLow());
 
@@ -226,6 +244,120 @@ dtPolyRef PathFinder::getPolyByLocation(const float* point, float* distance) con
     }
 
     return INVALID_POLYREF;
+}
+
+/**
+ * @brief Tries to replace the whole search with the straight segment.
+ * @param startPoly Polygon the start position sits on.
+ * @param endPoly Polygon the end position sits on.
+ * @param startPoint Start position, in Detour's axis order.
+ * @param endPoint End position, in Detour's axis order.
+ * @return True when the segment is walkable and provably optimal.
+ */
+bool PathFinder::BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
+                                       const float* startPoint, const float* endPoint)
+{
+    float t = 0.0f;
+    float hitNormal[VERTEX_SIZE] = {0.0f, 0.0f, 0.0f};
+    dtPolyRef path[MAX_PATH_LENGTH];
+    int pathLength = 0;
+
+    dtStatus dtResult = m_navMeshQuery->raycast(startPoly, startPoint, endPoint,
+                                                &m_filter, &t, hitNormal,
+                                                path, &pathLength, MAX_PATH_LENGTH);
+
+    // A truncated corridor is rejected rather than trusted: past the buffer the ray
+    // keeps travelling but stops recording, so the last polygon written is no longer
+    // the last one crossed and the end test below would be answered about the wrong one.
+    if (dtStatusFailed(dtResult) || dtStatusDetail(dtResult, DT_BUFFER_TOO_SMALL) ||
+        pathLength <= 0)
+    {
+        return false;
+    }
+
+    // t is how much of the segment was walked before a wall stopped it, and Detour
+    // reports FLT_MAX when nothing did. Any finite value means the straight line leaves
+    // the walkable surface, so there is nothing to shortcut.
+    if (t < FLT_MAX)
+    {
+        return false;
+    }
+
+    // Reaching the destination polygon is a separate condition from crossing no wall:
+    // the ray also ends when it runs off the loaded mesh into a hole, which passes the
+    // test above and would leave the point path aiming at a polygon nothing reached.
+    if (path[pathLength - 1] != endPoly)
+    {
+        return false;
+    }
+
+    // The one condition that makes this shortcut SOUND rather than merely fast.
+    //
+    // A straight line is the cheapest route only where every yard of it is priced the
+    // same. The filter now charges more for water than for ground, so a segment that
+    // crosses a shoreline can cost more than a longer detour that stays dry -- and
+    // dtNavMeshQuery::raycast knows nothing of cost, so it would answer "walkable" with
+    // full confidence and quietly return a worse path than the search it replaced.
+    // Demanding one price along the whole corridor is what keeps the two in agreement;
+    // where the price changes, the search runs and decides properly.
+    //
+    // Compared exactly, and deliberately: both sides are read out of the same
+    // m_areaCost table, so equal areas give bit-identical floats and there is no
+    // rounding to tolerate. Two different areas priced the same -- magma and slime --
+    // are genuinely interchangeable here, which is why the cost is compared and not the
+    // area id.
+    unsigned char firstArea = 0;
+    if (dtStatusFailed(m_navMesh->getPolyArea(path[0], &firstArea)))
+    {
+        return false;
+    }
+
+    const float uniformCost = m_filter.getAreaCost(firstArea);
+    for (int i = 1; i < pathLength; ++i)
+    {
+        unsigned char area = 0;
+        if (dtStatusFailed(m_navMesh->getPolyArea(path[i], &area)) ||
+            m_filter.getAreaCost(area) != uniformCost)
+        {
+            return false;
+        }
+    }
+
+    memcpy(m_pathPolyRefs, path, size_t(pathLength) * sizeof(dtPolyRef));
+    m_polyLength = uint32(pathLength);
+
+    DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
+                     "++ PathFinder::BuildStraightShortcut :: %u walks the segment "
+                     "across %d polygons, no search needed\n",
+                     m_sourceUnit->GetGUIDLow(), pathLength);
+    return true;
+}
+
+/**
+ * @brief Records that a Detour search stopped at a budget rather than at the world.
+ * @param status The status returned by the Detour query.
+ * @param where Name of the call site, for the log line.
+ */
+void PathFinder::noteSearchLimit(dtStatus status, const char* where)
+{
+    if (dtStatusDetail(status, DT_OUT_OF_NODES))
+    {
+        m_hitSearchLimit = true;
+        DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
+                         "++ PathFinder::%s :: %u exhausted the search node pool (%d); "
+                         "the path is short for that reason, not because the way is "
+                         "blocked\n",
+                         where, m_sourceUnit->GetGUIDLow(), MMAP::MMAP_QUERY_MAX_NODES);
+    }
+
+    if (dtStatusDetail(status, DT_BUFFER_TOO_SMALL))
+    {
+        m_hitSearchLimit = true;
+        DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
+                         "++ PathFinder::%s :: %u filled the polygon buffer (%d); the "
+                         "route is longer than one path may describe\n",
+                         where, m_sourceUnit->GetGUIDLow(), MAX_PATH_LENGTH);
+    }
 }
 
 /**
@@ -344,6 +476,18 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         return;
     }
 
+    // Before searching at all: can the mover simply walk the segment? A ray along the
+    // surface costs the polygons it crosses, where A* costs the region it has to
+    // explore, and on open ground -- which is most of the world and most of the calls --
+    // the ray succeeds. The case above is the same question answered for one polygon;
+    // this is it answered for a corridor of them.
+    if (BuildStraightShortcut(startPoly, endPoly, startPoint, endPoint))
+    {
+        m_type = farFromPoly ? PATHFIND_INCOMPLETE : PATHFIND_NORMAL;
+        BuildPointPath(startPoint, endPoint);
+        return;
+    }
+
     // look for startPoly/endPoly in current path
     // TODO: we can merge it with getPathPolyByPosition() loop
     bool startPolyFound = false;
@@ -437,12 +581,15 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
                        (int*)&suffixPolyLength,
                        MAX_PATH_LENGTH - prefixPolyLength); // max number of polygons in output path
 
+        noteSearchLimit(dtResult, "BuildPolyPath(suffix)");
+
         if (!suffixPolyLength || dtStatusFailed(dtResult))
         {
             // this is probably an error state, but we'll leave it
             // and hopefully recover on the next Update
             // we still need to copy our preffix
-            sLog.outError("%u's Path Build failed: 0 length path", m_sourceUnit->GetGUIDLow());
+            sLog.outError("%u's Path Build failed: suffix length %u, status 0x%08x",
+                          m_sourceUnit->GetGUIDLow(), suffixPolyLength, dtResult);
         }
 
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++  m_polyLength=%u prefixPolyLength=%u suffixPolyLength=%u \n", m_polyLength, prefixPolyLength, suffixPolyLength);
@@ -472,10 +619,13 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
                        (int*)&m_polyLength,
                        MAX_PATH_LENGTH);   // max number of polygons in output path
 
+        noteSearchLimit(dtResult, "BuildPolyPath");
+
         if (!m_polyLength || dtStatusFailed(dtResult))
         {
             // only happens if we passed bad data to findPath(), or navmesh is messed up
-            sLog.outError("%u's Path Build failed: 0 length path", m_sourceUnit->GetGUIDLow());
+            sLog.outError("%u's Path Build failed: 0 length path, status 0x%08x",
+                          m_sourceUnit->GetGUIDLow(), dtResult);
             BuildShortcut();
             m_type = PATHFIND_NOPATH;
             return;
@@ -490,6 +640,13 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     else
     {
         m_type = PATHFIND_INCOMPLETE;
+    }
+
+    // Folded in only now: the assignment above overwrites the type wholesale, so a bit
+    // raised while the search was running has to be re-applied after it, not before.
+    if (m_hitSearchLimit)
+    {
+        m_type = PathType(m_type | PATHFIND_SEARCH_LIMIT);
     }
 
     // generate the point-path out of our up-to-date poly-path
@@ -639,6 +796,22 @@ void PathFinder::createFilter()
 
     m_filter.setIncludeFlags(includeFlags);
     m_filter.setExcludeFlags(excludeFlags);
+
+    // What a surface COSTS, which is a different question from whether the mover is
+    // allowed on it -- and the only one the include mask above cannot express. Every
+    // area used to cost the Detour default of 1.0, so A* measured a swim in yards
+    // exactly like a run, and any lake shorter than the shore around it won every time.
+    //
+    // GROUND is the unit and must remain the cheapest. Detour scores a node with
+    // dtVdist(pos, endPos) * H_SCALE, H_SCALE being 0.999 -- a plain distance in yards.
+    // That heuristic underestimates the true remaining cost, which is what makes A*
+    // return the optimal path, only while no area is crossed for less than one unit per
+    // yard. An area cost below 1.0 would not make its surface preferred; it would make
+    // the search wrong.
+    m_filter.setAreaCost(NAV_GROUND, 1.0f);
+    m_filter.setAreaCost(NAV_WATER, PATH_COST_SWIM);
+    m_filter.setAreaCost(NAV_MAGMA, PATH_COST_HAZARD);
+    m_filter.setAreaCost(NAV_SLIME, PATH_COST_HAZARD);
 
     updateFilter();
 }

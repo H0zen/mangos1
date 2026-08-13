@@ -382,6 +382,25 @@ namespace MMAP
             return false;
         }
 
+        // Everything past this header is a Detour blob, and its layout is fixed by two
+        // things the generator compiled against: the navmesh format version, and the
+        // width of dtPolyRef (dtLink embeds one, and dtCreateNavMeshData sizes the blob
+        // from sizeof(dtLink)). Neither is implied by the mmap version above -- a build
+        // that flips DT_POLYREF64 changes the second while leaving both the first and
+        // MMAP_VERSION alone -- so both are checked here rather than assumed.
+        if (fileHeader.dtVersion != uint32(DT_NAVMESH_VERSION) ||
+            fileHeader.polyRefSize != uint32(sizeof(dtPolyRef)))
+        {
+            sLog.outError("MMAP:loadMap: %04u%02i%02i.mmtile was built against "
+                          "Detour v%u with %u-byte polyrefs, this server uses "
+                          "v%u with %u-byte polyrefs; re-run the extractor",
+                          mapId, filenameTileX, filenameTileY,
+                          fileHeader.dtVersion, fileHeader.polyRefSize,
+                          uint32(DT_NAVMESH_VERSION), uint32(sizeof(dtPolyRef)));
+            fclose(file);
+            return false;
+        }
+
         unsigned char* data = (unsigned char*)dtAlloc(fileHeader.size, DT_ALLOC_PERM);
         MANGOS_ASSERT(data);
 
@@ -548,7 +567,7 @@ namespace MMAP
             // allocate mesh query
             dtNavMeshQuery* query = dtAllocNavMeshQuery();
             MANGOS_ASSERT(query);
-            dtStatus dtResult = query->init(mmap->navMesh, 1024);
+            dtStatus dtResult = query->init(mmap->navMesh, MMAP_QUERY_MAX_NODES);
             if (dtStatusFailed(dtResult))
             {
                 dtFreeNavMeshQuery(query);

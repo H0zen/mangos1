@@ -902,7 +902,7 @@ namespace world::nav
                 {
                     merged->areas[i] = NAV_GROUND;
                 }
-                merged->flags[i] = merged->areas[i];
+                merged->flags[i] = NavAreaToFlags(merged->areas[i]);
             }
 
             const std::vector<OffMeshLink> links =
@@ -967,7 +967,7 @@ namespace world::nav
 
             MmapTileHeader header;
             header.size = uint32(navDataSize);
-            header.usesLiquids = !liquid.Empty();
+            header.flags = liquid.Empty() ? 0u : uint32(MMAP_TILE_USES_LIQUIDS);
 
             char name[64];
             std::snprintf(name, sizeof(name), "%04u%02i%02i.mmtile", mb.mapId, navTileX,

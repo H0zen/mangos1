@@ -49,6 +49,23 @@ inline void dtCustomFree(void* ptr)
 //  move map related classes
 namespace MMAP
 {
+    /**
+     * @brief How many polygons one search may EXPAND -- not how many it may return.
+     *
+     * A search that exhausts its node pool stops early and hands back its best guess,
+     * which at the call site is indistinguishable from "the way is blocked". 1024 is
+     * easy to exhaust on a dense interior tile at the current cell size, where polygons
+     * are small and numerous, so a creature in a city could be told there is no path to
+     * a room it can plainly walk to.
+     *
+     * The number is also a memory decision, because the pool is allocated per (map,
+     * instance) and lives until that map unloads. A dtNode is 32 bytes with 64-bit
+     * polyrefs, and the pool's hash and the open list add roughly ten more per node:
+     * about 170 KB per live instance here against 43 KB at 1024. Detour rejects
+     * anything above 65535 -- its node index is a uint16.
+     */
+    const int MMAP_QUERY_MAX_NODES = 4096;
+
     typedef std::unordered_map<uint32, dtTileRef> MMapTileSet;
     typedef std::unordered_map<uint32, dtNavMeshQuery*> NavMeshQuerySet;
 
