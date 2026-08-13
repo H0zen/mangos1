@@ -52,21 +52,78 @@ class Unit;
 #define INVALID_POLYREF   0
 
 /**
- * @brief Enum representing the type of path.
+ * @brief What a routing attempt produced.
+ *
+ * An enumeration and not a bitmask, deliberately. The mask this replaces let states be
+ * combined that nobody designed -- a result was routinely both "normal" and "not using
+ * a path", and every consumer had to know which of the two halves to test for its own
+ * question. Four states, mutually exclusive, and every consumer reads one field.
  */
-enum PathType
+enum class RouteOutcome : uint8
 {
-    PATHFIND_BLANK          = 0x0000,   // path not built yet
-    PATHFIND_NORMAL         = 0x0001,   // normal path
-    PATHFIND_SHORTCUT       = 0x0002,   // travel through obstacles, terrain, air, etc (old behavior)
-    PATHFIND_INCOMPLETE     = 0x0004,   // we have partial path to follow - getting closer to target
-    PATHFIND_NOPATH         = 0x0008,   // no valid path at all or error in generating one
-    PATHFIND_NOT_USING_PATH = 0x0010,   // used when we are either flying/swimming or on map w/o mmaps
-    // The search stopped at a BUDGET -- the node pool or the polygon buffer -- rather
-    // than at anything in the world. It accompanies PATHFIND_INCOMPLETE and says why
-    // the path is short: nothing is blocking, so re-planning from further along the
-    // path makes progress, where a genuine PATHFIND_NOPATH never would.
-    PATHFIND_SEARCH_LIMIT   = 0x0020
+    Routed,      ///< Real geometry, all the way to the goal.
+    Partial,     ///< Real geometry, stopped short of the goal.
+    Direct,      ///< No routing was used and that is ACCEPTABLE -- a swimmer or a flier
+                 ///< off the mesh, or a map with no navmesh at all. The points are a
+                 ///< straight line laid onto the ground.
+    Unroutable   ///< No route, and no fallback the mover is entitled to.
+};
+
+/**
+ * @brief Why the route ended where it did.
+ *
+ * Distinct from the outcome because "stopped short" has causes that call for opposite
+ * responses: a wall means the goal is unreachable from here, while a budget means the
+ * search gave up and re-planning from further along makes progress.
+ */
+enum class RouteStop : uint8
+{
+    Reached,      ///< Arrived at the goal.
+    Wall,         ///< The world stopped it short.
+    NodeBudget,   ///< The search exhausted its node pool.
+    PolyBudget,   ///< The corridor filled the polygon buffer.
+    NoMesh,       ///< No navmesh here, or the mover is exempt from using one.
+    OffMesh,      ///< The start or the goal does not sit on the mesh.
+    Forced,       ///< The caller demanded this destination whatever the geometry says.
+    Failed        ///< The query itself errored.
+};
+
+/**
+ * @brief The answer to one routing request: a value, owned by whoever asked.
+ *
+ * Holds no unit, no map and no query state, so it can be built and asserted on in a
+ * test without a world behind it.
+ */
+struct Route
+{
+    PointsArray  points;
+    RouteOutcome outcome = RouteOutcome::Unroutable;
+    RouteStop    stop = RouteStop::Failed;
+
+    /// Reached the goal on real geometry. The strictest of the three.
+    bool IsRouted() const { return outcome == RouteOutcome::Routed; }
+
+    /**
+     * @brief The points came off the navmesh rather than out of a straight line.
+     *
+     * True of a PARTIAL route as well: stopping short does not make the geometry that
+     * was walked any less real, and welding one leg to the next is safe on it. This is
+     * the question a map with no navmesh has to answer NO to, which a "did it fail"
+     * test cannot -- such a map fails nothing, it just answers every query with a line.
+     */
+    bool UsedGeometry() const
+    {
+        return outcome == RouteOutcome::Routed || outcome == RouteOutcome::Partial;
+    }
+
+    /// The mover will arrive: routed the whole way, or deliberately going direct.
+    bool WillArrive() const
+    {
+        return outcome == RouteOutcome::Routed || outcome == RouteOutcome::Direct;
+    }
+
+    /// Nothing usable came back.
+    bool Failed() const { return outcome == RouteOutcome::Unroutable; }
 };
 
 /**
@@ -150,30 +207,30 @@ class PathFinder
          * @brief Get the path points.
          * @return The path points.
          */
-        PointsArray& getPath() { return m_pathPoints; }
+        PointsArray const& getPath() const { return m_route.points; }
 
         /**
-         * @brief Get the type of the path.
-         * @return The type of the path.
+         * @brief Get the whole result of the last calculate().
+         * @return The route: its points, its outcome and why it stopped.
          */
-        PathType getPathType() const { return m_type; }
+        Route const& getRoute() const { return m_route; }
 
     private:
 
         dtPolyRef      m_pathPolyRefs[MAX_PATH_LENGTH];   // Array of detour polygon references
         uint32         m_polyLength;                      // Number of polygons in the path
 
-        PointsArray    m_pathPoints;       // Our actual (x,y,z) path to the target
-        PathType       m_type;             // Tells what kind of path this is
+        Route          m_route;            // The answer to the last calculate()
 
         bool           m_useStraightPath;  // Type of path that will be generated
         bool           m_forceDestination; // When set, we will always arrive at the given point
         uint32         m_pointPathLimit;   // Limit point path size; min(this, MAX_POINT_PATH_LENGTH)
 
-        // Set by noteSearchLimit() while the path is being built, folded into m_type at
-        // the end. It cannot live in m_type directly: the type is overwritten wholesale
-        // once the poly path is known, which would drop the bit that explains it.
-        bool           m_hitSearchLimit;
+        // Set by noteSearchLimit() while the search runs, folded into the route at the
+        // end. It cannot be written straight into m_route.stop: the stop is assigned
+        // wholesale once the poly path is known, which would drop the budget that
+        // explains it. RouteStop::Reached stands for "no budget was hit".
+        RouteStop      m_budgetStop;
 
         Vector3        m_startPosition;    // {x, y, z} of current location
         Vector3        m_endPosition;      // {x, y, z} of the destination
@@ -209,7 +266,7 @@ class PathFinder
         void clear()
         {
             m_polyLength = 0;
-            m_pathPoints.clear();
+            m_route.points.clear();
         }
 
         /**
@@ -281,8 +338,26 @@ class PathFinder
 
         /**
          * @brief Build a shortcut path.
+         *
+         * Lays the points and NOTHING else: the outcome belongs to the caller, because
+         * the same straight line is a legitimate answer for a flier and a refusal for a
+         * walker. Leaving it unset means a caller that forgets keeps the refusing
+         * default calculate() starts from, which is the safe direction to forget in.
          */
         void BuildShortcut();
+
+        /**
+         * @brief May this mover cross ground the navmesh does not describe?
+         *
+         * The one movement POLICY left inside the router, gathered into a single
+         * predicate so that it has one place to leave from. It is not a geometric
+         * question: the geometry has already answered "not on the mesh", and this
+         * decides whether that is fatal or merely means the mover swims or flies over it.
+         *
+         * @param underWater The off-mesh ground in question is under water.
+         * @return True when a straight line there is legitimate for this mover.
+         */
+        bool MayGoDirect(bool underWater) const;
 
         /**
          * @brief Record that a Detour search stopped at a budget rather than at the world.
@@ -291,7 +366,7 @@ class PathFinder
          * dtStatusFailed() is false and the caller sees a short path with no reason
          * attached. Which budget it was matters to whoever has to fix it -- the node
          * pool is a server setting, the polygon buffer is MAX_PATH_LENGTH -- so the two
-         * are logged apart even though both raise the same PATHFIND_SEARCH_LIMIT.
+         * are logged apart even though both land in RouteStop.
          *
          * @param status The status returned by the Detour query.
          * @param where Name of the call site, for the log line.

@@ -131,9 +131,17 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
     path.calculate(x, y, z);
 
     PointsArray pointPath = path.getPath();
+
+    static const char* const outcomeName[] = { "routed", "partial", "direct", "unroutable" };
+    static const char* const stopName[] = { "reached", "wall", "node budget",
+                                            "poly budget", "no mesh", "off mesh",
+                                            "forced", "failed" };
+
+    const Route& route = path.getRoute();
     PSendSysMessage("%s's path to %s:", originUnit->GetName(), destinationUnit->GetName());
     PSendSysMessage("Building %s", useStraightPath ? "StraightPath" : "SmoothPath");
-    PSendSysMessage("length %zu type %u", pointPath.size(), path.getPathType());
+    PSendSysMessage("length %zu, %s, stopped: %s", pointPath.size(),
+                    outcomeName[uint8(route.outcome)], stopName[uint8(route.stop)]);
 
     Vector3 start = path.getStartPosition();
     Vector3 end = path.getEndPosition();

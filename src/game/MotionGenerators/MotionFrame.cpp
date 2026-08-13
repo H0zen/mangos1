@@ -74,26 +74,14 @@ namespace Motion
 
                 PointsArray const& Points() const override { return m_path.getPath(); }
 
-                bool Failed() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NOPATH) != 0;
-                }
+                bool Failed() const override { return m_path.getRoute().Failed(); }
 
-                bool Routed() const override
-                {
-                    return (m_path.getPathType() &
-                            (PATHFIND_NOPATH | PATHFIND_NOT_USING_PATH)) == 0;
-                }
+                bool Routed() const override { return m_path.getRoute().UsedGeometry(); }
 
-                bool Reachable() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NORMAL) != 0;
-                }
+                bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                /// getPath() is non-const on PathFinder, though reading the routed points
-                /// does not mutate the query as far as callers are concerned.
-                mutable PathFinder m_path;
+                PathFinder m_path;
         };
 
         /**
@@ -280,24 +268,14 @@ namespace Motion
 
                 PointsArray const& Points() const override { return m_path.getPath(); }
 
-                bool Failed() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NOPATH) != 0;
-                }
+                bool Failed() const override { return m_path.getRoute().Failed(); }
 
-                bool Routed() const override
-                {
-                    return (m_path.getPathType() &
-                            (PATHFIND_NOPATH | PATHFIND_NOT_USING_PATH)) == 0;
-                }
+                bool Routed() const override { return m_path.getRoute().UsedGeometry(); }
 
-                bool Reachable() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NORMAL) != 0;
-                }
+                bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                mutable PathFinder m_path;
+                PathFinder m_path;
         };
 
         /**
