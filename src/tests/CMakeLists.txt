@@ -71,6 +71,7 @@ set(SRC_GRP_TESTS
     # so it owes the server nothing, and the whole point of extracting it was that its
     # timing could be asserted against the retail captures without standing a world up.
     CourseTest.cpp
+    RosterTest.cpp
     ${CMAKE_SOURCE_DIR}/src/game/motion/Course.cpp
     ${CMAKE_SOURCE_DIR}/src/game/motion/ClientClock.cpp
     ${CMAKE_SOURCE_DIR}/src/game/motion/CourseSync.cpp
