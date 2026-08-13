@@ -67,7 +67,7 @@ PathFinder::PathFinder(const Unit* owner) :
 }
 
 PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
-    m_useStraightPath(false), m_forceDestination(false), m_pointPathLimit(MAX_POINT_PATH_LENGTH),
+    m_useStraightPath(false), m_forceDestination(false),
     m_budgetStop(RouteStop::Reached),
     m_sourceUnit(owner), m_navMesh(NULL), m_navMeshQuery(NULL)
 {
@@ -100,14 +100,15 @@ PathFinder::~PathFinder()
  * @param forceDest Whether to force the destination.
  * @return True if the path was successfully calculated, false otherwise.
  */
-bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest)
+bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest,
+                           SearchBudget budget)
 {
     float x, y, z;
     x = m_sourceUnit->Where().X();
     y = m_sourceUnit->Where().Y();
     z = m_sourceUnit->Where().Z();
 
-    return calculate(x, y, z, destX, destY, destZ, forceDest);
+    return calculate(x, y, z, destX, destY, destZ, forceDest, budget);
 }
 
 /**
@@ -121,7 +122,8 @@ bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest
  * @param forceDest Whether to force the destination.
  * @return True if the path was successfully calculated, false otherwise.
  */
-bool PathFinder::calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest)
+bool PathFinder::calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest,
+                           SearchBudget budget)
 {
     if (!MaNGOS::IsValidMapCoord(startX, startY, startZ) ||
         !MaNGOS::IsValidMapCoord(destX, destY, destZ))
@@ -136,6 +138,7 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
     setEndPosition(dest);
 
     m_forceDestination = forceDest;
+    m_budget = budget;
 
     // Fail-safe, not merely tidy. Every branch below assigns the outcome, but starting
     // from the refusing state means a branch that ever forgets to answers "no route"
@@ -663,7 +666,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
  */
 void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
 {
-    float pathPoints[MAX_POINT_PATH_LENGTH * VERTEX_SIZE];
+    float pathPoints[Path::MAX_POINTS * VERTEX_SIZE];
     uint32 pointCount = 0;
     dtStatus dtResult = DT_FAILURE;
     if (m_useStraightPath)
@@ -677,7 +680,7 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
                        NULL,               // [out] flags
                        NULL,               // [out] shortened path
                        (int*)&pointCount,
-                       m_pointPathLimit);   // maximum number of points/polygons to use
+                       int(m_budget.points)); // maximum number of points to use
     }
     else
     {
@@ -688,7 +691,7 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
                        m_corridor.Length(),// length of current path
                        pathPoints,         // [out] path corner points
                        (int*)&pointCount,
-                       m_pointPathLimit);    // maximum number of points
+                       m_budget.points);      // maximum number of points
     }
 
     if (pointCount < 2 || dtStatusFailed(dtResult))
@@ -982,7 +985,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         unsigned char steerPosFlag;
         dtPolyRef steerPosRef = INVALID_POLYREF;
 
-        if (!getSteerTarget(iterPos, targetPos, SMOOTH_PATH_SLOP, polys, npolys, steerPos, steerPosFlag, steerPosRef))
+        if (!getSteerTarget(iterPos, targetPos, Path::SMOOTH_SLOP, polys, npolys, steerPos, steerPosFlag, steerPosRef))
         {
             break;
         }
@@ -995,13 +998,13 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         dtVsub(delta, steerPos, iterPos);
         float len = dtMathSqrtf(dtVdot(delta, delta));
         // If the steer target is end of path or off-mesh link, do not move past the location.
-        if ((endOfPath || offMeshConnection) && len < SMOOTH_PATH_STEP_SIZE)
+        if ((endOfPath || offMeshConnection) && len < Path::SMOOTH_STEP)
         {
             len = 1.0f;
         }
         else
         {
-            len = SMOOTH_PATH_STEP_SIZE / len;
+            len = Path::SMOOTH_STEP / len;
         }
 
         float moveTgt[VERTEX_SIZE];
@@ -1021,7 +1024,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         dtVcopy(iterPos, result);
 
         // Handle end of path and off-mesh links when close enough.
-        if (endOfPath && inRangeYZX(iterPos, steerPos, SMOOTH_PATH_SLOP, 1.0f))
+        if (endOfPath && inRangeYZX(iterPos, steerPos, Path::SMOOTH_SLOP, Path::SMOOTH_HEIGHT))
         {
             // Reached end of path.
             dtVcopy(iterPos, targetPos);
@@ -1032,7 +1035,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
             }
             break;
         }
-        else if (offMeshConnection && inRangeYZX(iterPos, steerPos, SMOOTH_PATH_SLOP, 1.0f))
+        else if (offMeshConnection && inRangeYZX(iterPos, steerPos, Path::SMOOTH_SLOP, Path::SMOOTH_HEIGHT))
         {
             // Advance the path up to and over the off-mesh connection.
             dtPolyRef prevRef = INVALID_POLYREF;
@@ -1084,7 +1087,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     *smoothPathSize = nsmoothPath;
 
     // Return success if the smooth path size is within the maximum limit.
-    return nsmoothPath < MAX_POINT_PATH_LENGTH ? DT_SUCCESS : DT_FAILURE;
+    return nsmoothPath < Path::MAX_POINTS ? DT_SUCCESS : DT_FAILURE;
 }
 
 /**

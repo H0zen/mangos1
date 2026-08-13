@@ -222,11 +222,8 @@ namespace Movement
         if (generatePath)
         {
             PathFinder path(&unit);
-            if (maxPathRange > 0.0f)
-            {
-                path.setPathLengthLimit(maxPathRange);
-            }
-            path.calculate(dest.x, dest.y, dest.z, forceDestination);
+            path.calculate(dest.x, dest.y, dest.z, forceDestination,
+                           SearchBudget::ForLength(maxPathRange));
             MovebyPath(path.getPath());
         }
         else

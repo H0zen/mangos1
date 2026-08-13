@@ -34,6 +34,7 @@
 #include "MoveMapSharedDefines.h"
 #include "MoveProfile.h"
 #include "Route.h"
+#include "SearchBudget.h"
 #include "movement/MoveSplineInitArgs.h"
 
 using Movement::Vector3;
@@ -41,20 +42,11 @@ using Movement::PointsArray;
 
 class Unit;
 
-// 74*4.0f=296y  number_of_points*interval = max_path_len
-// this is way more than actual evade range
-// I think we can safely cut those down even more
-//
-// The polygon half of that pair now lives on Corridor, whose business it is; this is
-// the POINT limit, which is a different bound reached in a different place.
-#define MAX_POINT_PATH_LENGTH   74
+/// Floats per point in Detour's arrays. Its own axis order, not the world's.
+constexpr int VERTEX_SIZE = 3;
 
-#define SMOOTH_PATH_STEP_SIZE   4.0f
-#define SMOOTH_PATH_SLOP        0.3f
-#define SMOOTH_PATH_HEIGHT      1.0f
-
-#define VERTEX_SIZE       3
-#define INVALID_POLYREF   0
+/// The polygon reference that refers to nothing.
+constexpr dtPolyRef INVALID_POLYREF = 0;
 
 /**
  * @brief Class responsible for finding paths for units.
@@ -85,7 +77,8 @@ class PathFinder
          * @param forceDest Whether to force the destination.
          * @return True if a new path was calculated, false otherwise (no change needed).
          */
-        bool calculate(float destX, float destY, float destZ, bool forceDest = false);
+        bool calculate(float destX, float destY, float destZ, bool forceDest = false,
+                       SearchBudget budget = SearchBudget());
 
         /**
          * @brief Calculate the path from an explicit start position to given destination.
@@ -98,7 +91,8 @@ class PathFinder
          * @param forceDest Whether to force the destination.
          * @return True if a new path was calculated, false otherwise (no change needed).
          */
-        bool calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest = false);
+        bool calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest = false,
+                       SearchBudget budget = SearchBudget());
 
         // Option setters - use optional
         /**
@@ -106,12 +100,6 @@ class PathFinder
          * @param useStraightPath Whether to use a straight path.
          */
         void setUseStrightPath(bool useStraightPath) { m_useStraightPath = useStraightPath; };
-
-        /**
-         * @brief Set the path length limit.
-         * @param distance The path length limit.
-         */
-        void setPathLengthLimit(float distance) { m_pointPathLimit = std::min<uint32>(uint32(distance / SMOOTH_PATH_STEP_SIZE), MAX_POINT_PATH_LENGTH); };
 
 
         // Result getters
@@ -158,7 +146,10 @@ class PathFinder
 
         bool           m_useStraightPath;  // Type of path that will be generated
         bool           m_forceDestination; // When set, we will always arrive at the given point
-        uint32         m_pointPathLimit;   // Limit point path size; min(this, MAX_POINT_PATH_LENGTH)
+
+        // What THIS request may spend. Assigned from calculate()'s argument rather than
+        // left over from a setter, so it cannot outlive the request that asked for it.
+        SearchBudget   m_budget;
 
         // Set by noteSearchLimit() while the search runs, folded into the route at the
         // end. It cannot be written straight into m_route.stop: the stop is assigned

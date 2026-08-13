@@ -42,12 +42,6 @@ namespace Motion
 {
     namespace
     {
-        /// The default ceiling on a routed path, in yards. Re-applied on every query
-        /// because the limit is sticky on a reused PathFinder, so an unlimited request
-        /// after a capped one (a flee leg) would otherwise inherit the cap.
-        constexpr float DEFAULT_PATH_LENGTH =
-            float(MAX_POINT_PATH_LENGTH) * SMOOTH_PATH_STEP_SIZE;
-
         /// The world frame's router: the Detour navmesh, behind IPathQuery.
         class WorldPathQuery final : public IPathQuery
         {
@@ -57,11 +51,15 @@ namespace Motion
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
                                bool forceDestination, float lengthLimit) override
                 {
-                    m_path.setPathLengthLimit(lengthLimit > 0.0f ? lengthLimit
-                                                                 : DEFAULT_PATH_LENGTH);
-
+                    // The budget travels WITH the request. It used to be a setter, and
+                    // the limit it set was sticky on a router that outlives a leg, so an
+                    // uncapped chase issued after a capped flee inherited the flee's cap
+                    // -- which is why a default had to be re-applied here every time.
+                    // ForLength reads a non-positive limit as "no cap", so there is no
+                    // default left for a caller to remember.
                     if (!m_path.calculate(start.x, start.y, start.z,
-                                          goal.x, goal.y, goal.z, forceDestination))
+                                          goal.x, goal.y, goal.z, forceDestination,
+                                          SearchBudget::ForLength(lengthLimit)))
                     {
                         return false;
                     }
@@ -254,11 +252,9 @@ namespace Motion
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
                                bool forceDestination, float lengthLimit) override
                 {
-                    m_path.setPathLengthLimit(lengthLimit > 0.0f ? lengthLimit
-                                                                 : DEFAULT_PATH_LENGTH);
-
                     if (!m_path.calculate(start.x, start.y, start.z,
-                                          goal.x, goal.y, goal.z, forceDestination))
+                                          goal.x, goal.y, goal.z, forceDestination,
+                                          SearchBudget::ForLength(lengthLimit)))
                     {
                         return false;
                     }

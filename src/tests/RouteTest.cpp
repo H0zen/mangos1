@@ -37,6 +37,7 @@
 #include "MoveMapSharedDefines.h"
 #include "MoveProfile.h"
 #include "Route.h"
+#include "SearchBudget.h"
 
 #include <cstddef>
 #include <initializer_list>
@@ -374,4 +375,40 @@ TEST(Corridor_HasInvalidSpotsANullReference)
     CHECK(!MakeCorridor({ 10, 20, 30 }).HasInvalid());
     CHECK(MakeCorridor({ 10, 0, 30 }).HasInvalid());
     CHECK(!Corridor().HasInvalid());
+}
+
+// ---------------------------------------------------------------------------
+// SearchBudget: what one request may spend, as a value rather than a setting.
+// ---------------------------------------------------------------------------
+
+TEST(SearchBudget_DefaultsToTheWholeAllowance)
+{
+    const SearchBudget budget;
+    CHECK_EQ(budget.points, Path::MAX_POINTS);
+}
+
+TEST(SearchBudget_NoLimitMeansFullBudget)
+{
+    // The distinction that made the old setter dangerous. "No rule of the game applies
+    // here" is not "produce a path of no points", and reading it as the latter would
+    // give every uncapped request an empty path.
+    CHECK_EQ(SearchBudget::ForLength(0.0f).points, Path::MAX_POINTS);
+    CHECK_EQ(SearchBudget::ForLength(-1.0f).points, Path::MAX_POINTS);
+}
+
+TEST(SearchBudget_LengthBecomesPointsAtTheSmoothingStep)
+{
+    // Yards are the game's unit -- how far a creature may chase -- and points are the
+    // buffer's. The smoothing step is the exchange rate, and it is the only place the
+    // two units meet.
+    CHECK_EQ(SearchBudget::ForLength(40.0f).points, uint32(10));
+    CHECK_EQ(SearchBudget::ForLength(4.0f).points, uint32(1));
+}
+
+TEST(SearchBudget_LengthIsClampedToTheBuffer)
+{
+    // A game rule may ask for more path than a path can hold. The buffer wins, because
+    // it is the one bound that cannot be negotiated.
+    CHECK_EQ(SearchBudget::ForLength(100000.0f).points, Path::MAX_POINTS);
+    CHECK(SearchBudget::ForLength(Path::DEFAULT_LENGTH).points == Path::MAX_POINTS);
 }
