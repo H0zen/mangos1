@@ -440,6 +440,28 @@ namespace MMAP
         return true;
     }
 
+    void MMapManager::residentTiles(uint32 mapId,
+                                    std::vector<std::pair<int32, int32> >& out) const
+    {
+        MMapDataSet::const_iterator map = loadedMMaps.find(mapId);
+        if (map == loadedMMaps.end())
+        {
+            return;
+        }
+
+        // The same unpacking the whole-map unload does, and the reason packTileID's
+        // inverse is written out twice rather than named once is that the pack is a
+        // shift of a SIGNED x into the high half: a named unpack would have to decide
+        // what a negative grid index means, and no caller has ever produced one.
+        MMapTileSet const& tiles = map->second->mmapLoadedTiles;
+        out.reserve(out.size() + tiles.size());
+        for (MMapTileSet::const_iterator i = tiles.begin(); i != tiles.end(); ++i)
+        {
+            out.push_back(std::make_pair(int32(i->first >> 16),
+                                         int32(i->first & 0x0000FFFF)));
+        }
+    }
+
     bool MMapManager::unloadMap(uint32 mapId, int32 x, int32 y)
     {
         // check if we have this map loaded

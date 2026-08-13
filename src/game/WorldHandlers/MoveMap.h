@@ -27,6 +27,8 @@
 #define MANGOS_H_MOVE_MAP
 
 #include <unordered_map>
+#include <utility>
+#include <vector>
 #include "../../dep/recastnavigation/Detour/Include/DetourAlloc.h"
 #include "../../dep/recastnavigation/Detour/Include/DetourNavMesh.h"
 #include "../../dep/recastnavigation/Detour/Include/DetourNavMeshQuery.h"
@@ -108,6 +110,26 @@ namespace MMAP
             bool unloadMap(uint32 mapId, int32 x, int32 y);
             bool unloadMap(uint32 mapId);
             bool unloadMapInstance(uint32 mapId, uint32 instanceId);
+
+            /**
+             * @brief The grid coordinates of every tile currently resident for a map.
+             *
+             * For the eviction sweep, and it exists because the sweep was asking the
+             * question inside out. A map has 64x64 = 4096 possible cells and, in
+             * practice, a handful of loaded tiles; walking the address space to find
+             * them cost 4092 pointless calls per sweep per map -- 196,275 lines in a
+             * four-minute log, once the map-loading filter was switched on, and two
+             * hash lookups apiece even when it was not. The set of loaded tiles is
+             * right here; iterate that instead.
+             *
+             * A snapshot rather than a view: the caller unloads while it walks, and
+             * unloading mutates the container this reads.
+             *
+             * @param mapId Map to report on.
+             * @param out   Filled with (x, y); untouched when the map has no navmesh.
+             */
+            void residentTiles(uint32 mapId,
+                               std::vector<std::pair<int32, int32> >& out) const;
 
             // the returned [dtNavMeshQuery const*] is NOT threadsafe
             dtNavMeshQuery const* GetNavMeshQuery(uint32 mapId, uint32 instanceId);
