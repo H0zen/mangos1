@@ -40,8 +40,25 @@
  */
 namespace Nav
 {
-    /// Points a smoothed path may contain. 74 * 4 yards is 296, far past evade range.
-    constexpr uint32 MAX_POINTS = 74;
+    /**
+     * @brief Points a smoothed path may contain.
+     *
+     * Was 74, on the reasoning that 74 * 4 yards is 296 and that is far past evade
+     * range. Two measurements say otherwise.
+     *
+     * The client accepts more: across four retail captures the longest monster-move
+     * carried 93 points, so 74 was never a limit the protocol imposed -- it was one
+     * this server chose, and then forgot it had chosen.
+     *
+     * And it bites. On the live server, eleven smoothed paths in one session stopped
+     * because they ran out of points, several of them still ninety yards or more from
+     * their goal. Those are not creatures wandering too far; they are ordinary routes
+     * through geometry that needs more corners than the budget allowed.
+     *
+     * 93 is what retail was seen to send. Going past it would be inventing headroom
+     * nobody has observed the client using.
+     */
+    constexpr uint32 MAX_POINTS = 93;
 
     /// Distance the smoother advances along the surface per step, in yards.
     constexpr float SMOOTH_STEP = 4.0f;

@@ -57,9 +57,15 @@ namespace Nav
             /// No such index. Returned by the searches below.
             static constexpr uint32 NPOS = 0xFFFFFFFFu;
 
-            // 74 * 4.0f = 296 yards of point path, which is far past any evade range.
-            // The bound is the corridor's own, not the world's: it is how many polygons one
-            // route may DESCRIBE, and Detour reports DT_BUFFER_TOO_SMALL on reaching it.
+            // How many polygons one route may DESCRIBE. Detour reports
+            // DT_BUFFER_TOO_SMALL on reaching it.
+            //
+            // NOT the same bound as Nav::MAX_POINTS, though the two were once justified
+            // by the same arithmetic and left equal because of it. A corridor is a chain
+            // of polygons and a smoothed path is a chain of four-yard steps through it;
+            // one polygon can hold many steps, or a step can cross several. Live routes
+            // that ran out of POINTS were using twenty-odd polygons at the time, so this
+            // was never their constraint and did not move when the point budget did.
             static constexpr uint32 CAPACITY = 74;
 
             Corridor() : m_length(0) {}

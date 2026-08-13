@@ -729,8 +729,22 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
     //
     // So the geometry has the last word. Points that stop short make a PARTIAL route,
     // whatever the polygons promised.
+    // The tolerance is ONE SMOOTHING STEP, and that is not a fudge -- it is the amount
+    // the smoother can leave on the table by construction. It advances in steps of
+    // Nav::SMOOTH_STEP and stops when it can no longer steer, so a walk that has
+    // effectively arrived routinely ends a step short of the exact goal.
+    //
+    // Measured on the live server before this was widened: of 64 legs the smoother
+    // reported as not arriving, 21 stopped within a yard and 22 more within five. A
+    // one-yard test called all of those PARTIAL, and MOVE_REQUIRE_PATH then refused
+    // legs that reach their destination -- creatures declining to move at all because
+    // the route ended fifteen inches out.
+    //
+    // The legs that genuinely fail are nowhere near this: the same sample had fourteen
+    // stopping more than twenty yards short, and the worst at 122.
     if (m_route.IsRouted() &&
-        !inRange(getEndPosition(), getActualEndPosition(), 1.0f, 1.0f))
+        !inRange(getEndPosition(), getActualEndPosition(),
+                 Nav::SMOOTH_STEP, Nav::SMOOTH_STEP))
     {
         m_route.outcome = Nav::RouteOutcome::Partial;
         m_route.stop = Nav::RouteStop::Wall;
