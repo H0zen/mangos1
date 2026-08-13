@@ -73,6 +73,15 @@ namespace
      * value is an identity, not a count -- nothing reads it back except for equality,
      * so wrapping after four billion legs costs nothing.
      */
+    /**
+     * @brief How far the course and the spline may differ before it means something.
+     *
+     * Four milliseconds -- about three centimetres at a run. The two computations round
+     * independently and can land a millisecond apart; a formula that has actually
+     * diverged is never off by one.
+     */
+    constexpr int32 DURATION_DRIFT_TOLERANCE_MS = 4;
+
     uint32 NextSplineId()
     {
         static std::atomic<uint32> counter(1);
@@ -259,16 +268,29 @@ namespace Movement
             return move_spline.Duration();
         }
 
-        // The two must agree to the millisecond or the server believes an arrival the
-        // client has not reached. They do by construction -- the same accumulator, the
-        // same seed, the same truncation -- so a disagreement means one of them has
-        // been changed without the other, and that is worth a line in the log rather
-        // than a subtle drift nobody traces.
-        if (uint32(move_spline.Duration()) != course.Duration())
+        // The two must agree, or the server believes an arrival the client has not
+        // reached. They share a formula -- the same accumulator, the same seed, the
+        // same truncation -- but NOT a compilation of it, and that turns out to be a
+        // real distinction: `mark + length * rate` is an expression a compiler may
+        // contract into a fused multiply-add, rounding once where the other rounds
+        // twice, and the spline's copy cannot be contracted because its segment length
+        // arrives through a member-function pointer that nothing inlines.
+        //
+        // So a millisecond of disagreement is arithmetic, not error. It is eight
+        // millimetres at a run, and the live server produced exactly that: a few legs
+        // in a session, off by one, in both directions.
+        //
+        // The tolerance is what makes this canary worth having. A formula that has
+        // genuinely diverged -- a changed seed, a dropped truncation, a different
+        // length -- is wrong by tens or hundreds of milliseconds, never by one. Below
+        // the threshold there is nothing to say; above it, something structural moved
+        // and only one of the two was told.
+        const int32 drift = int32(course.Duration()) - move_spline.Duration();
+        if (drift > DURATION_DRIFT_TOLERANCE_MS || drift < -DURATION_DRIFT_TOLERANCE_MS)
         {
-            sLog.outError("Course and spline disagree for %s: %u vs %u ms",
+            sLog.outError("Course and spline disagree for %s: %u vs %d ms",
                           unit.GetGuidStr().c_str(), course.Duration(),
-                          uint32(move_spline.Duration()));
+                          move_spline.Duration());
         }
 
         // The packed form spends eleven signed bits on X and Y and only ten on Z, in

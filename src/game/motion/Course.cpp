@@ -185,7 +185,24 @@ namespace Helm
                 length = (c.m_points[k] - c.m_points[k - 1]).length();
             }
 
-            mark = uint32(float(mark) + length * perYard);
+            // TWO STATEMENTS, AND THEY MUST STAY TWO. Folded into one expression,
+            // `float(mark) + length * perYard` is something the compiler may contract
+            // into a fused multiply-add: one rounding where the spline beside us does
+            // two. The spline cannot be contracted the same way because its segment
+            // length arrives through a member-function pointer, which nothing inlines.
+            //
+            // The difference is one unit in the last place, and it does not matter
+            // until the true value sits within one of a whole millisecond -- at which
+            // point the truncation below lands on a different integer. That is what
+            // the live canary caught: a handful of legs out of many, off by exactly
+            // one millisecond, in BOTH directions.
+            //
+            // Rounding the product on its own removes the larger of the two places
+            // this can happen. The other is inside length(), which is shared code and
+            // inlined here but not there, so a millisecond of disagreement remains
+            // possible and the canary is calibrated for it rather than against it.
+            const float step = length * perYard;
+            mark = uint32(float(mark) + step);
             c.m_marks[k] = mark;
         }
 
