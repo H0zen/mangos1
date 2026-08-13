@@ -73,7 +73,8 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
     if (mover.GetTypeId() == TYPEID_UNIT)
     {
         // CanWalk is the one ability that really is Creature's alone.
-        if (static_cast<Creature const&>(mover).CanWalk())
+        profile.canWalk = static_cast<Creature const&>(mover).CanWalk();
+        if (profile.canWalk)
         {
             profile.includeFlags |= NAV_GROUND;
         }
@@ -89,6 +90,7 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
     else if (mover.GetTypeId() == TYPEID_PLAYER)
     {
         // Perfect support is not possible for a client-driven mover; stay safe.
+        profile.canWalk = true;
         profile.includeFlags |= (NAV_GROUND | NAV_WATER);
     }
 

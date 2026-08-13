@@ -1003,7 +1003,41 @@ void PathFinder::seatOnSurface(dtPolyRef poly, float* point) const
     // Magma and slime are surfaces in exactly the same sense, and a creature crossing
     // one is in it, not on it.
     const bool liquid = (area & (NAV_WATER | NAV_MAGMA | NAV_SLIME)) != 0;
-    point[1] += liquid ? -SWIM_SEAT_DEPTH : GROUND_CLEARANCE;
+    if (!liquid)
+    {
+        point[1] += GROUND_CLEARANCE;
+        return;
+    }
+
+    // A WALKER STAYS ON THE FLOOR, even when the floor is a seabed. A crab crosses a
+    // bay along the bottom; it does not surface halfway and sink again.
+    //
+    // The mesh cannot say so on its own. It carries the seabed and the liquid surface
+    // as two stacked layers, admits a walking swimmer to both, and hands back whichever
+    // one the search happened to land on -- so height taken from the polygon alternates
+    // between them and the creature pops up, comes back disoriented, and drops again.
+    // Halving the gap by seating the swimmer under the surface made it smaller without
+    // making it go away, because the gap is the depth of the water.
+    //
+    // The terrain has no layers. Ask it and the answer is continuous by construction,
+    // which is the property the symptom actually needs -- and it is the right division
+    // of labour besides: THE MESH SAYS WHERE A MOVER MAY GO, THE WORLD SAYS HOW HIGH IT
+    // IS. Taking height from a polygon was borrowing the wrong authority.
+    if (m_profile.canWalk)
+    {
+        float ground = INVALID_HEIGHT;
+        m_sourceUnit->GetTerrain()->GetWaterOrGroundLevel(point[2], point[0], point[1],
+                                                          &ground, false);
+        if (ground > INVALID_HEIGHT)
+        {
+            point[1] = ground + GROUND_CLEARANCE;
+            return;
+        }
+    }
+
+    // Nothing walks here -- a true swimmer, or a floor the terrain cannot name. Ride
+    // under the surface at the depth this tree already seats a swimmer at.
+    point[1] -= SWIM_SEAT_DEPTH;
 }
 
 dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,

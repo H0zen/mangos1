@@ -55,6 +55,18 @@ namespace Nav
         bool canFly = false;
 
         /**
+         * @brief Does this mover have feet on the floor?
+         *
+         * A creature that walks stays on the floor even when the floor is a seabed --
+         * a crab crosses a bay along the bottom, it does not surface halfway. The
+         * navmesh cannot express that on its own: it carries the liquid surface and
+         * the seabed as two stacked layers and a walking swimmer is admitted to both,
+         * so which one a point lands on is an accident of the search. This is what
+         * decides it.
+         */
+        bool canWalk = false;
+
+        /**
          * @brief May this mover travel where the navmesh does not describe the ground?
          *
          * Creatures may; players never do. A client drives its own movement and would be
