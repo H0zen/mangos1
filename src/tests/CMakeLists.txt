@@ -52,6 +52,7 @@ set(SRC_GRP_TESTS
     PlacementTest.cpp
     GeometryMathTest.cpp
     DataIntegrityTest.cpp
+    BotDecideTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These three know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp
@@ -104,9 +105,15 @@ target_link_libraries(mangos_tests
         dataintegrity
         extractor_client
         extractor_data
+        botsng_decide
         Threads::Threads
         mangos_openssl_strict
 )
+
+# botsng_decide is above the rest of that list in one respect worth stating: it
+# brings no transitive dependency at all. If BotDecideTest ever needs `game` to
+# link, the decision layer has stopped being a pure function of its snapshot and
+# the test has stopped being able to prove anything about it.
 
 # Headers and DT_POLYREF64, not code. Linking the target rather than reaching for its
 # include directory is the point: the definition is PUBLIC on it, so this is what keeps

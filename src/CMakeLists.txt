@@ -23,6 +23,12 @@
 add_subdirectory(shared/Geometry)
 add_subdirectory(shared/terrain)
 
+# The BotsNG decision core, for the same reason and at the same level: it is a
+# pure function from a snapshot of what a bot can see to the set of things it
+# wants to do, and it knows nothing about the server it will eventually run in.
+# Configured unconditionally so the unit tests can link it without BUILD_MANGOSD.
+add_subdirectory(modules/BotsNG/decide)
+
 # Build the mangos shared library
 add_subdirectory(shared)
 
