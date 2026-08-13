@@ -28,8 +28,10 @@
 #include "../recastnavigation/Detour/Include/DetourCommon.h"
 
 #include "MoveMap.h"
-#include "GridMap.h"
-#include "Creature.h"
+#include "GridDefines.h"   // MaNGOS::IsValidMapCoord
+#include "GridMap.h"       // TerrainInfo::IsUnderWater -- Object.h only forward-declares it
+#include "Object.h"        // ClampToAllowedZ
+#include "Unit.h"
 #include "PathFinder.h"
 #include "Log.h"
 
@@ -79,7 +81,8 @@ PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
         m_navMeshQuery = mmap->GetNavMeshQuery(mapId, m_sourceUnit->GetInstanceId());
     }
 
-    createFilter();
+    m_profile = ProfileOf(*m_sourceUnit);
+    applyFilter();
 }
 
 /**
@@ -143,11 +146,16 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
     m_route.stop = RouteStop::Failed;
     m_budgetStop = RouteStop::Reached;
 
+    // Re-snapshotted per request, not per router. The permissions depend on where the
+    // mover is standing right now, and this object outlives a single leg.
+    m_profile = ProfileOf(*m_sourceUnit);
+    applyFilter();
+
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::calculate() for %u \n", m_sourceUnit->GetGUIDLow());
 
     // make sure navMesh works - we can run on map w/o mmap
     // check if the start and end point have a .mmtile loaded (can we pass via not loaded tile on the way?)
-    if (!m_navMesh || !m_navMeshQuery || m_sourceUnit->hasUnitState(UNIT_STAT_IGNORE_PATHFINDING) ||
+    if (!m_navMesh || !m_navMeshQuery || m_profile.ignorePathfinding ||
         !HaveTile(start) || !HaveTile(dest))
     {
         BuildShortcut();
@@ -155,8 +163,6 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
         m_route.stop = RouteStop::NoMesh;
         return true;
     }
-
-    updateFilter();
 
     BuildPolyPath(start, dest);
     return true;
@@ -342,27 +348,6 @@ bool PathFinder::BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
 }
 
 /**
- * @brief May this mover cross ground the navmesh does not describe?
- * @param underWater The off-mesh ground in question is under water.
- * @return True when a straight line there is legitimate for this mover.
- */
-bool PathFinder::MayGoDirect(bool underWater) const
-{
-    // Players are never granted it. A client drives its own movement and would be
-    // desynchronised by a server path through geometry it can walk into; the exemption
-    // was always for creatures, the type test merely said so indirectly.
-    if (m_sourceUnit->GetTypeId() != TYPEID_UNIT)
-    {
-        return false;
-    }
-
-    // Both are virtual on Unit, so the downcast to Creature this replaced bought
-    // nothing -- and being a C-style cast off a const pointer, it also quietly cast the
-    // constness away.
-    return underWater ? m_sourceUnit->CanSwim() : m_sourceUnit->CanFly();
-}
-
-/**
  * @brief Records that a Detour search stopped at a budget rather than at the world.
  * @param status The status returned by the Detour query.
  * @param where Name of the call site, for the log line.
@@ -429,7 +414,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             (endPoly == INVALID_POLYREF &&
              m_sourceUnit->GetTerrain()->IsUnderWater(endPos.x, endPos.y, endPos.z));
 
-        m_route.outcome = MayGoDirect(offMeshUnderWater) ? RouteOutcome::Direct
+        m_route.outcome = m_profile.MayGoDirect(offMeshUnderWater) ? RouteOutcome::Direct
                                                          : RouteOutcome::Unroutable;
         m_route.stop = RouteStop::OffMesh;
         return;
@@ -446,7 +431,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: %s case\n",
                          underWater ? "underWater" : "flying");
 
-        if (MayGoDirect(underWater))
+        if (m_profile.MayGoDirect(underWater))
         {
             BuildShortcut();
             m_route.outcome = RouteOutcome::Direct;
@@ -785,35 +770,12 @@ void PathFinder::BuildShortcut()
 }
 
 /**
- * @brief Creates a filter for the pathfinding algorithm.
+ * @brief Pushes the current profile's permissions and the area costs into the filter.
  */
-void PathFinder::createFilter()
+void PathFinder::applyFilter()
 {
-    uint16 includeFlags = 0;
-    uint16 excludeFlags = 0;
-
-    if (m_sourceUnit->GetTypeId() == TYPEID_UNIT)
-    {
-        Creature* creature = (Creature*)m_sourceUnit;
-        if (creature->CanWalk())
-        {
-            includeFlags |= NAV_GROUND; // walk
-        }
-
-        // creatures don't take environmental damage
-        if (creature->CanSwim())
-        {
-            includeFlags |= (NAV_WATER | NAV_MAGMA | NAV_SLIME); // swim
-        }
-    }
-    else if (m_sourceUnit->GetTypeId() == TYPEID_PLAYER)
-    {
-        // perfect support not possible, just stay 'safe'
-        includeFlags |= (NAV_GROUND | NAV_WATER);
-    }
-
-    m_filter.setIncludeFlags(includeFlags);
-    m_filter.setExcludeFlags(excludeFlags);
+    m_filter.setIncludeFlags(m_profile.includeFlags);
+    m_filter.setExcludeFlags(m_profile.excludeFlags);
 
     // What a surface COSTS, which is a different question from whether the mover is
     // allowed on it -- and the only one the include mask above cannot express. Every
@@ -830,52 +792,6 @@ void PathFinder::createFilter()
     m_filter.setAreaCost(NAV_WATER, PATH_COST_SWIM);
     m_filter.setAreaCost(NAV_MAGMA, PATH_COST_HAZARD);
     m_filter.setAreaCost(NAV_SLIME, PATH_COST_HAZARD);
-
-    updateFilter();
-}
-
-/**
- * @brief Updates the filter for the pathfinding algorithm.
- */
-void PathFinder::updateFilter()
-{
-    // allow creatures to cheat and use different movement types if they are moved
-    // forcefully into terrain they can't normally move in
-    if (m_sourceUnit->IsInWater() || m_sourceUnit->IsUnderWater())
-    {
-        uint16 includedFlags = m_filter.getIncludeFlags();
-        includedFlags |= getNavTerrain(m_sourceUnit->Where().X(),
-                                       m_sourceUnit->Where().Y(),
-                                       m_sourceUnit->Where().Z());
-
-        m_filter.setIncludeFlags(includedFlags);
-    }
-}
-
-/**
- * @brief Gets the navigation terrain type at the specified coordinates.
- * @param x The X-coordinate.
- * @param y The Y-coordinate.
- * @param z The Z-coordinate.
- * @return The navigation terrain type.
- */
-NavTerrain PathFinder::getNavTerrain(float x, float y, float z)
-{
-    GridMapLiquidData data;
-    m_sourceUnit->GetTerrain()->getLiquidStatus(x, y, z, MAP_ALL_LIQUIDS, &data);
-
-    switch (data.type_flags)
-    {
-        case MAP_LIQUID_TYPE_WATER:
-        case MAP_LIQUID_TYPE_OCEAN:
-            return NAV_WATER;
-        case MAP_LIQUID_TYPE_MAGMA:
-            return NAV_MAGMA;
-        case MAP_LIQUID_TYPE_SLIME:
-            return NAV_SLIME;
-        default:
-            return NAV_GROUND;
-    }
 }
 
 /**

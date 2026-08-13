@@ -31,6 +31,7 @@
 #include "DetourNavMeshQuery.h"
 
 #include "MoveMapSharedDefines.h"
+#include "MoveProfile.h"
 #include "movement/MoveSplineInitArgs.h"
 
 using Movement::Vector3;
@@ -222,6 +223,11 @@ class PathFinder
 
         Route          m_route;            // The answer to the last calculate()
 
+        // What the mover may do, snapshotted at the top of every calculate(). The
+        // router reads it and never asks the unit itself: that is the whole of the
+        // separation between deciding and routing.
+        MoveProfile    m_profile;
+
         bool           m_useStraightPath;  // Type of path that will be generated
         bool           m_forceDestination; // When set, we will always arrive at the given point
         uint32         m_pointPathLimit;   // Limit point path size; min(this, MAX_POINT_PATH_LENGTH)
@@ -347,19 +353,6 @@ class PathFinder
         void BuildShortcut();
 
         /**
-         * @brief May this mover cross ground the navmesh does not describe?
-         *
-         * The one movement POLICY left inside the router, gathered into a single
-         * predicate so that it has one place to leave from. It is not a geometric
-         * question: the geometry has already answered "not on the mesh", and this
-         * decides whether that is fatal or merely means the mover swims or flies over it.
-         *
-         * @param underWater The off-mesh ground in question is under water.
-         * @return True when a straight line there is legitimate for this mover.
-         */
-        bool MayGoDirect(bool underWater) const;
-
-        /**
          * @brief Record that a Detour search stopped at a budget rather than at the world.
          *
          * Detour reports both budgets as DETAIL bits on a SUCCESS status, so
@@ -387,23 +380,13 @@ class PathFinder
                                    const float* startPoint, const float* endPoint);
 
         /**
-         * @brief Get the navigation terrain at the given position.
-         * @param x The X-coordinate.
-         * @param y The Y-coordinate.
-         * @param z The Z-coordinate.
-         * @return The navigation terrain.
+         * @brief Push the current profile's permissions and the area costs into
+         *        the Detour filter.
+         *
+         * A translation and nothing more -- WHICH areas the mover may occupy was
+         * decided by ProfileOf before this router ever saw it.
          */
-        NavTerrain getNavTerrain(float x, float y, float z);
-
-        /**
-         * @brief Create the query filter.
-         */
-        void createFilter();
-
-        /**
-         * @brief Update the query filter.
-         */
-        void updateFilter();
+        void applyFilter();
 
         // Smooth path auxiliary functions
         /**
