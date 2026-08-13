@@ -49,6 +49,42 @@
 #include <cstring>
 #include <list>
 
+namespace
+{
+    // Switches rather than a table indexed by the enum. A table is one value away from
+    // reading past its own end -- add a RouteStop and every command that prints one
+    // starts quoting whatever follows the array -- while a switch with no default makes
+    // the omission a compiler warning on both GCC and Clang, which is where it belongs.
+
+    const char* RouteOutcomeName(RouteOutcome outcome)
+    {
+        switch (outcome)
+        {
+            case RouteOutcome::Routed:     return "routed";
+            case RouteOutcome::Partial:    return "partial";
+            case RouteOutcome::Direct:     return "direct (no routing)";
+            case RouteOutcome::Unroutable: return "unroutable";
+        }
+        return "unknown";
+    }
+
+    const char* RouteStopName(RouteStop stop)
+    {
+        switch (stop)
+        {
+            case RouteStop::Reached:    return "reached the goal";
+            case RouteStop::Wall:       return "the world blocked it";
+            case RouteStop::NodeBudget: return "search node pool exhausted";
+            case RouteStop::PolyBudget: return "polygon buffer full";
+            case RouteStop::NoMesh:     return "no navmesh here";
+            case RouteStop::OffMesh:    return "start or goal is off the mesh";
+            case RouteStop::Forced:     return "destination was forced";
+            case RouteStop::Failed:     return "the query failed";
+        }
+        return "unknown";
+    }
+}
+
 /**
  * @brief Handler for HandleMmapPathCommand command.
  *
@@ -132,16 +168,11 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
 
     PointsArray pointPath = path.getPath();
 
-    static const char* const outcomeName[] = { "routed", "partial", "direct", "unroutable" };
-    static const char* const stopName[] = { "reached", "wall", "node budget",
-                                            "poly budget", "no mesh", "off mesh",
-                                            "forced", "failed" };
-
     const Route& route = path.getRoute();
     PSendSysMessage("%s's path to %s:", originUnit->GetName(), destinationUnit->GetName());
     PSendSysMessage("Building %s", useStraightPath ? "StraightPath" : "SmoothPath");
     PSendSysMessage("length %zu, %s, stopped: %s", pointPath.size(),
-                    outcomeName[uint8(route.outcome)], stopName[uint8(route.stop)]);
+                    RouteOutcomeName(route.outcome), RouteStopName(route.stop));
 
     Vector3 start = path.getStartPosition();
     Vector3 end = path.getEndPosition();
