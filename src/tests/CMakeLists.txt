@@ -66,6 +66,14 @@ set(SRC_GRP_TESTS
     # wire format. CryptoStressTest holds what every expansion shares.
     CodecStressTest.cpp
     PacketCodecTest.cpp
+    # The movement plan's arithmetic. Compiled in rather than linked from `game` for
+    # the same reason as the three above: a Course is a value over points and a clock,
+    # so it owes the server nothing, and the whole point of extracting it was that its
+    # timing could be asserted against the retail captures without standing a world up.
+    CourseTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Course.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/ClientClock.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/CourseSync.cpp
 )
 
 # The routing decisions -- Route's states, MoveProfile's permissions, the baked tile
@@ -95,6 +103,7 @@ target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
         ${CMAKE_SOURCE_DIR}/src/game/MotionGenerators
+        ${CMAKE_SOURCE_DIR}/src/game/motion
         ${CMAKE_SOURCE_DIR}/src/game/Server)
 
 target_link_libraries(mangos_tests
