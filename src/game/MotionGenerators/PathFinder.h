@@ -78,7 +78,7 @@ class PathFinder
          * @return True if a new path was calculated, false otherwise (no change needed).
          */
         bool calculate(float destX, float destY, float destZ, bool forceDest = false,
-                       Path::SearchBudget budget = Path::SearchBudget());
+                       Nav::SearchBudget budget = Nav::SearchBudget());
 
         /**
          * @brief Calculate the path from an explicit start position to given destination.
@@ -92,7 +92,7 @@ class PathFinder
          * @return True if a new path was calculated, false otherwise (no change needed).
          */
         bool calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest = false,
-                       Path::SearchBudget budget = Path::SearchBudget());
+                       Nav::SearchBudget budget = Nav::SearchBudget());
 
         // Option setters - use optional
         /**
@@ -131,31 +131,31 @@ class PathFinder
          * @brief Get the whole result of the last calculate().
          * @return The route: its points, its outcome and why it stopped.
          */
-        Path::Route const& getRoute() const { return m_route; }
+        Nav::Route const& getRoute() const { return m_route; }
 
     private:
 
-        Path::Corridor       m_corridor;         // Polygons this mover is following
+        Nav::Corridor       m_corridor;         // Polygons this mover is following
 
-        Path::Route          m_route;      // The answer to the last calculate()
+        Nav::Route          m_route;      // The answer to the last calculate()
 
         // What the mover may do, snapshotted at the top of every calculate(). The
         // router reads it and never asks the unit itself: that is the whole of the
         // separation between deciding and routing.
-        Path::MoveProfile    m_profile;
+        Nav::MoveProfile    m_profile;
 
         bool           m_useStraightPath;  // Type of path that will be generated
         bool           m_forceDestination; // When set, we will always arrive at the given point
 
         // What THIS request may spend. Assigned from calculate()'s argument rather than
         // left over from a setter, so it cannot outlive the request that asked for it.
-        Path::SearchBudget   m_budget;
+        Nav::SearchBudget   m_budget;
 
         // Set by noteSearchLimit() while the search runs, folded into the route at the
         // end. It cannot be written straight into m_route.stop: the stop is assigned
         // wholesale once the poly path is known, which would drop the budget that
-        // explains it. Path::RouteStop::Reached stands for "no budget was hit".
-        Path::RouteStop      m_budgetStop;
+        // explains it. Nav::RouteStop::Reached stands for "no budget was hit".
+        Nav::RouteStop      m_budgetStop;
 
         Vector3        m_startPosition;    // {x, y, z} of current location
         Vector3        m_endPosition;      // {x, y, z} of the destination
@@ -277,8 +277,8 @@ class PathFinder
          * Detour reports both budgets as DETAIL bits on a SUCCESS status, so
          * dtStatusFailed() is false and the caller sees a short path with no reason
          * attached. Which budget it was matters to whoever has to fix it -- the node
-         * pool is a server setting, the polygon buffer is Path::Corridor::CAPACITY -- so the two
-         * are logged apart even though both land in Path::RouteStop.
+         * pool is a server setting, the polygon buffer is Nav::Corridor::CAPACITY -- so the two
+         * are logged apart even though both land in Nav::RouteStop.
          *
          * @param status The status returned by the Detour query.
          * @param where Name of the call site, for the log line.
@@ -303,7 +303,7 @@ class PathFinder
          *        the Detour filter.
          *
          * A translation and nothing more -- WHICH areas the mover may occupy was
-         * decided by Path::ProfileOf before this router ever saw it.
+         * decided by Nav::ProfileOf before this router ever saw it.
          */
         void applyFilter();
 

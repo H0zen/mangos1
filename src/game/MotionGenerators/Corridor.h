@@ -31,7 +31,7 @@
 
 #include <cstring>
 
-namespace Path
+namespace Nav
 {
     /**
      * @brief The run of polygons one mover is following, and what happens to it between

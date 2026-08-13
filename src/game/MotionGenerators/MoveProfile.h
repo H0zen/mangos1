@@ -31,7 +31,7 @@
 
 class Unit;
 
-namespace Path
+namespace Nav
 {
     /**
      * @brief What one mover is permitted to do, as a value.

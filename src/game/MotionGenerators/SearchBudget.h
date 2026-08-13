@@ -38,7 +38,7 @@
  * MAX_POINT_PATH_LENGTH, and could neither scope them nor see where they came from.
  * They are typed constants in a namespace now; nothing else about them changes.
  */
-namespace Path
+namespace Nav
 {
     /// Points a smoothed path may contain. 74 * 4 yards is 296, far past evade range.
     constexpr uint32 MAX_POINTS = 74;
@@ -73,8 +73,8 @@ namespace Path
      */
     struct SearchBudget
     {
-        /// Points the produced path may contain, never above Path::MAX_POINTS.
-        uint32 points = Path::MAX_POINTS;
+        /// Points the produced path may contain, never above Nav::MAX_POINTS.
+        uint32 points = Nav::MAX_POINTS;
 
         /**
          * @brief A budget for a route of at most @p yards.
@@ -88,8 +88,8 @@ namespace Path
             SearchBudget budget;
             if (yards > 0.0f)
             {
-                budget.points = std::min<uint32>(uint32(yards / Path::SMOOTH_STEP),
-                                                 Path::MAX_POINTS);
+                budget.points = std::min<uint32>(uint32(yards / Nav::SMOOTH_STEP),
+                                                 Nav::MAX_POINTS);
             }
             return budget;
         }

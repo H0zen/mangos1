@@ -223,7 +223,7 @@ namespace Movement
         {
             PathFinder path(&unit);
             path.calculate(dest.x, dest.y, dest.z, forceDestination,
-                           Path::SearchBudget::ForLength(maxPathRange));
+                           Nav::SearchBudget::ForLength(maxPathRange));
             MovebyPath(path.getPath());
         }
         else

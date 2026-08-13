@@ -37,7 +37,7 @@
 
 #include <vector>
 
-namespace Path
+namespace Nav
 {
     /**
      * @brief What a routing attempt produced.
