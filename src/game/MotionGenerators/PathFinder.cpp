@@ -1067,6 +1067,14 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
     ++nsmoothPath;
 
+    // WHY the walk stopped. A smoothed path that ends short is indistinguishable at the
+    // call site from one that arrived, and the three ways out are worth telling apart:
+    // running out of points is a budget the caller chose, losing the steer target means
+    // the corridor stopped describing where the walk had got to, and arriving is the
+    // only one that is not a problem.
+    const char* stopped = "corridor-exhausted";
+    uint32 offCorridor = 0;
+
     // Move towards target a small advancement at a time until target reached or
     // when ran out of memory to store the path.
     while (npolys && nsmoothPath < maxSmoothPathSize)
@@ -1078,6 +1086,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         if (!getSteerTarget(iterPos, targetPos, Nav::SMOOTH_SLOP, polys, npolys, steerPos, steerPosFlag, steerPosRef))
         {
+            stopped = "no-steer-target";
             break;
         }
 
@@ -1108,6 +1117,28 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         uint32 nvisited = 0;
         m_navMeshQuery->moveAlongSurface(polys[0], iterPos, moveTgt, &m_filter, result, visited, (int*)&nvisited, MAX_VISIT_POLY);
+
+        // Did the step land on a polygon the corridor still knows about? When it did
+        // not, fixupCorridor finds no common polygon and hands the corridor back
+        // unchanged -- so polys[0] goes on describing a place the walk has left, and
+        // the next steer is computed from a corridor the mover is no longer standing
+        // on. That is the leading suspect for a 52-yard trip walking 236, and counting
+        // it is how the suspicion becomes a measurement.
+        {
+            bool onCorridor = false;
+            for (uint32 v = 0; v < nvisited && !onCorridor; ++v)
+            {
+                for (uint32 c = 0; c < npolys; ++c)
+                {
+                    if (polys[c] == visited[v]) { onCorridor = true; break; }
+                }
+            }
+            if (!onCorridor && nvisited)
+            {
+                ++offCorridor;
+            }
+        }
+
         npolys = fixupCorridor(polys, npolys, Nav::Corridor::CAPACITY, visited, nvisited);
 
         seatOnSurface(polys[0], result);
@@ -1117,6 +1148,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         if (endOfPath && inRangeYZX(iterPos, steerPos, Nav::SMOOTH_SLOP, Nav::SMOOTH_HEIGHT))
         {
             // Reached end of path.
+            stopped = "arrived";
             dtVcopy(iterPos, targetPos);
             if (nsmoothPath < maxSmoothPathSize)
             {
@@ -1172,6 +1204,24 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
             dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
             ++nsmoothPath;
         }
+    }
+
+    if (nsmoothPath >= maxSmoothPathSize)
+    {
+        stopped = "point-budget";
+    }
+
+    // One line, and only when the walk did NOT arrive: the interesting cases are rare
+    // and the ordinary ones are most of the server's work.
+    if (std::strcmp(stopped, "arrived") != 0)
+    {
+        const float* last = &smoothPath[(nsmoothPath ? nsmoothPath - 1 : 0) * VERTEX_SIZE];
+        DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
+                         "++ smooth STOPPED %s: %u points over %u polys, %.1f yd short, "
+                         "%u steps off the corridor, %s",
+                         stopped, nsmoothPath, polyPathSize,
+                         dtVdist(last, targetPos), offCorridor,
+                         m_sourceUnit->GetGuidStr().c_str());
     }
 
     *smoothPathSize = nsmoothPath;
