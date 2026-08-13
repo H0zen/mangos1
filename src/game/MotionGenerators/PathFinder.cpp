@@ -715,6 +715,27 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
     // first point is always our current location - we need the next one
     setActualEndPosition(m_route.points[pointCount - 1]);
 
+    // The verdict up to here was about the CORRIDOR: it said the chain of polygons ends
+    // on the goal's polygon, which is a different claim from "these points arrive". The
+    // smoother walks that corridor in four-yard steps and can stop anywhere along it --
+    // it runs out of steering, or out of points -- and until now nothing looked again.
+    //
+    // Seen on a live server: a route reporting `routed, reached the goal` whose last
+    // point lay 153 yards from the destination, over a 27-polygon corridor walked for
+    // 236 yards. Everything above trusts IsRouted() to mean the mover arrives:
+    // MOVE_REQUIRE_PATH decides whether a creature may start at all, and waypoint
+    // smoothing welds one leg to the next only when it holds. Both were being told a
+    // path reaches somewhere it does not.
+    //
+    // So the geometry has the last word. Points that stop short make a PARTIAL route,
+    // whatever the polygons promised.
+    if (m_route.IsRouted() &&
+        !inRange(getEndPosition(), getActualEndPosition(), 1.0f, 1.0f))
+    {
+        m_route.outcome = Nav::RouteOutcome::Partial;
+        m_route.stop = Nav::RouteStop::Wall;
+    }
+
     // force the given destination, if needed
     if (m_forceDestination &&
         (!m_route.IsRouted() || !inRange(getEndPosition(), getActualEndPosition(), 1.0f, 1.0f)))
@@ -949,6 +970,42 @@ bool PathFinder::getSteerTarget(const float* startPos, const float* endPos,
  * @param maxSmoothPathSize The maximum size of the smooth path.
  * @return The status of the pathfinding operation.
  */
+/**
+ * @brief Put a smoothed point on the surface its polygon describes.
+ *
+ * The surface is not always ground. The baker emits the LIQUID SURFACE as its own
+ * NAV_WATER polygons, at the water's height, stacked over the seabed's NAV_GROUND ones
+ * -- and a creature that both walks and swims is admitted to both, so a route through
+ * shallow water crosses between them freely.
+ *
+ * A flat half-yard lift was applied to whichever polygon the walk had reached. Above
+ * the seabed that is sensible clearance. Above a water SURFACE it is half a yard into
+ * the air, so a swimmer surfaced, then dropped to the sand at the next polygon, then
+ * surfaced again: the pop-and-sink zig-zag a crab in the shallows visibly does.
+ *
+ * A liquid surface therefore seats the mover BELOW it, by the same two yards
+ * TerrainInfo::GetWaterOrGroundLevel already uses for a swimmer, rather than inventing
+ * a second answer to a question this tree has already answered.
+ *
+ * @param poly  Polygon the point has reached.
+ * @param point [in,out] Detour-order position; only its height is changed.
+ */
+void PathFinder::seatOnSurface(dtPolyRef poly, float* point) const
+{
+    m_navMeshQuery->getPolyHeight(poly, point, &point[1]);
+
+    unsigned char area = NAV_GROUND;
+    if (dtStatusFailed(m_navMesh->getPolyArea(poly, &area)))
+    {
+        area = NAV_GROUND;
+    }
+
+    // Magma and slime are surfaces in exactly the same sense, and a creature crossing
+    // one is in it, not on it.
+    const bool liquid = (area & (NAV_WATER | NAV_MAGMA | NAV_SLIME)) != 0;
+    point[1] += liquid ? -SWIM_SEAT_DEPTH : GROUND_CLEARANCE;
+}
+
 dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
                                     const dtPolyRef* polyPath, uint32 polyPathSize,
                                     float* smoothPath, int* smoothPathSize, uint32 maxSmoothPathSize)
@@ -1019,8 +1076,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         m_navMeshQuery->moveAlongSurface(polys[0], iterPos, moveTgt, &m_filter, result, visited, (int*)&nvisited, MAX_VISIT_POLY);
         npolys = fixupCorridor(polys, npolys, Nav::Corridor::CAPACITY, visited, nvisited);
 
-        m_navMeshQuery->getPolyHeight(polys[0], result, &result[1]);
-        result[1] += 0.5f;
+        seatOnSurface(polys[0], result);
         dtVcopy(iterPos, result);
 
         // Handle end of path and off-mesh links when close enough.
@@ -1086,8 +1142,12 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
     *smoothPathSize = nsmoothPath;
 
-    // Return success if the smooth path size is within the maximum limit.
-    return nsmoothPath < Nav::MAX_POINTS ? DT_SUCCESS : DT_FAILURE;
+    // Did it run out of room? Against the bound this call was GIVEN, not against the
+    // global ceiling: the loop above stops at maxSmoothPathSize, so a caller that asked
+    // for a shorter path -- a chase with a length limit -- got a path truncated by its
+    // own budget and was told DT_SUCCESS, because 40 is under 74 and 74 was what the
+    // test compared. The stop and the verdict must use one bound.
+    return nsmoothPath < maxSmoothPathSize ? DT_SUCCESS : DT_FAILURE;
 }
 
 /**

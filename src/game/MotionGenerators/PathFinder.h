@@ -48,6 +48,15 @@ constexpr int VERTEX_SIZE = 3;
 /// The polygon reference that refers to nothing.
 constexpr dtPolyRef INVALID_POLYREF = 0;
 
+/// How far above the ground a smoothed point sits. Clearance, so the point is not
+/// exactly on the surface it was projected onto.
+constexpr float GROUND_CLEARANCE = 0.5f;
+
+/// How far BELOW a liquid surface a swimmer sits. The same two yards
+/// TerrainInfo::GetWaterOrGroundLevel seats a swimmer at, so the router and the terrain
+/// do not hold two different opinions about where the water puts a body.
+constexpr float SWIM_SEAT_DEPTH = 2.0f;
+
 /**
  * @brief Class responsible for finding paths for units.
  */
@@ -335,6 +344,14 @@ class PathFinder
         bool getSteerTarget(const float* startPos, const float* endPos, float minTargetDist,
                             const dtPolyRef* path, uint32 pathSize, float* steerPos,
                             unsigned char& steerPosFlag, dtPolyRef& steerPosRef);
+
+        /**
+         * @brief Put a smoothed point on the surface its polygon describes -- above the
+         *        ground, or below a liquid surface.
+         * @param poly Polygon the point has reached.
+         * @param point [in,out] Detour-order position; only its height is changed.
+         */
+        void seatOnSurface(dtPolyRef poly, float* point) const;
 
         /**
          * @brief Find the smooth path.
