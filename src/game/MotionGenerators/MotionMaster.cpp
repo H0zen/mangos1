@@ -58,6 +58,20 @@ inline static bool isStatic(MovementGenerator* mv)
 }
 
 /**
+ * @brief Chase and follow, which stack on one another and must be dropped together.
+ *
+ * Expiring a chase that was sitting on another chase used to leave the creature
+ * pursuing what it had just been told to stop pursuing. The rule was a loop over two
+ * enum values buried inside expire; naming it does not change it, but it stops it
+ * reading like an accident.
+ */
+inline static bool isTargeted(MovementGenerator* mv)
+{
+    const MovementGeneratorType type = mv->GetMovementGeneratorType();
+    return type == CHASE_MOTION_TYPE || type == FOLLOW_MOTION_TYPE;
+}
+
+/**
  * @brief Initializes the MotionMaster.
  */
 void MotionMaster::Initialize()
@@ -72,7 +86,7 @@ void MotionMaster::Initialize()
     if (m_owner->GetTypeId() == TYPEID_UNIT && !m_owner->hasUnitState(UNIT_STAT_CONTROLLED))
     {
         MovementGenerator* movement = FactorySelector::selectMovementGenerator((Creature*)m_owner);
-        push(movement == nullptr ? &si_idleMovement : movement);
+        m_roster.Add(movement == nullptr ? &si_idleMovement : movement);
         top()->Initialize(*m_owner);
         if (top()->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -81,7 +95,7 @@ void MotionMaster::Initialize()
     }
     else
     {
-        push(&si_idleMovement);
+        m_roster.Add(&si_idleMovement);
     }
 }
 
@@ -90,14 +104,27 @@ void MotionMaster::Initialize()
  */
 MotionMaster::~MotionMaster()
 {
-    // Just deallocate movement generator, but do not Finalize since it may access to already deallocated owner's memory
-    while (!empty())
+    // Deallocate, but do not Finalize: the owner is already being torn down and a
+    // generator's cleanup would reach into memory that has gone.
+    for (MovementGenerator* gen : m_roster)
     {
-        MovementGenerator* m = top();
-        pop();
-        if (!isStatic(m))
+        if (!isStatic(gen))
         {
-            delete m;
+            delete gen;
+        }
+    }
+    m_roster.Abandon();
+}
+
+void MotionMaster::Dispose()
+{
+    for (MovementGenerator* gen : m_roster.TakeRetired())
+    {
+        // The idle generator is a shared static, and deleting it would take every
+        // other unit's default behaviour with it.
+        if (!isStatic(gen))
+        {
+            delete gen;
         }
     }
 }
@@ -113,198 +140,116 @@ void MotionMaster::UpdateMotion(uint32 diff)
         return;
     }
 
-    MANGOS_ASSERT(!empty());
-    m_cleanFlag |= MMCF_UPDATE;
+    MANGOS_ASSERT(!m_roster.Empty());
 
-    if (!top()->Update(*m_owner, diff))
+    // The driving window is exactly the Update call, and that is the point: a generator
+    // that asks to be expired from inside its own Update is asking while we are standing
+    // in it, so the removal must not free it yet. One that expires afterwards can be
+    // freed at once, and is.
+    m_roster.BeginDriving();
+    const bool keepDriving = top()->Update(*m_owner, diff);
+    m_roster.EndDriving();
+
+    if (!keepDriving)
     {
-        m_cleanFlag &= ~MMCF_UPDATE;
         MovementExpired();
     }
-    else
+
+    if (m_roster.HasRetired())
     {
-        m_cleanFlag &= ~MMCF_UPDATE;
-    }
+        Dispose();
 
-    if (m_expList)
-    {
-        for (size_t i = 0; i < m_expList->size(); ++i)
-        {
-            MovementGenerator* mg = (*m_expList)[i];
-            if (!isStatic(mg))
-            {
-                delete mg;
-            }
-        }
-
-        delete m_expList;
-        m_expList = NULL;
-
-        if (empty())
+        // A unit always has something driving it. Emptying the roster is legal on the
+        // way through -- the targeted-motion sweep below can do it -- but never a
+        // resting state.
+        if (m_roster.Empty())
         {
             Initialize();
         }
 
-        if (m_cleanFlag & MMCF_RESET)
+        if (m_resetPending)
         {
+            m_resetPending = false;
             top()->Reset(*m_owner);
-            m_cleanFlag &= ~MMCF_RESET;
         }
     }
 }
 
-/**
- * @brief Directly cleans the movement generators.
- * @param reset Whether to reset the movement generators.
- * @param all Whether to clear all movement generators.
- */
-void MotionMaster::DirectClean(bool reset, bool all)
+void MotionMaster::Clear(bool reset, bool all)
 {
-    while (all ? !empty() : size() > 1)
-    {
-        MovementGenerator* curr = top();
-        pop();
-        curr->Finalize(*m_owner);
+    // The floor says the rule once: a unit keeps its default behaviour unless the
+    // caller is clearing everything. This was `size() > 1` in four places.
+    const std::size_t floor = all ? 0u : 1u;
 
-        if (!isStatic(curr))
-        {
-            delete curr;
-        }
+    while (m_roster.Size() > floor)
+    {
+        MovementGenerator* gen = top();
+        m_roster.RemoveActive(floor);
+        gen->Finalize(*m_owner);
     }
+
+    // Called from inside a generator's Update: the retired list holds something we are
+    // standing in, so freeing waits and so does the reset. UpdateMotion does both.
+    if (m_roster.Driving())
+    {
+        m_resetPending = reset;
+        return;
+    }
+
+    Dispose();
 
     if (!all && reset)
     {
-        MANGOS_ASSERT(!empty());
+        MANGOS_ASSERT(!m_roster.Empty());
         top()->Reset(*m_owner);
     }
 }
 
-/**
- * @brief Delays the cleaning of the movement generators.
- * @param reset Whether to reset the movement generators.
- * @param all Whether to clear all movement generators.
- */
-void MotionMaster::DelayedClean(bool reset, bool all)
+void MotionMaster::MovementExpired(bool reset)
 {
-    if (reset)
-    {
-        m_cleanFlag |= MMCF_RESET;
-    }
-    else
-    {
-        m_cleanFlag &= ~MMCF_RESET;
-    }
-
-    if (empty() || (!all && size() == 1))
+    // Nothing to expire down to. The default behaviour at the bottom outlives every
+    // generator stacked on it.
+    if (m_roster.Size() <= 1)
     {
         return;
     }
 
-    if (!m_expList)
+    MovementGenerator* expiring = top();
+    m_roster.RemoveActive(0);
+
+    // ...and the targeted motions parked underneath it go too. No floor here, and that
+    // is deliberate: if the sweep empties the roster, Initialize below puts the default
+    // back. Stopping at the floor instead would leave a chase running that the caller
+    // has just cancelled.
+    while (!m_roster.Empty() && isTargeted(top()))
     {
-        m_expList = new ExpireList();
+        MovementGenerator* beneath = top();
+        m_roster.RemoveActive(0);
+        beneath->Finalize(*m_owner);
     }
 
-    while (all ? !empty() : size() > 1)
-    {
-        MovementGenerator* curr = top();
-        pop();
-        curr->Finalize(*m_owner);
+    // Read BEFORE the finalize, because a generator's cleanup is allowed to push its
+    // successor -- a creature that stops fleeing goes home, and says so from inside the
+    // flee's own cleanup. Resetting afterwards would reset the newcomer.
+    MovementGenerator* const wasTop = m_roster.Empty() ? nullptr : top();
+    expiring->Finalize(*m_owner);
 
-        if (!isStatic(curr))
-        {
-            m_expList->push_back(curr);
-        }
-    }
-}
-
-/**
- * @brief Directly expires the current movement generator.
- * @param reset Whether to reset the movement generator.
- */
-void MotionMaster::DirectExpire(bool reset)
-{
-    if (empty() || size() == 1)
+    if (m_roster.Driving())
     {
+        m_resetPending = reset;
         return;
     }
 
-    MovementGenerator* curr = top();
-    pop();
+    Dispose();
 
-    // Also drop stored under top() targeted motions
-    while (!empty() && (top()->GetMovementGeneratorType() == CHASE_MOTION_TYPE || top()->GetMovementGeneratorType() == FOLLOW_MOTION_TYPE))
-    {
-        MovementGenerator* temp = top();
-        pop();
-        temp->Finalize(*m_owner);
-        delete temp;
-    }
-
-    // Store current top MMGen, as Finalize might push a new MMGen
-    MovementGenerator* nowTop = empty() ? NULL : top();
-    // It can add another motions instead
-    curr->Finalize(*m_owner);
-
-    if (!isStatic(curr))
-    {
-        delete curr;
-    }
-
-    if (empty())
+    if (m_roster.Empty())
     {
         Initialize();
     }
 
-    // Prevent reseting possible new pushed MMGen
-    if (reset && top() == nowTop)
+    if (reset && top() == wasTop)
     {
         top()->Reset(*m_owner);
-    }
-}
-
-/**
- * @brief Delays the expiration of the current movement generator.
- * @param reset Whether to reset the movement generator.
- */
-void MotionMaster::DelayedExpire(bool reset)
-{
-    if (reset)
-    {
-        m_cleanFlag |= MMCF_RESET;
-    }
-    else
-    {
-        m_cleanFlag &= ~MMCF_RESET;
-    }
-
-    if (empty() || size() == 1)
-    {
-        return;
-    }
-
-    MovementGenerator* curr = top();
-    pop();
-
-    if (!m_expList)
-    {
-        m_expList = new ExpireList();
-    }
-
-    // Also drop stored under top() targeted motions
-    while (!empty() && (top()->GetMovementGeneratorType() == CHASE_MOTION_TYPE || top()->GetMovementGeneratorType() == FOLLOW_MOTION_TYPE))
-    {
-        MovementGenerator* temp = top();
-        pop();
-        temp ->Finalize(*m_owner);
-        m_expList->push_back(temp);
-    }
-
-    curr->Finalize(*m_owner);
-
-    if (!isStatic(curr))
-    {
-        m_expList->push_back(curr);
     }
 }
 
@@ -315,7 +260,7 @@ void MotionMaster::MoveIdle()
 {
     if (empty() || !isStatic(top()))
     {
-        push(&si_idleMovement);
+        m_roster.Add(&si_idleMovement);
     }
 }
 
@@ -650,7 +595,7 @@ void MotionMaster::Mutate(MovementGenerator* m)
     }
 
     m->Initialize(*m_owner);
-    push(m);
+    m_roster.Add(m);
 }
 
 /**
@@ -658,10 +603,9 @@ void MotionMaster::Mutate(MovementGenerator* m)
  */
 void MotionMaster::PropagateSpeedChange()
 {
-    Impl::container_type::iterator it = Impl::c.begin();
-    for (; it != end(); ++it)
+    for (MovementGenerator* gen : m_roster)
     {
-        (*it)->unitSpeedChanged();
+        gen->unitSpeedChanged();
     }
 }
 
@@ -672,7 +616,7 @@ void MotionMaster::PropagateSpeedChange()
  */
 bool MotionMaster::SetNextWaypoint(uint32 pointId)
 {
-    for (Impl::container_type::reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -688,7 +632,7 @@ bool MotionMaster::SetNextWaypoint(uint32 pointId)
  */
 uint32 MotionMaster::getLastReachedWaypoint() const
 {
-    for (Impl::container_type::const_reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -718,7 +662,7 @@ MovementGeneratorType MotionMaster::GetCurrentMovementGeneratorType() const
  */
 void MotionMaster::GetWaypointPathInformation(std::ostringstream& oss) const
 {
-    for (Impl::container_type::const_reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {

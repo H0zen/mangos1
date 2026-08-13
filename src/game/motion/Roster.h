@@ -92,6 +92,18 @@ namespace Helm
                 return m_entries.end();
             }
 
+            /// Newest first. What a search for "the most recent entry of some kind"
+            /// wants -- the waypoint generator parked under whatever is driving now.
+            typename std::vector<T>::const_reverse_iterator rbegin() const
+            {
+                return m_entries.rbegin();
+            }
+
+            typename std::vector<T>::const_reverse_iterator rend() const
+            {
+                return m_entries.rend();
+            }
+
             /// Put `entry` in charge.
             void Add(T const& entry) { m_entries.push_back(entry); }
 

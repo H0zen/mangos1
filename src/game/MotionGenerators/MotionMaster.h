@@ -28,7 +28,7 @@
 
 #include "Platform/Define.h"
 #include "DBCStructure.h"                                   // TaxiPathNodeList, by value in the merged taxi route
-#include <stack>
+#include "Roster.h"
 #include <vector>
 #include <sstream>
 
@@ -70,30 +70,30 @@ enum MovementGeneratorType
 };
 
 /**
- * @brief Motion master clean flags
- */
-enum MMCleanFlag
-{
-    MMCF_NONE = 0,   ///< No clean flag
-    MMCF_UPDATE = 1, ///< Clear or Expire called from update
-    MMCF_RESET = 2   ///< Flag if need top()->Reset()
-};
-
-/**
  * @brief MotionMaster is responsible for managing the movement generators for a unit.
+ *
+ * It used to BE a stack -- `private std::stack<MovementGenerator*>` -- and paid for it
+ * with four near-identical clean-and-expire functions, two flag bits and a side list of
+ * things awaiting deletion. All of that existed for one reason: a stack cannot be popped
+ * while something is walking it, and here the thing being popped is routinely the thing
+ * doing the popping. A generator's Update asks to be expired; a generator's Finalize
+ * pushes its replacement.
+ *
+ * The ordering and lifetime rules now live in Helm::Roster, where they have tests. What
+ * is left here is what was always the interesting part: WHICH generator a Move* call
+ * installs, and what has to be finalised when one goes away.
+ *
+ * The selection rule is unchanged -- the newest entry drives, which is what a stack
+ * meant. Ranks replace that one rule and nothing else, later.
  */
-class MotionMaster : private std::stack<MovementGenerator*>
+class MotionMaster
 {
-    private:
-        typedef std::stack<MovementGenerator*> Impl;
-        typedef std::vector<MovementGenerator*> ExpireList;
-
     public:
         /**
          * @brief Constructor for MotionMaster.
          * @param unit Pointer to the unit.
          */
-        explicit MotionMaster(Unit* unit) : m_owner(unit), m_expList(NULL), m_cleanFlag(MMCF_NONE) {}
+        explicit MotionMaster(Unit* unit) : m_owner(unit), m_resetPending(false) {}
 
         /**
          * @brief Destructor for MotionMaster.
@@ -111,12 +111,16 @@ class MotionMaster : private std::stack<MovementGenerator*>
          */
         MovementGenerator const* GetCurrent() const { return top(); }
 
-        using Impl::top;
-        using Impl::empty;
+        /// The generator currently driving. Only valid when !empty(); the old stack
+        /// said the same by being a stack, and every caller already checks.
+        MovementGenerator* top() const { return m_roster.Active(); }
 
-        typedef Impl::container_type::const_iterator const_iterator;
-        const_iterator begin() const { return Impl::c.begin(); }
-        const_iterator end() const { return Impl::c.end(); }
+        bool empty() const { return m_roster.Empty(); }
+
+        /// Oldest first: the bottom is the unit's default behaviour.
+        typedef std::vector<MovementGenerator*>::const_iterator const_iterator;
+        const_iterator begin() const { return m_roster.begin(); }
+        const_iterator end() const { return m_roster.end(); }
 
         /**
          * @brief Updates the motion of the unit.
@@ -129,33 +133,13 @@ class MotionMaster : private std::stack<MovementGenerator*>
          * @param reset Whether to reset the movement generators.
          * @param all Whether to clear all movement generators.
          */
-        void Clear(bool reset = true, bool all = false)
-        {
-            if (m_cleanFlag & MMCF_UPDATE)
-            {
-                DelayedClean(reset, all);
-            }
-            else
-            {
-                DirectClean(reset, all);
-            }
-        }
+        void Clear(bool reset = true, bool all = false);
 
         /**
          * @brief Expires the current movement generator.
          * @param reset Whether to reset the movement generator.
          */
-        void MovementExpired(bool reset = true)
-        {
-            if (m_cleanFlag & MMCF_UPDATE)
-            {
-                DelayedExpire(reset);
-            }
-            else
-            {
-                DirectExpire(reset);
-            }
-        }
+        void MovementExpired(bool reset = true);
 
         /**
          * @brief Moves the unit to idle state.
@@ -314,34 +298,20 @@ class MotionMaster : private std::stack<MovementGenerator*>
         void Mutate(MovementGenerator* m);                  // Use Move* functions instead
 
         /**
-         * @brief Directly clears the movement generators.
-         * @param reset Whether to reset the movement generators.
-         * @param all Whether to clear all movement generators.
+         * @brief Free what has been retired, skipping the shared idle generator.
+         *
+         * Removal and release are two events, because the generator being removed is
+         * routinely the one whose call stack we are standing in. This is the release,
+         * and it is only ever called when nothing is driving.
          */
-        void DirectClean(bool reset, bool all);
+        void Dispose();
 
-        /**
-         * @brief Delays the clearing of the movement generators.
-         * @param reset Whether to reset the movement generators.
-         * @param all Whether to clear all movement generators.
-         */
-        void DelayedClean(bool reset, bool all);
+        Unit* m_owner;                             ///< Pointer to the owner unit.
+        Helm::Roster<MovementGenerator*> m_roster; ///< Who drives, and who waits.
 
-        /**
-         * @brief Directly expires the current movement generator.
-         * @param reset Whether to reset the movement generator.
-         */
-        void DirectExpire(bool reset);
-
-        /**
-         * @brief Delays the expiration of the current movement generator.
-         * @param reset Whether to reset the movement generator.
-         */
-        void DelayedExpire(bool reset);
-
-        Unit*       m_owner; ///< Pointer to the owner unit.
-        ExpireList* m_expList; ///< List of expired movement generators.
-        uint8       m_cleanFlag; ///< Flag for cleaning the movement generators.
+        /// A Clear or an expiry asked for a Reset while a generator was being updated,
+        /// so it could not be delivered then. Was MMCF_RESET.
+        bool m_resetPending;
 };
 
 #endif // MANGOS_MOTIONMASTER_H
