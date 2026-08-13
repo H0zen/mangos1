@@ -263,6 +263,10 @@ namespace Movement
             /// as a curve rather than joining them.
             bool IsSmooth() const { return splineflags.isSmooth(); }
 
+            /// A fall: the height comes from gravity rather than from the geometry, so
+            /// anything evaluating this leg from its points alone will get Z wrong.
+            bool IsFalling() const { return splineflags.falling; }
+
             /**
              * @brief Checks if the spline is finalized.
              * @return bool True if the spline is finalized, false otherwise.

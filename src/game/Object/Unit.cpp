@@ -6380,12 +6380,122 @@ void Unit::UpdateSplineMovement(uint32 t_diff)
         MaintainCourseSync();
     }
 
+    // Where the unit is, every tick, from the plan it was given. Three floats and a
+    // short search: no grid work, no notifications, nothing that costs.
+    RefreshPoseFromCourse();
+
+    // Telling the GRID is the expensive half, and it is the half that can wait. A cell
+    // is 33 yards across; a creature that has moved a couple of yards is still in it.
     m_movesplineTimer.Update(t_diff);
     if (m_movesplineTimer.Passed() || arrived)
     {
         m_movesplineTimer.Reset(POSITION_UPDATE_DELAY);
         RelocateToSplinePosition();
     }
+}
+
+/**
+ * @brief Put the pose where the plan says the unit is right now.
+ *
+ * The position this server reports has never been the position it means. It was
+ * refreshed every 400 ms from the spline, so between refreshes it lagged by up to 2.8
+ * yards at a run -- on every moving creature, all the time, in the direction of travel.
+ * Everything that asks where something is has been reading that: spell range, melee
+ * reach, aggro radius, line of sight.
+ *
+ * The plan can answer the question exactly, for any instant, and it costs a binary
+ * search over at most a few dozen marks and a lerp. So ask it every tick and leave the
+ * grid on its timer. This is not a new approximation replacing an old one; it is the
+ * removal of one.
+ *
+ * Four gates, and each of them guards a way the plan could be the wrong plan:
+ */
+void Unit::RefreshPoseFromCourse()
+{
+    if (m_course.Empty())
+    {
+        return;
+    }
+
+    // 1. The course must be THIS leg. Any other and we would be walking the unit along
+    //    something it is no longer doing -- which is precisely what a spline id is for,
+    //    and precisely why it mattered that every one of them used to be zero.
+    if (m_course.Id() != movespline->GetId())
+    {
+        return;
+    }
+
+    // 2. The frame must be the one the unit stands in. A deck course is expressed on
+    //    the vessel's map and composing it into the world would place the unit a few
+    //    yards from the map origin.
+    if (m_course.GetDomain().map != GetMapId())
+    {
+        return;
+    }
+
+    // 3. A falling spline's height comes from gravity, not from its geometry -- the
+    //    client computes the elevation itself and so does MoveSpline. The course has no
+    //    such notion, so its Z would be the straight line to the landing point and the
+    //    unit would sink at a constant rate instead of accelerating.
+    if (movespline->IsFalling())
+    {
+        return;
+    }
+
+    // 4. Once it has ended the course clamps to its destination, which is right -- but
+    //    the arrival relocation below is what tells the grid, and leaving this to run
+    //    afterwards would keep overwriting a pose that something else may since have
+    //    set (a teleport, a knockback).
+    const Helm::Instant now = getMSTime();
+    if (m_course.Ended(now))
+    {
+        return;
+    }
+
+    Place().MoveTo(m_course.At(now), m_course.Heading(now));
+}
+
+/**
+ * @brief How far the position just reported may be from what the client is drawing.
+ *
+ * Zero when nothing is running, and zero at both ends of a leg -- the duration is on
+ * the wire and both sides agree there by construction. In between there is real
+ * uncertainty and this is the first time the server has been able to state it rather
+ * than pretend it away.
+ *
+ * Two parts. The course knows what its own geometry costs: the quarter-yard packing of
+ * its interior points, and, on a curved leg, a parameterisation that is not arc length.
+ * The session knows the rest: how far the client's movement clock has drifted from
+ * ours, which turns into yards at this leg's speed.
+ *
+ * Nothing consults it yet. It is here so that the checks which fail at the margin --
+ * melee reach, spell range, an aggro radius -- can eventually ask how sure we are
+ * instead of assuming.
+ */
+float Unit::PositionSlack() const
+{
+    if (m_course.Empty() || m_course.Id() != movespline->GetId())
+    {
+        return 0.0f;
+    }
+
+    const Helm::Instant now = getMSTime();
+    if (m_course.Ended(now))
+    {
+        return 0.0f;
+    }
+
+    float slack = m_course.Slack(now);
+
+    if (Player const* driver = GetCharmerOrOwnerPlayerOrPlayerItself())
+    {
+        if (WorldSession* session = driver->GetSession())
+        {
+            const Helm::Millis unsure = session->CourseClock().Uncertainty(now);
+            slack += m_course.Speed() * float(unsure) / 1000.0f;
+        }
+    }
+    return slack;
 }
 
 /**
@@ -6424,11 +6534,10 @@ void Unit::MaintainCourseSync()
     // creature nobody drives has none, and an unfed clock reports no skew -- which
     // disables the early trigger and leaves the plain cadence, the right answer for it.
     static const Helm::ClientClock unowned;
-    Unit const* driver = GetCharmerOrOwnerOrSelf();
     Helm::ClientClock const* clock = &unowned;
-    if (driver && driver->GetTypeId() == TYPEID_PLAYER)
+    if (Player const* driver = GetCharmerOrOwnerPlayerOrPlayerItself())
     {
-        if (WorldSession* session = ((Player const*)driver)->GetSession())
+        if (WorldSession* session = driver->GetSession())
         {
             clock = &session->CourseClock();
         }

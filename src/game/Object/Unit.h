@@ -3874,15 +3874,21 @@ class Unit : public WorldObject
         /**
          * @brief The leg this unit was last told to travel, as a plan.
          *
-         * Written by the launcher, and for now READ BY NOBODY: the spline beside it is
-         * still what the server consults for where the unit is and when it arrives.
-         * What the course already owns is the packet -- it is the value the client was
-         * actually sent -- which is the point of keeping it here rather than throwing
-         * it away after serialising. When position becomes a query, this is what it
-         * will be a query of.
+         * It is the value the client was actually sent, and now also what the unit's
+         * own pose is evaluated from on every tick. Arrival and the path index still
+         * come from the spline beside it.
          */
         Helm::Course const& CurrentCourse() const { return m_course; }
         void SetCourse(Helm::Course const& course) { m_course = course; }
+
+        /**
+         * @brief How far Where() may be from what the client is drawing, in yards.
+         *
+         * Zero when nothing is running and zero at both ends of a leg. Nothing reads
+         * it yet; it exists so that the checks which fail at the margin can eventually
+         * ask how sure we are rather than assume.
+         */
+        float PositionSlack() const;
 
         void ScheduleAINotify(uint32 delay);
         bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
@@ -3959,6 +3965,10 @@ class Unit : public WorldObject
         /// Send the running leg's progress to the observers when it has run long
         /// enough, or when the controlling client says it has fallen behind.
         void MaintainCourseSync();
+
+        /// Put the pose where the plan says the unit is right now. Every tick; the
+        /// grid relocation beside it stays on its timer.
+        void RefreshPoseFromCourse();
 
         /// When the running leg was last repaired, and which leg that was.
         Helm::CourseSync::State m_courseSync;
