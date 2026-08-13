@@ -1078,8 +1078,19 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         return DT_FAILURE;
     }
 
-    dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-    ++nsmoothPath;
+    // Emit a point: the walk's position, seated on the surface the mover's body
+    // actually rests on. The ONLY place the seat is applied, so it can never leak back
+    // into the stepping.
+    const auto emit = [&](const float* where)
+    {
+        float seated[VERTEX_SIZE];
+        dtVcopy(seated, where);
+        seatOnSurface(polys[0], seated);
+        dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], seated);
+        ++nsmoothPath;
+    };
+
+    emit(iterPos);
 
     // WHY the walk stopped. A smoothed path that ends short is indistinguishable at the
     // call site from one that arrived, and the three ways out are worth telling apart:
@@ -1155,7 +1166,18 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         npolys = fixupCorridor(polys, npolys, Nav::Corridor::CAPACITY, visited, nvisited);
 
-        seatOnSurface(polys[0], result);
+        // THE WALK STAYS ON THE MESH. Seating the iterator was a mistake with a very
+        // visible signature: the seat can be yards below the polygon -- a seabed under
+        // open water -- while the steer target still comes off the mesh, so the delta
+        // between them turns mostly VERTICAL and each four-yard step is spent falling
+        // rather than travelling. A twenty-yard swim came out as sixty-six points
+        // stacked in vertical columns.
+        //
+        // Where the mover may go is a mesh question and is answered here; how high its
+        // body sits is a world question and is answered once, at the point of emission.
+        // Feeding the second answer back into the first conflated them.
+        m_navMeshQuery->getPolyHeight(polys[0], result, &result[1]);
+        result[1] += GROUND_CLEARANCE;
         dtVcopy(iterPos, result);
 
         // Handle end of path and off-mesh links when close enough.
@@ -1166,8 +1188,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
             dtVcopy(iterPos, targetPos);
             if (nsmoothPath < maxSmoothPathSize)
             {
-                dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-                ++nsmoothPath;
+                emit(iterPos);
             }
             break;
         }
@@ -1200,8 +1221,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
                 // If there is space in the smooth path, add the new start position.
                 if (nsmoothPath < maxSmoothPathSize)
                 {
-                    dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], newStartPos);
-                    ++nsmoothPath;
+                    emit(newStartPos);
                 }
                 // Move the iterator position to the other side of the off-mesh link.
                 dtVcopy(iterPos, newEndPos);
@@ -1215,8 +1235,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
         // Store the current iterator position in the smooth path if there is space.
         if (nsmoothPath < maxSmoothPathSize)
         {
-            dtVcopy(&smoothPath[nsmoothPath * VERTEX_SIZE], iterPos);
-            ++nsmoothPath;
+            emit(iterPos);
         }
     }
 
