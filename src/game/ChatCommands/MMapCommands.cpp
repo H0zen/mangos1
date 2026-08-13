@@ -56,30 +56,30 @@ namespace
     // starts quoting whatever follows the array -- while a switch with no default makes
     // the omission a compiler warning on both GCC and Clang, which is where it belongs.
 
-    const char* RouteOutcomeName(RouteOutcome outcome)
+    const char* RouteOutcomeName(Path::RouteOutcome outcome)
     {
         switch (outcome)
         {
-            case RouteOutcome::Routed:     return "routed";
-            case RouteOutcome::Partial:    return "partial";
-            case RouteOutcome::Direct:     return "direct (no routing)";
-            case RouteOutcome::Unroutable: return "unroutable";
+            case Path::RouteOutcome::Routed:     return "routed";
+            case Path::RouteOutcome::Partial:    return "partial";
+            case Path::RouteOutcome::Direct:     return "direct (no routing)";
+            case Path::RouteOutcome::Unroutable: return "unroutable";
         }
         return "unknown";
     }
 
-    const char* RouteStopName(RouteStop stop)
+    const char* RouteStopName(Path::RouteStop stop)
     {
         switch (stop)
         {
-            case RouteStop::Reached:    return "reached the goal";
-            case RouteStop::Wall:       return "the world blocked it";
-            case RouteStop::NodeBudget: return "search node pool exhausted";
-            case RouteStop::PolyBudget: return "polygon buffer full";
-            case RouteStop::NoMesh:     return "no navmesh here";
-            case RouteStop::OffMesh:    return "start or goal is off the mesh";
-            case RouteStop::Forced:     return "destination was forced";
-            case RouteStop::Failed:     return "the query failed";
+            case Path::RouteStop::Reached:    return "reached the goal";
+            case Path::RouteStop::Wall:       return "the world blocked it";
+            case Path::RouteStop::NodeBudget: return "search node pool exhausted";
+            case Path::RouteStop::PolyBudget: return "polygon buffer full";
+            case Path::RouteStop::NoMesh:     return "no navmesh here";
+            case Path::RouteStop::OffMesh:    return "start or goal is off the mesh";
+            case Path::RouteStop::Forced:     return "destination was forced";
+            case Path::RouteStop::Failed:     return "the query failed";
         }
         return "unknown";
     }
@@ -168,7 +168,7 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
 
     PointsArray pointPath = path.getPath();
 
-    const Route& route = path.getRoute();
+    const Path::Route& route = path.getRoute();
     PSendSysMessage("%s's path to %s:", originUnit->GetName(), destinationUnit->GetName());
     PSendSysMessage("Building %s", useStraightPath ? "StraightPath" : "SmoothPath");
     PSendSysMessage("length %zu, %s, stopped: %s", pointPath.size(),

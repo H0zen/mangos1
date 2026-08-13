@@ -28,7 +28,7 @@
 // None of this could be asserted on before. Every one of these answers lived either
 // inside a bitmask that only the router wrote, or behind a call into a live Unit --
 // and standing a Unit up needs a Map, which needs the database. The whole point of
-// extracting Route and MoveProfile as values is that these cases now cost nothing to
+// extracting Path::Route and Path::MoveProfile as values is that these cases now cost nothing to
 // run, so the suite links no part of the game to run them.
 
 #include "TestHarness.h"
@@ -44,12 +44,12 @@
 #include <vector>
 
 // ---------------------------------------------------------------------------
-// Route: four states, and the three questions consumers ask of them.
+// Path::Route: four states, and the three questions consumers ask of them.
 // ---------------------------------------------------------------------------
 
-static Route MakeRoute(RouteOutcome outcome, RouteStop stop)
+static Path::Route MakeRoute(Path::RouteOutcome outcome, Path::RouteStop stop)
 {
-    Route r;
+    Path::Route r;
     r.outcome = outcome;
     r.stop = stop;
     return r;
@@ -60,7 +60,7 @@ TEST(Route_DefaultRefuses)
     // A default-constructed route must not read as usable. The router assigns its
     // outcome on every branch, but "on every branch" is a property of today's code,
     // and the default is what protects the day one branch stops doing it.
-    const Route r;
+    const Path::Route r;
     CHECK(r.Failed());
     CHECK(!r.IsRouted());
     CHECK(!r.UsedGeometry());
@@ -75,7 +75,7 @@ TEST(Route_OutcomesAreExclusive)
     // the questions are separate.
     struct Row
     {
-        RouteOutcome outcome;
+        Path::RouteOutcome outcome;
         bool         isRouted;
         bool         usedGeometry;
         bool         willArrive;
@@ -84,15 +84,15 @@ TEST(Route_OutcomesAreExclusive)
 
     const Row rows[] =
     {
-        { RouteOutcome::Routed,     true,  true,  true,  false },
-        { RouteOutcome::Partial,    false, true,  false, false },
-        { RouteOutcome::Direct,     false, false, true,  false },
-        { RouteOutcome::Unroutable, false, false, false, true  },
+        { Path::RouteOutcome::Routed,     true,  true,  true,  false },
+        { Path::RouteOutcome::Partial,    false, true,  false, false },
+        { Path::RouteOutcome::Direct,     false, false, true,  false },
+        { Path::RouteOutcome::Unroutable, false, false, false, true  },
     };
 
     for (const Row& row : rows)
     {
-        const Route r = MakeRoute(row.outcome, RouteStop::Reached);
+        const Path::Route r = MakeRoute(row.outcome, Path::RouteStop::Reached);
         CHECK_EQ(r.IsRouted(), row.isRouted);
         CHECK_EQ(r.UsedGeometry(), row.usedGeometry);
         CHECK_EQ(r.WillArrive(), row.willArrive);
@@ -107,8 +107,8 @@ TEST(Route_PartialAndDirectAreOpposites)
     // a genuinely routed path set, so "did this come off the navmesh" and "will this
     // mover arrive" had to be answered by two different maskings of one field, and
     // getting the masking wrong silently welded a straight line to a routed leg.
-    const Route partial = MakeRoute(RouteOutcome::Partial, RouteStop::Wall);
-    const Route direct = MakeRoute(RouteOutcome::Direct, RouteStop::NoMesh);
+    const Path::Route partial = MakeRoute(Path::RouteOutcome::Partial, Path::RouteStop::Wall);
+    const Path::Route direct = MakeRoute(Path::RouteOutcome::Direct, Path::RouteStop::NoMesh);
 
     // Real geometry that stops short: safe to weld, will not arrive.
     CHECK(partial.UsedGeometry());
@@ -128,9 +128,9 @@ TEST(Route_StopIsIndependentOfOutcome)
     // A budget and a wall both produce a partial route and call for opposite responses:
     // re-planning from further along makes progress against a budget and never against
     // a wall. The outcome cannot carry that, which is why the stop is its own field.
-    const Route wall = MakeRoute(RouteOutcome::Partial, RouteStop::Wall);
-    const Route nodes = MakeRoute(RouteOutcome::Partial, RouteStop::NodeBudget);
-    const Route polys = MakeRoute(RouteOutcome::Partial, RouteStop::PolyBudget);
+    const Path::Route wall = MakeRoute(Path::RouteOutcome::Partial, Path::RouteStop::Wall);
+    const Path::Route nodes = MakeRoute(Path::RouteOutcome::Partial, Path::RouteStop::NodeBudget);
+    const Path::Route polys = MakeRoute(Path::RouteOutcome::Partial, Path::RouteStop::PolyBudget);
 
     // Compared with CHECK rather than CHECK_EQ: the latter renders both sides with
     // std::to_string, which has no overload for a scoped enumeration.
@@ -141,12 +141,12 @@ TEST(Route_StopIsIndependentOfOutcome)
 }
 
 // ---------------------------------------------------------------------------
-// MoveProfile: what the mover is permitted to do.
+// Path::MoveProfile: what the mover is permitted to do.
 // ---------------------------------------------------------------------------
 
 TEST(MoveProfile_DefaultPermitsNothing)
 {
-    const MoveProfile p;
+    const Path::MoveProfile p;
     CHECK_EQ(p.includeFlags, uint16(0));
     CHECK(!p.MayGoDirect(true));
     CHECK(!p.MayGoDirect(false));
@@ -157,7 +157,7 @@ TEST(MoveProfile_MayGoDirectGatesOnLeavingTheMesh)
     // Players never leave the mesh however able they are: a client drives its own
     // movement and would be desynchronised by a server route through geometry it can
     // walk into. mayLeaveMesh is that rule, and it outranks both abilities.
-    MoveProfile amphibiousPlayer;
+    Path::MoveProfile amphibiousPlayer;
     amphibiousPlayer.canSwim = true;
     amphibiousPlayer.canFly = true;
     amphibiousPlayer.mayLeaveMesh = false;
@@ -172,7 +172,7 @@ TEST(MoveProfile_MayGoDirectPicksTheAbilityTheGroundCallsFor)
     // abilities the mover happens to have. A swimmer that cannot fly is refused dry
     // ground, and a flier that cannot swim is refused water -- the pair of cases the
     // old nested if/else got right and no test ever held it to.
-    MoveProfile swimmer;
+    Path::MoveProfile swimmer;
     swimmer.mayLeaveMesh = true;
     swimmer.canSwim = true;
     swimmer.canFly = false;
@@ -180,7 +180,7 @@ TEST(MoveProfile_MayGoDirectPicksTheAbilityTheGroundCallsFor)
     CHECK(swimmer.MayGoDirect(true));    // under water: swims
     CHECK(!swimmer.MayGoDirect(false));  // dry: cannot
 
-    MoveProfile flier;
+    Path::MoveProfile flier;
     flier.mayLeaveMesh = true;
     flier.canSwim = false;
     flier.canFly = true;
@@ -188,7 +188,7 @@ TEST(MoveProfile_MayGoDirectPicksTheAbilityTheGroundCallsFor)
     CHECK(!flier.MayGoDirect(true));     // under water: cannot
     CHECK(flier.MayGoDirect(false));     // dry: flies
 
-    MoveProfile grounded;
+    Path::MoveProfile grounded;
     grounded.mayLeaveMesh = true;
 
     CHECK(!grounded.MayGoDirect(true));
@@ -254,12 +254,12 @@ TEST(NavAreaToFlags_KeepsSurfacesTellingThemselvesApart)
 }
 
 // ---------------------------------------------------------------------------
-// Corridor: the index arithmetic that decides how much of the last leg survives.
+// Path::Corridor: the index arithmetic that decides how much of the last leg survives.
 // ---------------------------------------------------------------------------
 
-static Corridor MakeCorridor(std::initializer_list<dtPolyRef> polys)
+static Path::Corridor MakeCorridor(std::initializer_list<dtPolyRef> polys)
 {
-    Corridor c;
+    Path::Corridor c;
     std::vector<dtPolyRef> v(polys);
     c.Assign(v.data(), uint32(v.size()));
     return c;
@@ -267,21 +267,21 @@ static Corridor MakeCorridor(std::initializer_list<dtPolyRef> polys)
 
 TEST(Corridor_StartsEmpty)
 {
-    const Corridor c;
+    const Path::Corridor c;
     CHECK(c.Empty());
     CHECK_EQ(c.Length(), uint32(0));
-    CHECK_EQ(c.Find(1), Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(1, 0), Corridor::NPOS);
+    CHECK_EQ(c.Find(1), Path::Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(1, 0), Path::Corridor::NPOS);
 }
 
 TEST(Corridor_FindTakesTheFirstOccurrence)
 {
     // Where the mover has got to. Earliest wins: the mover is at the START of the part
     // of the corridor it has not walked yet.
-    const Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
+    const Path::Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
     CHECK_EQ(c.Find(20), uint32(1));
     CHECK_EQ(c.Find(40), uint32(4));
-    CHECK_EQ(c.Find(99), Corridor::NPOS);
+    CHECK_EQ(c.Find(99), Path::Corridor::NPOS);
 }
 
 TEST(Corridor_FindLastAfterTakesTheLastOccurrence)
@@ -290,15 +290,15 @@ TEST(Corridor_FindLastAfterTakesTheLastOccurrence)
     // occurrence rather than the first: a route that doubles back round an obstacle
     // enters the same polygon twice, and cutting at the first visit discards the half
     // that actually goes somewhere.
-    const Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
+    const Path::Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
 
     CHECK_EQ(c.FindLastAfter(20, 0), uint32(3));
     CHECK_EQ(c.FindLastAfter(40, 0), uint32(4));
 
     // Strictly after: a polygon that is only where the mover already stands is not a
     // remaining route.
-    CHECK_EQ(c.FindLastAfter(10, 0), Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(20, 3), Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(10, 0), Path::Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(20, 3), Path::Corridor::NPOS);
 }
 
 TEST(Corridor_FindLastAfterSurvivesNotFound)
@@ -306,14 +306,14 @@ TEST(Corridor_FindLastAfterSurvivesNotFound)
     // Composed straight out of Find, whose miss is NPOS. Unguarded, NPOS + 1 wraps to
     // zero and the search sweeps the whole corridor as though it had been asked to
     // start from the front -- the opposite of what "I found nothing" means.
-    const Corridor c = MakeCorridor({ 10, 20, 30 });
-    CHECK_EQ(c.FindLastAfter(30, Corridor::NPOS), Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(30, 99), Corridor::NPOS);
+    const Path::Corridor c = MakeCorridor({ 10, 20, 30 });
+    CHECK_EQ(c.FindLastAfter(30, Path::Corridor::NPOS), Path::Corridor::NPOS);
+    CHECK_EQ(c.FindLastAfter(30, 99), Path::Corridor::NPOS);
 }
 
 TEST(Corridor_AdvanceDropsWhatIsBehind)
 {
-    Corridor c = MakeCorridor({ 10, 20, 30, 40 });
+    Path::Corridor c = MakeCorridor({ 10, 20, 30, 40 });
 
     c.Advance(2);
     CHECK_EQ(c.Length(), uint32(2));
@@ -334,12 +334,12 @@ TEST(Corridor_SubpathCutMatchesTheOldArithmetic)
     // The reuse case in full: the mover has reached polygon 30 and the goal is still
     // in 50, so what survives is exactly [30 .. 50] -- Advance to the front of it,
     // Truncate to its length.
-    Corridor c = MakeCorridor({ 10, 20, 30, 40, 50, 60 });
+    Path::Corridor c = MakeCorridor({ 10, 20, 30, 40, 50, 60 });
 
     const uint32 start = c.Find(30);
     const uint32 end = c.FindLastAfter(50, start);
-    REQUIRE(start != Corridor::NPOS);
-    REQUIRE(end != Corridor::NPOS);
+    REQUIRE(start != Path::Corridor::NPOS);
+    REQUIRE(end != Path::Corridor::NPOS);
 
     c.Advance(start);
     c.Truncate(end - start + 1);
@@ -352,7 +352,7 @@ TEST(Corridor_SubpathCutMatchesTheOldArithmetic)
 
 TEST(Corridor_TruncateNeverGrows)
 {
-    Corridor c = MakeCorridor({ 10, 20 });
+    Path::Corridor c = MakeCorridor({ 10, 20 });
     c.Truncate(50);
     CHECK_EQ(c.Length(), uint32(2));
     c.Truncate(1);
@@ -365,25 +365,25 @@ TEST(Corridor_LengthIsClampedToCapacity)
     // Detour is handed Buffer() and a maximum, and SetLength is how it reports back.
     // A length past the array is not a number to trust: everything downstream indexes
     // the buffer with it and nothing else bounds-checks.
-    Corridor c;
-    c.SetLength(Corridor::CAPACITY + 1000);
-    CHECK_EQ(c.Length(), Corridor::CAPACITY);
+    Path::Corridor c;
+    c.SetLength(Path::Corridor::CAPACITY + 1000);
+    CHECK_EQ(c.Length(), Path::Corridor::CAPACITY);
 }
 
 TEST(Corridor_HasInvalidSpotsANullReference)
 {
     CHECK(!MakeCorridor({ 10, 20, 30 }).HasInvalid());
     CHECK(MakeCorridor({ 10, 0, 30 }).HasInvalid());
-    CHECK(!Corridor().HasInvalid());
+    CHECK(!Path::Corridor().HasInvalid());
 }
 
 // ---------------------------------------------------------------------------
-// SearchBudget: what one request may spend, as a value rather than a setting.
+// Path::SearchBudget: what one request may spend, as a value rather than a setting.
 // ---------------------------------------------------------------------------
 
 TEST(SearchBudget_DefaultsToTheWholeAllowance)
 {
-    const SearchBudget budget;
+    const Path::SearchBudget budget;
     CHECK_EQ(budget.points, Path::MAX_POINTS);
 }
 
@@ -392,8 +392,8 @@ TEST(SearchBudget_NoLimitMeansFullBudget)
     // The distinction that made the old setter dangerous. "No rule of the game applies
     // here" is not "produce a path of no points", and reading it as the latter would
     // give every uncapped request an empty path.
-    CHECK_EQ(SearchBudget::ForLength(0.0f).points, Path::MAX_POINTS);
-    CHECK_EQ(SearchBudget::ForLength(-1.0f).points, Path::MAX_POINTS);
+    CHECK_EQ(Path::SearchBudget::ForLength(0.0f).points, Path::MAX_POINTS);
+    CHECK_EQ(Path::SearchBudget::ForLength(-1.0f).points, Path::MAX_POINTS);
 }
 
 TEST(SearchBudget_LengthBecomesPointsAtTheSmoothingStep)
@@ -401,14 +401,14 @@ TEST(SearchBudget_LengthBecomesPointsAtTheSmoothingStep)
     // Yards are the game's unit -- how far a creature may chase -- and points are the
     // buffer's. The smoothing step is the exchange rate, and it is the only place the
     // two units meet.
-    CHECK_EQ(SearchBudget::ForLength(40.0f).points, uint32(10));
-    CHECK_EQ(SearchBudget::ForLength(4.0f).points, uint32(1));
+    CHECK_EQ(Path::SearchBudget::ForLength(40.0f).points, uint32(10));
+    CHECK_EQ(Path::SearchBudget::ForLength(4.0f).points, uint32(1));
 }
 
 TEST(SearchBudget_LengthIsClampedToTheBuffer)
 {
     // A game rule may ask for more path than a path can hold. The buffer wins, because
     // it is the one bound that cannot be negotiated.
-    CHECK_EQ(SearchBudget::ForLength(100000.0f).points, Path::MAX_POINTS);
-    CHECK(SearchBudget::ForLength(Path::DEFAULT_LENGTH).points == Path::MAX_POINTS);
+    CHECK_EQ(Path::SearchBudget::ForLength(100000.0f).points, Path::MAX_POINTS);
+    CHECK(Path::SearchBudget::ForLength(Path::DEFAULT_LENGTH).points == Path::MAX_POINTS);
 }

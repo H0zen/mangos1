@@ -54,46 +54,46 @@ namespace Path
 
     /// The default ceiling on a routed path, in yards: the whole point budget spent.
     constexpr float DEFAULT_LENGTH = float(MAX_POINTS) * SMOOTH_STEP;
-}
-
-/**
- * @brief What one routing request may spend.
- *
- * A value passed to the request, where it used to be a setter that mutated the router
- * and stayed mutated. That mattered as soon as a router outlived a single leg: the
- * limit was STICKY, so an unlimited request issued after a capped one -- a chase after
- * a flee -- silently inherited the cap, and the only defence was for every caller to
- * remember to re-apply a default it should never have had to know about.
- *
- * Only the point count lives here. The polygon bound belongs to Corridor, which owns
- * the storage it bounds, and the node pool is fixed when the Detour query is created
- * rather than per request -- see MMAP::MMAP_QUERY_MAX_NODES. Naming this one a budget
- * is what keeps them from being confused again: how far a creature is ALLOWED to chase
- * is a rule of the game, expressed in yards, and how many points a path may hold is a
- * property of the buffer that holds it.
- */
-struct SearchBudget
-{
-    /// Points the produced path may contain, never above Path::MAX_POINTS.
-    uint32 points = Path::MAX_POINTS;
 
     /**
-     * @brief A budget for a route of at most @p yards.
+     * @brief What one routing request may spend.
      *
-     * A non-positive length means "no rule of the game applies here", which is the full
-     * budget rather than an empty one -- the caller is declining to cap the route, not
-     * asking for a path of no points.
+     * A value passed to the request, where it used to be a setter that mutated the router
+     * and stayed mutated. That mattered as soon as a router outlived a single leg: the
+     * limit was STICKY, so an unlimited request issued after a capped one -- a chase after
+     * a flee -- silently inherited the cap, and the only defence was for every caller to
+     * remember to re-apply a default it should never have had to know about.
+     *
+     * Only the point count lives here. The polygon bound belongs to Corridor, which owns
+     * the storage it bounds, and the node pool is fixed when the Detour query is created
+     * rather than per request -- see MMAP::MMAP_QUERY_MAX_NODES. Naming this one a budget
+     * is what keeps them from being confused again: how far a creature is ALLOWED to chase
+     * is a rule of the game, expressed in yards, and how many points a path may hold is a
+     * property of the buffer that holds it.
      */
-    static SearchBudget ForLength(float yards)
+    struct SearchBudget
     {
-        SearchBudget budget;
-        if (yards > 0.0f)
+        /// Points the produced path may contain, never above Path::MAX_POINTS.
+        uint32 points = Path::MAX_POINTS;
+
+        /**
+         * @brief A budget for a route of at most @p yards.
+         *
+         * A non-positive length means "no rule of the game applies here", which is the full
+         * budget rather than an empty one -- the caller is declining to cap the route, not
+         * asking for a path of no points.
+         */
+        static SearchBudget ForLength(float yards)
         {
-            budget.points = std::min<uint32>(uint32(yards / Path::SMOOTH_STEP),
-                                             Path::MAX_POINTS);
+            SearchBudget budget;
+            if (yards > 0.0f)
+            {
+                budget.points = std::min<uint32>(uint32(yards / Path::SMOOTH_STEP),
+                                                 Path::MAX_POINTS);
+            }
+            return budget;
         }
-        return budget;
-    }
-};
+    };
+}
 
 #endif // MANGOS_SEARCHBUDGET_H

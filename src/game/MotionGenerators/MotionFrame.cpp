@@ -59,7 +59,7 @@ namespace Motion
                     // default left for a caller to remember.
                     if (!m_path.calculate(start.x, start.y, start.z,
                                           goal.x, goal.y, goal.z, forceDestination,
-                                          SearchBudget::ForLength(lengthLimit)))
+                                          Path::SearchBudget::ForLength(lengthLimit)))
                     {
                         return false;
                     }
@@ -254,7 +254,7 @@ namespace Motion
                 {
                     if (!m_path.calculate(start.x, start.y, start.z,
                                           goal.x, goal.y, goal.z, forceDestination,
-                                          SearchBudget::ForLength(lengthLimit)))
+                                          Path::SearchBudget::ForLength(lengthLimit)))
                     {
                         return false;
                     }

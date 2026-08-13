@@ -61,7 +61,7 @@ namespace
     }
 }
 
-MoveProfile ProfileOf(Unit const& mover)
+Path::MoveProfile Path::ProfileOf(Unit const& mover)
 {
     MoveProfile profile;
 

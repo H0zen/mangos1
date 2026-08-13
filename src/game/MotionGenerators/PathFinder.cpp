@@ -68,7 +68,7 @@ PathFinder::PathFinder(const Unit* owner) :
 
 PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
     m_useStraightPath(false), m_forceDestination(false),
-    m_budgetStop(RouteStop::Reached),
+    m_budgetStop(Path::RouteStop::Reached),
     m_sourceUnit(owner), m_navMesh(NULL), m_navMeshQuery(NULL)
 {
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::PathInfo for %u \n", m_sourceUnit->GetGUIDLow());
@@ -80,7 +80,7 @@ PathFinder::PathFinder(const Unit* owner, uint32 mapId) :
         m_navMeshQuery = mmap->GetNavMeshQuery(mapId, m_sourceUnit->GetInstanceId());
     }
 
-    m_profile = ProfileOf(*m_sourceUnit);
+    m_profile = Path::ProfileOf(*m_sourceUnit);
     applyFilter();
 }
 
@@ -101,7 +101,7 @@ PathFinder::~PathFinder()
  * @return True if the path was successfully calculated, false otherwise.
  */
 bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest,
-                           SearchBudget budget)
+                           Path::SearchBudget budget)
 {
     float x, y, z;
     x = m_sourceUnit->Where().X();
@@ -123,7 +123,7 @@ bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest
  * @return True if the path was successfully calculated, false otherwise.
  */
 bool PathFinder::calculate(float startX, float startY, float startZ, float destX, float destY, float destZ, bool forceDest,
-                           SearchBudget budget)
+                           Path::SearchBudget budget)
 {
     if (!MaNGOS::IsValidMapCoord(startX, startY, startZ) ||
         !MaNGOS::IsValidMapCoord(destX, destY, destZ))
@@ -144,13 +144,13 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
     // from the refusing state means a branch that ever forgets to answers "no route"
     // rather than inheriting the previous call's success -- and this object is reused
     // across legs, so the previous call's success is right there to be inherited.
-    m_route.outcome = RouteOutcome::Unroutable;
-    m_route.stop = RouteStop::Failed;
-    m_budgetStop = RouteStop::Reached;
+    m_route.outcome = Path::RouteOutcome::Unroutable;
+    m_route.stop = Path::RouteStop::Failed;
+    m_budgetStop = Path::RouteStop::Reached;
 
     // Re-snapshotted per request, not per router. The permissions depend on where the
     // mover is standing right now, and this object outlives a single leg.
-    m_profile = ProfileOf(*m_sourceUnit);
+    m_profile = Path::ProfileOf(*m_sourceUnit);
     applyFilter();
 
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::calculate() for %u \n", m_sourceUnit->GetGUIDLow());
@@ -161,8 +161,8 @@ bool PathFinder::calculate(float startX, float startY, float startZ, float destX
         !HaveTile(start) || !HaveTile(dest))
     {
         BuildShortcut();
-        m_route.outcome = RouteOutcome::Direct;
-        m_route.stop = RouteStop::NoMesh;
+        m_route.outcome = Path::RouteOutcome::Direct;
+        m_route.stop = Path::RouteStop::NoMesh;
         return true;
     }
 
@@ -275,12 +275,12 @@ bool PathFinder::BuildStraightShortcut(dtPolyRef startPoly, dtPolyRef endPoly,
 {
     float t = 0.0f;
     float hitNormal[VERTEX_SIZE] = {0.0f, 0.0f, 0.0f};
-    dtPolyRef path[Corridor::CAPACITY];
+    dtPolyRef path[Path::Corridor::CAPACITY];
     int pathLength = 0;
 
     dtStatus dtResult = m_navMeshQuery->raycast(startPoly, startPoint, endPoint,
                                                 &m_filter, &t, hitNormal,
-                                                path, &pathLength, int(Corridor::CAPACITY));
+                                                path, &pathLength, int(Path::Corridor::CAPACITY));
 
     // A truncated corridor is rejected rather than trusted: past the buffer the ray
     // keeps travelling but stops recording, so the last polygon written is no longer
@@ -359,9 +359,9 @@ void PathFinder::noteSearchLimit(dtStatus status, const char* where)
     // explained by the first thing that stopped it, not the last symptom of it.
     if (dtStatusDetail(status, DT_OUT_OF_NODES))
     {
-        if (m_budgetStop == RouteStop::Reached)
+        if (m_budgetStop == Path::RouteStop::Reached)
         {
-            m_budgetStop = RouteStop::NodeBudget;
+            m_budgetStop = Path::RouteStop::NodeBudget;
         }
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
                          "++ PathFinder::%s :: %u exhausted the search node pool (%d); "
@@ -372,14 +372,14 @@ void PathFinder::noteSearchLimit(dtStatus status, const char* where)
 
     if (dtStatusDetail(status, DT_BUFFER_TOO_SMALL))
     {
-        if (m_budgetStop == RouteStop::Reached)
+        if (m_budgetStop == Path::RouteStop::Reached)
         {
-            m_budgetStop = RouteStop::PolyBudget;
+            m_budgetStop = Path::RouteStop::PolyBudget;
         }
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING,
                          "++ PathFinder::%s :: %u filled the polygon buffer (%d); the "
                          "route is longer than one path may describe\n",
-                         where, m_sourceUnit->GetGUIDLow(), int(Corridor::CAPACITY));
+                         where, m_sourceUnit->GetGUIDLow(), int(Path::Corridor::CAPACITY));
     }
 }
 
@@ -415,9 +415,9 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             (endPoly == INVALID_POLYREF &&
              m_sourceUnit->GetTerrain()->IsUnderWater(endPos.x, endPos.y, endPos.z));
 
-        m_route.outcome = m_profile.MayGoDirect(offMeshUnderWater) ? RouteOutcome::Direct
-                                                         : RouteOutcome::Unroutable;
-        m_route.stop = RouteStop::OffMesh;
+        m_route.outcome = m_profile.MayGoDirect(offMeshUnderWater) ? Path::RouteOutcome::Direct
+                                                         : Path::RouteOutcome::Unroutable;
+        m_route.stop = Path::RouteStop::OffMesh;
         return;
     }
 
@@ -435,8 +435,8 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         if (m_profile.MayGoDirect(underWater))
         {
             BuildShortcut();
-            m_route.outcome = RouteOutcome::Direct;
-            m_route.stop = RouteStop::OffMesh;
+            m_route.outcome = Path::RouteOutcome::Direct;
+            m_route.stop = Path::RouteStop::OffMesh;
             return;
         }
 
@@ -462,8 +462,8 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
 
         m_corridor.Assign(&startPoly, 1);
 
-        m_route.outcome = farFromPoly ? RouteOutcome::Partial : RouteOutcome::Routed;
-        m_route.stop = farFromPoly ? RouteStop::Wall : RouteStop::Reached;
+        m_route.outcome = farFromPoly ? Path::RouteOutcome::Partial : Path::RouteOutcome::Routed;
+        m_route.stop = farFromPoly ? Path::RouteStop::Wall : Path::RouteStop::Reached;
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: outcome %d\n",
                          int(m_route.outcome));
         return;
@@ -476,8 +476,8 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     // this is it answered for a corridor of them.
     if (BuildStraightShortcut(startPoly, endPoly, startPoint, endPoint))
     {
-        m_route.outcome = farFromPoly ? RouteOutcome::Partial : RouteOutcome::Routed;
-        m_route.stop = farFromPoly ? RouteStop::Wall : RouteStop::Reached;
+        m_route.outcome = farFromPoly ? Path::RouteOutcome::Partial : Path::RouteOutcome::Routed;
+        m_route.stop = farFromPoly ? Path::RouteStop::Wall : Path::RouteStop::Reached;
         BuildPointPath(startPoint, endPoint);
         return;
     }
@@ -493,8 +493,8 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     // visit throws away the half that goes somewhere.
     const uint32 startIndex = m_corridor.Find(startPoly);
     const uint32 endIndex = m_corridor.FindLastAfter(endPoly, startIndex);
-    const bool startPolyFound = (startIndex != Corridor::NPOS);
-    const bool endPolyFound = (endIndex != Corridor::NPOS);
+    const bool startPolyFound = (startIndex != Path::Corridor::NPOS);
+    const bool endPolyFound = (endIndex != Path::Corridor::NPOS);
 
     if (startPolyFound && endPolyFound)
     {
@@ -541,7 +541,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             if (prefixPolyLength < 2)
             {
                 BuildShortcut();
-                m_route.stop = RouteStop::Failed;
+                m_route.stop = Path::RouteStop::Failed;
                 return;
             }
 
@@ -552,7 +552,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             {
                 // suffixStartPoly is still invalid, error state
                 BuildShortcut();
-                m_route.stop = RouteStop::Failed;
+                m_route.stop = Path::RouteStop::Failed;
                 return;
             }
         }
@@ -569,7 +569,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
                        &m_filter,            // polygon search filter
                        m_corridor.Buffer() + prefixPolyLength - 1,    // [out] path
                        &suffixPolyLength,
-                       int(Corridor::CAPACITY - prefixPolyLength)); // max polygons out
+                       int(Path::Corridor::CAPACITY - prefixPolyLength)); // max polygons out
 
         noteSearchLimit(dtResult, "BuildPolyPath(suffix)");
 
@@ -595,7 +595,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
         if (m_corridor.Empty())
         {
             BuildShortcut();
-            m_route.stop = RouteStop::Failed;
+            m_route.stop = Path::RouteStop::Failed;
             return;
         }
     }
@@ -620,7 +620,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
                        &m_filter,           // polygon search filter
                        m_corridor.Buffer(),// [out] path
                        &polyLength,
-                       int(Corridor::CAPACITY)); // max number of polygons in output path
+                       int(Path::Corridor::CAPACITY)); // max number of polygons in output path
         m_corridor.SetLength(uint32(polyLength));
 
         noteSearchLimit(dtResult, "BuildPolyPath");
@@ -631,7 +631,7 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             sLog.outError("%u's Path Build failed: 0 length path, status 0x%08x",
                           m_sourceUnit->GetGUIDLow(), dtResult);
             BuildShortcut();
-            m_route.stop = RouteStop::Failed;
+            m_route.stop = Path::RouteStop::Failed;
             return;
         }
     }
@@ -645,14 +645,14 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
     // reach its goal was demoted to partial because an earlier one had not.
     if (m_corridor.Last() == endPoly && !farFromPoly)
     {
-        m_route.outcome = RouteOutcome::Routed;
-        m_route.stop = RouteStop::Reached;
+        m_route.outcome = Path::RouteOutcome::Routed;
+        m_route.stop = Path::RouteStop::Reached;
     }
     else
     {
-        m_route.outcome = RouteOutcome::Partial;
-        m_route.stop = (m_budgetStop != RouteStop::Reached) ? m_budgetStop
-                                                            : RouteStop::Wall;
+        m_route.outcome = Path::RouteOutcome::Partial;
+        m_route.stop = (m_budgetStop != Path::RouteStop::Reached) ? m_budgetStop
+                                                            : Path::RouteStop::Wall;
     }
 
     // generate the point-path out of our up-to-date poly-path
@@ -701,8 +701,8 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
         // TODO : check the exact cases
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::BuildPointPath FAILED! path sized %d returned\n", pointCount);
         BuildShortcut();
-        m_route.outcome = RouteOutcome::Unroutable;
-        m_route.stop = RouteStop::Failed;
+        m_route.outcome = Path::RouteOutcome::Unroutable;
+        m_route.stop = Path::RouteStop::Failed;
         return;
     }
 
@@ -735,8 +735,8 @@ void PathFinder::BuildPointPath(const float* startPoint, const float* endPoint)
         // The caller demanded this exact point, so the geometry no longer decides
         // whether it is reached -- it is, by fiat. Direct rather than Routed, because
         // the last leg of it is not geometry any more.
-        m_route.outcome = RouteOutcome::Direct;
-        m_route.stop = RouteStop::Forced;
+        m_route.outcome = Path::RouteOutcome::Direct;
+        m_route.stop = Path::RouteStop::Forced;
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ PathFinder::BuildPointPath outcome %d size %d poly-size %d\n", int(m_route.outcome), pointCount, m_corridor.Length());
@@ -956,7 +956,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
     *smoothPathSize = 0;
     uint32 nsmoothPath = 0;
 
-    dtPolyRef polys[Corridor::CAPACITY];
+    dtPolyRef polys[Path::Corridor::CAPACITY];
     memcpy(polys, polyPath, sizeof(dtPolyRef)*polyPathSize);
     uint32 npolys = polyPathSize;
 
@@ -1017,7 +1017,7 @@ dtStatus PathFinder::findSmoothPath(const float* startPos, const float* endPos,
 
         uint32 nvisited = 0;
         m_navMeshQuery->moveAlongSurface(polys[0], iterPos, moveTgt, &m_filter, result, visited, (int*)&nvisited, MAX_VISIT_POLY);
-        npolys = fixupCorridor(polys, npolys, Corridor::CAPACITY, visited, nvisited);
+        npolys = fixupCorridor(polys, npolys, Path::Corridor::CAPACITY, visited, nvisited);
 
         m_navMeshQuery->getPolyHeight(polys[0], result, &result[1]);
         result[1] += 0.5f;
