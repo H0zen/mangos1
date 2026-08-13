@@ -30,6 +30,8 @@
 #include "Transports.h"
 #include "TransportMap.h"
 #include "Map.h"
+#include "CourseWire.h"
+#include "Log.h"
 
 namespace
 {
@@ -49,6 +51,42 @@ namespace
             }
         }
         return ObjectGuid();
+    }
+
+    /// The pace this leg travels at, as a property rather than a flag. Read from the
+    /// flags the launcher has just settled, so it cannot disagree with the speed the
+    /// duration was computed from.
+    Helm::Gait GaitOf(uint32 moveFlags, bool smooth)
+    {
+        if (smooth || (moveFlags & MOVEFLAG_FLYING))
+        {
+            return Helm::Gait::Fly;
+        }
+        if (moveFlags & MOVEFLAG_SWIMMING)
+        {
+            return Helm::Gait::Swim;
+        }
+        return (moveFlags & MOVEFLAG_WALK_MODE) ? Helm::Gait::Walk : Helm::Gait::Run;
+    }
+
+    /// The spline arguments' facing, in the course's vocabulary. The wire has carried
+    /// this in a type byte all along, separately from the flags, so nothing is lost.
+    Helm::Facing FacingOf(Movement::MoveSplineInitArgs const& args)
+    {
+        if (args.flags.final_angle)
+        {
+            return Helm::Facing::ToAngle(args.facing.angle);
+        }
+        if (args.flags.final_target)
+        {
+            return Helm::Facing::ToTarget(args.facing.target);
+        }
+        if (args.flags.final_point)
+        {
+            return Helm::Facing::ToSpot(
+                Helm::Vector3(args.facing.f.x, args.facing.f.y, args.facing.f.z));
+        }
+        return Helm::Facing();
     }
 }
 
@@ -150,19 +188,86 @@ namespace Movement
         unit.m_movementInfo.SetMovementFlags((MovementFlags)moveFlags);
         move_spline.Initialize(args);
 
-        WorldPacket data(SMSG_MONSTER_MOVE, 64);
-        data << unit.GetPackGUID();
+        // === The leg as a PLAN, and the plan is what goes on the wire. ===
+        //
+        // The spline above still drives the server's own idea of where the unit is and
+        // when it arrives; what changes here is that the packet is no longer built by
+        // walking that spline's internals. It is written from a value that computes the
+        // client's timing explicitly, and three things follow immediately, on every
+        // movement in the game rather than on a chosen few:
+        //
+        //   * the pace goes out truthfully. The old builder OR-ed the run bit into
+        //     every packet it ever sent, so a creature walking at 2.5 yd/s animated as
+        //     a runner. Retail leaves that bit clear on 10,540 of the legs captured.
+        //   * an interior point that cannot survive the wire's quarter-yard packing is
+        //     caught instead of silently wrapping (see below).
+        //   * the offsets round to nearest rather than toward zero, halving an error
+        //     the client cannot tell we ever had.
+        Helm::Domain domain;
+        domain.map = unit.GetMapId();
+        domain.vessel = vesselGuid.GetRawValue();
 
-        if (!vesselGuid.IsEmpty())
+        const bool smooth = args.flags.isSmooth();
+        Helm::Course course = Helm::Course::Plan(
+            domain, args.path, GaitOf(moveFlags, smooth), args.velocity,
+            FacingOf(args), smooth ? Helm::Curve::Smooth : Helm::Curve::Segmented,
+            getMSTime(), args.splineId);
+
+        // A leg with nothing to travel -- every point at one coordinate. The captures
+        // show retail sending thousands of them, so it is an idiom and not an error,
+        // but a Course refuses to be one: a plan to go nowhere is not a plan. Until the
+        // model has a form that says "stand here" honestly, that single case keeps the
+        // old builder rather than being translated into something it does not mean.
+        if (course.Empty())
         {
-            data.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-            data << vesselGuid.WriteAsPacked();
+            WorldPacket legacy(SMSG_MONSTER_MOVE, 64);
+            legacy << unit.GetPackGUID();
+            if (!vesselGuid.IsEmpty())
+            {
+                legacy.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
+                legacy << vesselGuid.WriteAsPacked();
+            }
+            PacketBuilder::WriteMonsterMove(move_spline, legacy);
+            unit.SendMessageToSet(&legacy, true);
+            return move_spline.Duration();
         }
 
-        PacketBuilder::WriteMonsterMove(move_spline, data);
+        // The two must agree to the millisecond or the server believes an arrival the
+        // client has not reached. They do by construction -- the same accumulator, the
+        // same seed, the same truncation -- so a disagreement means one of them has
+        // been changed without the other, and that is worth a line in the log rather
+        // than a subtle drift nobody traces.
+        if (uint32(move_spline.Duration()) != course.Duration())
+        {
+            sLog.outError("Course and spline disagree for %s: %u vs %u ms",
+                          unit.GetGuidStr().c_str(), course.Duration(),
+                          uint32(move_spline.Duration()));
+        }
+
+        // The packed form spends eleven signed bits on X and Y and only ten on Z, in
+        // quarter-yard units, so an interior point more than 256 (or 128 vertical)
+        // yards from the middle of the leg wraps and the client walks somewhere else
+        // entirely. The check this restores existed but was commented out, and had the
+        // limit wrong by a factor of four besides. Losing the shape of the path is a
+        // poor outcome; walking a corrupted one is a worse one.
+        if (!Helm::Wire::Fits(course))
+        {
+            sLog.outError("%s: path will not survive packing; sending its endpoints",
+                          unit.GetGuidStr().c_str());
+            Movement::PointsArray ends;
+            ends.push_back(args.path.front());
+            ends.push_back(args.path.back());
+            course = Helm::Course::Plan(
+                domain, ends, GaitOf(moveFlags, smooth), args.velocity,
+                FacingOf(args), Helm::Curve::Segmented, getMSTime(), args.splineId);
+        }
+
+        WorldPacket data;
+        Helm::Wire::WriteLaunch(course, unit.GetObjectGuid().GetRawValue(), data);
         unit.SendMessageToSet(&data, true);
 
-        return move_spline.Duration();
+        unit.SetCourse(course);
+        return int32(course.Duration());
     }
 
     /**

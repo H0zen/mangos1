@@ -34,6 +34,16 @@ class Unit;
 namespace Movement
 {
     /**
+     * @brief Which of the unit's speeds a leg with these movement flags travels at.
+     *
+     * Declared here because it is not only the launcher's business any more: anything
+     * that has to turn a duration back into yards -- how far a lagging client is behind,
+     * for one -- needs the same answer the launcher used, and deriving it a second time
+     * is how the two drift apart.
+     */
+    UnitMoveType SelectSpeedType(uint32 moveFlags);
+
+    /**
      * @brief Initializes and launches spline movement
      *
      */
