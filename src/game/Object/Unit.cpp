@@ -31,6 +31,8 @@
 #include "Opcodes.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "CourseWire.h"
+#include "movement/MoveSplineInit.h"
 #include "World.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -6373,6 +6375,10 @@ void Unit::UpdateSplineMovement(uint32 t_diff)
     {
         DisableSpline();
     }
+    else
+    {
+        MaintainCourseSync();
+    }
 
     m_movesplineTimer.Update(t_diff);
     if (m_movesplineTimer.Passed() || arrived)
@@ -6380,6 +6386,63 @@ void Unit::UpdateSplineMovement(uint32 t_diff)
         m_movesplineTimer.Reset(POSITION_UPDATE_DELAY);
         RelocateToSplinePosition();
     }
+}
+
+/**
+ * @brief Repair a long leg the client may have fallen behind on, for eleven bytes.
+ *
+ * A client that has lost movement time is drawing this unit short of where the leg says
+ * it is. There are two ways to fix that: resend the whole leg -- 48 to 76 bytes in the
+ * retail captures, and the client restarts its animation -- or send it the fraction it
+ * should be at and let it slide. Retail does the second, and the legs that need it are
+ * long: 12.5 seconds at the 95th percentile and 425 seconds at the longest observed.
+ *
+ * The policy is the conservative one by default, matching what the captures show retail
+ * doing, and the scheduler refuses everything short, everything finished, and the last
+ * stretch of everything else -- so on the two thirds of legs that are one brief hop this
+ * costs a pair of integer comparisons and sends nothing.
+ */
+void Unit::MaintainCourseSync()
+{
+    const Helm::Instant now = getMSTime();
+
+    // Speed is what turns the client's lost milliseconds into yards, which is the only
+    // form in which "behind" means anything. Take the pace the leg is actually running
+    // at rather than the unit's nominal run speed.
+    const UnitMoveType pace =
+        Movement::SelectSpeedType(m_movementInfo.GetMovementFlags());
+
+    const Helm::Leg leg = Helm::Leg::Running(
+        movespline->GetId(),
+        uint32(movespline->Duration()),
+        uint32(movespline->Elapsed()),
+        GetSpeed(pace),
+        movespline->IsSmooth(),
+        now);
+
+    // Whose clock? The one that is actually drawing this unit under its own control. A
+    // creature nobody drives has none, and an unfed clock reports no skew -- which
+    // disables the early trigger and leaves the plain cadence, the right answer for it.
+    static const Helm::ClientClock unowned;
+    Unit const* driver = GetCharmerOrOwnerOrSelf();
+    Helm::ClientClock const* clock = &unowned;
+    if (driver && driver->GetTypeId() == TYPEID_PLAYER)
+    {
+        if (WorldSession* session = ((Player const*)driver)->GetSession())
+        {
+            clock = &session->CourseClock();
+        }
+    }
+
+    if (!Helm::CourseSync::Due(m_courseSync, leg, *clock, now,
+                                 Helm::CourseSync::Reach::FlyingOnly))
+    {
+        return;
+    }
+
+    WorldPacket data;
+    Helm::Wire::WriteSync(leg, now, GetObjectGuid().GetRawValue(), data);
+    SendMessageToSet(&data, true);
 }
 
 /**

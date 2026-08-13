@@ -248,6 +248,22 @@ namespace Movement
             uint32 GetId() const { return m_Id;}
 
             /**
+             * @brief How far into the leg the client should be, in milliseconds.
+             *
+             * The protected `timePassed()` says the same thing, but only to code that
+             * is part of the spline machinery. Anything that has to describe the
+             * RUNNING leg to something outside -- the course scheduler, which decides
+             * whether to correct a client that has fallen behind -- needs it too, and
+             * without a public reader it would have to keep a shadow copy that could
+             * disagree.
+             */
+            int32 Elapsed() const { return time_passed; }
+
+            /// Catmull-Rom, and therefore flying: the client interpolates the points
+            /// as a curve rather than joining them.
+            bool IsSmooth() const { return splineflags.isSmooth(); }
+
+            /**
              * @brief Checks if the spline is finalized.
              * @return bool True if the spline is finalized, false otherwise.
              */

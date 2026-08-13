@@ -71,6 +71,7 @@
 #include "FollowerRefManager.h"
 #include "Utilities/EventProcessor.h"
 #include "MotionMaster.h"
+#include "CourseSync.h"
 #include "DBCStructure.h"
 #include "WorldPacket.h"
 #include "Timer.h"
@@ -3870,6 +3871,19 @@ class Unit : public WorldObject
         MovementInfo m_movementInfo;
         Movement::MoveSpline* movespline;
 
+        /**
+         * @brief The leg this unit was last told to travel, as a plan.
+         *
+         * Written by the launcher, and for now READ BY NOBODY: the spline beside it is
+         * still what the server consults for where the unit is and when it arrives.
+         * What the course already owns is the packet -- it is the value the client was
+         * actually sent -- which is the point of keeping it here rather than throwing
+         * it away after serialising. When position becomes a query, this is what it
+         * will be a query of.
+         */
+        Helm::Course const& CurrentCourse() const { return m_course; }
+        void SetCourse(Helm::Course const& course) { m_course = course; }
+
         void ScheduleAINotify(uint32 delay);
         bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
         void _SetAINotifyScheduled(bool on) { m_AINotifyScheduled = on;}       // only for call from RelocationNotifyEvent code
@@ -3941,6 +3955,16 @@ class Unit : public WorldObject
         void CleanupDeletedAuras();
         void UpdateSplineMovement(uint32 t_diff);
         void RelocateToSplinePosition();
+
+        /// Send the running leg's progress to the observers when it has run long
+        /// enough, or when the controlling client says it has fallen behind.
+        void MaintainCourseSync();
+
+        /// When the running leg was last repaired, and which leg that was.
+        Helm::CourseSync::State m_courseSync;
+
+        /// The plan the client was sent. See CurrentCourse().
+        Helm::Course m_course;
 
         Unit* _GetTotem(TotemSlot slot) const;              // for templated function without include need
         Pet* _GetPet(ObjectGuid guid) const;                // for templated function without include need

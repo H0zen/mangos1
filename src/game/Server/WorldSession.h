@@ -39,6 +39,7 @@
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
 #include "AuctionHouseMgr.h"
+#include "ClientClock.h"
 #include "Item.h"
 
 struct ItemPrototype;
@@ -512,6 +513,19 @@ class WorldSession
         void SetClientTimeDelay(int64 delay) { m_clientTimeDelay = delay; }
         int64 GetClientTimeDelay() const { return m_clientTimeDelay; }
         void ResetClientTimeDelay();
+
+        /**
+         * @brief This client's movement clock -- how far behind the server's it runs,
+         *        and how sure we are of that.
+         *
+         * Fed from the two packets that already arrive and were, until now, used only
+         * to nudge a movement timestamp: the time-sync answer and the client's own
+         * admission that it has lost movement time. Read by the course scheduler, which
+         * turns "the client is 500 ms behind" into "the client is drawing this unit four
+         * yards from where the plan says it is".
+         */
+        Helm::ClientClock& CourseClock() { return m_courseClock; }
+        Helm::ClientClock const& CourseClock() const { return m_courseClock; }
         void PushTimeSyncSample(int64 clockDelta, uint32 roundTrip);
         void AdjustMovementInfoTime(MovementInfo& mi);
         uint32 getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus);
@@ -1013,6 +1027,7 @@ class WorldSession
         uint32 m_latency;
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
+        Helm::ClientClock m_courseClock;
         int64 m_clientTimeDelay;
         bool m_clientTimeDelayKnown;
         std::deque<std::pair<int64, uint32>> m_timeSyncSamples; ///< (clock delta, round trip)
