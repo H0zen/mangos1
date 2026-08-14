@@ -58,7 +58,7 @@
 #include "GridMap.h"
 #include "DisableMgr.h"
 #include "terrain/TileSerializer.hpp"
-#include "MoveMap.h"
+#include "nav/NavStore.hpp"
 #include <utility>
 #include <vector>
 #include "World.h"
@@ -223,7 +223,7 @@ uint32 TerrainInfo::SurfaceSources() const
 
 TerrainInfo::~TerrainInfo()
 {
-    MMAP::MMapFactory::createOrGetMMapManager()->unloadMap(m_mapId);
+    Nav::NavStores::Instance().Drop(m_mapId);
 }
 
 bool TerrainInfo::ExistTile(uint32 mapid, int gx, int gy)
@@ -262,12 +262,16 @@ bool TerrainInfo::Load(const uint32 x, const uint32 y)
     {
         m_terrain.PinCell(int(x), int(y));
 
-        // The navmesh tile is loaded by the FIRST referent only -- the refcount above is
-        // what makes several owners of one grid legal, and Unload already releases on the
-        // last. Loading unconditionally made every second owner ask for a tile the first
-        // had already brought in, which the mmap manager rejects and logs. Common now
-        // that a vessel is an active object holding grids a player then walks into.
-        MMAP::MMapFactory::createOrGetMMapManager()->loadMap(m_mapId, x, y);
+        // The navigation tile is loaded by the FIRST referent only -- the refcount
+        // above is what makes several owners of one grid legal, and Unload already
+        // releases on the last. Loading unconditionally made every second owner ask for
+        // a tile the first had already brought in. Common now that a vessel is an
+        // active object holding grids a player then walks into.
+        //
+        // A tile that will not load is not an error here: a map may simply have no
+        // baked navigation, in which case every query answers "no ground" and the
+        // movement code falls back to a straight line, which is what it always did.
+        Nav::NavStores::Instance().For(m_mapId).LoadTile(int(x), int(y));
     }
     return true;
 }
@@ -311,14 +315,16 @@ void TerrainInfo::CleanUpGrids(const uint32 diff)
     // filter is switched on.
     //
     // Snapshot first: unloading mutates the very container being read.
-    std::vector<std::pair<int32, int32> > resident;
-    MMAP::MMapFactory::createOrGetMMapManager()->residentTiles(m_mapId, resident);
+    Nav::NavStore& nav = Nav::NavStores::Instance().For(m_mapId);
 
-    for (std::vector<std::pair<int32, int32> >::const_iterator it = resident.begin();
+    std::vector<Nav::TileKey> resident;
+    nav.ResidentTiles(resident);
+
+    for (std::vector<Nav::TileKey>::const_iterator it = resident.begin();
          it != resident.end(); ++it)
     {
-        const int32 x = it->first;
-        const int32 y = it->second;
+        const int32 x = it->x;
+        const int32 y = it->y;
 
         // A tile the manager holds for a cell outside the grid would index the
         // reference table out of bounds. It cannot happen -- loads come from Load(),
@@ -332,7 +338,7 @@ void TerrainInfo::CleanUpGrids(const uint32 diff)
         std::lock_guard<LOCK_TYPE> lock(m_refMutex);
         if (m_GridRef[x][y] == 0)
         {
-            MMAP::MMapFactory::createOrGetMMapManager()->unloadMap(m_mapId, x, y);
+            nav.UnloadTile(x, y);
         }
     }
 

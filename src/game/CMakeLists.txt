@@ -273,9 +273,12 @@ target_link_libraries(game
         # The terrain engine: geometry and baked tiles, and no knowledge of the
         # world, the database or any DBC.
         terrain
+        # Where a mover may go and how it gets there. Like terrain, it knows nothing
+        # of the world, the database or any DBC -- what a MOVER is allowed to do
+        # reaches it as a Nav::MoveProfile value that src/game fills in.
+        nav
         proto
         shared
-        RecastNavigation::Detour
         ZLIB::ZLIB
         $<$<BOOL:${SCRIPT_LIB_SD3}>:mangosscript>
         $<$<BOOL:${SCRIPT_LIB_ELUNA}>:lualib>

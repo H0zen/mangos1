@@ -27,9 +27,14 @@
 #define MANGOSSERVER_MOVESPLINEINIT_H
 
 #include "MoveSplineInitArgs.h"
-#include "PathFinder.h"
+#include "MotionGenerators/Pathing.h"
 
-class Unit;
+// For UnitMoveType, which this header DECLARES a function returning. It used to arrive
+// through the router's header; that header no longer drags the whole Unit in, so the
+// dependency has to be spelled where it is used. Exactly the case the coding standard
+// means by "include what you use": it compiled only because something four levels up
+// happened to bring it.
+#include "Object/Unit.h"
 
 namespace Movement
 {
@@ -231,7 +236,7 @@ namespace Movement
     {
         if (generatePath)
         {
-            PathFinder path(&unit);
+            Pathing path(&unit);
             path.calculate(dest.x, dest.y, dest.z, forceDestination,
                            Nav::SearchBudget::ForLength(maxPathRange));
             MovebyPath(path.getPath());

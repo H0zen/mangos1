@@ -63,7 +63,6 @@
 #include "MapRefManager.h"
 #include "DBCEnums.h"
 #include "MapPersistentStateMgr.h"
-#include "MoveMap.h"
 #include "Chat.h"
 #include "Weather.h"
 #include "Transports.h"
@@ -133,8 +132,10 @@ Map::~Map()
     delete i_data;
     i_data = NULL;
 
-    // unload instance specific navigation data
-    MMAP::MMapFactory::createOrGetMMapManager()->unloadMapInstance(m_TerrainData->GetMapId(), GetInstanceId());
+    // Nothing instance-specific to release. The navigation a map instance queries is
+    // the map's own baked tiles and a stateless search over them; the layer this
+    // replaces had to keep one query object per instance because its were not
+    // reentrant, and destroying the instance was the only chance to free them.
 
     // release reference count
     if (m_TerrainData->Release())

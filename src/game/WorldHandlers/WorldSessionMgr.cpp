@@ -75,7 +75,6 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "TemporarySummon.h"
-#include "MoveMap.h"
 #include "GameEventMgr.h"
 #include "PoolManager.h"
 #include "GridNotifiersImpl.h"

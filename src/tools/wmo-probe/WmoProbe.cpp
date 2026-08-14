@@ -22,12 +22,12 @@
 #include "terrain/TileSerializer.hpp"
 #include "terrain/WmoModel.hpp"
 
-// The on-disk mmtile header and the NAV_* bits are the SERVER's declaration, included
-// rather than copied -- the same reason NavMeshBuilder includes them.
-#include "MoveMapSharedDefines.h"
-
-#include "DetourNavMesh.h"
-#include "DetourNavMeshQuery.h"
+// The navigation the SERVER reads, included rather than reimplemented: this tool
+// exists to answer "would the server route here", and it can only answer that by
+// running the server's own store and router.
+#include "nav/NavStore.hpp"
+#include "nav/NavTileIO.hpp"
+#include "nav/Router.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -979,181 +979,117 @@ namespace
     }
 
     // --------------------------------------------------------------- the mesh ---
-    /// Runs the SERVER'S OWN query against the baked navmesh: same coordinate order
-    /// (y, z, x), same search extents, same two-stage retry as PathFinder, and the
-    /// filter a given creature would build. "The mesh has water polygons in it" and
-    /// "a swimmer can path across them" are different claims, and only this settles
-    /// the second -- polygons that exist but share no edge answer the first and fail
-    /// the second.
-    void Path(const std::string& mmaps, uint32_t mapId, float x1, float y1, float z1,
-              float x2, float y2, float z2, unsigned short includeFlags)
+    /// Runs the SERVER'S OWN routing query against the baked navigation: the same
+    /// store, the same router, the same profile a given creature would carry. "The
+    /// navigation has water cells in it" and "a swimmer can cross them" are different
+    /// claims, and only this settles the second -- cells that exist but share no step
+    /// answer the first and fail the second.
+    void Path(const std::string& navDir, uint32_t mapId, float x1, float y1, float z1,
+              float x2, float y2, float z2, bool groundOnly)
     {
-        char name[64];
-        std::snprintf(name, sizeof(name), "%04u.mmap", mapId);
-        std::FILE* f = std::fopen((mmaps + "/" + name).c_str(), "rb");
-        if (!f)
-        {
-            std::printf("no %s in %s\n", name, mmaps.c_str());
-            return;
-        }
-        dtNavMeshParams params{};
-        const bool readParams = std::fread(&params, sizeof(params), 1, f) == 1;
-        std::fclose(f);
-        if (!readParams)
-        {
-            std::printf("cannot read %s\n", name);
-            return;
-        }
+        Nav::SetNavDir(navDir);
 
-        dtNavMesh* mesh = dtAllocNavMesh();
-        if (!mesh || dtStatusFailed(mesh->init(&params)))
+        Nav::NavStore store(mapId);
+
+        // Everything between the two ends, so a route that has to leave the straight
+        // corridor still has ground under it. The server holds tiles because grids are
+        // loaded; here the span is loaded explicitly.
+        const Nav::CellRef from = Nav::CellAt(x1, y1);
+        const Nav::CellRef to = Nav::CellAt(x2, y2);
+        if (!from.Valid() || !to.Valid())
         {
-            std::printf("navmesh init failed\n");
+            std::printf("one of the ends is off the map\n");
             return;
         }
 
         size_t loaded = 0;
-        for (int tx = 0; tx < 64; ++tx)
+        const int txLo = std::min(from.TileX(), to.TileX()) - 1;
+        const int txHi = std::max(from.TileX(), to.TileX()) + 1;
+        const int tyLo = std::min(from.TileY(), to.TileY()) - 1;
+        const int tyHi = std::max(from.TileY(), to.TileY()) + 1;
+
+        for (int tx2 = txLo; tx2 <= txHi; ++tx2)
         {
-            for (int ty = 0; ty < 64; ++ty)
+            for (int ty2 = tyLo; ty2 <= tyHi; ++ty2)
             {
-                std::snprintf(name, sizeof(name), "%04u%02i%02i.mmtile", mapId, tx, ty);
-                std::FILE* tf = std::fopen((mmaps + "/" + name).c_str(), "rb");
-                if (!tf)
+                if (tx2 < 0 || ty2 < 0 || tx2 > 63 || ty2 > 63)
                 {
                     continue;
                 }
-                MmapTileHeader header{};
-                if (std::fread(&header, sizeof(header), 1, tf) != 1)
+                if (store.LoadTile(tx2, ty2))
                 {
-                    std::fclose(tf);
-                    continue;
+                    ++loaded;
                 }
-                // The probe exists to ask the navmesh the same question the server
-                // asks it, so it has to refuse the same tiles the server refuses.
-                // Reading a stale blob with shifted offsets here would answer
-                // confidently and wrongly, which is worse than answering nothing.
-                if (header.mmapMagic != MMAP_MAGIC ||
-                    header.mmapVersion != MMAP_VERSION ||
-                    header.dtVersion != uint32(DT_NAVMESH_VERSION) ||
-                    header.polyRefSize != uint32(sizeof(dtPolyRef)))
-                {
-                    std::fclose(tf);
-                    continue;
-                }
-                unsigned char* data =
-                    static_cast<unsigned char*>(dtAlloc(header.size, DT_ALLOC_PERM));
-                if (!data || std::fread(data, header.size, 1, tf) != 1)
-                {
-                    dtFree(data);
-                    std::fclose(tf);
-                    continue;
-                }
-                std::fclose(tf);
-                if (dtStatusFailed(mesh->addTile(data, int(header.size),
-                                                 DT_TILE_FREE_DATA, 0, nullptr)))
-                {
-                    dtFree(data);
-                    continue;
-                }
-                ++loaded;
             }
         }
-
-        dtNavMeshQuery* query = dtAllocNavMeshQuery();
-        if (!query || dtStatusFailed(query->init(mesh, 1024)))
-        {
-            std::printf("query init failed\n");
-            return;
-        }
-
-        dtQueryFilter filter;
-        filter.setIncludeFlags(includeFlags);
-        filter.setExcludeFlags(0);
-
-        // PathFinder spells a point (y, z, x); getting this wrong searches the map's
-        // mirror image and every lookup misses for reasons that look like missing tiles.
-        float start[3] = {y1, z1, x1};
-        float end[3] = {y2, z2, x2};
-
-        auto nearest = [&](const float* pt, const char* label)
-        {
-            float extents[3] = {3.0f, 5.0f, 3.0f};
-            float closest[3] = {0.f, 0.f, 0.f};
-            dtPolyRef ref = 0;
-            query->findNearestPoly(pt, extents, &filter, &ref, closest);
-            if (!ref)
-            {
-                extents[1] = 200.0f;   // the retry PathFinder makes
-                query->findNearestPoly(pt, extents, &filter, &ref, closest);
-            }
-            unsigned short flags = 0;
-            unsigned char area = 0;
-            if (ref)
-            {
-                mesh->getPolyFlags(ref, &flags);
-                mesh->getPolyArea(ref, &area);
-            }
-            std::printf("  %-5s poly=%llu area=%s\n", label,
-                        static_cast<unsigned long long>(ref),
-                        area == NAV_GROUND  ? "GROUND"
-                        : area == NAV_WATER ? "WATER"
-                        : area == NAV_MAGMA ? "MAGMA"
-                        : area == NAV_SLIME ? "SLIME"
-                                            : "none");
-            return ref;
-        };
 
         std::printf("\n=== path (%.1f, %.1f, %.1f) -> (%.1f, %.1f, %.1f), map %u ===\n",
                     x1, y1, z1, x2, y2, z2, mapId);
-        std::printf("  %zu mmtiles loaded, filter includeFlags=0x%X (%s%s)\n", loaded,
-                    includeFlags, (includeFlags & NAV_GROUND) ? "GROUND " : "",
-                    (includeFlags & NAV_WATER) ? "WATER" : "");
+        std::printf("  %zu nav tiles loaded from %s\n", loaded, navDir.c_str());
 
-        const dtPolyRef startRef = nearest(start, "start");
-        const dtPolyRef endRef = nearest(end, "end");
-        if (!startRef || !endRef)
+        if (loaded == 0)
         {
-            std::printf("  no polygon under one of the ends -> the server would give up "
-                        "on the mesh entirely\n");
+            std::printf("  nothing to route on -- the server would fall back to a "
+                        "straight line\n");
             return;
         }
 
-        dtPolyRef path[256];
-        int count = 0;
-        const dtStatus status =
-            query->findPath(startRef, endRef, start, end, &filter, path, &count, 256);
+        Nav::RouteRequest request;
+        request.start = Geometry::Vector3(x1, y1, z1);
+        request.end = Geometry::Vector3(x2, y2, z2);
 
-        std::printf("  findPath: %s%s, %d polygons\n",
-                    dtStatusSucceed(status) ? "success" : "FAILED",
-                    dtStatusDetail(status, DT_PARTIAL_RESULT) ? " (PARTIAL)" : "", count);
+        // A hunter pet: Creature::CanWalk gives the ground, Pet::CanSwim the rest.
+        request.profile.allowedAreas =
+            groundOnly ? uint16_t(Nav::AREAS_WALKABLE)
+                       : uint16_t(Nav::AREAS_WALKABLE | Nav::AREAS_LIQUID);
+        request.profile.canWalk = true;
+        request.profile.canSwim = !groundOnly;
 
-        if (count > 0)
+        // Reported per end, because "no ground under the start" and "no ground under
+        // the goal" are diagnosed in opposite directions.
+        const char* labels[2] = {"start", "end  "};
+        const Geometry::Vector3 ends[2] = {request.start, request.end};
+        for (int i = 0; i < 2; ++i)
         {
-            std::map<int, int> areas;
-            for (int i = 0; i < count; ++i)
+            Nav::CellRef cell;
+            Nav::Surface surface;
+            if (store.SurfaceAt(ends[i].x, ends[i].y, ends[i].z, 3.0f, cell, surface))
             {
-                unsigned char area = 0;
-                mesh->getPolyArea(path[i], &area);
-                areas[area]++;
+                std::printf("  %s tile=[%02d,%02d] cell=[%03d,%03d] z=%.2f area=%u "
+                            "region=%u room=%.2f yd\n",
+                            labels[i], cell.TileX(), cell.TileY(), cell.LocalX(),
+                            cell.LocalY(), surface.z,
+                            unsigned(Nav::AreaOf(surface.area)),
+                            unsigned(surface.region),
+                            Nav::RestoreClearance(surface.clearance));
             }
-            std::printf("  polygons by area:");
-            for (const auto& a : areas)
+            else
             {
-                std::printf("  %s x%d",
-                            a.first == NAV_GROUND  ? "GROUND"
-                            : a.first == NAV_WATER ? "WATER"
-                            : a.first == NAV_MAGMA ? "MAGMA"
-                            : a.first == NAV_SLIME ? "SLIME"
-                                                   : "other",
-                            a.second);
+                std::printf("  %s NO WALKABLE SURFACE -> the server would give up on "
+                            "the navigation entirely\n", labels[i]);
             }
-            std::printf("\n");
         }
-        if (count > 0 && path[count - 1] != endRef)
+
+        Nav::Route route;
+        const Nav::Router router(store);
+        router.Find(request, route);
+
+        const char* outcome = "unroutable";
+        switch (route.outcome)
         {
-            std::printf("  the path STOPS SHORT of the destination -- this is what the "
-                        "server sees as an incomplete path\n");
+            case Nav::RouteOutcome::Routed:     outcome = "routed"; break;
+            case Nav::RouteOutcome::Partial:    outcome = "PARTIAL"; break;
+            case Nav::RouteOutcome::Direct:     outcome = "direct"; break;
+            case Nav::RouteOutcome::Unroutable: outcome = "UNROUTABLE"; break;
+        }
+
+        std::printf("  result: %s, %zu points, stop=%d\n", outcome,
+                    route.points.size(), int(route.stop));
+
+        for (size_t i = 0; i < route.points.size(); ++i)
+        {
+            std::printf("    [%02zu] %.2f %.2f %.2f\n", i, route.points[i].x,
+                        route.points[i].y, route.points[i].z);
         }
     }
 
@@ -1179,10 +1115,10 @@ namespace
             "                                    with, over a range of tiles\n"
             "  groups [--root <path>]            one WMO's group flags from the CLIENT,\n"
             "                                    compared against the bake\n"
-            "  path <x1> <y1> <z1> <x2> <y2> <z2>  the server's own navmesh query, with\n"
-            "                                    a swimmer's filter (--ground-only for\n"
-            "                                    a creature that cannot swim)\n"
-            "                                    needs --mmaps <dir>\n");
+            "  path <x1> <y1> <z1> <x2> <y2> <z2>  the server's own routing query, as\n"
+            "                                    a swimmer (--ground-only for a\n"
+            "                                    creature that cannot swim)\n"
+            "                                    needs --nav <dir>\n");
     }
 }
 
@@ -1194,7 +1130,7 @@ int main(int argc, char** argv)
     std::string locale = "enGB";
     std::string root;
     std::string pattern = "*.wmo";
-    std::string mmaps = "mmaps";
+    std::string navDir = "nav";
     uint32_t mapId = 0;
     int tx = 0, ty = 0;
     bool verbose = false;
@@ -1223,7 +1159,7 @@ int main(int argc, char** argv)
             tx = std::atoi(args[++i].c_str());
             ty = std::atoi(args[++i].c_str());
         }
-        else if (a == "--mmaps" && hasValue) { mmaps = args[++i]; }
+        else if (a == "--nav" && hasValue) { navDir = args[++i]; }
         else if (a == "--legacy-flags") { g_legacyFlags = true; }
         else if (a == "--ground-only") { groundOnly = true; }
         else if (a == "-v") { verbose = true; }
@@ -1268,12 +1204,8 @@ int main(int argc, char** argv)
     }
     else if (mode == "path" && i + 6 < args.size())
     {
-        // A hunter pet: Creature::CanWalk gives GROUND, Pet::CanSwim gives the rest.
-        const unsigned short flags =
-            groundOnly ? NAV_GROUND
-                       : (unsigned short)(NAV_GROUND | NAV_WATER | NAV_MAGMA | NAV_SLIME);
-        Path(mmaps, mapId, number(i + 1), number(i + 2), number(i + 3), number(i + 4),
-             number(i + 5), number(i + 6), flags);
+        Path(navDir, mapId, number(i + 1), number(i + 2), number(i + 3),
+             number(i + 4), number(i + 5), number(i + 6), groundOnly);
     }
     else
     {

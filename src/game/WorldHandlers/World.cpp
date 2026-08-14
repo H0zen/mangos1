@@ -77,7 +77,9 @@
 #include "Policies/Singleton.h"
 #include "BattleGround/BattleGroundMgr.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "MoveMap.h"
+#include "MotionGenerators/Pathing.h"
+#include "nav/NavStore.hpp"
+#include "nav/NavTileIO.hpp"
 #include "terrain/FusedTerrain.hpp"
 #include "terrain/GoModelStore.hpp"
 #include "GameObjectModel.h"
@@ -276,7 +278,8 @@ World::~World()
     }
 
     LineOfSightExemptions::Clear();
-    MMAP::MMapFactory::clear();
+    Nav::NavStores::Instance().Clear();
+    Nav::Policy::Clear();
 }
 
 /// Cleanups before world stop
@@ -483,9 +486,6 @@ void World::SetInitialWorldSettings()
     ///- Time server startup
     uint32 startupBegin = GameTime::GetGameTimeMS();
 
-    ///- Initialize detour memory management
-    dtAllocSetCustom(dtCustomAlloc, dtCustomFree);
-
     ///- Initialize config settings
     LoadConfigSettings();
 
@@ -494,6 +494,12 @@ void World::SetInitialWorldSettings()
     ///  tile loading, and the old "use vmaps" switch is a no-op).
     world::terrain::FusedTerrain::SetTileDir(m_dataPath + "tiles");
     sLog.outString("WORLD: Fused terrain tile directory is: %stiles", m_dataPath.c_str());
+
+    ///- And at the baked navigation beside it. A missing nav/ is not fatal: every
+    ///  query answers "no ground" and the movement code lays a straight line, which
+    ///  is exactly what a map with no navigation has always got.
+    Nav::SetNavDir(m_dataPath + "nav");
+    sLog.outString("WORLD: Navigation tile directory is: %snav", m_dataPath.c_str());
 
     ///- Point game-object collision at the baked per-display models. Replaces the vmap
     ///  model store (vmaps/*.vmo + the GAMEOBJECT_MODELS list file).

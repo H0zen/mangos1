@@ -78,8 +78,8 @@ target_link_libraries(extractor_client
 set_target_properties(extractor_client PROPERTIES FOLDER "tools")
 
 set(SRC_GRP_NAV
-    nav/NavMeshBuilder.cpp
-    nav/NavMeshBuilder.hpp
+    nav/NavBake.cpp
+    nav/NavBake.hpp
 )
 source_group("nav" FILES ${SRC_GRP_NAV})
 
@@ -101,16 +101,12 @@ target_include_directories(extractor_data
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src/shared
         ${CMAKE_SOURCE_DIR}/src/game
-        # For MoveMapSharedDefines.h: the on-disk mmtile header is the server's
-        # declaration, included rather than copied.
-        ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
 )
 
 target_link_libraries(extractor_data
     PUBLIC
         extractor_client
-        RecastNavigation::Recast
-        RecastNavigation::Detour
+        nav
 )
 
 set_target_properties(extractor_data PROPERTIES FOLDER "tools")

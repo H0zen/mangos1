@@ -22,6 +22,7 @@
 # about WoW, any client version, or the server.
 add_subdirectory(shared/Geometry)
 add_subdirectory(shared/terrain)
+add_subdirectory(shared/nav)
 
 # Build the mangos shared library
 add_subdirectory(shared)

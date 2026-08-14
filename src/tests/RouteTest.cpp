@@ -33,11 +33,9 @@
 
 #include "TestHarness.h"
 
-#include "Corridor.h"
-#include "MoveMapSharedDefines.h"
-#include "MoveProfile.h"
-#include "Route.h"
-#include "SearchBudget.h"
+#include "nav/NavArea.hpp"
+#include "nav/Route.hpp"
+#include "nav/SearchBudget.hpp"
 
 #include <cstddef>
 #include <initializer_list>
@@ -130,14 +128,14 @@ TEST(Route_StopIsIndependentOfOutcome)
     // a wall. The outcome cannot carry that, which is why the stop is its own field.
     const Nav::Route wall = MakeRoute(Nav::RouteOutcome::Partial, Nav::RouteStop::Wall);
     const Nav::Route nodes = MakeRoute(Nav::RouteOutcome::Partial, Nav::RouteStop::NodeBudget);
-    const Nav::Route polys = MakeRoute(Nav::RouteOutcome::Partial, Nav::RouteStop::PolyBudget);
+    const Nav::Route points = MakeRoute(Nav::RouteOutcome::Partial, Nav::RouteStop::PointBudget);
 
     // Compared with CHECK rather than CHECK_EQ: the latter renders both sides with
     // std::to_string, which has no overload for a scoped enumeration.
     CHECK(wall.outcome == nodes.outcome);
-    CHECK(wall.outcome == polys.outcome);
+    CHECK(wall.outcome == points.outcome);
     CHECK(wall.stop != nodes.stop);
-    CHECK(nodes.stop != polys.stop);
+    CHECK(nodes.stop != points.stop);
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +145,7 @@ TEST(Route_StopIsIndependentOfOutcome)
 TEST(MoveProfile_DefaultPermitsNothing)
 {
     const Nav::MoveProfile p;
-    CHECK_EQ(p.includeFlags, uint16(0));
+    CHECK_EQ(p.allowedAreas, uint16_t(Nav::AREAS_WALKABLE));
     CHECK(!p.MayGoDirect(true));
     CHECK(!p.MayGoDirect(false));
 }
@@ -193,222 +191,4 @@ TEST(MoveProfile_MayGoDirectPicksTheAbilityTheGroundCallsFor)
 
     CHECK(!grounded.MayGoDirect(true));
     CHECK(!grounded.MayGoDirect(false));
-}
-
-// ---------------------------------------------------------------------------
-// The baked tile header: what a stale bake has to be caught by.
-// ---------------------------------------------------------------------------
-
-TEST(MmapTileHeader_DescribesWhatItWasBuiltAgainst)
-{
-    const MmapTileHeader header;
-
-    CHECK_EQ(header.mmapMagic, uint32(MMAP_MAGIC));
-    CHECK_EQ(header.mmapVersion, uint32(MMAP_VERSION));
-    CHECK_EQ(header.dtVersion, uint32(DT_NAVMESH_VERSION));
-
-    // The field that catches the failure DT_NAVMESH_VERSION cannot. dtLink embeds a
-    // dtPolyRef and dtCreateNavMeshData sizes the tile blob from sizeof(dtLink), so
-    // flipping DT_POLYREF64 moves every offset past this header while leaving both
-    // version numbers alone.
-    CHECK_EQ(header.polyRefSize, uint32(sizeof(dtPolyRef)));
-    CHECK(header.polyRefSize == 4u || header.polyRefSize == 8u);
-
-    CHECK_EQ(header.flags, uint32(MMAP_TILE_USES_LIQUIDS));
-}
-
-TEST(MmapTileHeader_LayoutIsSixWords)
-{
-    // Written with fwrite and read back by a possibly different compiler, so its size
-    // is part of the file format. Six uint32 admit no padding on any implementation;
-    // the `bool : 1` bitfield this replaced did not have that guarantee.
-    CHECK_EQ(sizeof(MmapTileHeader), size_t(24));
-}
-
-// ---------------------------------------------------------------------------
-// Area to flags: the version 7 defect, held down.
-// ---------------------------------------------------------------------------
-
-TEST(NavAreaToFlags_KeepsSurfacesTellingThemselvesApart)
-{
-    // Detour tests the filter against polyFlags and never against the area id. Writing
-    // a bare 1 for every walkable polygon told every query that the whole world was
-    // ground: a swimmer masking WATER|MAGMA|SLIME matched nothing and could not cross
-    // its own lake, while a walker masking GROUND was cleared to walk over magma.
-    const uint16 swimmer = NAV_WATER | NAV_MAGMA | NAV_SLIME;
-    const uint16 walker = NAV_GROUND;
-
-    CHECK((NavAreaToFlags(NAV_WATER) & swimmer) != 0);
-    CHECK((NavAreaToFlags(NAV_MAGMA) & swimmer) != 0);
-    CHECK((NavAreaToFlags(NAV_SLIME) & swimmer) != 0);
-    CHECK((NavAreaToFlags(NAV_GROUND) & swimmer) == 0);
-
-    CHECK((NavAreaToFlags(NAV_GROUND) & walker) != 0);
-    CHECK((NavAreaToFlags(NAV_MAGMA) & walker) == 0);
-    CHECK((NavAreaToFlags(NAV_WATER) & walker) == 0);
-
-    // And an area id is a valid index into Detour's per-area cost table, which is what
-    // lets the surfaces be PRICED rather than merely permitted.
-    CHECK(NAV_SLIME < DT_MAX_AREAS);
-    CHECK(NAV_WATER < DT_MAX_AREAS);
-}
-
-// ---------------------------------------------------------------------------
-// Nav::Corridor: the index arithmetic that decides how much of the last leg survives.
-// ---------------------------------------------------------------------------
-
-static Nav::Corridor MakeCorridor(std::initializer_list<dtPolyRef> polys)
-{
-    Nav::Corridor c;
-    std::vector<dtPolyRef> v(polys);
-    c.Assign(v.data(), uint32(v.size()));
-    return c;
-}
-
-TEST(Corridor_StartsEmpty)
-{
-    const Nav::Corridor c;
-    CHECK(c.Empty());
-    CHECK_EQ(c.Length(), uint32(0));
-    CHECK_EQ(c.Find(1), Nav::Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(1, 0), Nav::Corridor::NPOS);
-}
-
-TEST(Corridor_FindTakesTheFirstOccurrence)
-{
-    // Where the mover has got to. Earliest wins: the mover is at the START of the part
-    // of the corridor it has not walked yet.
-    const Nav::Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
-    CHECK_EQ(c.Find(20), uint32(1));
-    CHECK_EQ(c.Find(40), uint32(4));
-    CHECK_EQ(c.Find(99), Nav::Corridor::NPOS);
-}
-
-TEST(Corridor_FindLastAfterTakesTheLastOccurrence)
-{
-    // How much of the corridor still leads to the goal, and the reason it is the LAST
-    // occurrence rather than the first: a route that doubles back round an obstacle
-    // enters the same polygon twice, and cutting at the first visit discards the half
-    // that actually goes somewhere.
-    const Nav::Corridor c = MakeCorridor({ 10, 20, 30, 20, 40 });
-
-    CHECK_EQ(c.FindLastAfter(20, 0), uint32(3));
-    CHECK_EQ(c.FindLastAfter(40, 0), uint32(4));
-
-    // Strictly after: a polygon that is only where the mover already stands is not a
-    // remaining route.
-    CHECK_EQ(c.FindLastAfter(10, 0), Nav::Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(20, 3), Nav::Corridor::NPOS);
-}
-
-TEST(Corridor_FindLastAfterSurvivesNotFound)
-{
-    // Composed straight out of Find, whose miss is NPOS. Unguarded, NPOS + 1 wraps to
-    // zero and the search sweeps the whole corridor as though it had been asked to
-    // start from the front -- the opposite of what "I found nothing" means.
-    const Nav::Corridor c = MakeCorridor({ 10, 20, 30 });
-    CHECK_EQ(c.FindLastAfter(30, Nav::Corridor::NPOS), Nav::Corridor::NPOS);
-    CHECK_EQ(c.FindLastAfter(30, 99), Nav::Corridor::NPOS);
-}
-
-TEST(Corridor_AdvanceDropsWhatIsBehind)
-{
-    Nav::Corridor c = MakeCorridor({ 10, 20, 30, 40 });
-
-    c.Advance(2);
-    CHECK_EQ(c.Length(), uint32(2));
-    CHECK_EQ(c.At(0), dtPolyRef(30));
-    CHECK_EQ(c.Last(), dtPolyRef(40));
-
-    // Advancing nowhere leaves it alone; advancing past the end leaves nothing, which
-    // is the honest answer when the mover is no longer on its own corridor at all.
-    c.Advance(0);
-    CHECK_EQ(c.Length(), uint32(2));
-
-    c.Advance(99);
-    CHECK(c.Empty());
-}
-
-TEST(Corridor_SubpathCutMatchesTheOldArithmetic)
-{
-    // The reuse case in full: the mover has reached polygon 30 and the goal is still
-    // in 50, so what survives is exactly [30 .. 50] -- Advance to the front of it,
-    // Truncate to its length.
-    Nav::Corridor c = MakeCorridor({ 10, 20, 30, 40, 50, 60 });
-
-    const uint32 start = c.Find(30);
-    const uint32 end = c.FindLastAfter(50, start);
-    REQUIRE(start != Nav::Corridor::NPOS);
-    REQUIRE(end != Nav::Corridor::NPOS);
-
-    c.Advance(start);
-    c.Truncate(end - start + 1);
-
-    CHECK_EQ(c.Length(), uint32(3));
-    CHECK_EQ(c.At(0), dtPolyRef(30));
-    CHECK_EQ(c.At(1), dtPolyRef(40));
-    CHECK_EQ(c.Last(), dtPolyRef(50));
-}
-
-TEST(Corridor_TruncateNeverGrows)
-{
-    Nav::Corridor c = MakeCorridor({ 10, 20 });
-    c.Truncate(50);
-    CHECK_EQ(c.Length(), uint32(2));
-    c.Truncate(1);
-    CHECK_EQ(c.Length(), uint32(1));
-    CHECK_EQ(c.Last(), dtPolyRef(10));
-}
-
-TEST(Corridor_LengthIsClampedToCapacity)
-{
-    // Detour is handed Buffer() and a maximum, and SetLength is how it reports back.
-    // A length past the array is not a number to trust: everything downstream indexes
-    // the buffer with it and nothing else bounds-checks.
-    Nav::Corridor c;
-    c.SetLength(Nav::Corridor::CAPACITY + 1000);
-    CHECK_EQ(c.Length(), Nav::Corridor::CAPACITY);
-}
-
-TEST(Corridor_HasInvalidSpotsANullReference)
-{
-    CHECK(!MakeCorridor({ 10, 20, 30 }).HasInvalid());
-    CHECK(MakeCorridor({ 10, 0, 30 }).HasInvalid());
-    CHECK(!Nav::Corridor().HasInvalid());
-}
-
-// ---------------------------------------------------------------------------
-// Nav::SearchBudget: what one request may spend, as a value rather than a setting.
-// ---------------------------------------------------------------------------
-
-TEST(SearchBudget_DefaultsToTheWholeAllowance)
-{
-    const Nav::SearchBudget budget;
-    CHECK_EQ(budget.points, Nav::MAX_POINTS);
-}
-
-TEST(SearchBudget_NoLimitMeansFullBudget)
-{
-    // The distinction that made the old setter dangerous. "No rule of the game applies
-    // here" is not "produce a path of no points", and reading it as the latter would
-    // give every uncapped request an empty path.
-    CHECK_EQ(Nav::SearchBudget::ForLength(0.0f).points, Nav::MAX_POINTS);
-    CHECK_EQ(Nav::SearchBudget::ForLength(-1.0f).points, Nav::MAX_POINTS);
-}
-
-TEST(SearchBudget_LengthBecomesPointsAtTheSmoothingStep)
-{
-    // Yards are the game's unit -- how far a creature may chase -- and points are the
-    // buffer's. The smoothing step is the exchange rate, and it is the only place the
-    // two units meet.
-    CHECK_EQ(Nav::SearchBudget::ForLength(40.0f).points, uint32(10));
-    CHECK_EQ(Nav::SearchBudget::ForLength(4.0f).points, uint32(1));
-}
-
-TEST(SearchBudget_LengthIsClampedToTheBuffer)
-{
-    // A game rule may ask for more path than a path can hold. The buffer wins, because
-    // it is the one bound that cannot be negotiated.
-    CHECK_EQ(Nav::SearchBudget::ForLength(100000.0f).points, Nav::MAX_POINTS);
-    CHECK(Nav::SearchBudget::ForLength(Nav::DEFAULT_LENGTH).points == Nav::MAX_POINTS);
 }

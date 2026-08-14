@@ -36,8 +36,9 @@
 #include "Chat.h"
 #include "ObjectMgr.h"
 #include "World.h"
-#include "MoveMap.h"
-#include "PathFinder.h" // for mmap manager
+#include "MotionGenerators/Pathing.h"
+#include "nav/NavStore.hpp"
+#include "nav/NavTileIO.hpp"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"          // for mmap manager
 #include "CellImpl.h"
@@ -74,10 +75,11 @@ namespace
         {
             case Nav::RouteStop::Reached:    return "reached the goal";
             case Nav::RouteStop::Wall:       return "the world blocked it";
-            case Nav::RouteStop::NodeBudget: return "search node pool exhausted";
-            case Nav::RouteStop::PolyBudget: return "polygon buffer full";
-            case Nav::RouteStop::NoMesh:     return "no navmesh here";
-            case Nav::RouteStop::OffMesh:    return "start or goal is off the mesh";
+            case Nav::RouteStop::NodeBudget: return "the fine search ran out of cells";
+            case Nav::RouteStop::PointBudget: return "the point budget was spent";
+            case Nav::RouteStop::NoMesh:     return "no navigation here";
+            case Nav::RouteStop::OffMesh:    return "start or goal is off the ground";
+            case Nav::RouteStop::TooNarrow:  return "the mover is too wide for the way";
             case Nav::RouteStop::Forced:     return "destination was forced";
             case Nav::RouteStop::Failed:     return "the query failed";
         }
@@ -93,12 +95,6 @@ namespace
  */
 bool ChatHandler::HandleMmapPathCommand(char* args)
 {
-    if (!MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(m_session->GetPlayer()->GetMapId()))
-    {
-        PSendSysMessage("NavMesh not loaded for current map.");
-        return true;
-    }
-
     PSendSysMessage("mmap path:");
 
     // units
@@ -112,7 +108,6 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
 
     char* para = strtok(args, " ");
 
-    bool useStraightPath = false;
     bool followPath = false;
     bool unitToPlayer = false;
     if (para)
@@ -120,15 +115,6 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
         if (strcmp(para, "go") == 0)
         {
             followPath = true;
-            para = strtok(NULL, " ");
-            if (para && strcmp(para, "straight") == 0)
-            {
-                useStraightPath = true;
-            }
-        }
-        else if (strcmp(para, "straight") == 0)
-        {
-            useStraightPath = true;
         }
         else if (strcmp(para, "to_me") == 0)
         {
@@ -137,7 +123,6 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
         else
         {
             PSendSysMessage("Use '.mmap path go' to move on target.");
-            PSendSysMessage("Use '.mmap path straight' to generate straight path.");
             PSendSysMessage("Use '.mmap path to_me' to generate path from the target to you.");
         }
     }
@@ -162,21 +147,19 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
     z = destinationUnit->Where().Z();
 
     // path
-    PathFinder path(originUnit);
-    path.setUseStrightPath(useStraightPath);
+    Pathing path(originUnit);
     path.calculate(x, y, z);
 
-    PointsArray pointPath = path.getPath();
+    const Movement::PointsArray pointPath = path.getPath();
 
     const Nav::Route& route = path.getRoute();
     PSendSysMessage("%s's path to %s:", originUnit->GetName(), destinationUnit->GetName());
-    PSendSysMessage("Building %s", useStraightPath ? "StraightPath" : "SmoothPath");
     PSendSysMessage("length %zu, %s, stopped: %s", pointPath.size(),
                     RouteOutcomeName(route.outcome), RouteStopName(route.stop));
 
-    Vector3 start = path.getStartPosition();
-    Vector3 end = path.getEndPosition();
-    Vector3 actualEnd = path.getActualEndPosition();
+    const Geometry::Vector3 start = path.getStartPosition();
+    const Geometry::Vector3 end = path.getEndPosition();
+    const Geometry::Vector3 actualEnd = path.getActualEndPosition();
 
     PSendSysMessage("start      (%.3f, %.3f, %.3f)", start.x, start.y, start.z);
     PSendSysMessage("end        (%.3f, %.3f, %.3f)", end.x, end.y, end.z);
@@ -211,62 +194,54 @@ bool ChatHandler::HandleMmapPathCommand(char* args)
  */
 bool ChatHandler::HandleMmapLocCommand(char* /*args*/)
 {
-    PSendSysMessage("mmap tileloc:");
-
-    // grid tile location
     Player* player = m_session->GetPlayer();
 
-    int32 gx = 32 - player->Where().X() / SIZE_OF_GRIDS;
-    int32 gy = 32 - player->Where().Y() / SIZE_OF_GRIDS;
+    const float x = player->Where().X();
+    const float y = player->Where().Y();
+    const float z = player->Where().Z();
 
-    PSendSysMessage("%04u%02i%02i.mmtile", player->GetMapId(), gy, gx);
-    PSendSysMessage("gridloc [%i,%i]", gx, gy);
+    const Nav::CellRef cell = Nav::CellAt(x, y);
 
-    // calculate navmesh tile location
-    const dtNavMesh* navmesh = MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(player->GetMapId());
-    const dtNavMeshQuery* navmeshquery = MMAP::MMapFactory::createOrGetMMapManager()->GetNavMeshQuery(player->GetMapId(), player->GetInstanceId());
-    if (!navmesh || !navmeshquery)
+    PSendSysMessage("nav loc:");
+    PSendSysMessage("file  %s", Nav::NavTileFileName(player->GetMapId(), cell.TileX(),
+                                                     cell.TileY()).c_str());
+    PSendSysMessage("tile  [%i,%i]  cell [%i,%i] of %i",
+                    cell.TileX(), cell.TileY(), cell.LocalX(), cell.LocalY(),
+                    Nav::CELLS_PER_TILE);
+
+    const Nav::NavStore* store = Nav::NavStores::Instance().Find(player->GetMapId());
+    if (!store)
     {
-        PSendSysMessage("NavMesh not loaded for current map.");
+        PSendSysMessage("No navigation loaded for this map.");
         return true;
     }
 
-    const float* min = navmesh->getParams()->orig;
-
-    float x, y, z;
-    x = player->Where().X();
-    y = player->Where().Y();
-    z = player->Where().Z();
-    float location[VERTEX_SIZE] = {y, z, x};
-    float extents[VERTEX_SIZE] = {3.0f, 5.0f, 3.0f};
-
-    int32 tilex = int32((y - min[0]) / SIZE_OF_GRIDS);
-    int32 tiley = int32((x - min[2]) / SIZE_OF_GRIDS);
-
-    PSendSysMessage("Calc   [%02i,%02i]", tilex, tiley);
-
-    // navmesh poly -> navmesh tile location
-    dtQueryFilter filter = dtQueryFilter();
-    dtPolyRef polyRef = INVALID_POLYREF;
-    navmeshquery->findNearestPoly(location, extents, &filter, &polyRef, NULL);
-
-    if (polyRef == INVALID_POLYREF)
+    const std::shared_ptr<const Nav::NavTile> tile = store->TileOf(cell);
+    if (!tile)
     {
-        PSendSysMessage("Dt     [??,??] (invalid poly, probably no tile loaded)");
+        PSendSysMessage("That tile is not resident.");
+        return true;
     }
-    else
+
+    // Every surface under the point, not just the one selected. Which surface a
+    // question means is the caller's choice, and a command whose whole job is to say
+    // what the data holds should show all of them.
+    std::vector<Nav::Surface> surfaces;
+    tile->SurfacesAt(cell.InTile(), surfaces);
+
+    if (surfaces.empty())
     {
-        const dtMeshTile* tile;
-        const dtPoly* poly;
-        dtStatus dtResult = navmesh->getTileAndPolyByRef(polyRef, &tile, &poly);
-        if ((dtStatusSucceed(dtResult)) && tile)
-        {
-            PSendSysMessage("Dt     [%02i,%02i]", tile->header->x, tile->header->y);
-        }
-        else
-        {
-            PSendSysMessage("Dt     [??,??] (no tile loaded)");
-        }
+        PSendSysMessage("No walkable surface in this cell.");
+        return true;
+    }
+
+    for (size_t i = 0; i < surfaces.size(); ++i)
+    {
+        const Nav::Surface& surface = surfaces[i];
+        PSendSysMessage("  layer %u  z %.3f (you: %.3f)  area %u  region %u  room %.2f yd",
+                        uint32(i), surface.z, z, uint32(Nav::AreaOf(surface.area)),
+                        uint32(surface.region),
+                        Nav::RestoreClearance(surface.clearance));
     }
 
     return true;
@@ -280,27 +255,27 @@ bool ChatHandler::HandleMmapLocCommand(char* /*args*/)
  */
 bool ChatHandler::HandleMmapLoadedTilesCommand(char* /*args*/)
 {
-    uint32 mapid = m_session->GetPlayer()->GetMapId();
+    const uint32 mapid = m_session->GetPlayer()->GetMapId();
 
-    const dtNavMesh* navmesh = MMAP::MMapFactory::createOrGetMMapManager()->GetNavMesh(mapid);
-    const dtNavMeshQuery* navmeshquery = MMAP::MMapFactory::createOrGetMMapManager()->GetNavMeshQuery(mapid, m_session->GetPlayer()->GetInstanceId());
-    if (!navmesh || !navmeshquery)
+    const Nav::NavStore* store = Nav::NavStores::Instance().Find(mapid);
+    if (!store || store->ResidentCount() == 0)
     {
-        PSendSysMessage("NavMesh not loaded for current map.");
+        PSendSysMessage("No navigation loaded for this map.");
         return true;
     }
 
-    PSendSysMessage("mmap loadedtiles:");
+    std::vector<Nav::TileKey> resident;
+    store->ResidentTiles(resident);
 
-    for (int32 i = 0; i < navmesh->getMaxTiles(); ++i)
+    PSendSysMessage("nav loadedtiles:");
+    for (std::vector<Nav::TileKey>::const_iterator it = resident.begin();
+         it != resident.end(); ++it)
     {
-        const dtMeshTile* tile = navmesh->getTile(i);
-        if (!tile || !tile->header)
-        {
-            continue;
-        }
-
-        PSendSysMessage("[%02i,%02i]", tile->header->x, tile->header->y);
+        const std::shared_ptr<const Nav::NavTile> tile =
+            store->TileAt(it->x, it->y);
+        PSendSysMessage("[%02i,%02i]  %u regions, %u gateways", int(it->x), int(it->y),
+                        tile ? uint32(tile->Regions().size()) : 0,
+                        tile ? uint32(tile->Gateways().size()) : 0);
     }
 
     return true;
@@ -314,49 +289,45 @@ bool ChatHandler::HandleMmapLoadedTilesCommand(char* /*args*/)
  */
 bool ChatHandler::HandleMmapStatsCommand(char* /*args*/)
 {
-    PSendSysMessage("mmap stats:");
-    PSendSysMessage("  global mmap pathfinding is %sabled", sWorld.getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
+    PSendSysMessage("nav stats:");
+    PSendSysMessage("  global pathfinding is %sabled",
+                    sWorld.getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
 
-    MMAP::MMapManager* manager = MMAP::MMapFactory::createOrGetMMapManager();
-    PSendSysMessage(" %u maps loaded with %u tiles overall", manager->getLoadedMapsCount(), manager->getLoadedTilesCount());
+    const Nav::NavStores& stores = Nav::NavStores::Instance();
+    PSendSysMessage("  %zu maps loaded with %zu tiles overall", stores.MapCount(),
+                    stores.TileCount());
 
-    const dtNavMesh* navmesh = manager->GetNavMesh(m_session->GetPlayer()->GetMapId());
-    if (!navmesh)
+    const Nav::NavStore* store =
+        stores.Find(m_session->GetPlayer()->GetMapId());
+    if (!store || store->ResidentCount() == 0)
     {
-        PSendSysMessage("NavMesh not loaded for current map.");
+        PSendSysMessage("No navigation loaded for this map.");
         return true;
     }
 
-    uint32 tileCount = 0;
-    uint32 nodeCount = 0;
-    uint32 polyCount = 0;
-    uint32 vertCount = 0;
-    uint32 triCount = 0;
-    uint32 triVertCount = 0;
-    uint32 dataSize = 0;
-    for (int32 i = 0; i < navmesh->getMaxTiles(); ++i)
-    {
-        const dtMeshTile* tile = navmesh->getTile(i);
-        if (!tile || !tile->header)
-        {
-            continue;
-        }
+    std::vector<Nav::TileKey> resident;
+    store->ResidentTiles(resident);
 
-        tileCount++;
-        nodeCount += tile->header->bvNodeCount;
-        polyCount += tile->header->polyCount;
-        vertCount += tile->header->vertCount;
-        triCount += tile->header->detailTriCount;
-        triVertCount += tile->header->detailVertCount;
-        dataSize += tile->dataSize;
+    uint32 regions = 0;
+    uint32 gateways = 0;
+    uint32 stacked = 0;
+    for (std::vector<Nav::TileKey>::const_iterator it = resident.begin();
+         it != resident.end(); ++it)
+    {
+        if (const std::shared_ptr<const Nav::NavTile> tile =
+                store->TileAt(it->x, it->y))
+        {
+            regions += uint32(tile->Regions().size());
+            gateways += uint32(tile->Gateways().size());
+            stacked += uint32(tile->Stacked().size());
+        }
     }
 
-    PSendSysMessage("Navmesh stats on current map:");
-    PSendSysMessage(" %u tiles loaded", tileCount);
-    PSendSysMessage(" %u BVTree nodes", nodeCount);
-    PSendSysMessage(" %u polygons (%u vertices)", polyCount, vertCount);
-    PSendSysMessage(" %u triangles (%u vertices)", triCount, triVertCount);
-    PSendSysMessage(" %.2f MB of data (not including pointers)", ((float)dataSize / sizeof(unsigned char)) / 1048576);
+    PSendSysMessage("Navigation on current map:");
+    PSendSysMessage("  %zu tiles resident", store->ResidentCount());
+    PSendSysMessage("  %u regions, %u gateways", regions, gateways);
+    PSendSysMessage("  %u stacked surfaces", stacked);
+    PSendSysMessage("  %.2f MB resident", float(store->Footprint()) / 1048576.0f);
 
     return true;
 }
@@ -421,7 +392,7 @@ bool ChatHandler::HandleMmapTestArea(char* args)
         gz = m_session->GetPlayer()->Where().Z();
         for (std::list<Creature*>::iterator itr = creatureList.begin(); itr != creatureList.end(); ++itr)
         {
-            PathFinder path(*itr);
+            Pathing path(*itr);
             path.calculate(gx, gy, gz);
             ++paths;
         }

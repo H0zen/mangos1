@@ -27,7 +27,7 @@
 #include "MotionFrame.h"
 #include "Map.h"
 #include "MapManager.h"
-#include "PathFinder.h"
+#include "Pathing.h"
 #include "Player.h"
 #include "Transports.h"
 #include "TransportMap.h"
@@ -42,7 +42,7 @@ namespace Motion
 {
     namespace
     {
-        /// The world frame's router: the Detour navmesh, behind IPathQuery.
+        /// The world frame's router: the baked navigation, behind IPathQuery.
         class WorldPathQuery final : public IPathQuery
         {
             public:
@@ -79,7 +79,7 @@ namespace Motion
                 bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                PathFinder m_path;
+                Pathing m_path;
         };
 
         /**
@@ -271,7 +271,7 @@ namespace Motion
                 bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                PathFinder m_path;
+                Pathing m_path;
         };
 
         /**

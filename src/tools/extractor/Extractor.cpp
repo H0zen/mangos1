@@ -31,7 +31,7 @@
 
 #include <memory>
 #include "ExtractorConsole.hpp"
-#include "nav/NavMeshBuilder.hpp"
+#include "nav/NavBake.hpp"
 #include "client/ModelLoaders.hpp"
 #include "client/MpqTileSource.hpp"
 #include "client/StormLibArchive.hpp"
@@ -179,8 +179,9 @@ namespace
 "\n"
 "  --vessels <f>   \"<mapId> <displayId>\" per line: which hull to bake into\n"
 "                  which vessel map.                  (default: vessels.txt)\n"
-"  --offmesh <f>   navmesh links the generated mesh cannot bridge -- a jump\n"
-"                  down a dock, a gap over water.     (default: offmesh.txt)\n"
+"  --offmesh <f>   hand-authored links -- a jump down a dock, a gap over\n"
+"                  water. NOT YET READ by the current baker; the option is\n"
+"                  accepted so existing scripts keep working.\n"
 "\n"
 "OTHER\n"
 "\n"
@@ -536,15 +537,14 @@ namespace
 
         g_console.SetStage("nav");
 
-        world::nav::NavConfig cfg;
+        Nav::BakeConfig cfg;
         cfg.threads = opt.threads;
-        cfg.offMeshFile = opt.offMesh;
 
-        world::nav::NavMeshBuilder builder(tileDir, opt.dest + "/mmaps", cfg);
-        builder.SetProgress(&NavProgress, nullptr);
-        builder.SetMapDone(&NavMapDone);
+        Nav::NavBaker baker(tileDir, opt.dest + "/nav", cfg);
+        baker.SetProgress(&NavProgress, nullptr);
+        baker.SetMapDone(&NavMapDone);
 
-        const int written = builder.BakeAll(opt.mapFilter);
+        const int written = baker.BakeAll(opt.mapFilter);
         if (written < 0)
         {
             g_console.Error("nav: bake failed; inspect the earlier diagnostics and " +
@@ -553,7 +553,7 @@ namespace
         }
 
         char msg[256];
-        std::snprintf(msg, sizeof(msg), "nav: %d mmtile files -> %s/mmaps", written,
+        std::snprintf(msg, sizeof(msg), "nav: %d nav tiles -> %s/nav", written,
                       opt.dest.c_str());
         g_console.Success(msg);
         return true;
@@ -574,7 +574,7 @@ namespace
 
         g_console.SetStage("manifest");
         const bool ok = di::WriteManifest(
-            dest, {"dbc", "gomodels", "tiles", "mmaps"},
+            dest, {"dbc", "gomodels", "tiles", "nav"},
             [](size_t done, size_t total, const std::string&)
             {
                 g_console.SetCounts(done, total);

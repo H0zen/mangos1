@@ -205,12 +205,13 @@ BindIP                       = "0.0.0.0"
 #        Default: 1.5
 #
 #    mmap.enabled
-#        Enable/Disable pathfinding using mmaps
+#        Enable/Disable pathfinding over the baked navigation in the data
+#        directory's nav/ folder
 #        Default: 1 (enable)
 #                 0 (disable)
 #
 #    mmap.ignoreMapIds
-#        Disable mmap pathfinding on the listed maps.
+#        Disable pathfinding on the listed maps.
 #        List of map ids with delimiter ','
 #
 #    UpdateUptimeInterval

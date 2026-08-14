@@ -39,8 +39,6 @@
 #include "PointMovementGenerator.h"
 #include "WaypointMovementGenerator.h"
 #include "TemporarySummon.h"
-#include "MoveMap.h"
-#include "PathFinder.h" // for mmap manager
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"

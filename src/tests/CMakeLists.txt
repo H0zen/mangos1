@@ -47,7 +47,6 @@ set(SRC_GRP_TESTS
     TerrainModelTest.cpp
     TileSerializerTest.cpp
     ModelMapTest.cpp
-    NavBinningTest.cpp
     DynamicCollisionTest.cpp
     PlacementTest.cpp
     GeometryMathTest.cpp
@@ -77,18 +76,11 @@ set(SRC_GRP_TESTS
     ${CMAKE_SOURCE_DIR}/src/game/motion/CourseSync.cpp
 )
 
-# The routing decisions -- Route's states, MoveProfile's permissions, the baked tile
-# header. They need Detour's headers and, above all, its DT_POLYREF64 definition: the
-# header assertion is that the tile records the polyref width, and it means nothing
-# unless the test compiles against the same width the server does.
-#
-# Detour is only configured when the server or the tools are being built (see
-# dep/CMakeLists.txt), so this follows the target rather than forcing it. A tests-only
-# tree still configures; it just does not carry these cases, and every CI job builds
-# with BUILD_MANGOSD=1, so they run where it matters.
-if(TARGET RecastNavigation::Detour)
-    list(APPEND SRC_GRP_TESTS RouteTest.cpp)
-endif()
+# The navigation: the grid's binning, a baked tile's round trip through its file, the
+# joining of two tiles, and the routing decisions over them. These link `nav` and
+# nothing of the server -- that is the whole reason the profile is a value and the
+# router takes a store rather than a Map.
+list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp)
 
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)
@@ -111,20 +103,13 @@ target_link_libraries(mangos_tests
     PRIVATE
         proto
         shared
+        nav
         dataintegrity
         extractor_client
         extractor_data
         Threads::Threads
         mangos_openssl_strict
 )
-
-# Headers and DT_POLYREF64, not code. Linking the target rather than reaching for its
-# include directory is the point: the definition is PUBLIC on it, so this is what keeps
-# the test's idea of sizeof(dtPolyRef) identical to the server's. Reaching for the
-# directory alone would let the test agree with a server it in fact disagrees with.
-if(TARGET RecastNavigation::Detour)
-    target_link_libraries(mangos_tests PRIVATE RecastNavigation::Detour)
-endif()
 
 add_test(NAME mangos_tests COMMAND mangos_tests)
 
