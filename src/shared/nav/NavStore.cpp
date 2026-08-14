@@ -95,6 +95,7 @@ namespace Nav
         }
 
         UnstitchLocked(tileX, tileY);
+        UnstitchMeshLocked(tileX, tileY);
     }
 
     void NavStore::Clear()
@@ -102,6 +103,7 @@ namespace Nav
         std::lock_guard<std::mutex> lock(m_mutex);
         m_tiles.clear();
         m_crossings.clear();
+        m_meshCrossings.clear();
     }
 
     bool NavStore::IsResident(int tileX, int tileY) const
@@ -193,9 +195,137 @@ namespace Nav
             if (!it->second.mesh)
             {
                 it->second.mesh = built;
+
+                // A mesh appearing is when this tile becomes joinable to its neighbours:
+                // the rims are matched from two meshes, so neither the tile's arrival
+                // nor the neighbour's could do it alone. Whichever derives second is the
+                // one that matches the pair, and the match is idempotent, so a tile that
+                // is re-derived does not double its own crossings.
+                StitchMeshLocked(tileX, tileY);
             }
 
             return it->second.mesh;
+        }
+    }
+
+    std::vector<MeshCrossing> NavStore::MeshCrossingsOf(int tileX, int tileY,
+                                                        uint32_t rect) const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        const auto it = m_meshCrossings.find(MeshKey(tileX, tileY, rect));
+        return it == m_meshCrossings.end() ? std::vector<MeshCrossing>() : it->second;
+    }
+
+    void NavStore::StitchMeshLocked(int tileX, int tileY) const
+    {
+        // Meshes are derived outside the lock, and this runs under it. So the stitch is
+        // only made between tiles whose mesh is ALREADY built: a tile that has not been
+        // routed through yet has none, and there is nothing to lose by waiting -- the
+        // first route into it derives the mesh and this runs again from there.
+        const auto meshFor = [this](int tx, int ty) -> std::shared_ptr<const TileMesh>
+        {
+            const auto it = m_tiles.find(Pack(tx, ty));
+            return it == m_tiles.end() ? nullptr : it->second.mesh;
+        };
+
+        const std::shared_ptr<const NavTile> nearTile = TileAtLocked(tileX, tileY);
+        const std::shared_ptr<const TileMesh> nearMesh = meshFor(tileX, tileY);
+        if (!nearTile || !nearMesh)
+        {
+            return;
+        }
+
+        const int dx[4] = {-1, 1, 0, 0};
+        const int dy[4] = {0, 0, -1, 1};
+
+        for (int side = 0; side < 4; ++side)
+        {
+            const int otherX = tileX + dx[side];
+            const int otherY = tileY + dy[side];
+
+            const std::shared_ptr<const NavTile> farTile =
+                TileAtLocked(otherX, otherY);
+            const std::shared_ptr<const TileMesh> farMesh = meshFor(otherX, otherY);
+            if (!farTile || !farMesh)
+            {
+                continue;
+            }
+
+            // Idempotent: whatever this pair had is dropped before it is rebuilt. Both
+            // tiles run this when their own mesh appears, and without the clear the
+            // second run would double every crossing between them.
+            const auto forget = [this](int fromX, int fromY, int toX, int toY)
+            {
+                for (auto it = m_meshCrossings.begin(); it != m_meshCrossings.end();)
+                {
+                    if (static_cast<uint32_t>(it->first >> 32) != Pack(fromX, fromY))
+                    {
+                        ++it;
+                        continue;
+                    }
+
+                    std::vector<MeshCrossing>& list = it->second;
+                    list.erase(std::remove_if(list.begin(), list.end(),
+                                              [toX, toY](const MeshCrossing& crossing)
+                                              {
+                                                  return crossing.farTileX == toX &&
+                                                         crossing.farTileY == toY;
+                                              }),
+                               list.end());
+
+                    it = list.empty() ? m_meshCrossings.erase(it) : std::next(it);
+                }
+            };
+
+            forget(tileX, tileY, otherX, otherY);
+            forget(otherX, otherY, tileX, tileY);
+
+            std::vector<MeshCrossing> matched;
+            MatchRims(*nearTile, *nearMesh, *farTile, *farMesh, matched);
+            MatchRims(*farTile, *farMesh, *nearTile, *nearMesh, matched);
+
+            for (const MeshCrossing& crossing : matched)
+            {
+                m_meshCrossings[MeshKey(crossing.nearTileX, crossing.nearTileY,
+                                        crossing.nearRect)]
+                    .push_back(crossing);
+            }
+        }
+    }
+
+    void NavStore::UnstitchMeshLocked(int tileX, int tileY) const
+    {
+        const uint32_t leaving = Pack(tileX, tileY);
+
+        for (auto it = m_meshCrossings.begin(); it != m_meshCrossings.end();)
+        {
+            // Crossings STARTING here go with the tile. Ones ending here have to be
+            // pulled out of a neighbour's list, which is why the value is filtered
+            // rather than the key alone being erased.
+            if (static_cast<uint32_t>(it->first >> 32) == leaving)
+            {
+                it = m_meshCrossings.erase(it);
+                continue;
+            }
+
+            std::vector<MeshCrossing>& list = it->second;
+            list.erase(std::remove_if(list.begin(), list.end(),
+                                      [tileX, tileY](const MeshCrossing& crossing)
+                                      {
+                                          return crossing.farTileX == tileX &&
+                                                 crossing.farTileY == tileY;
+                                      }),
+                       list.end());
+
+            if (list.empty())
+            {
+                it = m_meshCrossings.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
 
@@ -380,6 +510,7 @@ namespace Nav
 
             m_tiles.erase(oldest);
             UnstitchLocked(tileX, tileY);
+            UnstitchMeshLocked(tileX, tileY);
             --unpinned;
         }
     }
@@ -570,6 +701,22 @@ namespace Nav
         if (!tile)
         {
             return false;
+        }
+
+        // THE MESH FIRST. It carries height, region, area and clearance -- everything a
+        // profile judges a surface by -- so there is nothing the cell version answers
+        // that this does not, and it answers from a structure a hundred times smaller.
+        //
+        // The cells stay as the fallback for exactly one window: a tile that is resident
+        // but whose mesh has not been derived yet. A position query arriving in it still
+        // has to be answered, and deriving a mesh here would put a pass over a quarter of
+        // a million cells inside a call the world makes constantly.
+        const std::shared_ptr<const TileMesh> mesh =
+            MeshOf(cell.TileX(), cell.TileY());
+
+        if (mesh && MeshSurfaceAt(*tile, *mesh, x, y, z, tolerance, surface))
+        {
+            return true;
         }
 
         surface = tile->SurfaceUnder(cell.InTile(), z, tolerance);

@@ -43,6 +43,7 @@
 #include "nav/ReebGraph.hpp"
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 
 namespace
@@ -80,8 +81,7 @@ namespace
         }
     }
 
-    /// Dead flat. One basin, no pass, and every cell of it a summit -- which is the
-    /// degenerate answer and has to be the answer, not a crash.
+    /// Dead flat. One basin, no pass, and NO summit: level ground rises to nothing.
     struct Flat
     {
         bool operator()(int, int, float& z) const
@@ -151,6 +151,42 @@ TEST(Reeb_FlatGroundIsOneBasin)
     CHECK_EQ(graph.basins.size(), size_t(1));
     CHECK_EQ(graph.passes.size(), size_t(0));
     CHECK_EQ(graph.arcs.size(), size_t(0));
+
+    // AND no summits. Flat ground rises to nothing, so it has no peak -- which sounds
+    // obvious and was not what the first version did: "no neighbour strictly higher" is
+    // true of every cell of a plain, and map 0 produced tens of millions of them.
+    CHECK_EQ(graph.summits.size(), size_t(0));
+}
+
+// A single hill has one peak, not a plateau's worth. The shape is a cone, so exactly
+// one cell is above all its neighbours and every other cell has one above it.
+TEST(Reeb_AHillHasOneSummit)
+{
+    struct Cone
+    {
+        bool operator()(int x, int y, float& z) const
+        {
+            const float dx = static_cast<float>(x - 256);
+            const float dy = static_cast<float>(y - 256);
+            z = 40.0f - std::sqrt(dx * dx + dy * dy) * 0.1f;
+            return true;
+        }
+    };
+
+    Nav::NavTile tile;
+    Paint(tile, Cone());
+
+    const Nav::TilePlan plan = Nav::ReadTilePlan(tile);
+    const Nav::ReebGraph graph = Nav::BuildReebGraph(tile, plan, 1.0f);
+
+    CHECK_EQ(graph.summits.size(), size_t(1));
+    if (!graph.summits.empty())
+    {
+        const int x = int(graph.summits.front().cell) / SIDE;
+        const int y = int(graph.summits.front().cell) % SIDE;
+        CHECK(std::abs(x - 256) <= 1);
+        CHECK(std::abs(y - 256) <= 1);
+    }
 }
 
 // Two bowls, one notch: exactly one pass, at the notch, five yards above the floors.

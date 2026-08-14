@@ -168,33 +168,6 @@ namespace Nav
         }
     }
 
-    int32_t RectAt(const NavTile& tile, const TileMesh& mesh, float x, float y)
-    {
-        const int gx = CellIndex(x);
-        const int gy = CellIndex(y);
-        if (TileOfCell(gx) != tile.TileX() || TileOfCell(gy) != tile.TileY())
-        {
-            return -1;
-        }
-
-        const int lx = LocalOfCell(gx);
-        const int ly = LocalOfCell(gy);
-
-        // A scan, deliberately. A cell-to-rectangle map is a megabyte per tile and this
-        // is asked twice per query; a tile holds a couple of thousand rectangles and the
-        // scan is over before a cache miss on that map would have returned.
-        for (size_t i = 0; i < mesh.rects.size(); ++i)
-        {
-            const NavRect& r = mesh.rects[i];
-            if (lx >= r.x0 && lx <= r.x1 && ly >= r.y0 && ly <= r.y1)
-            {
-                return int32_t(i);
-            }
-        }
-
-        return -1;
-    }
-
     MeshPath FindMeshPath(const NavTile& tile, const TileMesh& mesh,
                           const MeshQuery& query)
     {
@@ -203,8 +176,12 @@ namespace Nav
         const Vec2 start{query.startX, query.startY};
         const Vec2 goal{query.endX, query.endY};
 
-        const int32_t startRect = RectAt(tile, mesh, start.x, start.y);
-        const int32_t goalRect = RectAt(tile, mesh, goal.x, goal.y);
+        // BY HEIGHT, not by plan. With stacked floors a square holds several
+        // rectangles, and taking the first is taking the lowest -- which starts the
+        // search on the floor under the one the query meant.
+        const int32_t startRect =
+            RectAtHeight(tile, mesh, start.x, start.y, query.startZ);
+        const int32_t goalRect = RectAtHeight(tile, mesh, goal.x, goal.y, query.endZ);
         if (startRect < 0 || goalRect < 0)
         {
             return result;
@@ -216,7 +193,8 @@ namespace Nav
             return mesh.rects[rect].clearance >= needed;
         };
 
-        if (!passable(uint32_t(startRect)) || !passable(uint32_t(goalRect)))
+        if (!passable(static_cast<uint32_t>(startRect)) ||
+            !passable(static_cast<uint32_t>(goalRect)))
         {
             return result;
         }
@@ -250,14 +228,19 @@ namespace Nav
         const auto push = [&](const Node& node)
         {
             nodes.push_back(node);
-            open.push(uint32_t(nodes.size() - 1));
+            open.push(static_cast<uint32_t>(nodes.size() - 1));
         };
 
         // The root of the search: every opening out of the start's own rectangle, whole,
         // seen from the start point.
         for (uint32_t i = mesh.first[startRect]; i < mesh.first[startRect + 1]; ++i)
         {
-            if (!passable(mesh.portals[i].neighbour))
+            // A rim portal leaves the tile, and this search answers within one. Skipping
+            // it is not a limitation of the search -- what lies beyond belongs to another
+            // file, and crossing is the store's business. Reading it as a neighbour index
+            // would be reading 0xFFFFFFFF as a rectangle.
+            if (mesh.portals[i].LeavesTheTile() ||
+                !passable(mesh.portals[i].neighbour))
             {
                 continue;
             }
@@ -295,6 +278,11 @@ namespace Nav
 
             const Node node = nodes[current];
             const Portal& portal = mesh.portals[node.portal];
+            if (portal.LeavesTheTile())
+            {
+                continue;   // nothing on this side of the file to step into
+            }
+
             const uint32_t poly = portal.neighbour;
 
             Vec2 pa, pb;
@@ -304,7 +292,7 @@ namespace Nav
 
             // Is the goal in the polygon we are stepping into? Then this node either
             // finishes the search or bends once more to do it.
-            if (poly == uint32_t(goalRect))
+            if (poly == static_cast<uint32_t>(goalRect))
             {
                 float total = std::numeric_limits<float>::max();
                 Vec2 via = node.root;
@@ -340,7 +328,7 @@ namespace Nav
                 if (total < best)
                 {
                     best = total;
-                    bestNode = int32_t(current);
+                    bestNode = static_cast<int32_t>(current);
                     bestRoot = via;
                 }
             }
@@ -349,9 +337,10 @@ namespace Nav
             for (uint32_t i = mesh.first[poly]; i < mesh.first[poly + 1]; ++i)
             {
                 const Portal& next = mesh.portals[i];
-                if (next.neighbour == portal.rect || !passable(next.neighbour))
+                if (next.LeavesTheTile() || next.neighbour == portal.rect ||
+                    !passable(next.neighbour))
                 {
-                    continue;   // never straight back through the opening just used
+                    continue;   // never out of the tile, never straight back
                 }
 
                 Vec2 c, d;
@@ -388,7 +377,7 @@ namespace Nav
                     child.portal = i;
                     child.lo = lo;
                     child.hi = hi;
-                    child.parent = int32_t(current);
+                    child.parent = static_cast<int32_t>(current);
 
                     if (InsideWedge(node.root, a, b, middle))
                     {
@@ -460,9 +449,9 @@ namespace Nav
             reversed.push_back(bestRoot);
         }
 
-        for (int32_t at = bestNode; at >= 0; at = nodes[size_t(at)].parent)
+        for (int32_t at = bestNode; at >= 0; at = nodes[static_cast<size_t>(at)].parent)
         {
-            const Vec2& root = nodes[size_t(at)].root;
+            const Vec2& root = nodes[static_cast<size_t>(at)].root;
             if (Distance(root, reversed.back()) > EPS)
             {
                 reversed.push_back(root);

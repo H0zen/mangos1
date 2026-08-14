@@ -40,16 +40,16 @@ namespace Helm
         uint32_t Accumulate(const Path& path, float speed, Emit emit)
         {
             double mark = 1.0;
-            emit(uint32_t(mark));
+            emit(static_cast<uint32_t>(mark));
 
             for (size_t i = 0; i < path.SegmentCount(); ++i)
             {
-                mark = std::floor(mark + double(path.SegmentLength(i)) * 1000.0 /
-                                             double(speed));
-                emit(uint32_t(mark));
+                mark = std::floor(mark + static_cast<double>(path.SegmentLength(i)) * 1000.0 /
+                                             static_cast<double>(speed));
+                emit(static_cast<uint32_t>(mark));
             }
 
-            return uint32_t(mark);
+            return static_cast<uint32_t>(mark);
         }
     }
 
@@ -98,7 +98,7 @@ namespace Helm
         // The mark at or before the instant. Binary search rather than a walk: a leg may
         // carry ninety-three points and this is asked every tick for every mover.
         const auto at = std::upper_bound(m_marks.begin(), m_marks.end(), elapsed);
-        const size_t index = size_t(at - m_marks.begin());
+        const size_t index = static_cast<size_t>(at - m_marks.begin());
         segment = index >= 1 ? index - 1 : 0;
         segment = std::min(segment, m_marks.size() - 2);
 
@@ -108,7 +108,8 @@ namespace Helm
         // A zero-length segment is not a defect: two points at the same place is how a
         // leg says "turn here". Its fraction is meaningless and one is the answer that
         // moves past it rather than dividing by nothing.
-        fraction = to > from ? float(elapsed - from) / float(to - from) : 1.0f;
+        const float span = static_cast<float>(to - from);
+        fraction = to > from ? static_cast<float>(elapsed - from) / span : 1.0f;
     }
 
     uint32_t ClientDuration(const Path& path, float speed)

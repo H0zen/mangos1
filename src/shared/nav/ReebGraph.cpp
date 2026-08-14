@@ -45,7 +45,7 @@ namespace Nav
             public:
                 explicit Components(size_t n) : m_parent(n), m_basin(n, UINT32_MAX)
                 {
-                    std::iota(m_parent.begin(), m_parent.end(), uint32_t(0));
+                    std::iota(m_parent.begin(), m_parent.end(), static_cast<uint32_t>(0));
                 }
 
                 uint32_t Find(uint32_t at)
@@ -80,13 +80,13 @@ namespace Nav
         // below the current cell has already been added, so a neighbour is either part
         // of the surface so far or is still above and irrelevant.
         std::vector<uint32_t> order;
-        order.reserve(size_t(SIDE) * SIDE / 4);
+        order.reserve(static_cast<size_t>(SIDE) * SIDE / 4);
 
         for (int cell = 0; cell < SIDE * SIDE; ++cell)
         {
             if (plan.Walkable(cell))
             {
-                order.push_back(uint32_t(cell));
+                order.push_back(static_cast<uint32_t>(cell));
             }
         }
 
@@ -111,8 +111,8 @@ namespace Nav
             y = CellCentre(GlobalCell(tile.TileY(), int(cell) % SIDE));
         };
 
-        Components components(size_t(SIDE) * SIDE);
-        std::vector<uint8_t> added(size_t(SIDE) * SIDE, 0);
+        Components components(static_cast<size_t>(SIDE) * SIDE);
+        std::vector<uint8_t> added(static_cast<size_t>(SIDE) * SIDE, 0);
 
         // The height each basin's floor sits at, so persistence is a subtraction.
         std::vector<float> basinFloor;
@@ -135,7 +135,7 @@ namespace Nav
                     continue;
                 }
 
-                const uint32_t other = uint32_t(nx * SIDE + ny);
+                const uint32_t other = static_cast<uint32_t>(nx * SIDE + ny);
                 if (!added[other])
                 {
                     continue;
@@ -164,7 +164,7 @@ namespace Nav
                 point.cell = cell;
                 point.z = plan.z[cell];
                 world(cell, point.x, point.y);
-                point.basinA = uint32_t(graph.basins.size());
+                point.basinA = static_cast<uint32_t>(graph.basins.size());
                 point.basinB = point.basinA;
 
                 components.Basin(components.Find(cell)) = point.basinA;
@@ -215,7 +215,7 @@ namespace Nav
 
                     ReebGraph::Arc arc;
                     arc.from = youngerBasin;
-                    arc.to = uint32_t(graph.passes.size());
+                    arc.to = static_cast<uint32_t>(graph.passes.size());
                     arc.rise = persistence;
 
                     graph.passes.push_back(point);
@@ -233,9 +233,20 @@ namespace Nav
         // and the sweep only ever sees what has.
         for (uint32_t cell : order)
         {
-            const int x = int(cell) / SIDE;
-            const int y = int(cell) % SIDE;
+            const int x = static_cast<int>(cell) / SIDE;
+            const int y = static_cast<int>(cell) % SIDE;
+
+            // A summit is a place the ground RISES to, and the first cut of this test
+            // did not say so. "No neighbour strictly higher" is true of every cell of a
+            // flat field, so Elwynn and the open ocean reported one summit per cell --
+            // tens of millions of critical points meaning nothing but "level here", and
+            // gigabytes of file to hold them.
+            //
+            // Three conditions, each excluding one way of not being a peak: nothing
+            // above it, something genuinely below it, and -- for a plateau, where every
+            // cell satisfies both -- one representative, chosen by index.
             bool highest = true;
+            bool rises = false;
 
             for (int dir = 0; dir < 8 && highest; ++dir)
             {
@@ -246,14 +257,27 @@ namespace Nav
                     continue;
                 }
 
-                const uint32_t other = uint32_t(nx * SIDE + ny);
-                if (plan.Walkable(int(other)) && plan.z[other] > plan.z[cell])
+                const uint32_t other = static_cast<uint32_t>(nx * SIDE + ny);
+                if (!plan.Walkable(static_cast<int>(other)))
+                {
+                    continue;
+                }
+
+                if (plan.z[other] > plan.z[cell])
                 {
                     highest = false;
                 }
+                else if (plan.z[other] < plan.z[cell])
+                {
+                    rises = true;
+                }
+                else if (other > cell)
+                {
+                    highest = false;   // a plateau keeps its lowest-indexed cell only
+                }
             }
 
-            if (!highest)
+            if (!highest || !rises)
             {
                 continue;
             }

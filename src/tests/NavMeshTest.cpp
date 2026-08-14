@@ -112,10 +112,19 @@ namespace
         int Regions() const { return 2; }
     };
 
+    /// Symmetry is a statement about openings INSIDE the tile. A rim run has nothing on
+    /// the other side of it that this file knows about -- what lies there is matched by
+    /// the store from the neighbour's own mesh -- so it has no mirror to look for, and
+    /// looking for one means indexing the rectangle table with Portal::OUTSIDE.
     bool Symmetric(const Nav::TileMesh& mesh)
     {
         for (const Nav::Portal& p : mesh.portals)
         {
+            if (p.LeavesTheTile())
+            {
+                continue;
+            }
+
             bool mirrored = false;
             for (uint32_t i = mesh.first[p.neighbour];
                  i < mesh.first[p.neighbour + 1] && !mirrored; ++i)
@@ -131,6 +140,19 @@ namespace
         }
 
         return true;
+    }
+
+    size_t RimPortals(const Nav::TileMesh& mesh, uint8_t side)
+    {
+        size_t count = 0;
+        for (const Nav::Portal& p : mesh.portals)
+        {
+            if (p.LeavesTheTile() && p.side == side)
+            {
+                ++count;
+            }
+        }
+        return count;
     }
 }
 
@@ -150,9 +172,61 @@ TEST(NavMesh_OpeningsAreSymmetric)
     for (const Nav::Portal& p : mesh.portals)
     {
         CHECK(p.rect != p.neighbour);
-        CHECK(p.neighbour < mesh.rects.size());
         CHECK(p.lo <= p.hi);
+        if (!p.LeavesTheTile())
+        {
+            CHECK(p.neighbour < mesh.rects.size());
+        }
     }
+}
+
+// Ground that reaches the tile's edge opens onto whatever is past it, on all four
+// sides. That run is what replaces the baked gateway, and the store is what finds out
+// into what -- so what is asserted here is that the run EXISTS and carries the three
+// things a match needs, not what it connects to.
+TEST(NavMesh_GroundAtTheEdgeOpensOffTheTile)
+{
+    Nav::NavTile tile;
+    Paint(tile, HoledFloor());
+
+    const Nav::TileMesh mesh = Nav::BuildTileMesh(tile);
+
+    for (uint8_t side = 0; side < 4; ++side)
+    {
+        CHECK(RimPortals(mesh, side) > 0);
+    }
+
+    size_t rim = 0;
+    for (const Nav::Portal& p : mesh.portals)
+    {
+        if (!p.LeavesTheTile())
+        {
+            continue;
+        }
+
+        ++rim;
+        CHECK(p.clearance > 0);
+        CHECK(std::fabs(p.loZ) < 0.5f);   // the floor was painted level
+        CHECK(std::fabs(p.hiZ) < 0.5f);
+    }
+
+    CHECK(rim >= 4);
+}
+
+// Two shelves thirty yards apart still both reach the tile's edge, so both open off it
+// -- being unreachable from each other says nothing about being reachable from the
+// neighbouring tile, and a mesh that conflated the two would seal a map's seams.
+TEST(NavMesh_ARimRunIsNotAboutTheOtherHalfOfTheTile)
+{
+    Nav::NavTile tile;
+    Paint(tile, TwoShelves());
+
+    const Nav::TileMesh mesh = Nav::BuildTileMesh(tile);
+
+    CHECK_EQ(mesh.portals.size(), RimPortals(mesh, 0) + RimPortals(mesh, 1) +
+                                      RimPortals(mesh, 2) + RimPortals(mesh, 3));
+    CHECK(RimPortals(mesh, Nav::SIDE_MINUS_X) > 0);
+    CHECK(RimPortals(mesh, Nav::SIDE_PLUS_X) > 0);
 }
 
 // A thirty-yard drop is not a step. The two shelves touch along their whole length and
@@ -166,7 +240,18 @@ TEST(NavMesh_AdjacentIsNotJoined)
     const Nav::TileMesh mesh = Nav::BuildTileMesh(tile);
     REQUIRE(mesh.rects.size() == 2);
     CHECK(Symmetric(mesh));
-    CHECK_EQ(mesh.portals.size(), size_t(0));
+
+    // Not "no portals at all" any more: both shelves reach the tile's edge and open off
+    // it. What must not exist is an opening between THEM.
+    size_t inward = 0;
+    for (const Nav::Portal& p : mesh.portals)
+    {
+        if (!p.LeavesTheTile())
+        {
+            ++inward;
+        }
+    }
+    CHECK_EQ(inward, size_t(0));
 }
 
 // The opening between the two halves of a split floor spans the cells it covers, rim to
@@ -181,6 +266,8 @@ TEST(NavMesh_ASegmentSpansTheWholeOpening)
 
     for (const Nav::Portal& p : mesh.portals)
     {
+        // Rim runs included: a doorway off the edge of a tile is measured the same way
+        // as one inside it, and the store compares two of them against each other.
         float ax = 0.f, ay = 0.f, bx = 0.f, by = 0.f;
         Nav::PortalSegment(tile, mesh, p, ax, ay, bx, by);
 

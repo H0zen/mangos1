@@ -223,7 +223,34 @@ namespace Nav
              */
             std::shared_ptr<const TileMesh> MeshOf(int tileX, int tileY) const;
 
+            /**
+             * @brief The mesh crossings leading out of one rectangle of one tile.
+             *
+             * What replaces `CrossingsOf` for a search that walks areas instead of
+             * gateways. Matched from the two tiles' rim runs when both are resident, and
+             * forgotten when either leaves -- so a crossing never outlives the geometry
+             * that justified it, and no file ever recorded a number about its neighbour.
+             *
+             * By value for the same reason as the gateway version: a reference into the
+             * table would outlive the lock that made it safe to read.
+             */
+            std::vector<MeshCrossing> MeshCrossingsOf(int tileX, int tileY,
+                                                      uint32_t rect) const;
+
         private:
+            /// Match one tile's rim against every resident orthogonal neighbour, and
+            /// record the crossings both ways. The caller already holds m_mutex.
+            ///
+            /// Const, like the mesh it is derived from: a crossing is not something the
+            /// store CONTAINS, it is what two resident meshes imply, and it is dropped
+            /// and rebuilt as they come and go. A lookup that fills it has not changed
+            /// what the store holds any more than one that fills `touched` has.
+            void StitchMeshLocked(int tileX, int tileY) const;
+
+            /// Forget every mesh crossing that starts or ends inside one tile.
+            /// The caller already holds m_mutex.
+            void UnstitchMeshLocked(int tileX, int tileY) const;
+
             struct KeyHash
             {
                 size_t operator()(uint32_t k) const { return size_t(k); }
@@ -293,6 +320,22 @@ namespace Nav
 
             /// Gateway -> the crossings out of it. Rebuilt as tiles come and go.
             std::unordered_map<uint64_t, std::vector<Crossing>> m_crossings;
+
+            /// (tile, rectangle) -> the mesh crossings out of it. The same idea one
+            /// layer up, and what the gateway table becomes when the areas are the
+            /// structure. Keyed by the tile packed with the rectangle index, so a tile
+            /// leaving can drop all of its own without touching anyone else's.
+            ///
+            /// Mutable for the same reason as the mesh it is matched from: derived,
+            /// droppable, and filled by a lookup that is const because a search is const.
+            mutable std::unordered_map<uint64_t, std::vector<MeshCrossing>>
+                m_meshCrossings;
+
+            static uint64_t MeshKey(int tileX, int tileY, uint32_t rect)
+            {
+                return (static_cast<uint64_t>(Pack(tileX, tileY)) << 32) |
+                       static_cast<uint64_t>(rect);
+            }
     };
 
     /**

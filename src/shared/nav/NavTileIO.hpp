@@ -33,7 +33,7 @@ namespace Nav
      * hand-authored links -- the jump off the Booty Bay dock and the two ledges in
      * Blade's Edge Arena.
      */
-    constexpr uint32_t NAV_TILE_VERSION = 2;
+    constexpr uint32_t NAV_TILE_VERSION = 3;
 
     /// The file one tile of one map lives in, relative to the nav directory.
     std::string NavTileFileName(uint32_t mapId, int tileX, int tileY);

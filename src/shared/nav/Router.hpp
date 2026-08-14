@@ -113,6 +113,52 @@ namespace Nav
                 bool jump = false;
             };
 
+            /**
+             * @brief THE WHOLE ROUTE, over areas rather than cells.
+             *
+             * One search, two stages, and neither of them touches a cell:
+             *
+             *  - coarse: A* over (tile, rectangle) pairs, stepping through the openings
+             *    a mesh already records and, at a tile's rim, through the crossings the
+             *    store matched between two resident meshes. This is what the gateway
+             *    graph and its baked cost matrix become when the areas ARE the structure.
+             *  - fine: Polyanya between the entry and exit point of each tile the
+             *    corridor passes through, which returns the shortest path over that
+             *    tile's mesh in one pass, already taut.
+             *
+             * `Coarse`, `Refine`, `FineSearch`, `Emit` and `GateRef` exist only for the
+             * window in which a tile is resident but its mesh has not been derived yet.
+             * A query arriving then still has to be answered, and deriving a mesh inside
+             * a routing call would put a pass over a quarter of a million cells on the
+             * map's tick.
+             *
+             * @return False when the mesh could not answer -- not when the route failed.
+             *         A refusal here means "ask the cells", and a genuine unroutable is
+             *         reported through `out` like any other.
+             */
+            bool FindOnMesh(const RouteRequest& request, const CellRef& startCell,
+                            const Surface& startSurface, const CellRef& endCell,
+                            const Surface& endSurface, Route& out) const;
+
+            /// One step of the corridor: which tile, which rectangle, and where the
+            /// route entered it.
+            struct MeshStep
+            {
+                int tileX = 0;
+                int tileY = 0;
+                uint32_t rect = 0;
+                float x = 0.0f;
+                float y = 0.0f;
+                float z = 0.0f;
+            };
+
+            /// Stage one on the mesh. Empty when no way across exists.
+            bool CoarseOnMesh(const CellRef& startCell, const CellRef& endCell,
+                              const Geometry::Vector3& from,
+                              const Geometry::Vector3& to,
+                              const MoveProfile& profile,
+                              std::vector<MeshStep>& corridor) const;
+
             /// Stage one: which gateways, in which order. Exact, because the cost of
             /// crossing a tile between two of its gateways was measured at bake time.
             bool Coarse(const CellRef& startCell, const Surface& startSurface,

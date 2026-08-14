@@ -43,6 +43,11 @@ namespace Nav
         constexpr uint32_t MAX_AXIS = 1u << 22;
         constexpr uint32_t MAX_CRITICAL = 1u << 20;
 
+        /// The height field is a fixed shape, so its count is not a range to bound but a
+        /// number to insist on. Anything else is a file from another format.
+        constexpr uint32_t MAX_HEIGHTS =
+            static_cast<uint32_t>(HEIGHT_SIDE) * HEIGHT_SIDE;
+
         std::string g_meshDir;
 
         template <class T>
@@ -75,7 +80,7 @@ namespace Nav
         template <class T>
         bool WVector(std::FILE* f, const std::vector<T>& v)
         {
-            const uint32_t n = uint32_t(v.size());
+            const uint32_t n = static_cast<uint32_t>(v.size());
             if (!WPod(f, n))
             {
                 return false;
@@ -96,7 +101,8 @@ namespace Nav
             }
 
             const long remaining = RemainingBytes(f);
-            if (remaining < 0 || uint64_t(remaining) < uint64_t(n) * sizeof(T))
+            const uint64_t wanted = static_cast<uint64_t>(n) * sizeof(T);
+            if (remaining < 0 || static_cast<uint64_t>(remaining) < wanted)
             {
                 return false;
             }
@@ -149,12 +155,14 @@ namespace Nav
         ok = ok && WPod(f, MAGIC);
         ok = ok && WPod(f, NAV_MESH_VERSION);
         ok = ok && WPod(f, mapId);
-        ok = ok && WPod(f, int32_t(tileX));
-        ok = ok && WPod(f, int32_t(tileY));
+        ok = ok && WPod(f, static_cast<int32_t>(tileX));
+        ok = ok && WPod(f, static_cast<int32_t>(tileY));
 
         ok = ok && WVector(f, geometry.mesh.rects);
         ok = ok && WVector(f, geometry.mesh.portals);
         ok = ok && WVector(f, geometry.mesh.first);
+        ok = ok && WPod(f, geometry.mesh.baseZ);
+        ok = ok && WVector(f, geometry.mesh.heights);
         ok = ok && WVector(f, geometry.axis);
         ok = ok && WVector(f, geometry.reeb.basins);
         ok = ok && WVector(f, geometry.reeb.passes);
@@ -198,6 +206,8 @@ namespace Nav
         ok = ok && RVector(f, out.mesh.rects, MAX_RECTS);
         ok = ok && RVector(f, out.mesh.portals, MAX_PORTALS);
         ok = ok && RVector(f, out.mesh.first, MAX_RECTS + 1);
+        ok = ok && RPod(f, out.mesh.baseZ);
+        ok = ok && RVector(f, out.mesh.heights, MAX_HEIGHTS);
         ok = ok && RVector(f, out.axis, MAX_AXIS);
         ok = ok && RVector(f, out.reeb.basins, MAX_CRITICAL);
         ok = ok && RVector(f, out.reeb.passes, MAX_CRITICAL);
@@ -213,6 +223,14 @@ namespace Nav
         if (ok)
         {
             ok = out.mesh.first.size() == out.mesh.rects.size() + 1;
+        }
+
+        // The field is either whole or absent; a partial one would answer heights over
+        // part of the tile and the base elevation over the rest, which is worse than
+        // deriving the mesh again.
+        if (ok && !out.mesh.heights.empty())
+        {
+            ok = out.mesh.heights.size() == MAX_HEIGHTS;
         }
 
         if (ok)

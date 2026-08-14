@@ -43,9 +43,9 @@ namespace Helm
         /// duplication so the curve begins and ends on the path's own points.
         Geometry::Vector3 Control(const Path& path, long index)
         {
-            const long last = long(path.PointCount()) - 1;
+            const long last = static_cast<long>(path.PointCount()) - 1;
             const long clamped = std::max<long>(0, std::min(index, last));
-            return path.Points()[size_t(clamped)];
+            return path.Points()[static_cast<size_t>(clamped)];
         }
 
         /// Uniform Catmull-Rom, the form the client uses. Tension one half.
@@ -94,8 +94,8 @@ namespace Helm
             return Lerp(a, b, fraction);
         }
 
-        return CatmullRom(Control(path, long(segment) - 1), a, b,
-                          Control(path, long(segment) + 2), fraction);
+        return CatmullRom(Control(path, static_cast<long>(segment) - 1), a, b,
+                          Control(path, static_cast<long>(segment) + 2), fraction);
     }
 
     Geometry::Vector3 TangentOn(const Path& path, Curve curve, size_t segment,
@@ -162,7 +162,7 @@ namespace Helm
 
         for (int step = 1; step <= kSmoothSteps; ++step)
         {
-            const float t = float(step) / float(kSmoothSteps);
+            const float t = static_cast<float>(step) / static_cast<float>(kSmoothSteps);
             const Geometry::Vector3 here = PointOn(path, curve, segment, t);
             const float dx = here.x - previous.x;
             const float dy = here.y - previous.y;

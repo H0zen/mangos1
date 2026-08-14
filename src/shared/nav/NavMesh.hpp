@@ -52,6 +52,20 @@
  * The step test is `Nav::ClimbWindow`, the same function the cell flood, the tile
  * stitcher and the router already use. It has to be: a mesh that opened where the flood
  * did not would let a search cross ground the regions say is separate.
+ *
+ * == The rim ==
+ *
+ * A run along the tile's own edge is a portal too, marked `Portal::OUTSIDE`. It is what
+ * replaces the baked gateway: a gateway was a run of border cells with a height at each
+ * end and a width, and so is this, with the difference that it falls out of the same
+ * decomposition as everything else instead of being a second structure with its own
+ * rules and its own cost matrix.
+ *
+ * It still names nothing beyond the tile, and that is deliberate and not an omission. A
+ * tile file may never refer to another tile's indices -- re-bake one map and its
+ * numbering changes, and every neighbour that had recorded a number into it would be
+ * pointing at something else. What lies across the rim is matched by the store when both
+ * sides are resident, from the two runs' own geometry.
  */
 
 #include "nav/NavPolygons.hpp"
@@ -81,10 +95,27 @@ namespace Nav
     struct Portal
     {
         uint32_t rect = 0;
+
+        /// The rectangle across the opening, or `OUTSIDE` when the opening is the tile's
+        /// own rim and what lies beyond it belongs to another file.
         uint32_t neighbour = 0;
+
         uint8_t side = 0;
         uint16_t lo = 0;
         uint16_t hi = 0;    ///< inclusive
+
+        /// Height at each end of the run, so a match across a tile border can test the
+        /// step without either side reading the other's ground.
+        float loZ = 0.0f;
+        float hiZ = 0.0f;
+
+        /// The narrowest clearance along the run. A mover wider than this cannot use the
+        /// opening even where the areas either side suit it.
+        uint8_t clearance = 0;
+
+        static constexpr uint32_t OUTSIDE = 0xFFFFFFFFu;
+
+        bool LeavesTheTile() const { return neighbour == OUTSIDE; }
 
         uint16_t Cells() const { return uint16_t(hi - lo + 1); }
     };
@@ -114,6 +145,30 @@ namespace Nav
         std::vector<Portal> portals;
         std::vector<uint32_t> first;
 
+        /**
+         * @brief The ground's height, at the terrain's own resolution.
+         *
+         * HEIGHT_SIDE x HEIGHT_SIDE quantised samples of the LOWEST floor, plus the base
+         * they are measured from -- about 33 KB a tile. Areas carry what is constant
+         * over an area; this carries what varies smoothly, and the two must not be
+         * mixed. Fitting a plane per rectangle instead was measured at fifteen times the
+         * geometry, because the ADT heightmap breaks every four nav cells and no plane
+         * spans a triangle edge.
+         *
+         * The lowest floor only. A bridge's height is not a field over the plan -- two
+         * floors share a square -- so a rectangle above the ground carries its own
+         * `minZ`/`maxZ` and is read from those instead.
+         */
+        std::vector<uint16_t> heights;
+        float baseZ = 0.0f;
+
+        float HeightSample(int hx, int hy) const
+        {
+            const size_t at = static_cast<size_t>(hx) * HEIGHT_SIDE +
+                              static_cast<size_t>(hy);
+            return at < heights.size() ? RestoreZ(heights[at], baseZ) : baseZ;
+        }
+
         size_t PortalCount(uint32_t rect) const
         {
             return first[rect + 1] - first[rect];
@@ -142,4 +197,105 @@ namespace Nav
      */
     void PortalSegment(const NavTile& tile, const TileMesh& mesh, const Portal& portal,
                        float& ax, float& ay, float& bx, float& by);
+
+    /**
+     * @brief Which rectangle covers a world position, or -1.
+     *
+     * A scan, deliberately. A cell-to-rectangle map is a megabyte per tile against a
+     * couple of thousand rectangles to walk, and this is asked twice per query.
+     */
+    int32_t RectAt(const NavTile& tile, const TileMesh& mesh, float x, float y);
+
+    /**
+     * @brief The rectangle a body at `z` is standing on, not merely one above or below.
+     *
+     * `RectAt` answers in PLAN, and with stacked floors that is ambiguous: a bridge and
+     * the ground beneath it cover the same square, and taking the first match means
+     * taking whichever the decomposition happened to emit first -- the lower one. A
+     * query that starts on an upper floor then begins its search on the floor below,
+     * which is not a worse answer, it is a different place.
+     *
+     * Blackrock Depths is where this shows and open terrain never can: two points in one
+     * tile and one region, sixty yards apart in height, came back unroutable because
+     * both had been resolved onto the lowest floor under them.
+     *
+     * @return The nearest rectangle at or below `z`, or -1 when nothing covers the point.
+     */
+    int32_t RectAtHeight(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                         float z);
+
+    /**
+     * @brief The ground's height at a world position, from the mesh alone.
+     *
+     * This is the query that decides whether the cell grid can go. Every consumer that
+     * asks "what is the floor here" -- seating a route's points, placing a mover,
+     * answering a spell's range check -- goes through it, and it reads a plane fitted at
+     * bake time with a bounded residual rather than a quarter of a million samples.
+     *
+     * @return False when nothing walkable covers the position.
+     */
+    bool MeshHeightAt(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                      float& outZ);
+
+    /**
+     * @brief The walkable surface a body at `z` is standing on, from the mesh alone.
+     *
+     * What `NavStore::SurfaceAt` becomes. It answers with everything a `MoveProfile`
+     * needs to judge it -- height, region, AREA and clearance -- which is why the area
+     * had to go onto the rectangle: without it a swimmer and a walker are the same
+     * mover, and the profile that distinguishes them has nothing to read.
+     *
+     * Every rectangle covering the square is a candidate, so a bridge and the ground
+     * under it are both offered and the nearer one below the body wins. That is the
+     * stacked-floor case the cell version handled by walking a cell's surface list.
+     */
+    bool MeshSurfaceAt(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                       float z, float tolerance, Surface& out);
+
+    /// The world position of a rectangle's middle. What a coarse search measures
+    /// between: an area is a place, and its centre is the one point that stands for it
+    /// without favouring either end.
+    void RectCentre(const NavTile& tile, const NavRect& rect, float& x, float& y);
+
+    /**
+     * @brief One matched crossing between two tiles, in world terms.
+     *
+     * Produced by the store when both sides are resident, from the two rim portals'
+     * own geometry -- neither file ever recorded anything about the other. This is what
+     * replaces the baked gateway crossing table.
+     */
+    struct MeshCrossing
+    {
+        int32_t nearTileX = 0;
+        int32_t nearTileY = 0;
+        uint32_t nearRect = 0;
+
+        int32_t farTileX = 0;
+        int32_t farTileY = 0;
+        uint32_t farRect = 0;
+
+        /// Where the crossing is, on the border, in world yards.
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+
+        /// The widest matched run, in the packed clearance byte: a crossing is usable by
+        /// anyone who fits through its most generous part.
+        uint8_t clearance = 0;
+    };
+
+    /**
+     * @brief Match one tile's rim against a neighbour's, both ways.
+     *
+     * Two rim runs join where they face each other along the shared border AND the step
+     * between them is a step -- the same `ClimbWindow` the bake linked cells with, taken
+     * at the stricter of the two tiles' parameters. A pair of tiles baked by different
+     * runs may disagree, and the smaller limit is the one that cannot invent a step
+     * neither bake believed in.
+     *
+     * @param out crossings are APPENDED, in both directions.
+     */
+    void MatchRims(const NavTile& nearTile, const TileMesh& nearMesh,
+                   const NavTile& farTile, const TileMesh& farMesh,
+                   std::vector<MeshCrossing>& out);
 }

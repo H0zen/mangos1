@@ -151,7 +151,7 @@ namespace Helm
 
         // The clock's part, in yards: what the client says it is behind by, at this
         // leg's speed. Told to us rather than guessed -- see CMSG_MOVE_TIME_SKIPPED.
-        slack.clock = float(clockDriftMs) * 0.001f * m_pace.Speed();
+        slack.clock = static_cast<float>(clockDriftMs) * 0.001f * m_pace.Speed();
 
         return slack;
     }

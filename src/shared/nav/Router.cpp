@@ -858,6 +858,29 @@ namespace Nav
             return;
         }
 
+        // THE MESH IS THE ROUTE. Areas and the openings between them, a coarse search
+        // over those, and Polyanya inside each tile -- no cells anywhere in it, and the
+        // points come back already taut so there is nothing to straighten afterwards.
+        //
+        // What follows it is not a second implementation kept for taste. A tile can be
+        // resident before its mesh has been derived, and a query arriving in that window
+        // still has to be answered; deriving one here would put a pass over a quarter of
+        // a million cells on the map's tick.
+        if (FindOnMesh(request, startCell, startSurface, endCell, endSurface, out))
+        {
+            if (out.points.size() <= request.budget.points)
+            {
+                out.outcome = RouteOutcome::Routed;
+                out.stop = RouteStop::Reached;
+            }
+            else
+            {
+                out.outcome = RouteOutcome::Partial;
+                out.stop = RouteStop::PointBudget;
+            }
+            return;
+        }
+
         uint32_t budget = request.budget.cells;
 
         // The legs of the journey, as cell paths inside single tiles. One leg per
@@ -872,48 +895,9 @@ namespace Nav
 
         if (sameRegion)
         {
-            // THE MESH FIRST. One region of one tile is a set of convex areas and the
-            // openings between them, and over that the shortest path is computable
-            // exactly, in one pass, with no smoothing afterwards -- see Polyanya.hpp.
-            // This is the common query by a wide margin: a chase, a wander, a flee are
-            // almost always inside one 533-yard tile, and every one of them used to
-            // walk cells and then have the corners guessed back out of them.
-            //
-            // The cell search stays as the fallback and is not dead code. The mesh is
-            // derived from a resident tile, so it is absent while the tile is being
-            // brought in, and a query that arrives in that window still has to be
-            // answered.
-            const std::shared_ptr<const TileMesh> mesh =
-                m_store.MeshOf(startCell.TileX(), startCell.TileY());
-
-            if (mesh)
-            {
-                MeshQuery query;
-                CellCentre(startCell, query.startX, query.startY);
-                CellCentre(endCell, query.endX, query.endY);
-                query.radius = request.profile.radius;
-                query.maxExpansions = budget ? budget : 20000;
-
-                const MeshPath found = FindMeshPath(*startTile, *mesh, query);
-                budget = found.expansions < budget ? budget - found.expansions : 0;
-
-                if (found.found)
-                {
-                    EmitMeshPath(*startTile, found, request, endSurface, out);
-                    if (out.points.size() <= request.budget.points)
-                    {
-                        out.outcome = RouteOutcome::Routed;
-                        out.stop = RouteStop::Reached;
-                    }
-                    else
-                    {
-                        out.outcome = RouteOutcome::Partial;
-                        out.stop = RouteStop::PointBudget;
-                    }
-                    return;
-                }
-            }
-
+            // The cell search, reached only when the mesh could not answer -- see the
+            // note at the top of Find. It is the same fallback for one tile as for a
+            // continent, so there is no separate fast path here any more.
             FineGoal goal;
             goal.cell = endCell.InTile();
             goal.aim = CellWorld(*startTile, endCell.InTile(), endSurface.z);
@@ -1340,6 +1324,332 @@ namespace Nav
     }
 
     // -------------------------------------------------------------------- emit ----
+
+    bool Router::CoarseOnMesh(const CellRef& startCell, const CellRef& endCell,
+                              const Geometry::Vector3& from,
+                              const Geometry::Vector3& to,
+                              const MoveProfile& profile,
+                              std::vector<MeshStep>& corridor) const
+    {
+        corridor.clear();
+
+        const auto pack = [](int tileX, int tileY, uint32_t rect)
+        {
+            return (static_cast<uint64_t>(static_cast<uint16_t>(tileX)) << 48) |
+                   (static_cast<uint64_t>(static_cast<uint16_t>(tileY)) << 32) |
+                   static_cast<uint64_t>(rect);
+        };
+
+        struct Entry
+        {
+            float g = 0.0f;
+            uint64_t parent = 0;
+            bool hasParent = false;
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+        };
+
+        const std::shared_ptr<const TileMesh> startMesh =
+            m_store.MeshOf(startCell.TileX(), startCell.TileY());
+        const std::shared_ptr<const TileMesh> endMesh =
+            m_store.MeshOf(endCell.TileX(), endCell.TileY());
+        const std::shared_ptr<const NavTile> startTile = m_store.TileOf(startCell);
+        const std::shared_ptr<const NavTile> endTile = m_store.TileOf(endCell);
+
+        if (!startMesh || !endMesh || !startTile || !endTile)
+        {
+            return false;
+        }
+
+        const int32_t startRect =
+            RectAtHeight(*startTile, *startMesh, from.x, from.y, from.z);
+        const int32_t endRect = RectAtHeight(*endTile, *endMesh, to.x, to.y, to.z);
+        if (startRect < 0 || endRect < 0)
+        {
+            return false;
+        }
+
+        const uint8_t needed = QuantiseClearance(profile.radius);
+
+        const uint64_t goal =
+            pack(endCell.TileX(), endCell.TileY(), static_cast<uint32_t>(endRect));
+
+        std::unordered_map<uint64_t, Entry> seen;
+        using Open = std::pair<float, uint64_t>;
+        std::priority_queue<Open, std::vector<Open>, std::greater<Open>> open;
+
+        const auto heuristic = [&to](float x, float y)
+        {
+            const float dx = to.x - x;
+            const float dy = to.y - y;
+            return std::sqrt(dx * dx + dy * dy);
+        };
+
+        {
+            const uint64_t key = pack(startCell.TileX(), startCell.TileY(),
+                                      static_cast<uint32_t>(startRect));
+            Entry& entry = seen[key];
+            entry.g = 0.0f;
+            entry.x = from.x;
+            entry.y = from.y;
+            entry.z = from.z;
+            open.push({heuristic(from.x, from.y), key});
+        }
+
+        // A budget in nodes, not in cells: a tile holds a couple of thousand areas
+        // against a quarter of a million cells, so a corridor across a continent is
+        // hundreds of expansions rather than hundreds of thousands.
+        uint32_t expansions = 0;
+        constexpr uint32_t MAX_EXPANSIONS = 20000;
+
+        bool reached = false;
+
+        while (!open.empty() && expansions < MAX_EXPANSIONS)
+        {
+            const Open top = open.top();
+            open.pop();
+            ++expansions;
+
+            const uint64_t key = top.second;
+            const Entry here = seen[key];
+
+            if (top.first > here.g + heuristic(here.x, here.y) + 0.001f)
+            {
+                continue;   // superseded by a cheaper way to the same area
+            }
+
+            if (key == goal)
+            {
+                reached = true;
+                break;
+            }
+
+            const int tileX = static_cast<int16_t>(key >> 48);
+            const int tileY = static_cast<int16_t>(key >> 32);
+            const uint32_t rect = static_cast<uint32_t>(key);
+
+            const std::shared_ptr<const NavTile> tile = m_store.TileAt(tileX, tileY);
+            const std::shared_ptr<const TileMesh> mesh = m_store.MeshOf(tileX, tileY);
+            if (!tile || !mesh || rect >= mesh->rects.size())
+            {
+                continue;
+            }
+
+            const auto relax = [&](uint64_t next, float x, float y, float z, float step)
+            {
+                const float g = here.g + step;
+                const auto it = seen.find(next);
+                if (it != seen.end() && it->second.g <= g)
+                {
+                    return;
+                }
+
+                Entry& entry = seen[next];
+                entry.g = g;
+                entry.parent = key;
+                entry.hasParent = true;
+                entry.x = x;
+                entry.y = y;
+                entry.z = z;
+                open.push({g + heuristic(x, y), next});
+            };
+
+            // Inside the tile: every opening this area has.
+            for (uint32_t i = mesh->first[rect]; i < mesh->first[rect + 1]; ++i)
+            {
+                const Portal& portal = mesh->portals[i];
+                if (portal.LeavesTheTile() ||
+                    mesh->rects[portal.neighbour].clearance < needed ||
+                    !profile.Admits(AreaOf(mesh->rects[portal.neighbour].area)))
+                {
+                    continue;
+                }
+
+                float ax = 0.f, ay = 0.f, bx = 0.f, by = 0.f;
+                PortalSegment(*tile, *mesh, portal, ax, ay, bx, by);
+
+                const float mx = (ax + bx) * 0.5f;
+                const float my = (ay + by) * 0.5f;
+                const float dx = mx - here.x;
+                const float dy = my - here.y;
+
+                relax(pack(tileX, tileY, portal.neighbour), mx, my,
+                      (portal.loZ + portal.hiZ) * 0.5f,
+                      std::sqrt(dx * dx + dy * dy));
+            }
+
+            // Out of the tile: what the store matched between two resident rims.
+            for (const MeshCrossing& crossing :
+                 m_store.MeshCrossingsOf(tileX, tileY, rect))
+            {
+                if (crossing.clearance < needed)
+                {
+                    continue;
+                }
+
+                const std::shared_ptr<const TileMesh> farMesh =
+                    m_store.MeshOf(crossing.farTileX, crossing.farTileY);
+                if (!farMesh || crossing.farRect >= farMesh->rects.size())
+                {
+                    continue;
+                }
+
+                const NavRect& far = farMesh->rects[crossing.farRect];
+                if (far.clearance < needed || !profile.Admits(AreaOf(far.area)))
+                {
+                    continue;
+                }
+
+                const float dx = crossing.x - here.x;
+                const float dy = crossing.y - here.y;
+
+                relax(pack(crossing.farTileX, crossing.farTileY, crossing.farRect),
+                      crossing.x, crossing.y, crossing.z,
+                      std::sqrt(dx * dx + dy * dy));
+            }
+        }
+
+        if (!reached)
+        {
+            return false;
+        }
+
+        for (uint64_t at = goal;; at = seen[at].parent)
+        {
+            MeshStep step;
+            step.tileX = static_cast<int16_t>(at >> 48);
+            step.tileY = static_cast<int16_t>(at >> 32);
+            step.rect = static_cast<uint32_t>(at);
+            step.x = seen[at].x;
+            step.y = seen[at].y;
+            step.z = seen[at].z;
+            corridor.push_back(step);
+
+            if (!seen[at].hasParent)
+            {
+                break;
+            }
+        }
+
+        std::reverse(corridor.begin(), corridor.end());
+        return true;
+    }
+
+    bool Router::FindOnMesh(const RouteRequest& request, const CellRef& startCell,
+                            const Surface& startSurface, const CellRef& endCell,
+                            const Surface& endSurface, Route& out) const
+    {
+        (void)startSurface;
+
+        const std::shared_ptr<const NavTile> startTile = m_store.TileOf(startCell);
+        const std::shared_ptr<const TileMesh> startMesh =
+            m_store.MeshOf(startCell.TileX(), startCell.TileY());
+        if (!startTile || !startMesh)
+        {
+            return false;
+        }
+
+        // One tile: no corridor to plan, the mesh of that tile is the whole problem.
+        if (startCell.TileX() == endCell.TileX() &&
+            startCell.TileY() == endCell.TileY())
+        {
+            MeshQuery query;
+            query.startX = request.start.x;
+            query.startY = request.start.y;
+            query.startZ = request.start.z;
+            query.endX = request.end.x;
+            query.endY = request.end.y;
+            query.endZ = request.end.z;
+            query.radius = request.profile.radius;
+
+            const MeshPath path = FindMeshPath(*startTile, *startMesh, query);
+            if (!path.found)
+            {
+                return false;
+            }
+
+            EmitMeshPath(*startTile, path, request, endSurface, out);
+            return true;
+        }
+
+        std::vector<MeshStep> corridor;
+        if (!CoarseOnMesh(startCell, endCell, request.start, request.end,
+                          request.profile, corridor))
+        {
+            return false;
+        }
+
+        // Walk the corridor tile by tile. Consecutive steps in the SAME tile are one
+        // stretch of walking, and Polyanya answers it exactly -- so the fine stage runs
+        // once per tile crossed rather than once per area, and the points it returns are
+        // already the turns.
+        out.points.clear();
+
+        Geometry::Vector3 at = request.start;
+
+        for (size_t i = 0; i < corridor.size();)
+        {
+            size_t j = i;
+            while (j + 1 < corridor.size() &&
+                   corridor[j + 1].tileX == corridor[i].tileX &&
+                   corridor[j + 1].tileY == corridor[i].tileY)
+            {
+                ++j;
+            }
+
+            const bool last = j + 1 >= corridor.size();
+
+            const std::shared_ptr<const NavTile> tile =
+                m_store.TileAt(corridor[i].tileX, corridor[i].tileY);
+            const std::shared_ptr<const TileMesh> mesh =
+                m_store.MeshOf(corridor[i].tileX, corridor[i].tileY);
+            if (!tile || !mesh)
+            {
+                return false;
+            }
+
+            const Geometry::Vector3 leave =
+                last ? request.end
+                     : Geometry::Vector3(corridor[j].x, corridor[j].y, corridor[j].z);
+
+            MeshQuery query;
+            query.startX = at.x;
+            query.startY = at.y;
+            query.startZ = at.z;
+            query.endX = leave.x;
+            query.endY = leave.y;
+            query.endZ = leave.z;
+            query.radius = request.profile.radius;
+
+            const MeshPath path = FindMeshPath(*tile, *mesh, query);
+            if (!path.found)
+            {
+                return false;
+            }
+
+            RouteRequest leg = request;
+            leg.start = at;
+            leg.end = leave;
+
+            Route piece;
+            EmitMeshPath(*tile, path, leg, endSurface, piece);
+
+            // The first point of a leg is the last point of the one before it. Dropped
+            // rather than emitted twice: a repeated point is a zero-length segment, and
+            // the wire's packing turns one of those into a division by zero on the
+            // client.
+            for (size_t k = out.points.empty() ? 0 : 1; k < piece.points.size(); ++k)
+            {
+                out.points.push_back(piece.points[k]);
+            }
+
+            at = leave;
+            i = j + 1;
+        }
+
+        return !out.points.empty();
+    }
 
     void Router::EmitMeshPath(const NavTile& tile, const MeshPath& path,
                               const RouteRequest& request, const Surface& endSurface,

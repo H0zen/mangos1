@@ -79,8 +79,15 @@ namespace Nav
     {
         float startX = 0.0f;
         float startY = 0.0f;
+        float startZ = 0.0f;
         float endX = 0.0f;
         float endY = 0.0f;
+
+        /// The heights matter, and only where floors stack. A bridge and the ground
+        /// under it are the same square in plan, so a query given two positions without
+        /// them cannot say which floor it means -- and picking the lower one silently is
+        /// how two points sixty yards apart in Blackrock Depths came back unroutable.
+        float endZ = 0.0f;
 
         /// A mover narrower than a rectangle's recorded clearance may cross it. Zero
         /// admits every area, which is what a query that does not care about width wants.
@@ -115,8 +122,4 @@ namespace Nav
      */
     MeshPath FindMeshPath(const NavTile& tile, const TileMesh& mesh,
                           const MeshQuery& query);
-
-    /// Which rectangle covers a world position, or -1. Exposed because a caller that
-    /// already knows should not pay for the lookup twice.
-    int32_t RectAt(const NavTile& tile, const TileMesh& mesh, float x, float y);
 }

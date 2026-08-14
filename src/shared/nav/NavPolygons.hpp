@@ -85,10 +85,53 @@ namespace Nav
 
         uint16_t region = 0;
 
+        /**
+         * @brief The packed area and flags every cell of it shares.
+         *
+         * Not decoration, and not derivable from anything else here: a `MoveProfile`
+         * admits a mover to ground, to shallow water, to deep water, to lava or to none
+         * of them, and without this the polygon layer cannot tell a swimmer from a
+         * walker. A rectangle only ever covers cells of ONE area, because growth stops
+         * where the area changes -- the shoreline is a rectangle boundary, which is what
+         * it should be anyway.
+         */
+        uint8_t area = 0;
+
+        /**
+         * @brief Which surface of its cells this rectangle is.
+         *
+         * A bridge over ground is two walkable surfaces in the same square of plan, and
+         * one rectangle can only be one of them. Rectangles are built per layer and
+         * carry which -- so a route over the bridge and a route under it are different
+         * areas of the mesh rather than the same one seen twice.
+         */
+        uint16_t layer = 0;
+
         /// Height range over the covered cells. A rectangle is flat in plan, never in Z:
         /// it is a piece of ground, and the search seats its points on that ground.
         float minZ = 0.0f;
         float maxZ = 0.0f;
+
+        /**
+         * @brief NO HEIGHT LIVES HERE, and that was measured rather than assumed.
+         *
+         * The first attempt fitted a plane per rectangle and refused any cell that
+         * pushed the residual past a fifth of a yard. It works, and it is the wrong
+         * shape: over map 0 it took the partition from 1,480,966 rectangles to
+         * 22,949,010 -- from 112 cells each to 7.2.
+         *
+         * The reason is structural and not a badly chosen threshold. The ADT heightmap
+         * is piecewise linear with a break every four NAV cells (128 height cells to 512
+         * nav cells), so a plane cannot span a triangle edge; forcing the areas to be
+         * planar fragments them at exactly the terrain's own resolution, and 7.2 cells
+         * is under two height cells.
+         *
+         * Height is a smooth field and belongs stored as one. `TileMesh::heights` keeps
+         * it at the terrain's own 129 x 129, quantised -- about 33 KB a tile against the
+         * 2.5 MB of per-cell region, area, clearance and layer that the rectangles DO
+         * replace. Areas carry what is constant over an area; the field carries what
+         * varies smoothly. Mixing the two costs fifteen times the geometry.
+         */
 
         /// The NARROWEST clearance over the covered cells, in the packed byte the cells
         /// carry. Conservative on purpose: a mover that fits this fits everywhere in the
@@ -117,11 +160,44 @@ namespace Nav
         std::vector<uint16_t> region;   ///< NO_REGION where nothing is walkable
         std::vector<uint16_t> layer;    ///< which of the cell's surfaces the plan means
         std::vector<float> z;           ///< that surface's height
+        std::vector<uint8_t> area;      ///< packed area and flags
 
-        bool Walkable(int cell) const { return region[size_t(cell)] != NO_REGION; }
+        /// Which surface of each cell this plan took: 0 is the lowest, 1 the next up.
+        /// Carried so the rectangles built from it can say which floor they are.
+        uint16_t layerIndex = 0;
+
+        bool Walkable(int cell) const
+        {
+            return region[static_cast<size_t>(cell)] != NO_REGION;
+        }
     };
 
+    /// The lowest walkable surface of every cell.
     TilePlan ReadTilePlan(const NavTile& tile);
+
+    /**
+     * @brief One plan per floor, lowest first.
+     *
+     * A bridge over ground is two walkable surfaces in one square of plan, and a
+     * rectangle can only be one of them. Decomposing each plan separately is what makes
+     * the two different areas of the mesh instead of the same one seen twice -- so a
+     * route over the bridge and a route under it stop being the same route.
+     *
+     * The first plan is always present when anything is walkable; the second and beyond
+     * exist only where floors actually stack, which in 2.4.3 is buildings, bridges and
+     * ship decks rather than open country.
+     */
+    std::vector<TilePlan> ReadTilePlans(const NavTile& tile);
+
+    /**
+     * @brief Height samples along one edge of a tile's height field.
+     *
+     * The terrain's own V9 grid, mirrored: 129 x 129 corners over 128 height cells,
+     * which is exactly four nav cells each. Not a resampling and not a choice -- reading
+     * the field at the resolution it was authored at is what makes the samples exact at
+     * every corner, and anything finer would store interpolation as if it were data.
+     */
+    constexpr int HEIGHT_SIDE = (CELLS_PER_TILE / 4) + 1;
 
     /**
      * @brief Partition a tile's walkable cells into maximal axis-aligned rectangles.

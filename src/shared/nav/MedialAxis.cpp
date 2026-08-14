@@ -87,8 +87,9 @@ namespace Nav
                         break;
                     }
 
-                    s = ((f[q] + float(q) * float(q)) - (f[p] + float(p) * float(p))) /
-                        (2.0f * float(q) - 2.0f * float(p));
+                    s = ((f[q] + static_cast<float>(q) * static_cast<float>(q)) - (f[p] +
+                        static_cast<float>(p) * static_cast<float>(p))) /
+                        (2.0f * static_cast<float>(q) - 2.0f * static_cast<float>(p));
 
                     if (s <= zEnv[k] && k > 0)
                     {
@@ -107,7 +108,7 @@ namespace Nav
             k = 0;
             for (int q = 0; q < n; ++q)
             {
-                while (zEnv[k + 1] < float(q))
+                while (zEnv[k + 1] < static_cast<float>(q))
                 {
                     ++k;
                 }
@@ -120,7 +121,7 @@ namespace Nav
                     continue;
                 }
 
-                const float delta = float(q) - float(p);
+                const float delta = static_cast<float>(q) - static_cast<float>(p);
                 d[q] = delta * delta + f[p];
                 arg[q] = argIn ? argIn[p] : p;
             }
@@ -132,20 +133,20 @@ namespace Nav
         (void)tile;
 
         DistanceField field;
-        field.distance.assign(size_t(SIDE) * SIDE, 0.0f);
-        field.nearest.assign(size_t(SIDE) * SIDE, -1);
+        field.distance.assign(static_cast<size_t>(SIDE) * SIDE, 0.0f);
+        field.nearest.assign(static_cast<size_t>(SIDE) * SIDE, -1);
 
         // Squared distances throughout, and the square root only at the end: the
         // transform is defined on squares and taking the root per pass would both cost
         // more and lose the exactness the method was chosen for.
-        std::vector<float> squared(size_t(SIDE) * SIDE, 0.0f);
-        std::vector<int32_t> feature(size_t(SIDE) * SIDE, -1);
+        std::vector<float> squared(static_cast<size_t>(SIDE) * SIDE, 0.0f);
+        std::vector<int32_t> feature(static_cast<size_t>(SIDE) * SIDE, -1);
 
-        // Named, and not `column(size_t(SIDE))`. That spelling is a function
+        // Named, and not `column(static_cast<size_t>(SIDE))`. That spelling is a function
         // declaration -- the most vexing parse -- and every use of it below then fails
         // with an error about subscripting a pointer to function, which says nothing
         // about the line that actually went wrong.
-        const size_t side = size_t(SIDE);
+        const size_t side = static_cast<size_t>(SIDE);
 
         std::vector<float> column(side);
         std::vector<float> result(side);
@@ -161,8 +162,8 @@ namespace Nav
             for (int y = 0; y < SIDE; ++y)
             {
                 const int cell = x * SIDE + y;
-                column[size_t(y)] = plan.Walkable(cell) ? INF : 0.0f;
-                argIn[size_t(y)] = y;
+                column[static_cast<size_t>(y)] = plan.Walkable(cell) ? INF : 0.0f;
+                argIn[static_cast<size_t>(y)] = y;
             }
 
             Transform1D(column.data(), SIDE, result.data(), argOut.data(), v.data(),
@@ -171,9 +172,10 @@ namespace Nav
             for (int y = 0; y < SIDE; ++y)
             {
                 const int cell = x * SIDE + y;
-                squared[size_t(cell)] = result[size_t(y)];
-                feature[size_t(cell)] =
-                    argOut[size_t(y)] < 0 ? -1 : int32_t(x * SIDE + argOut[size_t(y)]);
+                squared[static_cast<size_t>(cell)] = result[static_cast<size_t>(y)];
+                feature[static_cast<size_t>(cell)] =
+                    argOut[static_cast<size_t>(y)] < 0 ? -1 : static_cast<int32_t>(x *
+                        SIDE + argOut[size_t(y)]);
             }
         }
 
@@ -187,8 +189,8 @@ namespace Nav
             for (int x = 0; x < SIDE; ++x)
             {
                 const int cell = x * SIDE + y;
-                column[size_t(x)] = squared[size_t(cell)];
-                featureIn[size_t(x)] = feature[size_t(cell)];
+                column[static_cast<size_t>(x)] = squared[static_cast<size_t>(cell)];
+                featureIn[static_cast<size_t>(x)] = feature[static_cast<size_t>(cell)];
             }
 
             Transform1D(column.data(), SIDE, result.data(), argOut.data(), v.data(),
@@ -197,10 +199,10 @@ namespace Nav
             for (int x = 0; x < SIDE; ++x)
             {
                 const int cell = x * SIDE + y;
-                const float d2 = result[size_t(x)];
-                field.distance[size_t(cell)] =
+                const float d2 = result[static_cast<size_t>(x)];
+                field.distance[static_cast<size_t>(cell)] =
                     d2 >= INF ? INF : std::sqrt(d2) * CELL_SIZE;
-                field.nearest[size_t(cell)] = argOut[size_t(x)];
+                field.nearest[static_cast<size_t>(cell)] = argOut[static_cast<size_t>(x)];
             }
         }
 
@@ -211,6 +213,9 @@ namespace Nav
                                             const DistanceField& field, float separation)
     {
         std::vector<AxisVertex> axis;
+
+        // Which cells already carry a vertex, for the radius suppression below.
+        std::vector<uint8_t> kept(static_cast<size_t>(SIDE) * SIDE, 0);
 
         const float separation2 = separation * separation;
 
@@ -224,14 +229,14 @@ namespace Nav
                     continue;
                 }
 
-                const int32_t mine = field.nearest[size_t(cell)];
+                const int32_t mine = field.nearest[static_cast<size_t>(cell)];
                 if (mine < 0)
                 {
                     continue;   // nothing is near: an unbounded tile, no axis to speak of
                 }
 
-                const float mineX = float(LocalX(mine));
-                const float mineY = float(LocalY(mine));
+                const float mineX = static_cast<float>(LocalX(mine));
+                const float mineY = static_cast<float>(LocalY(mine));
 
                 // Equidistant from two pieces of boundary, and the two pieces are
                 // genuinely apart. This is the definition, tested directly; a local
@@ -253,14 +258,14 @@ namespace Nav
                             continue;
                         }
 
-                        const int32_t theirs = field.nearest[size_t(other)];
+                        const int32_t theirs = field.nearest[static_cast<size_t>(other)];
                         if (theirs < 0 || theirs == mine)
                         {
                             continue;
                         }
 
-                        const float ox = float(LocalX(theirs)) - mineX;
-                        const float oy = float(LocalY(theirs)) - mineY;
+                        const float ox = static_cast<float>(LocalX(theirs)) - mineX;
+                        const float oy = static_cast<float>(LocalY(theirs)) - mineY;
                         const float apart = (ox * ox + oy * oy) * CELL_SIZE * CELL_SIZE;
 
                         // And this cell is at least as roomy as that neighbour, so a
@@ -276,9 +281,73 @@ namespace Nav
                     continue;
                 }
 
+                // A WEAK local maximum: no neighbour has strictly more room. Strict
+                // would be wrong and the corridor case is why -- along a passage of
+                // constant width the clearance on the centre line is constant, so no
+                // cell is strictly above its neighbours and a strict test throws the
+                // whole axis away. Breaking the tie by index instead keeps exactly one
+                // vertex per plateau, which for a straight corridor is one vertex for
+                // the entire corridor.
+                bool crest = true;
+                for (int dx = -1; dx <= 1 && crest; ++dx)
+                {
+                    for (int dy = -1; dy <= 1 && crest; ++dy)
+                    {
+                        if (!dx && !dy)
+                        {
+                            continue;
+                        }
+
+                        const int other = (x + dx) * SIDE + (y + dy);
+                        crest = !plan.Walkable(other) ||
+                                field.At(other) <= field.At(cell);
+                    }
+                }
+
+                if (!crest)
+                {
+                    continue;
+                }
+
+                // Non-maximum suppression by RADIUS, and the radius is the room itself.
+                // Two maximal disks closer together than one of their radii describe the
+                // same passage, so keeping both stores the passage twice -- which is how
+                // the axis came out at one vertex per 10.7 walkable cells, a field
+                // wearing a structure's name.
+                //
+                // Scaling the radius with the clearance is what makes this a description
+                // rather than a resampling: a doorway keeps its vertices close together
+                // because its room changes quickly, and a hall keeps a handful because
+                // nothing about it changes over fifty yards.
+                const float reach = std::max(separation, field.At(cell) * 0.5f);
+                const int span = std::max(1, static_cast<int>(reach / CELL_SIZE));
+
+                bool crowded = false;
+                for (int dx = -span; dx <= span && !crowded; ++dx)
+                {
+                    for (int dy = -span; dy <= span && !crowded; ++dy)
+                    {
+                        const int ax = x + dx;
+                        const int ay = y + dy;
+                        if (ax < 0 || ax >= SIDE || ay < 0 || ay >= SIDE)
+                        {
+                            continue;
+                        }
+                        crowded = kept[static_cast<size_t>(ax) * SIDE +
+                                       static_cast<size_t>(ay)] != 0;
+                    }
+                }
+
+                if (crowded)
+                {
+                    continue;
+                }
+
+                kept[static_cast<size_t>(cell)] = 1;
+
                 AxisVertex vertex;
-                vertex.cell = uint32_t(cell);
-                vertex.region = plan.region[size_t(cell)];
+                vertex.cell = static_cast<uint32_t>(cell);
+                vertex.region = plan.region[static_cast<size_t>(cell)];
                 vertex.clearance = field.At(cell);
                 vertex.x = CellCentre(GlobalCell(tile.TileX(), x));
                 vertex.y = CellCentre(GlobalCell(tile.TileY(), y));

@@ -27,6 +27,7 @@
 
 #include "nav/NavGrid.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Nav
@@ -83,11 +84,66 @@ namespace Nav
 
     TileMesh BuildTileMesh(const NavTile& tile)
     {
-        const TilePlan plan = ReadTilePlan(tile);
+        // Every floor, lowest first. A bridge over ground is two walkable surfaces in
+        // one square of plan, and a rectangle can only be one of them -- so each plan is
+        // decomposed on its own and the rectangles are joined afterwards by HEIGHT, not
+        // by which position in a cell's stack they happened to occupy.
+        const std::vector<TilePlan> plans = ReadTilePlans(tile);
 
         TileMesh mesh;
-        std::vector<int32_t> cellToRect;
-        mesh.rects = DecomposeTile(tile, plan, &cellToRect);
+        if (plans.empty())
+        {
+            mesh.first.assign(1, 0);
+            return mesh;
+        }
+
+        // One cell-to-rectangle map per floor, and the rectangle indices are global
+        // across floors, so a portal can join a ramp on the ground to the bridge it
+        // climbs onto without either side knowing which plan the other came from.
+        std::vector<std::vector<int32_t>> cellToRect(plans.size());
+
+        for (size_t layer = 0; layer < plans.size(); ++layer)
+        {
+            const uint32_t base = static_cast<uint32_t>(mesh.rects.size());
+
+            std::vector<NavRect> here =
+                DecomposeTile(tile, plans[layer], &cellToRect[layer]);
+
+            for (int32_t& at : cellToRect[layer])
+            {
+                if (at >= 0)
+                {
+                    at += static_cast<int32_t>(base);
+                }
+            }
+
+            mesh.rects.insert(mesh.rects.end(), here.begin(), here.end());
+        }
+
+        // The height field, at the terrain's own resolution and from the LOWEST floor.
+        // Four nav cells to a height cell, so the sample at a height corner is the nav
+        // cell whose corner it is -- read, not resampled.
+        mesh.baseZ = tile.BaseZ();
+        mesh.heights.assign(static_cast<size_t>(HEIGHT_SIDE) * HEIGHT_SIDE, 0);
+
+        for (int hx = 0; hx < HEIGHT_SIDE; ++hx)
+        {
+            for (int hy = 0; hy < HEIGHT_SIDE; ++hy)
+            {
+                const int cx = std::min(hx * 4, SIDE - 1);
+                const int cy = std::min(hy * 4, SIDE - 1);
+                const size_t cell = static_cast<size_t>(cx) * SIDE +
+                                    static_cast<size_t>(cy);
+
+                const float z = plans[0].Walkable(static_cast<int>(cell))
+                                    ? plans[0].z[cell]
+                                    : mesh.baseZ;
+
+                mesh.heights[static_cast<size_t>(hx) * HEIGHT_SIDE +
+                             static_cast<size_t>(hy)] = QuantiseZ(z, mesh.baseZ);
+            }
+        }
+
         mesh.first.assign(mesh.rects.size() + 1, 0);
 
         // The one step rule, shared with the flood that built the regions, with the tile
@@ -99,7 +155,10 @@ namespace Nav
         for (size_t r = 0; r < mesh.rects.size(); ++r)
         {
             const NavRect& rect = mesh.rects[r];
-            mesh.first[r] = uint32_t(mesh.portals.size());
+            mesh.first[r] = static_cast<uint32_t>(mesh.portals.size());
+
+            // The floor this rectangle came from, and the map of who owns what on it.
+            const TilePlan& plan = plans[rect.layer];
 
             for (uint8_t side = 0; side < 4; ++side)
             {
@@ -110,7 +169,7 @@ namespace Nav
                 // Runs are accumulated rather than emitted per cell: a doorway is one
                 // opening however many cells wide it is, and the interval is what the
                 // search interpolates over.
-                int32_t runNeighbour = -1;
+                int64_t runNeighbour = -1;
                 int runFrom = 0;
 
                 const auto flush = [&](int runTo)
@@ -121,11 +180,47 @@ namespace Nav
                     }
 
                     Portal portal;
-                    portal.rect = uint32_t(r);
-                    portal.neighbour = uint32_t(runNeighbour);
+                    portal.rect = static_cast<uint32_t>(r);
+                    portal.neighbour = static_cast<uint32_t>(runNeighbour);
                     portal.side = side;
-                    portal.lo = uint16_t(runFrom);
-                    portal.hi = uint16_t(runTo);
+                    portal.lo = static_cast<uint16_t>(runFrom);
+                    portal.hi = static_cast<uint16_t>(runTo);
+
+                    // Everything a match across a tile border needs, taken from this
+                    // side's own cells: the height at each end of the run and the
+                    // narrowest room along it. The neighbour computes the same three
+                    // from its own, and the two are compared without either file having
+                    // recorded anything about the other.
+                    const bool alongY = side == SIDE_MINUS_X || side == SIDE_PLUS_X;
+                    const int fixed = (side == SIDE_MINUS_X)   ? rect.x0
+                                      : (side == SIDE_PLUS_X)  ? rect.x1
+                                      : (side == SIDE_MINUS_Y) ? rect.y0
+                                                               : rect.y1;
+
+                    const auto cellOf = [&](int at)
+                    {
+                        return alongY ? static_cast<size_t>(fixed) * SIDE +
+                            static_cast<size_t>(at)
+                                      : static_cast<size_t>(at) * SIDE +
+                                          static_cast<size_t>(fixed);
+                    };
+
+                    portal.loZ = plan.z[cellOf(runFrom)];
+                    portal.hiZ = plan.z[cellOf(runTo)];
+
+                    uint8_t narrowest = 0xFF;
+                    for (int at = runFrom; at <= runTo; ++at)
+                    {
+                        const size_t cell = cellOf(at);
+                        const Surface surface = tile.SurfaceAt(static_cast<int>(cell),
+                                                               plan.layer[cell]);
+                        if (surface.Valid())
+                        {
+                            narrowest = std::min(narrowest, surface.clearance);
+                        }
+                    }
+                    portal.clearance = narrowest;
+
                     mesh.portals.push_back(portal);
                     runNeighbour = -1;
                 };
@@ -133,21 +228,62 @@ namespace Nav
                 for (int along = lo; along <= hi; ++along)
                 {
                     int outX = 0, outY = 0, inX = 0, inY = 0;
-                    int32_t neighbour = -1;
+                    int64_t neighbour = -1;
 
                     if (OutsideCell(rect, side, along, outX, outY, inX, inY))
                     {
-                        const size_t inside = size_t(inX) * SIDE + size_t(inY);
-                        const size_t outside = size_t(outX) * SIDE + size_t(outY);
+                        const size_t inside = static_cast<size_t>(inX) * SIDE +
+                            static_cast<size_t>(inY);
+                        const size_t outside = static_cast<size_t>(outX) * SIDE +
+                            static_cast<size_t>(outY);
 
                         const bool joined =
-                            plan.Walkable(int(inside)) && plan.Walkable(int(outside)) &&
+                            plan.Walkable(static_cast<int>(inside)) &&
+                            plan.Walkable(static_cast<int>(outside)) &&
                             plan.region[inside] == plan.region[outside] &&
                             std::fabs(plan.z[inside] - plan.z[outside]) <= window;
 
                         if (joined)
                         {
-                            neighbour = cellToRect[outside];
+                            neighbour = cellToRect[rect.layer][outside];
+                        }
+
+                        // A ramp climbing onto a bridge is two rectangles on DIFFERENT
+                        // floors, joined where the step between them is a step. Looked
+                        // for across every floor, because which position a surface holds
+                        // in its own cell's stack says nothing about which it holds in
+                        // the neighbour's.
+                        for (size_t other = 0;
+                             other < plans.size() && neighbour < 0; ++other)
+                        {
+                            if (other == rect.layer)
+                            {
+                                continue;
+                            }
+
+                            const TilePlan& up = plans[other];
+                            if (!up.Walkable(static_cast<int>(outside)) ||
+                                up.region[outside] != plan.region[inside])
+                            {
+                                continue;
+                            }
+
+                            if (std::fabs(plan.z[inside] - up.z[outside]) <= window)
+                            {
+                                neighbour = cellToRect[other][outside];
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Off the padded grid: this run is on the tile's own rim. It is
+                        // an opening -- something walks across it -- and the store is
+                        // what finds out into what.
+                        const size_t inside = static_cast<size_t>(inX) * SIDE +
+                            static_cast<size_t>(inY);
+                        if (plan.Walkable(static_cast<int>(inside)))
+                        {
+                            neighbour = static_cast<int64_t>(Portal::OUTSIDE);
                         }
                     }
 
@@ -166,8 +302,313 @@ namespace Nav
             }
         }
 
-        mesh.first[mesh.rects.size()] = uint32_t(mesh.portals.size());
+        mesh.first[mesh.rects.size()] = static_cast<uint32_t>(mesh.portals.size());
         return mesh;
+    }
+
+    int32_t RectAt(const NavTile& tile, const TileMesh& mesh, float x, float y)
+    {
+        const int gx = CellIndex(x);
+        const int gy = CellIndex(y);
+        if (TileOfCell(gx) != tile.TileX() || TileOfCell(gy) != tile.TileY())
+        {
+            return -1;
+        }
+
+        const int lx = LocalOfCell(gx);
+        const int ly = LocalOfCell(gy);
+
+        for (size_t i = 0; i < mesh.rects.size(); ++i)
+        {
+            const NavRect& r = mesh.rects[i];
+            if (lx >= r.x0 && lx <= r.x1 && ly >= r.y0 && ly <= r.y1)
+            {
+                return static_cast<int32_t>(i);
+            }
+        }
+
+        return -1;
+    }
+
+    int32_t RectAtHeight(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                         float z)
+    {
+        const int gx = CellIndex(x);
+        const int gy = CellIndex(y);
+        if (TileOfCell(gx) != tile.TileX() || TileOfCell(gy) != tile.TileY())
+        {
+            return -1;
+        }
+
+        const int lx = LocalOfCell(gx);
+        const int ly = LocalOfCell(gy);
+
+        int32_t best = -1;
+        float bestDelta = 0.0f;
+
+        for (size_t i = 0; i < mesh.rects.size(); ++i)
+        {
+            const NavRect& rect = mesh.rects[i];
+            if (lx < rect.x0 || lx > rect.x1 || ly < rect.y0 || ly > rect.y1)
+            {
+                continue;
+            }
+
+            float here = 0.0f;
+            if (rect.layer != 0)
+            {
+                here = (rect.minZ + rect.maxZ) * 0.5f;
+            }
+            else if (!MeshHeightAt(tile, mesh, x, y, here))
+            {
+                continue;
+            }
+
+            // Below the body is what it stands on; above it is a ceiling, and only a
+            // near one counts at all. The same preference the cell version applied when
+            // it walked a cell's surface list.
+            const float delta = here <= z ? z - here : (here - z) * 2.0f;
+            if (best < 0 || delta < bestDelta)
+            {
+                bestDelta = delta;
+                best = static_cast<int32_t>(i);
+            }
+        }
+
+        return best;
+    }
+
+    bool MeshHeightAt(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                      float& outZ)
+    {
+        const int32_t at = RectAt(tile, mesh, x, y);
+        if (at < 0)
+        {
+            return false;
+        }
+
+        const NavRect& rect = mesh.rects[static_cast<size_t>(at)];
+
+        // A floor above the ground is not a field over the plan -- two of them share the
+        // square -- so it answers from its own recorded range instead. Flat by
+        // construction within a rectangle's tolerance, which is what a bridge deck is.
+        if (rect.layer != 0)
+        {
+            outZ = (rect.minZ + rect.maxZ) * 0.5f;
+            return true;
+        }
+
+        // The ground, from the height field, bilinearly. In HEIGHT-cell coordinates,
+        // unrounded, so a mover crossing a cell rim does not see the floor step.
+        const float cellX = CellCoord(x) -
+                            static_cast<float>(GlobalCell(tile.TileX(), 0));
+        const float cellY = CellCoord(y) -
+                            static_cast<float>(GlobalCell(tile.TileY(), 0));
+
+        const float hx = cellX * 0.25f;
+        const float hy = cellY * 0.25f;
+
+        const int ix = std::max(0, std::min(static_cast<int>(hx), HEIGHT_SIDE - 2));
+        const int iy = std::max(0, std::min(static_cast<int>(hy), HEIGHT_SIDE - 2));
+
+        const float fx = std::max(0.0f, std::min(hx - static_cast<float>(ix), 1.0f));
+        const float fy = std::max(0.0f, std::min(hy - static_cast<float>(iy), 1.0f));
+
+        const float a = mesh.HeightSample(ix, iy);
+        const float b = mesh.HeightSample(ix + 1, iy);
+        const float c = mesh.HeightSample(ix, iy + 1);
+        const float d = mesh.HeightSample(ix + 1, iy + 1);
+
+        outZ = (a * (1.0f - fx) + b * fx) * (1.0f - fy) +
+               (c * (1.0f - fx) + d * fx) * fy;
+        return true;
+    }
+
+    bool MeshSurfaceAt(const NavTile& tile, const TileMesh& mesh, float x, float y,
+                       float z, float tolerance, Surface& out)
+    {
+        out = Surface();
+
+        const int gx = CellIndex(x);
+        const int gy = CellIndex(y);
+        if (TileOfCell(gx) != tile.TileX() || TileOfCell(gy) != tile.TileY())
+        {
+            return false;
+        }
+
+        const int lx = LocalOfCell(gx);
+        const int ly = LocalOfCell(gy);
+
+        // The floor a body at this height is standing ON: the nearest within tolerance,
+        // preferring one at or below it, because a unit is on the floor it is above and
+        // not the ceiling it is under. Every rectangle covering the square is a
+        // candidate, which is exactly the stacked-floor case the cell version handled by
+        // walking a cell's surface list.
+        float best = tolerance;
+        bool found = false;
+
+        for (size_t i = 0; i < mesh.rects.size(); ++i)
+        {
+            const NavRect& rect = mesh.rects[i];
+            if (lx < rect.x0 || lx > rect.x1 || ly < rect.y0 || ly > rect.y1)
+            {
+                continue;
+            }
+
+            float here = 0.0f;
+            if (rect.layer != 0)
+            {
+                here = (rect.minZ + rect.maxZ) * 0.5f;
+            }
+            else if (!MeshHeightAt(tile, mesh, x, y, here))
+            {
+                continue;
+            }
+
+            // Below the body counts fully; above it only within the tolerance, and the
+            // nearer of the two wins.
+            const float delta = here <= z ? z - here : (here - z) * 2.0f;
+            if (delta > best)
+            {
+                continue;
+            }
+
+            best = delta;
+            found = true;
+
+            out.z = here;
+            out.region = rect.region;
+            out.area = rect.area;
+            out.clearance = rect.clearance;
+            out.layer = rect.layer;
+        }
+
+        return found;
+    }
+
+    void RectCentre(const NavTile& tile, const NavRect& rect, float& x, float& y)
+    {
+        const float midX = (static_cast<float>(rect.x0) +
+                            static_cast<float>(rect.x1)) * 0.5f;
+        const float midY = (static_cast<float>(rect.y0) +
+                            static_cast<float>(rect.y1)) * 0.5f;
+
+        // CellCentre takes a whole index; a rectangle's middle falls between two of them
+        // whenever it spans an even number of cells, so the half is added in world yards
+        // -- and subtracted, because cell indices grow as world coordinates fall.
+        x = CellCentre(GlobalCell(tile.TileX(), static_cast<int>(midX))) -
+            (midX - std::floor(midX)) * CELL_SIZE;
+        y = CellCentre(GlobalCell(tile.TileY(), static_cast<int>(midY))) -
+            (midY - std::floor(midY)) * CELL_SIZE;
+    }
+
+    void MatchRims(const NavTile& nearTile, const TileMesh& nearMesh,
+                   const NavTile& farTile, const TileMesh& farMesh,
+                   std::vector<MeshCrossing>& out)
+    {
+        const int dx = farTile.TileX() - nearTile.TileX();
+        const int dy = farTile.TileY() - nearTile.TileY();
+
+        // Orthogonal neighbours only. A diagonal shares one corner and no run, so there
+        // is nothing to match and pretending otherwise would invent a crossing through
+        // the point where four tiles meet.
+        if ((dx != 0) == (dy != 0))
+        {
+            return;
+        }
+
+        // Which rim of each tile faces the other. Cell indices grow as world coordinates
+        // fall, so the neighbour at tileX + 1 lies at SMALLER world x -- which is why
+        // this mapping is written out rather than inferred at the call site.
+        const uint8_t nearSide = dx == 1    ? SIDE_PLUS_X
+                                 : dx == -1 ? SIDE_MINUS_X
+                                 : dy == 1  ? SIDE_PLUS_Y
+                                            : SIDE_MINUS_Y;
+        const uint8_t farSide = dx == 1    ? SIDE_MINUS_X
+                                : dx == -1 ? SIDE_PLUS_X
+                                : dy == 1  ? SIDE_MINUS_Y
+                                           : SIDE_PLUS_Y;
+
+        const float window =
+            ClimbWindow(std::min(nearTile.Params().maxClimb, farTile.Params().maxClimb),
+                        std::min(nearTile.Params().maxSlopeDeg,
+                                 farTile.Params().maxSlopeDeg),
+                        CELL_SIZE);
+
+        for (const Portal& here : nearMesh.portals)
+        {
+            if (!here.LeavesTheTile() || here.side != nearSide)
+            {
+                continue;
+            }
+
+            for (const Portal& there : farMesh.portals)
+            {
+                if (!there.LeavesTheTile() || there.side != farSide)
+                {
+                    continue;
+                }
+
+                // The two runs are indexed along the same axis and the border is shared,
+                // so they overlap exactly where their intervals do.
+                const uint16_t lo = std::max(here.lo, there.lo);
+                const uint16_t hi = std::min(here.hi, there.hi);
+                if (lo > hi)
+                {
+                    continue;
+                }
+
+                // Heights are linear along a run by construction -- a rectangle's ground
+                // is a plane -- so the overlap's ends are enough to test the step.
+                const auto heightAt = [](const Portal& portal, uint16_t at)
+                {
+                    if (portal.hi == portal.lo)
+                    {
+                        return portal.loZ;
+                    }
+                    const float t = static_cast<float>(at - portal.lo) /
+                                    static_cast<float>(portal.hi - portal.lo);
+                    return portal.loZ + (portal.hiZ - portal.loZ) * t;
+                };
+
+                const float stepLo =
+                    std::fabs(heightAt(here, lo) - heightAt(there, lo));
+                const float stepHi =
+                    std::fabs(heightAt(here, hi) - heightAt(there, hi));
+
+                if (stepLo > window && stepHi > window)
+                {
+                    continue;   // a ledge running beside a drop, not a way across
+                }
+
+                MeshCrossing crossing;
+                crossing.nearTileX = nearTile.TileX();
+                crossing.nearTileY = nearTile.TileY();
+                crossing.nearRect = here.rect;
+                crossing.farTileX = farTile.TileX();
+                crossing.farTileY = farTile.TileY();
+                crossing.farRect = there.rect;
+                crossing.clearance = std::min(here.clearance, there.clearance);
+
+                const uint16_t middle = static_cast<uint16_t>((lo + hi) / 2);
+                const bool alongY =
+                    nearSide == SIDE_MINUS_X || nearSide == SIDE_PLUS_X;
+
+                const NavRect& rect = nearMesh.rects[here.rect];
+                const int fixed = nearSide == SIDE_MINUS_X   ? rect.x0
+                                  : nearSide == SIDE_PLUS_X  ? rect.x1
+                                  : nearSide == SIDE_MINUS_Y ? rect.y0
+                                                             : rect.y1;
+
+                crossing.x = CellCentre(GlobalCell(nearTile.TileX(),
+                                                   alongY ? fixed : middle));
+                crossing.y = CellCentre(GlobalCell(nearTile.TileY(),
+                                                   alongY ? middle : fixed));
+                crossing.z = heightAt(here, middle);
+
+                out.push_back(crossing);
+            }
+        }
     }
 
     void PortalSegment(const NavTile& tile, const TileMesh& mesh, const Portal& portal,
