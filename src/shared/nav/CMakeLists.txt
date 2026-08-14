@@ -36,6 +36,8 @@ add_library(nav STATIC
     NavBuilder.cpp
     NavBuilder.hpp
     NavGrid.hpp
+    NavPolygons.cpp
+    NavPolygons.hpp
     NavStore.cpp
     NavStore.hpp
     NavTile.cpp

@@ -25,6 +25,7 @@
 // The navigation the SERVER reads, included rather than reimplemented: this tool
 // exists to answer "would the server route here", and it can only answer that by
 // running the server's own store and router.
+#include "nav/NavPolygons.hpp"
 #include "nav/NavStore.hpp"
 #include "nav/NavTileIO.hpp"
 #include "nav/Router.hpp"
@@ -1093,6 +1094,73 @@ namespace
         }
     }
 
+    /**
+     * @brief What the walkable set costs as cells, and what it would cost as areas.
+     *
+     * The whole argument for a polygon mesh is a ratio, and a ratio nobody has measured
+     * is a preference. This walks every baked nav tile of a map, partitions each one
+     * into maximal rectangles (`Nav::DecomposeTile`) and prints both counts, so the
+     * decision to move the query onto polygons is made against this map's own numbers
+     * rather than against a paper's benchmark scene.
+     */
+    void Polys(const std::string& navDir, uint32_t mapId)
+    {
+        Nav::SetNavDir(navDir);
+        Nav::NavStore store(mapId);
+
+        uint64_t tiles = 0;
+        uint64_t cells = 0;
+        uint64_t rects = 0;
+        uint64_t worstRects = 0;
+        int worstX = -1, worstY = -1;
+
+        for (int tx = 0; tx < 64; ++tx)
+        {
+            for (int ty = 0; ty < 64; ++ty)
+            {
+                if (!store.LoadTile(tx, ty))
+                {
+                    continue;
+                }
+
+                const std::shared_ptr<const Nav::NavTile> tile = store.TileAt(tx, ty);
+                if (!tile)
+                {
+                    continue;
+                }
+
+                const uint32_t walkable = Nav::WalkableCellCount(*tile);
+                const uint64_t pieces = Nav::DecomposeTile(*tile).size();
+
+                ++tiles;
+                cells += walkable;
+                rects += pieces;
+                if (pieces > worstRects)
+                {
+                    worstRects = pieces;
+                    worstX = tx;
+                    worstY = ty;
+                }
+
+                store.UnloadTile(tx, ty);
+            }
+        }
+
+        std::printf("\n=== map %u: %llu nav tiles from %s ===\n", mapId,
+                    (unsigned long long)tiles, navDir.c_str());
+        if (!tiles)
+        {
+            return;
+        }
+
+        std::printf("  walkable cells   %llu\n", (unsigned long long)cells);
+        std::printf("  rectangles       %llu\n", (unsigned long long)rects);
+        std::printf("  cells/rectangle  %.1f\n",
+                    rects ? double(cells) / double(rects) : 0.0);
+        std::printf("  worst tile       %d,%d with %llu rectangles\n", worstX, worstY,
+                    (unsigned long long)worstRects);
+    }
+
     void Usage()
     {
         std::printf(
@@ -1118,6 +1186,9 @@ namespace
             "  path <x1> <y1> <z1> <x2> <y2> <z2>  the server's own routing query, as\n"
             "                                    a swimmer (--ground-only for a\n"
             "                                    creature that cannot swim)\n"
+            "                                    needs --nav <dir>\n"
+            "  polys                             walkable cells against maximal\n"
+            "                                    rectangles, over a whole map\n"
             "                                    needs --nav <dir>\n");
     }
 }
@@ -1197,6 +1268,10 @@ int main(int argc, char** argv)
     {
         WmoLiquidRows(tiles, mapId, integer(i + 1), integer(i + 2), integer(i + 3),
                       integer(i + 4));
+    }
+    else if (mode == "polys")
+    {
+        Polys(navDir, mapId);
     }
     else if (mode == "groups")
     {
