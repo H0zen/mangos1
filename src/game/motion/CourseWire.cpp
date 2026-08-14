@@ -62,7 +62,6 @@ namespace Helm
             if (onDeck)
             {
                 out << Guid(course.GetDomain().vessel).WriteAsPacked();
-                out << uint8(kNoSeat);
             }
 
             WriteVector(out, pts.front());
@@ -142,7 +141,6 @@ namespace Helm
             if (onDeck)
             {
                 out << Guid(domain.vessel).WriteAsPacked();
-                out << uint8(kNoSeat);
             }
             WriteVector(out, where);
             out << uint32(id);

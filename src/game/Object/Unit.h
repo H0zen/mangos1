@@ -3960,7 +3960,14 @@ class Unit : public WorldObject
 
         void CleanupDeletedAuras();
         void UpdateSplineMovement(uint32 t_diff);
-        void RelocateToSplinePosition();
+        /**
+         * @brief Tell the grid where the unit is, from whichever source is authoritative.
+         *
+         * @param poseIsAuthoritative True when RefreshPoseFromCourse wrote the pose this
+         *        tick, in which case the pose is used verbatim; false to sample the
+         *        spline, which is right precisely when the plan declined to answer.
+         */
+        void RelocateToKnownPosition(bool poseIsAuthoritative);
 
         /// Send the running leg's progress to the observers when it has run long
         /// enough, or when the controlling client says it has fallen behind.
@@ -3968,7 +3975,7 @@ class Unit : public WorldObject
 
         /// Put the pose where the plan says the unit is right now. Every tick; the
         /// grid relocation beside it stays on its timer.
-        void RefreshPoseFromCourse();
+        bool RefreshPoseFromCourse();
 
         /// When the running leg was last repaired, and which leg that was.
         Helm::CourseSync::State m_courseSync;

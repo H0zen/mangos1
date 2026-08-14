@@ -374,6 +374,66 @@ TEST(Wire_PackingEnvelopeIsAsymmetricAndReal)
 }
 
 /**
+ * The crack at the top of each axis.
+ *
+ * The envelope is 11 signed bits of quarter-yards on X and Y -- [-1024, 1023] quanta,
+ * so [-256, +255.75] yards -- and 10 on Z, [-128, +127.75]. A check written in YARDS
+ * against 256 and 128 admits a quarter-yard-wide band at each end where the value
+ * rounds up out of range and the mask folds it:
+ *
+ *   255.875 yards -> lround(1023.5) = 1024, and 1024 & 0x7FF is 0. The interior point
+ *   collapses onto the midpoint of the course.
+ *
+ *   127.875 yards -> lround(511.5) = 512, and 512 & 0x3FF read back as a signed
+ *   10-bit value is -512. The point does not collapse; it flips to the far side.
+ *
+ * Retail never came near it -- 153.25 is the largest X offset in the captures -- but
+ * this is precisely the corruption Fits exists to refuse, and it was passing.
+ */
+TEST(Wire_PackingEnvelopeRejectsTheValuesThatWouldWrap)
+{
+    auto detour = [](float dx, float dy, float dz)
+    {
+        std::vector<Vector3> pts;
+        pts.push_back(Vector3(0.0f, 0.0f, 0.0f));
+        pts.push_back(Vector3(dx, dy, dz));
+        pts.push_back(Vector3(0.0f, 0.0f, 0.0f));
+        return Course::Plan(World(), pts, Gait::Run, 8.0f, Facing(),
+                            Curve::Segmented, 0, 1);
+    };
+
+    // MIND THE SIGN. What is encoded is `midpoint - point`, and the midpoint here is
+    // the origin, so a detour of +d yards is stored as an offset of -d. The positive
+    // end of the encoded range is therefore reached by a NEGATIVE detour. Getting this
+    // backwards is not academic: the first draft of this test asserted the mirror image
+    // of the truth, and it failed -- which is the only reason the asymmetry below got
+    // written down instead of assumed.
+
+    // The last detour that survives the round trip on each axis, at the encoded
+    // NEGATIVE end: -1024 and -512 are representable.
+    CHECK(Wire::Fits(detour(256.0f, 0.0f, 0.0f)));       // encodes as -1024
+    CHECK(Wire::Fits(detour(0.0f, 256.0f, 0.0f)));
+    CHECK(Wire::Fits(detour(0.0f, 0.0f, 128.0f)));       // encodes as -512
+
+    // One quantum further and it is gone.
+    CHECK(!Wire::Fits(detour(256.125f, 0.0f, 0.0f)));    // would encode as -1025
+    CHECK(!Wire::Fits(detour(0.0f, 0.0f, 128.125f)));
+
+    // The encoded POSITIVE end has one quantum LESS room -- two's complement is not
+    // symmetric -- so it runs out a quarter-yard earlier.
+    CHECK(Wire::Fits(detour(-255.75f, 0.0f, 0.0f)));     // encodes as +1023
+    CHECK(Wire::Fits(detour(0.0f, 0.0f, -127.75f)));     // encodes as +511
+
+    // And these are the values the old yard-based check let through. Each is under the
+    // figure it was compared against -- 256 and 128 -- and each one corrupts: +1024
+    // masks to 0, so the point collapses onto the midpoint of the course, and +512 read
+    // back as a signed 10-bit value is -512, so the Z flips to the far side.
+    CHECK(!Wire::Fits(detour(-255.875f, 0.0f, 0.0f)));
+    CHECK(!Wire::Fits(detour(0.0f, -255.875f, 0.0f)));
+    CHECK(!Wire::Fits(detour(0.0f, 0.0f, -127.875f)));
+}
+
+/**
  * We emit only the bits whose position AND payload the captures settle.
  *
  * This is not caution for its own sake. The 2.4.3 flag table in this tree calls

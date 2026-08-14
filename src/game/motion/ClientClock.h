@@ -30,6 +30,7 @@
 #include "Platform/Define.h"
 
 #include <deque>
+#include <mutex>
 #include <utility>
 
 /**
@@ -86,16 +87,25 @@ namespace Helm
             /// The session dropped its mover or teleported; the debt is settled.
             void Reset();
 
-            bool Known() const { return m_known; }
+            bool Known() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_known;
+            }
 
             /// Server instant corresponding to a client tick stamp.
             Instant ToServer(uint32 clientTicks) const
             {
+                std::lock_guard<std::mutex> lock(m_mutex);
                 return Instant(clientTicks + uint32(m_offset));
             }
 
             /// Half the best observed round trip: the irreducible error in the offset.
-            Millis Spread() const { return m_spread; }
+            Millis Spread() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_spread;
+            }
 
             /**
              * @brief Milliseconds of movement time the client has lost since `when`.
@@ -116,12 +126,44 @@ namespace Helm
             Millis Uncertainty(Instant now) const;
 
             /// Total lag accumulated since the last Reset. Diagnostics.
-            Millis TotalSkew() const { return m_skewTotal; }
+            Millis TotalSkew() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_skewTotal;
+            }
 
             /// When the last sync answer landed. Diagnostics, and the sync scheduler.
-            Instant LastSyncAt() const { return m_lastSyncAt; }
+            Instant LastSyncAt() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_lastSyncAt;
+            }
 
         private:
+            /**
+             * @brief Guards every field below. Held only across arithmetic.
+             *
+             * This clock is written from TWO threads and read from a third position in
+             * the tick, which is not obvious from any one call site:
+             *
+             *  - CMSG_TIME_SYNC_RESP is PROCESS_INPLACE, so Sync() runs on the NETWORK
+             *    thread, the moment the packet lands;
+             *  - CMSG_MOVE_TIME_SKIPPED is PROCESS_THREADSAFE, so Skipped() runs inside
+             *    Map::Update on that map's worker;
+             *  - Uncertainty() and SkewSince() are read by MaintainCourseSync, later in
+             *    the same Map::Update.
+             *
+             * m_skew is a deque. A push_front/pop_front racing a walk of the same deque
+             * is not a stale read, it is a walk through freed nodes.
+             *
+             * The lock, rather than deferring the sync packet to the map tick: the round
+             * trip is measured with getMSTime() inside the handler, so deferring it by
+             * up to a tick would inflate every measurement by that tick and shift the
+             * offset by half of it. Fixing a race by corrupting the measurement the
+             * whole class exists to make is not a fix.
+             */
+            mutable std::mutex m_mutex;
+
             /// (instant, cumulative skew at that instant), oldest first.
             std::deque<std::pair<Instant, Millis>> m_skew;
 

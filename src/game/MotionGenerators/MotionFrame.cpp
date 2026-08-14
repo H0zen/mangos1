@@ -239,7 +239,18 @@ namespace Motion
          * than a sampled line that merely follows the floor. Deck coordinates are that
          * map's coordinates, so nothing is transformed on the way in or out.
          *
-         * The mover is still filed under the world map, so the map id is passed explicitly.
+         * The map id is passed EXPLICITLY, taken from the hull rather than from the
+         * mover. Today those are the same number -- a boarded unit is on the vessel's
+         * map, which is the invariant the whole deck design rests on -- so this class
+         * and the world's own query would behave identically, and for a while nothing
+         * constructed it at all: TransportFrame inherited WorldFrame::CreatePathQuery
+         * and never overrode it, which worked by that coincidence and by nothing else.
+         *
+         * Naming the hull is what makes it stop being a coincidence. If boarding is ever
+         * changed so a passenger keeps a continent's map id, the world's query would
+         * search the WORLD's navigation using DECK coordinates -- a few yards from the
+         * map origin, under the sea floor, with no diagnostic -- while this one still
+         * asks the right map.
          */
         class DeckPathQuery final : public IPathQuery
         {
@@ -292,6 +303,22 @@ namespace Motion
         {
             public:
                 FrameKind Kind() const override { return FrameKind::Transport; }
+
+                /// Route on the HULL's map, named rather than inherited. See
+                /// DeckPathQuery for why the distinction is worth the override even
+                /// while the two map ids agree.
+                std::unique_ptr<IPathQuery> CreatePathQuery(Unit const& mover) const override
+                {
+                    if (TransportMap* hull = mover.GetMap()->AsTransport())
+                    {
+                        return std::make_unique<DeckPathQuery>(mover, hull->GetId());
+                    }
+
+                    // A transport frame with no hull is not a state this reaches, but
+                    // routing the mover on its own map is the answer that degrades
+                    // rather than crashes.
+                    return WorldFrame::CreatePathQuery(mover);
+                }
 
                 Vector3 NearPoint(Unit const& mover, WorldObject const& target,
                                   float /*searcherBounding*/, float distance2d,

@@ -625,15 +625,43 @@ void MotionMaster::Mutate(MovementGenerator* m)
             default:
                 break;
         }
-
-        if (!empty())
-        {
-            top()->Interrupt(*m_owner);
-        }
     }
+
+    // Who was driving BEFORE the new generator joined. Recorded rather than
+    // interrupted on the spot, because whether it is still driving afterwards is not
+    // this function's to assume any more.
+    MovementGenerator* previous = empty() ? nullptr : top();
 
     m->Initialize(*m_owner);
     m_roster.Add(m, rankOf(m));
+
+    // Interrupt the outgoing driver ONLY if it really is outgoing.
+    //
+    // This used to interrupt the top of the roster unconditionally, before adding --
+    // which was right when the roster was a stack and the newest entry always took
+    // over. It stopped being right when Active() started picking by RANK: a MovePoint
+    // (Errand) issued during a chase (Combat) interrupted the chase, joined below it,
+    // and did not take the wheel. The next tick was then driven by a chase sitting in
+    // Interrupt state -- covered, paused, and still steering the unit.
+    //
+    // Note what this does NOT decide: whether the lower-ranked newcomer should have
+    // preempted at all. Under the old stack it would have; under ranks it does not,
+    // and that is the ranking's whole purpose ("the most important generator drives,
+    // not merely the most recent"). Making a script's MovePoint outrank a chase is a
+    // decision about the game, not a defect in this function, so it is left visible
+    // rather than quietly changed here.
+    if (previous && top() != previous)
+    {
+        previous->Interrupt(*m_owner);
+    }
+    else if (previous)
+    {
+        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
+                         "%s: %u added but %u still drives (rank did not win)",
+                         m_owner->GetGuidStr().c_str(),
+                         uint32(m->GetMovementGeneratorType()),
+                         uint32(previous->GetMovementGeneratorType()));
+    }
 }
 
 /**

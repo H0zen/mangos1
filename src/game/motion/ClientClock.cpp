@@ -49,6 +49,8 @@ namespace Helm
 {
     void ClientClock::Sync(uint32 clientTicks, Instant sentAt, Instant answeredAt)
     {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
         const Millis roundTrip = Since(answeredAt, sentAt);
         if (roundTrip < 0 || roundTrip > kAbsurdRoundTrip)
         {
@@ -68,6 +70,8 @@ namespace Helm
 
     void ClientClock::Skipped(Millis ms, Instant when)
     {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
         // Only ever positive on the wire, and a negative one would mean the client
         // claiming to have run ahead of itself. Refuse it rather than let it pay off a
         // debt that was really incurred.
@@ -86,6 +90,8 @@ namespace Helm
 
     void ClientClock::Reset()
     {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
         m_skew.clear();
         m_offset = 0;
         m_spread = 0;
@@ -96,6 +102,8 @@ namespace Helm
 
     Millis ClientClock::SkewSince(Instant when) const
     {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
         // The cumulative total as of `when`, subtracted from the total now. Entries are
         // ordered, so this is the last entry at or before `when`; anything older than
         // the retained history counts as already settled, which is the safe direction
@@ -116,6 +124,8 @@ namespace Helm
 
     Millis ClientClock::Uncertainty(Instant now) const
     {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
         if (!m_known)
         {
             // Nothing has been measured. Say so with a value large enough that no

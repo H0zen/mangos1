@@ -136,9 +136,33 @@ namespace Helm
             FORM_FACE_ANGLE = 4
         };
 
-        /// Retail's seat byte for a unit merely standing on a deck, not sitting in a
-        /// seat: 1,331 of the 1,335 captured deck legs carry it.
-        constexpr uint8 kNoSeat = 0xFF;
+        /**
+         * @brief The seat byte belongs to 3.x, NOT to 2.4.3. It is not written.
+         *
+         * The captures in MOTION.md show `packGUID vessel` followed by a `uint8 seat`
+         * on every one of 1,737 deck legs, 0xFF on 1,733 of them -- and that is real,
+         * for the client that produced them. That client is 3.0. MOTION.md says so in
+         * its own second paragraph, and calls the gap the standing caveat.
+         *
+         * This server is 2.4.3, and three things in this tree say the byte does not
+         * exist here:
+         *
+         *  - MovementInfo::Read, the 2.4.3 layout this core actually parses, reads a
+         *    transport block of `guid, x, y, z, o, time` and stops. The seat entered
+         *    that block in 3.x, alongside the second transport timestamp;
+         *  - every pre-Helm writer of SMSG_MONSTER_MOVE_TRANSPORT in this tree wrote
+         *    the vessel guid and went straight to the coordinates;
+         *  - CLAUDE.md forbids introducing 2.5+/WotLK assumptions.
+         *
+         * Writing it anyway is exactly the corruption it looks like it prevents: one
+         * spurious byte shifts every field after it, so the client reads the low byte
+         * of X as part of the vessel guid's tail and the position lands elsewhere.
+         *
+         * Kept as a named constant rather than deleted, because the value is the right
+         * one the day this tree is ported forward -- and because a bare 0xFF appearing
+         * in a deck packet in future should have to argue with this comment first.
+         */
+        constexpr uint8 kSeat3xStanding = 0xFF;
 
         /// The quantum an interior point is rounded to before it goes on the wire.
         constexpr float kQuantum = 0.25f;
@@ -160,6 +184,30 @@ namespace Helm
         constexpr float kMaxOffsetZ = 128.0f;
 
         /**
+         * @brief The envelope as the wire actually sees it: whole quanta, signed.
+         *
+         * These, and not the yard figures above, are what a fits-test has to compare
+         * against. The yard figures are the envelope ROUNDED OUTWARDS to a whole
+         * number, and the gap between the two is where the corruption lives: 11 signed
+         * bits hold [-1024, 1023] quarter-yards, which is [-256, +255.75] yards, not
+         * [-256, +256].
+         *
+         * An offset of 255.875 yards passes a "< 256 yards" test, quantises to
+         * lround(1023.5) = 1024, and `1024 & 0x7FF` is 0 -- the point lands exactly on
+         * the midpoint of the course. On Z it is worse: 127.875 yards quantises to 512,
+         * and `512 & 0x3FF` read back as a signed 10-bit value is -512, so the point
+         * does not merely collapse, it flips to the far side.
+         *
+         * Rare -- the largest offsets retail was seen to send are 153.25 and 62.00 --
+         * but it is exactly the class of corruption Fits exists to prevent, and it was
+         * getting through.
+         */
+        constexpr int32 kPackedMinXY = -1024;
+        constexpr int32 kPackedMaxXY = 1023;
+        constexpr int32 kPackedMinZ = -512;
+        constexpr int32 kPackedMaxZ = 511;
+
+        /**
          * @brief The longest point path retail was seen to send, for reference.
          *
          * Not a limit imposed here -- the packed form's only bound is the envelope
@@ -178,6 +226,25 @@ namespace Helm
         inline int32 Quantise(float yards)
         {
             return int32(std::lround(yards / kQuantum));
+        }
+
+        /**
+         * @brief Does one interior offset survive being packed?
+         *
+         * Asked of the QUANTISED value, which is the value the wire carries. Testing
+         * the yards instead leaves a quarter-yard-wide crack at each end of each axis
+         * where the offset rounds up out of range and the mask silently folds it --
+         * see kPackedMinXY.
+         */
+        inline bool PackedFits(Vector3 const& offset)
+        {
+            const int32 x = Quantise(offset.x);
+            const int32 y = Quantise(offset.y);
+            const int32 z = Quantise(offset.z);
+
+            return x >= kPackedMinXY && x <= kPackedMaxXY &&
+                   y >= kPackedMinXY && y <= kPackedMaxXY &&
+                   z >= kPackedMinZ && z <= kPackedMaxZ;
         }
 
         /**
@@ -233,10 +300,7 @@ namespace Helm
             const Vector3 mid = (pts.front() + pts.back()) * 0.5f;
             for (size_t i = 1; i + 1 < pts.size(); ++i)
             {
-                const Vector3 off = mid - pts[i];
-                if (std::fabs(off.x) >= kMaxOffsetXY ||
-                    std::fabs(off.y) >= kMaxOffsetXY ||
-                    std::fabs(off.z) >= kMaxOffsetZ)
+                if (!PackedFits(mid - pts[i]))
                 {
                     return false;
                 }

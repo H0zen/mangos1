@@ -224,6 +224,38 @@ namespace Movement
         args.splineId = NextSplineId();
         move_spline.Initialize(args);
 
+        // A FALL IS NOT A TRAVEL, and must not be sent as one.
+        //
+        // MoveSpline times a falling leg with FallInitializer -- gravity -- while a
+        // Course is a polyline walked at args.velocity. The two answers are not close:
+        // a ten-yard drop takes about 1.0 s under gravity and 4.0 s at a walk. Worse,
+        // Wire::FlagsOf has no way to raise FLAG_FALLING, because a Course has no
+        // notion of falling, so what went out was an ordinary travel with a fabricated
+        // duration. The server then arrived on its own (correct) schedule while the
+        // client was still drawing a slow diagonal chord, and the unit snapped.
+        //
+        // The captures do have the bit -- FLAG_FALLING is 0x02, on five legs, and with
+        // it the client computes the elevation itself -- so the eventual answer is for
+        // a fall to become a property of Course, timed by the same gravity. That is a
+        // model change, not a line, and inventing the timing here would be guessing.
+        //
+        // Until then the legacy builder keeps it, exactly as the stand-here case below
+        // does: it walks the spline that was ALREADY initialised with FallInitializer,
+        // so the duration on the wire is the one the server itself is using.
+        if (args.flags.falling)
+        {
+            WorldPacket legacy(SMSG_MONSTER_MOVE, 64);
+            legacy << unit.GetPackGUID();
+            if (!vesselGuid.IsEmpty())
+            {
+                legacy.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
+                legacy << vesselGuid.WriteAsPacked();
+            }
+            PacketBuilder::WriteMonsterMove(move_spline, legacy);
+            unit.SendMessageToSet(&legacy, true);
+            return move_spline.Duration();
+        }
+
         // === The leg as a PLAN, and the plan is what goes on the wire. ===
         //
         // The spline above still drives the server's own idea of where the unit is and
@@ -262,6 +294,8 @@ namespace Movement
             {
                 legacy.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
                 legacy << vesselGuid.WriteAsPacked();
+
+                // No seat byte. It is a 3.x field; see Wire::kSeat3xStanding.
             }
             PacketBuilder::WriteMonsterMove(move_spline, legacy);
             unit.SendMessageToSet(&legacy, true);
@@ -362,18 +396,26 @@ namespace Movement
         unit.m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_FORWARD | MOVEFLAG_SPLINE_ENABLED));
         move_spline.Initialize(args);
 
-        WorldPacket data(SMSG_MONSTER_MOVE, 64);
-        data << unit.GetPackGUID();
+        // Written by Helm::Wire::WriteHalt rather than by hand here. The bytes are
+        // identical -- FORM_HALT and MonsterMoveStop are both 1 -- so this changes
+        // nothing on the wire today. It is worth doing because the two copies had
+        // ALREADY drifted once: WriteHalt grew a seat byte from the 3.0 captures that
+        // this copy never had, and for a while the server sent two different layouts
+        // for the same event depending on which function ran. (The seat byte was the
+        // wrong one -- it is a 3.x field; see Wire::kSeat3xStanding.)
+        //
+        // One writer cannot disagree with itself.
+        Helm::Domain domain;
+        domain.map = unit.GetMapId();
+        domain.vessel = vesselGuid.IsEmpty() ? Helm::kNoActor
+                                             : vesselGuid.GetRawValue();
 
-        if (!vesselGuid.IsEmpty())
-        {
-            data.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-            data << vesselGuid.WriteAsPacked();
-        }
-
-        data << real_position.x << real_position.y << real_position.z;
-        data << move_spline.GetId();
-        data << uint8(MonsterMoveStop);
+        WorldPacket data;
+        Helm::Wire::WriteHalt(domain, Geometry::Vector3(real_position.x,
+                                                        real_position.y,
+                                                        real_position.z),
+                              move_spline.GetId(), unit.GetObjectGuid().GetRawValue(),
+                              data);
         unit.SendMessageToSet(&data, true);
     }
 
