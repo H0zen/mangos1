@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>   // std::abs over ints: libstdc++ leaks it through <cmath>, libc++ does not
 #include <mutex>
 
 namespace
