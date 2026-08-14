@@ -35,71 +35,48 @@ namespace Nav
 {
     namespace
     {
-        constexpr uint16_t NO_REGION = 0xFFFF;
         constexpr int SIDE = CELLS_PER_TILE;
+    }
 
-        /// The flattened plan of the tile: which region owns each cell, and which of
-        /// that cell's surfaces it is. Resolved once, because `SurfacesAt` allocates
-        /// into a vector and the scan below reads every cell several times.
-        struct Plan
+    TilePlan ReadTilePlan(const NavTile& tile)
+    {
+        TilePlan plan;
+        plan.region.assign(size_t(SIDE) * SIDE, TilePlan::NO_REGION);
+        plan.layer.assign(size_t(SIDE) * SIDE, 0);
+        plan.z.assign(size_t(SIDE) * SIDE, 0.0f);
+
+        std::vector<Surface> surfaces;
+
+        for (int cell = 0; cell < SIDE * SIDE; ++cell)
         {
-            std::vector<uint16_t> region;
-            std::vector<uint16_t> layer;
-
-            uint16_t RegionAt(int x, int y) const
+            tile.SurfacesAt(cell, surfaces);
+            if (surfaces.empty())
             {
-                return region[size_t(x) * SIDE + size_t(y)];
+                continue;
             }
-        };
 
-        Plan ReadPlan(const NavTile& tile)
-        {
-            Plan plan;
-            plan.region.assign(size_t(SIDE) * SIDE, NO_REGION);
-            plan.layer.assign(size_t(SIDE) * SIDE, 0);
-
-            std::vector<Surface> surfaces;
-
-            for (int x = 0; x < SIDE; ++x)
+            const Surface* pick = nullptr;
+            for (const Surface& s : surfaces)
             {
-                for (int y = 0; y < SIDE; ++y)
+                if (!s.Valid())
                 {
-                    const int cell = x * SIDE + y;
-                    tile.SurfacesAt(cell, surfaces);
-                    if (surfaces.empty())
-                    {
-                        continue;
-                    }
-
-                    // The lowest walkable surface owns the plan. Two surfaces of one cell
-                    // cannot both be in one rectangle -- a rectangle is an area, not a
-                    // volume -- and the lowest is the ground a mover crossing the square
-                    // in plan is on. Stacked floors keep their own regions and their own
-                    // rectangles; what is lost here is only the ability to say which of
-                    // two stacked surfaces a rectangle meant, and the region says that.
-                    const Surface* pick = nullptr;
-                    for (const Surface& s : surfaces)
-                    {
-                        if (!s.Valid())
-                        {
-                            continue;
-                        }
-                        if (!pick || s.z < pick->z)
-                        {
-                            pick = &s;
-                        }
-                    }
-
-                    if (pick)
-                    {
-                        plan.region[size_t(cell)] = pick->region;
-                        plan.layer[size_t(cell)] = pick->layer;
-                    }
+                    continue;
+                }
+                if (!pick || s.z < pick->z)
+                {
+                    pick = &s;
                 }
             }
 
-            return plan;
+            if (pick)
+            {
+                plan.region[size_t(cell)] = pick->region;
+                plan.layer[size_t(cell)] = pick->layer;
+                plan.z[size_t(cell)] = pick->z;
+            }
         }
+
+        return plan;
     }
 
     uint32_t WalkableCellCount(const NavTile& tile)
@@ -125,10 +102,19 @@ namespace Nav
 
     std::vector<NavRect> DecomposeTile(const NavTile& tile)
     {
-        const Plan plan = ReadPlan(tile);
+        return DecomposeTile(tile, ReadTilePlan(tile), nullptr);
+    }
 
+    std::vector<NavRect> DecomposeTile(const NavTile& tile, const TilePlan& plan,
+                                       std::vector<int32_t>* cellToRect)
+    {
         std::vector<uint8_t> taken(size_t(SIDE) * SIDE, 0);
         std::vector<NavRect> out;
+
+        if (cellToRect)
+        {
+            cellToRect->assign(size_t(SIDE) * SIDE, -1);
+        }
 
         for (int x = 0; x < SIDE; ++x)
         {
@@ -136,7 +122,7 @@ namespace Nav
             {
                 const size_t seed = size_t(x) * SIDE + size_t(y);
                 const uint16_t region = plan.region[seed];
-                if (region == NO_REGION || taken[seed])
+                if (region == TilePlan::NO_REGION || taken[seed])
                 {
                     continue;
                 }
@@ -184,15 +170,20 @@ namespace Nav
                 rect.maxZ = -std::numeric_limits<float>::max();
                 rect.clearance = 0xFF;
 
+                const int32_t index = int32_t(out.size());
+
                 for (int ax = x; ax <= x1; ++ax)
                 {
                     for (int ay = y; ay <= y1; ++ay)
                     {
                         const size_t at = size_t(ax) * SIDE + size_t(ay);
                         taken[at] = 1;
+                        if (cellToRect)
+                        {
+                            (*cellToRect)[at] = index;
+                        }
 
-                        const Surface s =
-                            tile.SurfaceAt(int(at), plan.layer[at]);
+                        const Surface s = tile.SurfaceAt(int(at), plan.layer[at]);
                         if (!s.Valid())
                         {
                             continue;

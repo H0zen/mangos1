@@ -82,7 +82,7 @@ set(SRC_GRP_TESTS
 # router takes a store rather than a Map.
 list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp
                           RouterLinkTest.cpp NavBuilderTest.cpp
-                          NavPolygonTest.cpp)
+                          NavPolygonTest.cpp NavMeshTest.cpp)
 
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)

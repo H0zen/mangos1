@@ -102,6 +102,28 @@ namespace Nav
     };
 
     /**
+     * @brief A tile's walkable set flattened to one surface per cell.
+     *
+     * Resolved once and passed around, because `SurfacesAt` fills a vector and every
+     * pass over a tile reads each cell several times. The lowest walkable surface owns
+     * the plan: a rectangle is an area and not a volume, so it can hold at most one
+     * surface per cell, and the lowest is the ground a mover crossing the square in plan
+     * stands on. Stacked floors keep their own regions and their own rectangles.
+     */
+    struct TilePlan
+    {
+        static constexpr uint16_t NO_REGION = 0xFFFF;
+
+        std::vector<uint16_t> region;   ///< NO_REGION where nothing is walkable
+        std::vector<uint16_t> layer;    ///< which of the cell's surfaces the plan means
+        std::vector<float> z;           ///< that surface's height
+
+        bool Walkable(int cell) const { return region[size_t(cell)] != NO_REGION; }
+    };
+
+    TilePlan ReadTilePlan(const NavTile& tile);
+
+    /**
      * @brief Partition a tile's walkable cells into maximal axis-aligned rectangles.
      *
      * Grouped by REGION and not by (region, layer): a region already means "one connected
@@ -114,6 +136,18 @@ namespace Nav
      * @return The rectangles, in scan order. Empty when the tile has no walkable cell.
      */
     std::vector<NavRect> DecomposeTile(const NavTile& tile);
+
+    /**
+     * @brief The same partition, over a plan already read, and saying where each cell went.
+     *
+     * `cellToRect` is filled with one index per cell -- the rectangle covering it, or -1
+     * where nothing is walkable. That map is what turns a partition into a MESH: two
+     * rectangles are neighbours along the cells where one's border cell faces the
+     * other's, and finding that without the map means searching the rectangle list per
+     * cell.
+     */
+    std::vector<NavRect> DecomposeTile(const NavTile& tile, const TilePlan& plan,
+                                       std::vector<int32_t>* cellToRect);
 
     /// How many of the tile's cells carry a walkable surface. The number the rectangle
     /// count is worth comparing against, and the invariant a test checks against a sum.
