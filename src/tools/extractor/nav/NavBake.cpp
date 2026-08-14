@@ -1,5 +1,6 @@
 #include "NavBake.hpp"
 
+#include "nav/NavMeshIO.hpp"
 #include "nav/NavTileIO.hpp"
 #include "terrain/FusedTerrain.hpp"
 #include "terrain/TileSerializer.hpp"
@@ -223,6 +224,24 @@ namespace Nav
                     if (WriteNavTile(path, mapId, tile))
                     {
                         ++written;
+
+                        // The derived geometry, beside the tile. Everything in it can be
+                        // rebuilt from the tile at runtime and the store does exactly
+                        // that when the file is absent, so a failure here is not a
+                        // failure of the bake -- it costs the first route into this tile
+                        // a pass over a quarter of a million cells, and nothing else.
+                        const std::string meshPath =
+                            m_outDir + "/" + MeshFileName(mapId, gx, gy);
+
+                        if (!WriteTileGeometry(meshPath, mapId, gx, gy,
+                                               BuildTileGeometry(tile)))
+                        {
+                            std::lock_guard<std::mutex> lock(g_logMutex);
+                            std::fprintf(stderr,
+                                         "nav: map %u tile %d,%d has no mesh cache; it "
+                                         "will be derived at run time\n",
+                                         mapId, gx, gy);
+                        }
                     }
                     else
                     {

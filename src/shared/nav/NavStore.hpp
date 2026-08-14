@@ -23,6 +23,7 @@
 // The cost of doing it at runtime is one scan of 512 border cells per tile pair, once,
 // when a tile loads. The cost of doing it offline is a class of silent bug.
 
+#include "nav/NavMesh.hpp"
 #include "nav/NavTile.hpp"
 
 #include <cstdint>
@@ -207,6 +208,21 @@ namespace Nav
             bool SurfaceAt(float x, float y, float z, float tolerance, CellRef& cell,
                            Surface& surface) const;
 
+            /**
+             * @brief The convex-area view of a resident tile, built on first ask.
+             *
+             * The file still carries cells; this is derived from them once and kept for
+             * as long as the tile is resident. Derivation is a pass over a quarter of a
+             * million cells, so it happens OUTSIDE the store's lock: the tile is taken
+             * under the lock, released, built, and published back if the tile is still
+             * there. Two threads racing the same tile build it twice and one of them
+             * throws its copy away, which costs a pass and no correctness -- holding the
+             * lock across the build would stall every other search on the map instead.
+             *
+             * @return The mesh, or nullptr when the tile is not resident.
+             */
+            std::shared_ptr<const TileMesh> MeshOf(int tileX, int tileY) const;
+
         private:
             struct KeyHash
             {
@@ -255,6 +271,11 @@ namespace Nav
                 /// because a LOOKUP is const and still counts as use -- that is the
                 /// whole point of tracking it.
                 mutable uint64_t touched = 0;
+
+                /// The convex-area view, derived on first ask and dropped with the tile.
+                /// Mutable for the same reason as `touched`: it is a cache, and filling
+                /// a cache is not a change to what the store contains.
+                mutable std::shared_ptr<const TileMesh> mesh;
             };
 
             uint32_t m_mapId = 0;

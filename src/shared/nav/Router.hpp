@@ -33,6 +33,7 @@
 // fact, and what to do about it belongs to the caller.
 
 #include "nav/NavStore.hpp"
+#include "nav/Polyanya.hpp"
 #include "nav/Route.hpp"
 #include "nav/SearchBudget.hpp"
 
@@ -132,6 +133,26 @@ namespace Nav
             /// Stage three: corners, not cells.
             void Emit(const std::vector<Leg>& legs, const RouteRequest& request,
                       Route& out) const;
+
+            /**
+             * @brief Write out a path that arrived already taut.
+             *
+             * `Emit` exists because a cell path is not a route: it has to be flattened
+             * to its turns and then pulled straight against the ground. A mesh path has
+             * neither problem -- its points ARE the turns, and each one is a corner the
+             * search bent around because the geometry made it bend. So there is nothing
+             * to simplify here and it would be wrong to try: dropping one of these
+             * points does not shorten the route, it cuts a corner the mesh says is
+             * solid.
+             *
+             * What remains is seating. The search works in plan, and the answer has to
+             * come back with a height on it; each point is put on the surface under the
+             * height the previous one ended at, so a route up a ramp climbs it instead
+             * of interpolating through it.
+             */
+            void EmitMeshPath(const NavTile& tile, const MeshPath& path,
+                              const RouteRequest& request, const Surface& endSurface,
+                              Route& out) const;
 
             const NavStore& m_store;
     };

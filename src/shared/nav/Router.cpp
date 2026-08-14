@@ -872,6 +872,48 @@ namespace Nav
 
         if (sameRegion)
         {
+            // THE MESH FIRST. One region of one tile is a set of convex areas and the
+            // openings between them, and over that the shortest path is computable
+            // exactly, in one pass, with no smoothing afterwards -- see Polyanya.hpp.
+            // This is the common query by a wide margin: a chase, a wander, a flee are
+            // almost always inside one 533-yard tile, and every one of them used to
+            // walk cells and then have the corners guessed back out of them.
+            //
+            // The cell search stays as the fallback and is not dead code. The mesh is
+            // derived from a resident tile, so it is absent while the tile is being
+            // brought in, and a query that arrives in that window still has to be
+            // answered.
+            const std::shared_ptr<const TileMesh> mesh =
+                m_store.MeshOf(startCell.TileX(), startCell.TileY());
+
+            if (mesh)
+            {
+                MeshQuery query;
+                CellCentre(startCell, query.startX, query.startY);
+                CellCentre(endCell, query.endX, query.endY);
+                query.radius = request.profile.radius;
+                query.maxExpansions = budget ? budget : 20000;
+
+                const MeshPath found = FindMeshPath(*startTile, *mesh, query);
+                budget = found.expansions < budget ? budget - found.expansions : 0;
+
+                if (found.found)
+                {
+                    EmitMeshPath(*startTile, found, request, endSurface, out);
+                    if (out.points.size() <= request.budget.points)
+                    {
+                        out.outcome = RouteOutcome::Routed;
+                        out.stop = RouteStop::Reached;
+                    }
+                    else
+                    {
+                        out.outcome = RouteOutcome::Partial;
+                        out.stop = RouteStop::PointBudget;
+                    }
+                    return;
+                }
+            }
+
             FineGoal goal;
             goal.cell = endCell.InTile();
             goal.aim = CellWorld(*startTile, endCell.InTile(), endSurface.z);
@@ -1298,6 +1340,68 @@ namespace Nav
     }
 
     // -------------------------------------------------------------------- emit ----
+
+    void Router::EmitMeshPath(const NavTile& tile, const MeshPath& path,
+                              const RouteRequest& request, const Surface& endSurface,
+                              Route& out) const
+    {
+        out.points.clear();
+        if (path.points.empty())
+        {
+            return;
+        }
+
+        out.points.reserve(path.points.size());
+
+        // The search works between cell centres; the caller asked about two exact
+        // positions. Substituting them at the ends is not a fudge -- both lie in the
+        // rectangles the first and last points came from, and the segments to them stay
+        // inside those rectangles because a rectangle is convex.
+        float height = request.start.z;
+
+        for (size_t i = 0; i < path.points.size(); ++i)
+        {
+            const bool first = i == 0;
+            const bool last = i + 1 == path.points.size();
+
+            float x = path.points[i].x;
+            float y = path.points[i].y;
+            if (first)
+            {
+                x = request.start.x;
+                y = request.start.y;
+            }
+            else if (last)
+            {
+                x = request.end.x;
+                y = request.end.y;
+            }
+
+            float z = last ? endSurface.z : height;
+
+            if (!first && !last)
+            {
+                const CellRef cell = CellAt(x, y);
+                if (cell.Valid() && cell.TileX() == tile.TileX() &&
+                    cell.TileY() == tile.TileY())
+                {
+                    // Seated against the height the walk arrived at, not against the
+                    // start's: on a ramp those diverge by the whole climb, and a
+                    // tolerance wide enough to cover it would let the seat jump to a
+                    // floor above or below.
+                    const Surface seated = tile.SurfaceUnder(
+                        cell.InTile(), height, request.seatTolerance + CELL_SIZE);
+                    if (seated.Valid())
+                    {
+                        z = seated.z;
+                    }
+                }
+            }
+
+            height = z;
+            out.points.push_back(Geometry::Vector3(x, y, z));
+        }
+    }
 
     void Router::Emit(const std::vector<Leg>& legs, const RouteRequest& request,
                       Route& out) const

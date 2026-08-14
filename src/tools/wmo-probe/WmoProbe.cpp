@@ -25,8 +25,11 @@
 // The navigation the SERVER reads, included rather than reimplemented: this tool
 // exists to answer "would the server route here", and it can only answer that by
 // running the server's own store and router.
+#include "nav/MedialAxis.hpp"
+#include "nav/NavMesh.hpp"
 #include "nav/NavPolygons.hpp"
 #include "nav/NavStore.hpp"
+#include "nav/ReebGraph.hpp"
 #include "nav/NavTileIO.hpp"
 #include "nav/Router.hpp"
 
@@ -1111,6 +1114,10 @@ namespace
         uint64_t tiles = 0;
         uint64_t cells = 0;
         uint64_t rects = 0;
+        uint64_t portals = 0;
+        uint64_t axis = 0;
+        uint64_t basins = 0;
+        uint64_t passes = 0;
         uint64_t worstRects = 0;
         int worstX = -1, worstY = -1;
 
@@ -1130,11 +1137,26 @@ namespace
                 }
 
                 const uint32_t walkable = Nav::WalkableCellCount(*tile);
-                const uint64_t pieces = Nav::DecomposeTile(*tile).size();
+
+                const Nav::TilePlan plan = Nav::ReadTilePlan(*tile);
+                const Nav::TileMesh mesh = Nav::BuildTileMesh(*tile);
+                const uint64_t pieces = mesh.rects.size();
+
+                // The two structures the cell grid is meant to give way to, measured on
+                // the same tiles: the medial axis that would carry clearance, and the
+                // critical points that would carry the coarse graph. Counting them here
+                // is what turns "this ought to be smaller" into a figure.
+                const Nav::DistanceField field = Nav::BuildDistanceField(*tile, plan);
+                axis += Nav::BuildMedialAxis(*tile, plan, field, 2.0f).size();
+
+                const Nav::ReebGraph reeb = Nav::BuildReebGraph(*tile, plan, 1.0f);
+                basins += reeb.basins.size();
+                passes += reeb.passes.size();
 
                 ++tiles;
                 cells += walkable;
                 rects += pieces;
+                portals += mesh.portals.size();
                 if (pieces > worstRects)
                 {
                     worstRects = pieces;
@@ -1155,10 +1177,16 @@ namespace
 
         std::printf("  walkable cells   %llu\n", (unsigned long long)cells);
         std::printf("  rectangles       %llu\n", (unsigned long long)rects);
+        std::printf("  portals          %llu\n", (unsigned long long)portals);
         std::printf("  cells/rectangle  %.1f\n",
                     rects ? double(cells) / double(rects) : 0.0);
         std::printf("  worst tile       %d,%d with %llu rectangles\n", worstX, worstY,
                     (unsigned long long)worstRects);
+        std::printf("  medial vertices  %llu  (cells/vertex %.1f)\n",
+                    (unsigned long long)axis,
+                    axis ? double(cells) / double(axis) : 0.0);
+        std::printf("  basins           %llu\n", (unsigned long long)basins);
+        std::printf("  passes           %llu\n", (unsigned long long)passes);
     }
 
     void Usage()
@@ -1187,8 +1215,9 @@ namespace
             "                                    a swimmer (--ground-only for a\n"
             "                                    creature that cannot swim)\n"
             "                                    needs --nav <dir>\n"
-            "  polys                             walkable cells against maximal\n"
-            "                                    rectangles, over a whole map\n"
+            "  polys                             what the walkable set costs as cells,\n"
+            "                                    as convex areas, as a medial axis and\n"
+            "                                    as critical points, over a whole map\n"
             "                                    needs --nav <dir>\n");
     }
 }

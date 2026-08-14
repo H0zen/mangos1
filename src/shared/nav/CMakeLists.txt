@@ -35,9 +35,13 @@ add_library(nav STATIC
     NavArea.hpp
     NavBuilder.cpp
     NavBuilder.hpp
+    MedialAxis.cpp
+    MedialAxis.hpp
     NavGrid.hpp
     NavMesh.cpp
     NavMesh.hpp
+    NavMeshIO.cpp
+    NavMeshIO.hpp
     NavPolygons.cpp
     NavPolygons.hpp
     NavStore.cpp
@@ -46,6 +50,10 @@ add_library(nav STATIC
     NavTile.hpp
     NavTileIO.cpp
     NavTileIO.hpp
+    Polyanya.cpp
+    Polyanya.hpp
+    ReebGraph.cpp
+    ReebGraph.hpp
     Route.hpp
     Router.cpp
     Router.hpp

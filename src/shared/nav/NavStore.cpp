@@ -1,5 +1,7 @@
 #include "nav/NavStore.hpp"
 
+#include "nav/NavMeshIO.hpp"
+
 #include "nav/NavTileIO.hpp"
 
 #include <algorithm>
@@ -124,6 +126,77 @@ namespace Nav
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return TileAtLocked(tileX, tileY);
+    }
+
+    std::shared_ptr<const TileMesh> NavStore::MeshOf(int tileX, int tileY) const
+    {
+        std::shared_ptr<const NavTile> tile;
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            const auto it = m_tiles.find(Pack(tileX, tileY));
+            if (it == m_tiles.end())
+            {
+                return nullptr;
+            }
+
+            it->second.touched = ++m_clock;
+            if (it->second.mesh)
+            {
+                return it->second.mesh;
+            }
+
+            tile = it->second.tile;
+        }
+
+        if (!tile)
+        {
+            return nullptr;
+        }
+
+        // The baked cache first. It is a cache and nothing more: a missing or stale file
+        // is not an error and refuses nothing, it only means this tile pays for its own
+        // derivation. That is what let the mesh ship before everything that reads cells
+        // had been moved onto it.
+        std::shared_ptr<const TileMesh> built;
+
+        if (!MeshDir().empty())
+        {
+            TileGeometry geometry;
+            const std::string path =
+                MeshDir() + "/" + MeshFileName(m_mapId, tileX, tileY);
+
+            if (ReadTileGeometry(path, m_mapId, tileX, tileY, geometry))
+            {
+                built = std::make_shared<const TileMesh>(std::move(geometry.mesh));
+            }
+        }
+
+        // Outside the lock. This walks a quarter of a million cells, and every other
+        // search on the map would be waiting on it.
+        if (!built)
+        {
+            built = std::make_shared<const TileMesh>(BuildTileMesh(*tile));
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            const auto it = m_tiles.find(Pack(tileX, tileY));
+            if (it == m_tiles.end() || it->second.tile != tile)
+            {
+                // Unloaded, or replaced by a re-load, while we were building. The mesh
+                // describes a tile that is no longer the one under this key, so it is
+                // thrown away rather than published against the wrong file.
+                return nullptr;
+            }
+
+            if (!it->second.mesh)
+            {
+                it->second.mesh = built;
+            }
+
+            return it->second.mesh;
+        }
     }
 
     std::shared_ptr<const NavTile> NavStore::TileOf(const CellRef& cell) const
