@@ -238,6 +238,17 @@ namespace Nav
                                      mapId, gx, gy);
                     }
                 }
+                else
+                {
+                    // NOT the same thing as a tile with no walkable ground, however much
+                    // it looks like one from here: the terrain under it may be perfectly
+                    // good and the builder may have thrown it away. Naming the tile is
+                    // what makes the difference checkable -- silence here is how six
+                    // squares of Azeroth went unnavigable without a word.
+                    std::lock_guard<std::mutex> lock(g_logMutex);
+                    std::fprintf(stderr, "nav: map %u tile %d,%d produced no navmesh\n",
+                                 mapId, gx, gy);
+                }
 
                 // Let the terrain cache drop what this tile pulled in. Without it a
                 // worker that bakes a continent holds every tile it ever touched.

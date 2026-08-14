@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <queue>
 #include <vector>
@@ -682,6 +683,46 @@ namespace Nav
                 }
             }
 
+            // A tile that keeps no region produces no navmesh, and the caller can only
+            // say THAT it happened. Say why: how much ground was sampled, how much of it
+            // survived the slope pass, and how big the largest connected piece was.
+            // Those three numbers separate "there was nothing here" from "every
+            // component came in under MIN_REGION_NODES".
+            //
+            // Before the remap and only when it is going to be printed: the remap blocks
+            // every node whose region was dropped, so a count taken after it reads zero
+            // by construction, and a count taken on every tile would walk a quarter of a
+            // million nodes to say nothing about the tiles that worked.
+            if (kept == 0)
+            {
+                size_t sampled = 0;
+                size_t alive = 0;
+                for (size_t n = 0; n < work.nodes.size(); ++n)
+                {
+                    if (!OwnNode(work, int32_t(n)))
+                    {
+                        continue;
+                    }
+                    ++sampled;
+                    if (work.nodes[n].area != NavArea::Blocked)
+                    {
+                        ++alive;
+                    }
+                }
+
+                uint32_t largest = 0;
+                for (uint32_t c : size)
+                {
+                    largest = std::max(largest, c);
+                }
+
+                std::fprintf(stderr,
+                             "nav: tile %d,%d kept no region -- %zu own nodes, %zu "
+                             "unblocked, %zu components, largest %u\n",
+                             work.tileX, work.tileY, sampled, alive, size.size(),
+                             largest);
+            }
+
             for (Cand& node : work.nodes)
             {
                 if (node.region < 0)
@@ -1157,6 +1198,15 @@ namespace Nav
                 // No 2.4.3 tile spans four thousand yards. If one ever does, refusing it
                 // is right: the alternative is every surface above the span silently
                 // collapsing onto the ceiling of the quantised range.
+                //
+                // Say the numbers. This guard has already caught one real fault -- a
+                // liquid height read out of an uninitialised part of MCLQ, putting an
+                // ocean surface 2e38 yards up -- and it cost a day precisely because
+                // refusing the tile looked identical to a tile with no ground on it.
+                std::fprintf(stderr,
+                             "nav: tile %d,%d refused -- surfaces span %.1f yards "
+                             "(%.1f to %.1f), more than one tile can describe\n",
+                             work.tileX, work.tileY, maxZ - minZ, minZ, maxZ);
                 return false;
             }
 
