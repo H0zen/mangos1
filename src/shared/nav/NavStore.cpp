@@ -355,9 +355,17 @@ namespace Nav
         const uint8_t farSide = NavTile::FacingSide(side);
 
         // The stricter of the two bakes. They are normally identical; when they are not,
-        // one of the tiles was baked by an older run, and the smaller climb is the one
+        // one of the tiles was baked by an older run, and the smaller limit is the one
         // that cannot invent a step neither bake believed in.
-        const float climb = std::min(nearTile->Params().maxClimb, farTile->Params().maxClimb);
+        //
+        // Through ClimbWindow, and not the bare climb: the bake links a hillside cell to
+        // its neighbour over the rise the slope limit permits, so a border judged on the
+        // step alone would cut every slope steeper than a kerb exactly at the tile edge
+        // -- a seam no map has and no bake believes in.
+        const float climb = ClimbWindow(
+            std::min(nearTile->Params().maxClimb, farTile->Params().maxClimb),
+            std::min(nearTile->Params().maxSlopeDeg, farTile->Params().maxSlopeDeg),
+            CELL_SIZE);
 
         // Accumulated per gateway pair, so a hundred matching cells produce one crossing
         // rather than a hundred. The width is the WIDEST match found: a crossing is

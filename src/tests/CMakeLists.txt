@@ -81,7 +81,7 @@ set(SRC_GRP_TESTS
 # nothing of the server -- that is the whole reason the profile is a value and the
 # router takes a store rather than a Map.
 list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp
-                          RouterLinkTest.cpp)
+                          RouterLinkTest.cpp NavBuilderTest.cpp)
 
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)

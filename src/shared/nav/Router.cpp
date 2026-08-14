@@ -330,10 +330,13 @@ namespace Nav
             const uint8_t farSide = NavTile::FacingSide(side);
 
             // The strictest of the three: neither bake's limit, nor the mover's, may be
-            // exceeded. The store matched this border with the same rule.
-            const float climb = std::min(
-                std::min(from.Params().maxClimb, to.Params().maxClimb),
-                profile.maxClimb);
+            // exceeded. The store matched this border with the same rule -- and the rule
+            // is ClimbWindow, so a slope crosses the border it crosses everywhere else.
+            const float climb = ClimbWindow(
+                std::min(std::min(from.Params().maxClimb, to.Params().maxClimb),
+                         profile.maxClimb),
+                std::min(from.Params().maxSlopeDeg, to.Params().maxSlopeDeg),
+                CELL_SIZE);
 
             // Straight across first -- almost always the answer.
             if (StepTo(to, NavTile::BorderCell(farSide, position), fromSurface.z,
@@ -473,7 +476,9 @@ namespace Nav
             // through a gateway. The two stages would then disagree about what is
             // connected, and the disagreement would show up only as the occasional
             // route that ignores a door.
-            const float climb = std::min(tile.Params().maxClimb, profile.maxClimb);
+            const float climb = ClimbWindow(
+                std::min(tile.Params().maxClimb, profile.maxClimb),
+                tile.Params().maxSlopeDeg, CELL_SIZE);
 
             std::unordered_map<uint32_t, FineEntry> seen;
             seen.reserve(1024);
@@ -696,7 +701,9 @@ namespace Nav
 
         // The stricter of the bake's limit and the mover's, never a larger one -- the
         // same rule the fine search uses, for the same reason.
-        const float climb = std::min(tile->Params().maxClimb, profile.maxClimb);
+        const float climb = ClimbWindow(
+            std::min(tile->Params().maxClimb, profile.maxClimb),
+            tile->Params().maxSlopeDeg, CELL_SIZE);
 
         // === The cells the SEGMENT crosses, not a walk that merely ends where it ends.
         //

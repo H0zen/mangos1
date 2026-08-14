@@ -52,6 +52,38 @@ namespace Nav
     /// The world size of one cell, in yards.
     constexpr float CELL_SIZE = world::terrain::TILE_SIZE / float(CELLS_PER_TILE);
 
+    /**
+     * @brief The vertical distance a step of `length` yards across the grid may cover.
+     *
+     * A climb limit and a slope limit are different quantities and the bake used only
+     * the first. `maxClimb` is a STEP -- a kerb, a stair, the lip of a balcony -- while
+     * a hillside is a grade, and one cell of grade is 1.04 yards long. At 50 degrees,
+     * inside the 55 the bake calls walkable, that cell rises
+     *
+     *     1.0417 * tan(50 deg) = 1.24 yards
+     *
+     * which is over a one-yard step, so no neighbour ever linked to another. Every cell
+     * of the bank became a region of one node and `MIN_REGION_NODES` swept the hill
+     * away, while `maxSlopeDeg` -- the limit written to judge exactly this -- never saw
+     * a link steep enough to refuse, because nothing above 43.8 degrees could be linked
+     * in the first place. Both constants were dead letters, in opposite directions.
+     *
+     * The window is whichever is larger: the step the mover can climb, or the rise the
+     * slope limit itself permits over that distance. Ground steeper than the limit
+     * still links to nothing and is still dropped -- which is what refusing it means.
+     *
+     * The bake, the tile stitcher and the fine search must all use this one function.
+     * They already had to agree: a query allowed to step further than the flood that
+     * built the regions walks between two cells the coarse stage believes are only
+     * joined through a gateway, and the disagreement surfaces as the occasional route
+     * that ignores a door.
+     */
+    inline float ClimbWindow(float maxClimb, float maxSlopeDeg, float length)
+    {
+        const float rise = length * std::tan(maxSlopeDeg * 3.14159265f / 180.0f);
+        return maxClimb > rise ? maxClimb : rise;
+    }
+
     /// Tiles along one edge of a map, mirroring the terrain grid.
     constexpr int TILES_PER_MAP = world::terrain::FusedTerrainGridCount;
 

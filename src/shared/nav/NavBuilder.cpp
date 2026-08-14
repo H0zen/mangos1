@@ -381,8 +381,13 @@ namespace Nav
                                 continue;
                             }
 
-                            const int32_t to = StepTo(work, work.CellAt(nx, ny), z,
-                                                      params.maxClimb);
+                            // Per direction, because a diagonal is 1.41 cells long and a
+                            // grade is allowed the rise that length earns it.
+                            const float window = ClimbWindow(
+                                params.maxClimb, params.maxSlopeDeg, StepLength(dir));
+
+                            const int32_t to =
+                                StepTo(work, work.CellAt(nx, ny), z, window);
                             if (to < 0)
                             {
                                 continue;
@@ -390,13 +395,14 @@ namespace Nav
 
                             if (dir >= 4)
                             {
-                                // The two orthogonal steps this diagonal is made of.
+                                // The two orthogonal steps this diagonal is made of, each
+                                // judged over its own shorter length.
+                                const float side = ClimbWindow(
+                                    params.maxClimb, params.maxSlopeDeg, CELL_SIZE);
                                 const int32_t sideA =
-                                    StepTo(work, work.CellAt(px + DX[dir], py), z,
-                                           params.maxClimb);
+                                    StepTo(work, work.CellAt(px + DX[dir], py), z, side);
                                 const int32_t sideB =
-                                    StepTo(work, work.CellAt(px, py + DY[dir]), z,
-                                           params.maxClimb);
+                                    StepTo(work, work.CellAt(px, py + DY[dir]), z, side);
                                 if (sideA < 0 || sideB < 0)
                                 {
                                     continue;
@@ -436,12 +442,57 @@ namespace Nav
         }
 
         /**
+         * @brief The surface of a padded cell nearest a height, whatever the distance.
+         *
+         * `StepTo` answers the same question under a climb limit, which is right when
+         * the question is "can a mover step there". The slope pass is asking what the
+         * ground DOES, and a limit would hide exactly the ground it exists to judge.
+         *
+         * @return A node index, or -1 when the cell is off the padded grid or bare.
+         */
+        int32_t NearestSurface(const Work& work, int px, int py, float fromZ)
+        {
+            if (!work.InPad(px, py))
+            {
+                return -1;
+            }
+
+            const int cell = work.CellAt(px, py);
+            int32_t best = -1;
+            float bestDelta = 0.0f;
+
+            for (uint32_t n = work.NodeBegin(cell); n < work.NodeEnd(cell); ++n)
+            {
+                const float delta = std::fabs(work.nodes[n].z - fromZ);
+                if (best < 0 || delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    best = int32_t(n);
+                }
+            }
+
+            return best;
+        }
+
+        /**
          * @brief Drop what is too steep to stand on, and mark what is merely steep.
          *
-         * The gradient is measured only against neighbours a mover could actually STEP
-         * to. Measuring against every adjacent cell would read the wall beside a flat
-         * ledge as a vertical slope and delete the ledge -- the ground next to a cliff
-         * is not itself a cliff.
+         * The gradient is read off the SAMPLES, and per axis it is the smaller of the
+         * two opposite rises. Two mistakes are avoided by that one rule, and they pull
+         * in opposite directions:
+         *
+         * - Measuring over the links `Connect` made hides the steepest ground there is.
+         *   A link is refused exactly where the rise is largest, so on a cliff face
+         *   every uphill link is already gone and only the contour ones remain, with no
+         *   rise between them. The face measures level and bakes as walkable floor.
+         * - Measuring the LARGEST rise to any adjacent cell reads the wall beside a flat
+         *   ledge as a vertical slope and deletes the ledge. The ground next to a cliff
+         *   is not itself a cliff.
+         *
+         * A grade falls on one side and rises on the other, so both sides are steep and
+         * the smaller is still steep. An edge has ground on one side and a wall or a
+         * drop on the other, and the smaller is the ground. That is the difference, and
+         * it is a property of the terrain rather than of what the baker chose to link.
          */
         void Slope(Work& work, const BuildParams& params)
         {
@@ -458,17 +509,49 @@ namespace Nav
                     continue;   // a liquid surface is level by definition
                 }
 
+                const int cell = work.nodeCell[n];
+                const int px = cell / work.side;
+                const int py = cell % work.side;
+
+                // The SMALLER rise of the two opposite sides, per axis, then the larger
+                // of the two axes. Not the larger rise, and not the linked neighbours.
+                //
+                // Not the linked ones, because a link is refused precisely where the
+                // ground is steepest: on a cliff face every uphill link is gone and only
+                // the ones along the contour survive, which have no rise at all, so the
+                // face measured as level and baked as walkable ground. The gradient has
+                // to be read off the samples whether a mover can step there or not.
+                //
+                // The smaller of the two sides, because that is what separates a grade
+                // from an edge. A bank falls away on one side and rises on the other, so
+                // both are steep and the minimum is steep. A flat ledge against a wall
+                // has the wall on one side and open floor on the other, and the minimum
+                // is the floor -- which is the answer that keeps the ledge, and the
+                // reason this pass never measured against every adjacent cell.
                 float slope = 0.0f;
-                for (int dir = 0; dir < 4; ++dir)
+                for (int axis = 0; axis < 2; ++axis)
                 {
-                    const int32_t to = work.Neighbour(uint32_t(n), dir);
-                    if (to < 0)
+                    const int back = NearestSurface(work, px - (axis == 0 ? 1 : 0),
+                                                    py - (axis == 1 ? 1 : 0), cand.z);
+                    const int ahead = NearestSurface(work, px + (axis == 0 ? 1 : 0),
+                                                     py + (axis == 1 ? 1 : 0), cand.z);
+                    if (back < 0 && ahead < 0)
                     {
+                        // Nothing on either side: no grade to read. Only happens where
+                        // the sampled ground ends, and the other axis still speaks.
                         continue;
                     }
 
-                    const float rise = std::fabs(work.nodes[size_t(to)].z - cand.z);
-                    slope = std::max(slope, rise / CELL_SIZE);
+                    // With one side missing there is no edge to mistake for a grade --
+                    // absent ground is absent data, not a wall -- so the side that does
+                    // exist is the measurement. Taking the pair as "says nothing" instead
+                    // left the outermost row of every sampled patch walkable at any
+                    // angle, which a cliff of a tile shows as two surviving rows.
+                    const float riseBack = back < 0 ? INF
+                        : std::fabs(work.nodes[size_t(back)].z - cand.z);
+                    const float riseAhead = ahead < 0 ? INF
+                        : std::fabs(work.nodes[size_t(ahead)].z - cand.z);
+                    slope = std::max(slope, std::min(riseBack, riseAhead) / CELL_SIZE);
                 }
 
                 gradient[n] = slope;
