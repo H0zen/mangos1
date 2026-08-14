@@ -28,7 +28,7 @@
 
 #include "Platform/Define.h"
 #include "Utilities/MathDefines.h"
-#include "movement/MoveSplineInitArgs.h"
+#include "MovementIntent.h"
 
 #include <cmath>
 #include <memory>

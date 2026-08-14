@@ -316,7 +316,8 @@ void WaypointMovementGenerator::OnArrived(Creature& creature)
     Stop(node.delay);
 }
 
-void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32 pathIndex)
+void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32 pathIndex,
+                                                       bool traveling)
 {
     while (m_segmentArrivals < m_segment.size() &&
            HasReachedWaypointEndpoint(pathIndex, m_segment[m_segmentArrivals].pathPointIndex))
@@ -326,8 +327,11 @@ void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32
         OnArrived(creature);
         ++m_segmentArrivals;
 
-        // Passing THROUGH a node (rather than stopping at it) leaves the creature moving.
-        if (!creature.movespline->Finalized() && !Stopped(creature))
+        // Passing THROUGH a node (rather than stopping at it) leaves the creature
+        // moving. Whether it is still moving comes from the driver's own report of the
+        // leg, not from the spline: a generator that reads the spline is reading the
+        // mechanism's opinion of a leg the driver may have already replaced.
+        if (traveling && !Stopped(creature))
         {
             creature.addUnitState(UNIT_STAT_ROAMING_MOVE);
         }
@@ -590,7 +594,7 @@ Motion::MoveIntent WaypointMovementGenerator::Intent(Unit& owner,
             return Motion::MoveIntent::Hold();
 
         case WaypointSegmentUpdateState::Finalized:
-            ProcessSegmentProgress(creature, status.pathIndex);
+            ProcessSegmentProgress(creature, status.pathIndex, status.traveling);
             if (!m_isArrivalDone)
             {
                 OnArrived(creature);
@@ -607,7 +611,7 @@ Motion::MoveIntent WaypointMovementGenerator::Intent(Unit& owner,
             return PrepareMove(creature);
 
         case WaypointSegmentUpdateState::Moving:
-            ProcessSegmentProgress(creature, status.pathIndex);
+            ProcessSegmentProgress(creature, status.pathIndex, status.traveling);
             break;
     }
 
@@ -780,6 +784,26 @@ void FlightPathMovementGenerator::Reset(Unit& owner)
     m_splineDuration = uint32(init.Launch());
     m_launchedAt = getMSTime();
 
+    // The same geometry and the same speed, kept as a plan we can interrogate. The
+    // client was sent one duration and reparameterises its curve to it, so an instant is
+    // a position -- and asking this instead of asking the spline is what lets the node
+    // bookkeeping below be reasoned about without a spline under it.
+    //
+    // Catmull-Rom because a taxi is a flight, and on this wire the curved encoding and
+    // the flying animation are the same bit.
+    m_legFirstNode = m_currentNode;
+
+    Helm::Path route;
+    if (route.Build(init.Path(), Helm::Frame{player.GetMapId()}))
+    {
+        m_flight.Begin(route, PLAYER_FLIGHT_SPEED, m_launchedAt,
+                       Helm::Curve::CatmullRom);
+    }
+    else
+    {
+        m_flight.Clear();
+    }
+
     // Same reason as the landing reset in Finalize: nothing else refreshes this while the
     // client is a passenger, and a leg handover must not carry the old boarding altitude.
     player.SetFallInformation(0, player.Where().Z());
@@ -876,9 +900,26 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
     }
 }
 
+uint32 FlightPathMovementGenerator::PointIndex(uint32 now) const
+{
+    if (!m_flight.Valid())
+    {
+        return m_legFirstNode;
+    }
+
+    size_t segment = 0;
+    float fraction = 0.0f;
+    m_flight.Timing().Locate(m_flight.Elapsed(now), segment, fraction);
+
+    // The last segment reports a fraction of one when the leg has ended, and the flight
+    // has then reached the point PAST that segment rather than its start.
+    const bool finished = m_flight.Ended(now);
+    return m_legFirstNode + uint32(segment) + (finished ? 1u : 0u);
+}
+
 bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
 {
-    const uint32 pointId = uint32(owner.movespline->currentPathIdx());
+    const uint32 pointId = PointIndex(getMSTime());
 
     // Each node produces a departure and an arrival event, so the spline index advances
     // two per node.

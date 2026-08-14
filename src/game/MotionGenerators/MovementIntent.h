@@ -28,7 +28,9 @@
 
 #include "Platform/Define.h"
 #include "ObjectGuid.h"
-#include "movement/MoveSplineInitArgs.h"
+#include "Geometry/Vector3.h"
+
+#include <vector>
 
 /**
  * @brief The vocabulary of the INTENT model: what a movement generator wants, and
@@ -42,8 +44,21 @@
  */
 namespace Motion
 {
-    using Movement::PointsArray;
-    using Movement::Vector3;
+    /**
+     * The vocabulary is its own, and that is the point of this file.
+     *
+     * It used to come from `movement/MoveSplineInitArgs.h`, which meant the layer that
+     * decides WHAT a creature wants could not be compiled -- or reasoned about, or
+     * tested -- without the layer that knows how a spline is packed into a packet. The
+     * two types are identical (`Movement::Vector3` is `Geometry::Vector3`, and a
+     * `PointsArray` is a vector of them), so nothing about the data changes here. What
+     * changes is the direction of the dependency: intent no longer points at mechanism.
+     */
+    using Geometry::Vector3;
+
+    /// A route as bare geometry. `Helm::Path` is the same points with a frame and its
+    /// lengths precomputed, and is what the driver builds from this.
+    typedef std::vector<Vector3> PointsArray;
 
     /**
      * @brief The orientation a leg ends in.

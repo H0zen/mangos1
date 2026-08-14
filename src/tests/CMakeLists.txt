@@ -74,6 +74,17 @@ set(SRC_GRP_TESTS
     ${CMAKE_SOURCE_DIR}/src/game/motion/Course.cpp
     ${CMAKE_SOURCE_DIR}/src/game/motion/ClientClock.cpp
     ${CMAKE_SOURCE_DIR}/src/game/motion/CourseSync.cpp
+    # The four values a movement is made of -- where, how it bends, how fast, and where
+    # WHEN. None of them refers to a Unit, a Map, a packet or a running clock, so all
+    # four compile into a test binary with nothing else present. That is the property
+    # they were designed for: the client's duration accumulator is four lines of
+    # arithmetic that decides where every mover in the world is, and until it could be
+    # built out of plain numbers nobody had ever asserted on it.
+    MotionLayerTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Path.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Pace.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Curve.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Motion.cpp
 )
 
 # The navigation: the grid's binning, a baked tile's round trip through its file, the
@@ -82,7 +93,8 @@ set(SRC_GRP_TESTS
 # router takes a store rather than a Map.
 list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp
                           RouterLinkTest.cpp NavBuilderTest.cpp
-                          NavPolygonTest.cpp NavMeshTest.cpp)
+                          NavPolygonTest.cpp NavMeshTest.cpp PolyanyaTest.cpp
+                          MedialAxisTest.cpp ReebGraphTest.cpp)
 
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)

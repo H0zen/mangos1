@@ -63,8 +63,9 @@ void PointMovementGenerator::Finalize(Unit& owner)
     owner.clearUnitState(UNIT_STAT_ROAMING | UNIT_STAT_ROAMING_MOVE);
 
     // Only a leg that ran to completion counts as reaching the point; one cut short by
-    // an interrupt does not.
-    if (owner.movespline->Finalized())
+    // an interrupt does not. Read from what the driver reported at the time, not from
+    // the spline: a spline that was never launched is "finalized" too.
+    if (m_arrived)
     {
         MovementInform(owner);
     }
@@ -115,9 +116,12 @@ Motion::MoveIntent PointMovementGenerator::Intent(Unit& owner,
     }
 
     // Arrived, or there was no way to get there at all: either way this one-shot is
-    // over and the generator beneath it takes back over. Finalize fires the AI inform.
+    // over and the generator beneath it takes back over. Finalize fires the AI inform,
+    // and only arrival counts as reaching the point -- which is why the two are recorded
+    // apart rather than both collapsing into "the generator stopped".
     if (status.arrived || status.blocked)
     {
+        m_arrived = status.arrived;
         return Motion::MoveIntent::Done();
     }
 
@@ -158,6 +162,13 @@ Motion::MoveIntent EffectMovementGenerator::Intent(Unit& /*owner*/,
     // Note this is `traveling`, not `arrived`: the spline was launched by the effect,
     // not by us, so if it was never running at all we must pop immediately rather than
     // wait for an arrival edge that will never come.
+    //
+    // The same reading is kept for Finalize, which runs outside a tick and used to ask
+    // the spline itself. Asking it there is worse than it looks: the answer is "not
+    // running", which is equally true of an effect that played out and of one that was
+    // torn down half way, and the AI was informed of an arrival in both cases.
+    m_settled = !status.traveling;
+
     return status.traveling ? Motion::MoveIntent::Hold() : Motion::MoveIntent::Done();
 }
 
@@ -170,7 +181,7 @@ void EffectMovementGenerator::Finalize(Unit& owner)
 
     Creature& creature = static_cast<Creature&>(owner);
 
-    if (creature.AI() && owner.movespline->Finalized())
+    if (creature.AI() && m_settled)
     {
         creature.AI()->MovementInform(EFFECT_MOTION_TYPE, m_id);
     }

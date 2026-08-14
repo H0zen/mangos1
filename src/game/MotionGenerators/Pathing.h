@@ -40,7 +40,7 @@
 //    straight line needs the terrain's heights, and a router that reached for the
 //    terrain could not be tested without one.
 
-#include "movement/MoveSplineInitArgs.h"
+#include "MovementIntent.h"
 #include "nav/Route.hpp"
 #include "nav/SearchBudget.hpp"
 

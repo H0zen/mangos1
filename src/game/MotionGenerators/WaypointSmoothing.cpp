@@ -17,7 +17,8 @@ bool IsWaypointSmoothingSafe(WaypointSmoothingNode const& node)
 
 /**
  * @brief Whether the spline has reached a tracked waypoint endpoint.
- * @param currentPathIdx Current spline point index (movespline->currentPathIdx()).
+ * @param currentPathIdx How far along its points the leg has got, as the driver reports it in
+ *                       MoveStatus::pathIndex -- never read from the spline.
  * @param endpointPathIndex Path-point index recorded for the waypoint.
  * @return True once the spline index has reached or passed the endpoint.
  */

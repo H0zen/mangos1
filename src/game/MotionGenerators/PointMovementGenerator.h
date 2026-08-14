@@ -64,6 +64,18 @@ class PointMovementGenerator : public IntentMovementGenerator
         uint32 m_id;             ///< Echoed to the AI on arrival.
         Motion::Vector3 m_dest;  ///< Where we are going.
         bool m_generatePath;     ///< Route around geometry, or go straight there.
+
+        /**
+         * @brief Did the leg run to completion?
+         *
+         * Remembered from the tick `MoveStatus::arrived` fired, because `Finalize` runs
+         * outside a tick and has no status to read. It used to ask the spline directly
+         * -- `owner.movespline->Finalized()` -- which is the one question a generator
+         * must not ask: it is the mechanism answering about its own state, so a leg the
+         * DRIVER refused, replaced or never laid still reported "finalized" and fired an
+         * arrival inform for a journey that never happened.
+         */
+        bool m_arrived = false;
 };
 
 /**
@@ -129,6 +141,10 @@ class EffectMovementGenerator final : public IntentMovementGenerator
 
     private:
         uint32 m_id; ///< Echoed to the AI when the effect's spline ends.
+
+        /// The effect's spline was no longer running when we last looked. Recorded on
+        /// the tick rather than read from the spline in Finalize -- see the note there.
+        bool m_settled = false;
 };
 
 #endif // MANGOS_POINTMOVEMENTGENERATOR_H

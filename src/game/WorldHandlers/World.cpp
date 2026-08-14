@@ -79,6 +79,7 @@
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "MotionGenerators/Pathing.h"
 #include "nav/NavStore.hpp"
+#include "nav/NavMeshIO.hpp"
 #include "nav/NavTileIO.hpp"
 #include "terrain/FusedTerrain.hpp"
 #include "terrain/GoModelStore.hpp"
@@ -499,6 +500,12 @@ void World::SetInitialWorldSettings()
     ///  query answers "no ground" and the movement code lays a straight line, which
     ///  is exactly what a map with no navigation has always got.
     Nav::SetNavDir(m_dataPath + "nav");
+
+    // The derived geometry lives beside the tiles it was derived from. Pointed at the
+    // same folder because that is where the baker writes it, and because a data set from
+    // before the cache existed simply has none -- the store notices and derives instead,
+    // which is why this needs no version check and no warning.
+    Nav::SetMeshDir(m_dataPath + "nav");
     sLog.outString("WORLD: Navigation tile directory is: %snav", m_dataPath.c_str());
 
     ///- Point game-object collision at the baked per-display models. Replaces the vmap
