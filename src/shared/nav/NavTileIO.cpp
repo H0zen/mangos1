@@ -444,7 +444,11 @@ namespace Nav
         }
         {
             const long left = RemainingBytes(f);
-            if (left < 0 || uint64_t(left) < uint64_t(gatewayCount) * 31u)
+            // 37 bytes a gateway, counted field by field. It grew by six in version 2
+            // -- the cell and the layer -- and a guard left at the old width still
+            // passes on a file six bytes short per gateway, which is the truncation it
+            // exists to catch.
+            if (left < 0 || uint64_t(left) < uint64_t(gatewayCount) * 37u)
             {
                 return false;
             }

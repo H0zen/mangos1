@@ -1053,24 +1053,26 @@ namespace Nav
             // prefer it to walking three yards round.
             for (const Link& link : tile->Links())
             {
-                uint16_t far = 0xFFFF;
+                // Not named `far`: minwindef.h defines it as an empty macro, and a
+                // local of that name disappears on the MSVC leg of CI.
+                uint16_t mouth = 0xFFFF;
                 if (link.fromGate == here.gate)
                 {
-                    far = link.toGate;
+                    mouth = link.toGate;
                 }
                 else if (link.bidirectional && link.toGate == here.gate)
                 {
-                    far = link.fromGate;
+                    mouth = link.fromGate;
                 }
 
-                if (far >= tile->Gateways().size() ||
-                    !UsableGateway(*tile, tile->Gateways()[far], profile))
+                if (mouth >= tile->Gateways().size() ||
+                    !UsableGateway(*tile, tile->Gateways()[mouth], profile))
                 {
                     continue;
                 }
 
                 GateRef next = here;
-                next.gate = far;
+                next.gate = mouth;
                 const uint64_t nextKey = PackGate(next);
 
                 CoarseEntry& entry = seen[nextKey];
@@ -1082,7 +1084,7 @@ namespace Nav
                 entry.g = g + link.cost;
                 entry.parent = here;
                 entry.hasParent = true;
-                open.push({entry.g + DistToGateway(*tile, tile->Gateways()[far], to),
+                open.push({entry.g + DistToGateway(*tile, tile->Gateways()[mouth], to),
                            nextKey});
             }
 
