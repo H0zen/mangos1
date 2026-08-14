@@ -113,9 +113,37 @@ namespace
 
         Nav::Gateway other = gate;
         other.side = Nav::NavTile::SIDE_HIGH_Y;
+        other.cell = uint32_t(300 * Nav::CELLS_PER_TILE + (Nav::CELLS_PER_TILE - 1));
         tile.MutableGateways().push_back(other);
 
-        tile.MutableGatewayCost() = {0.0f, 137.5f, 137.5f, 0.0f};
+        // A hand-authored crossing: two mouths that are not on any border, joined by a
+        // link. This is the Booty Bay dock in miniature -- two places the ground does
+        // not connect, and a line in a file that says a creature may jump between them.
+        Nav::Gateway mouthA;
+        mouthA.side = Nav::NavTile::SIDE_LINK;
+        mouthA.region = 0;
+        mouthA.firstZ = mouthA.lastZ = mouthA.z = -20.0f;
+        mouthA.width = 3.0f;
+        mouthA.x = 10.0f;
+        mouthA.y = 20.0f;
+        mouthA.cell = uint32_t(100 * Nav::CELLS_PER_TILE + 100);
+        mouthA.layer = 0;
+        tile.MutableGateways().push_back(mouthA);
+
+        Nav::Gateway mouthB = mouthA;
+        mouthB.cell = uint32_t(110 * Nav::CELLS_PER_TILE + 100);
+        tile.MutableGateways().push_back(mouthB);
+
+        Nav::Link link;
+        link.fromGate = 2;
+        link.toGate = 3;
+        link.cost = 8.3f;
+        link.bidirectional = true;
+        tile.MutableLinks().push_back(link);
+
+        tile.MutableGatewayCost().assign(4 * 4, 0.0f);
+        tile.MutableGatewayCost()[0 * 4 + 1] = 137.5f;
+        tile.MutableGatewayCost()[1 * 4 + 0] = 137.5f;
         return tile;
     }
 
@@ -192,7 +220,7 @@ TEST(NavTile_ABlockedCellHasNoSurface)
 
 TEST(NavTile_BorderHelpersAreEachOthersInverse)
 {
-    for (uint8_t side = 0; side < Nav::NavTile::SIDE_COUNT; ++side)
+    for (uint8_t side = 0; side < Nav::NavTile::SIDE_BORDER_COUNT; ++side)
     {
         for (int position = 0; position < Nav::CELLS_PER_TILE; position += 61)
         {
@@ -206,7 +234,7 @@ TEST(NavTile_FacingSideIsAnInvolution)
 {
     // The neighbour of my neighbour across one border is me. Stitching walks this in
     // both directions and would join a tile to itself if it did not hold.
-    for (uint8_t side = 0; side < Nav::NavTile::SIDE_COUNT; ++side)
+    for (uint8_t side = 0; side < Nav::NavTile::SIDE_BORDER_COUNT; ++side)
     {
         CHECK_EQ(Nav::NavTile::FacingSide(Nav::NavTile::FacingSide(side)), side);
     }
@@ -217,8 +245,8 @@ TEST(NavTile_SideTowardsRefusesDiagonals)
     // Tiles are joined across shared EDGES. A diagonal neighbour shares one corner,
     // which is not a crossing, and treating it as one is how a route slips between two
     // buildings through a gap of exactly zero yards.
-    CHECK_EQ(Nav::NavTile::SideTowards(1, 1), uint8_t(Nav::NavTile::SIDE_COUNT));
-    CHECK_EQ(Nav::NavTile::SideTowards(0, 0), uint8_t(Nav::NavTile::SIDE_COUNT));
+    CHECK_EQ(Nav::NavTile::SideTowards(1, 1), uint8_t(Nav::NavTile::SIDE_NONE));
+    CHECK_EQ(Nav::NavTile::SideTowards(0, 0), uint8_t(Nav::NavTile::SIDE_NONE));
     CHECK_EQ(Nav::NavTile::SideTowards(-1, 0), uint8_t(Nav::NavTile::SIDE_LOW_X));
 }
 
@@ -244,6 +272,23 @@ TEST(NavTile_SurvivesItsOwnFile)
     CHECK_EQ(read.Stacked().size(), written.Stacked().size());
 
     CHECK(std::fabs(read.GatewayCost(0, 1) - 137.5f) < 0.001f);
+
+    // The link table, and the cell a gateway stands on -- both new in version 2, and
+    // both indexed by the search without a bounds test, so a section that silently
+    // vanished in the round trip would read as a tile with no links at all rather than
+    // as a broken file.
+    CHECK_EQ(read.Links().size(), size_t(1));
+    CHECK_EQ(read.Gateways().size(), size_t(4));
+    CHECK(read.Gateways()[2].IsLink());
+    CHECK(!read.Gateways()[0].IsLink());
+    CHECK_EQ(read.Gateways()[2].cell, written.Gateways()[2].cell);
+    CHECK(std::fabs(read.Links()[0].cost - 8.3f) < 0.001f);
+    CHECK(read.Links()[0].bidirectional);
+
+    // And it is findable from either end, which is what the refinement asks.
+    CHECK(read.LinkBetween(2, 3) != nullptr);
+    CHECK(read.LinkBetween(3, 2) != nullptr);
+    CHECK(read.LinkBetween(0, 1) == nullptr);
 
     // The area plane is run-length encoded and the payload planes hold walkable cells
     // only, so an off-by-one in either would show up as the wrong cell being blocked.

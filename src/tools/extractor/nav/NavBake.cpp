@@ -22,6 +22,87 @@ namespace Nav
     {
         std::mutex g_logMutex;
 
+        /**
+         * @brief The hand-authored crossings for one map, from offmesh.txt.
+         *
+         * One link per line, in the format the file has always used:
+         *
+         *     <mapId> <tx>,<ty> (ax ay az) (bx by bz) <radius>  // comment
+         *
+         * The tile indices in column two are ignored deliberately. They are a hint
+         * about where the author thought the link lived, and the baker already knows
+         * where a world coordinate falls -- trusting the column instead would put a
+         * link in the wrong tile the first time somebody edited a coordinate without
+         * recomputing it.
+         *
+         * A line that does not parse is skipped and reported. Three lines ship with the
+         * tool; a typo in one of them should be loud, not silent.
+         */
+        std::vector<LinkSpec> LoadOffMesh(const std::string& path, uint32_t mapId)
+        {
+            std::vector<LinkSpec> links;
+            if (path.empty())
+            {
+                return links;
+            }
+
+            std::FILE* f = std::fopen(path.c_str(), "r");
+            if (!f)
+            {
+                return links;
+            }
+
+            char line[512];
+            int lineNumber = 0;
+            while (std::fgets(line, sizeof(line), f))
+            {
+                ++lineNumber;
+
+                const char* at = line;
+                while (*at == ' ' || *at == '\t')
+                {
+                    ++at;
+                }
+                if (*at == '\0' || *at == '\n' || *at == '#' ||
+                    (at[0] == '/' && at[1] == '/'))
+                {
+                    continue;
+                }
+
+                unsigned file = 0;
+                int tx = 0;
+                int ty = 0;
+                LinkSpec spec;
+
+                const int got = std::sscanf(
+                    at, "%u %d,%d (%f %f %f) (%f %f %f) %f", &file, &tx, &ty,
+                    &spec.ax, &spec.ay, &spec.az, &spec.bx, &spec.by, &spec.bz,
+                    &spec.radius);
+
+                if (got < 10)
+                {
+                    std::fprintf(stderr, "nav: %s line %d does not parse\n",
+                                 path.c_str(), lineNumber);
+                    continue;
+                }
+
+                if (file != mapId)
+                {
+                    continue;
+                }
+
+                if (spec.radius <= 0.0f)
+                {
+                    spec.radius = 2.5f;
+                }
+
+                links.push_back(spec);
+            }
+
+            std::fclose(f);
+            return links;
+        }
+
         /// Grids a map with no ADT terrain -- a lone WMO, a ship's hull -- covers.
         ///
         /// Read off the instances' own world bounds rather than assumed, because such a
@@ -82,7 +163,8 @@ namespace Nav
     void NavBaker::SetMapDone(MapDoneFn fn) { m_mapDone = fn; }
 
     int NavBaker::BakeMap(uint32_t mapId, const std::string& label,
-                          const std::vector<std::pair<int, int>>& grids)
+                          const std::vector<std::pair<int, int>>& grids,
+                          const std::vector<LinkSpec>& links)
     {
         if (grids.empty())
         {
@@ -116,6 +198,12 @@ namespace Nav
             world::terrain::FusedTerrain terrain(mapId);
             NavTile tile;
 
+            // The map's links, handed to every tile. The builder keeps only the ones
+            // whose both ends land on its own walkable ground, so the whole (very
+            // short) list can be passed without filtering here.
+            BuildParams params = m_cfg.params;
+            params.links = links;
+
             for (;;)
             {
                 const size_t i = next.fetch_add(1);
@@ -127,7 +215,7 @@ namespace Nav
                 const int gx = grids[i].first;
                 const int gy = grids[i].second;
 
-                if (BuildNavTile(terrain, gx, gy, m_cfg.params, tile))
+                if (BuildNavTile(terrain, gx, gy, params, tile))
                 {
                     const std::string path =
                         m_outDir + "/" + NavTileFileName(mapId, gx, gy);
@@ -240,7 +328,8 @@ namespace Nav
             std::snprintf(label, sizeof(label), "map %u  [%zu/%zu]", entry.first,
                           done + 1, mapCount);
 
-            const int count = BakeMap(entry.first, label, entry.second);
+            const int count = BakeMap(entry.first, label, entry.second,
+                                      LoadOffMesh(m_cfg.offMeshFile, entry.first));
             if (count < 0)
             {
                 return -1;
@@ -268,7 +357,8 @@ namespace Nav
             if (tile)
             {
                 const std::vector<std::pair<int, int>> grids = GlobalWmoGrids(*tile);
-                const int count = BakeMap(mapId, label, grids);
+                const int count = BakeMap(mapId, label, grids,
+                                          LoadOffMesh(m_cfg.offMeshFile, mapId));
                 if (count < 0)
                 {
                     return -1;

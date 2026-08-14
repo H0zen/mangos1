@@ -33,11 +33,30 @@
 #include "nav/NavTile.hpp"
 
 #include <cstdint>
+#include <vector>
 
 namespace world::terrain { class FusedTerrain; }
 
 namespace Nav
 {
+    /**
+     * @brief One hand-authored crossing, in world coordinates, as offmesh.txt gives it.
+     *
+     * The file is tiny -- three lines for the whole of 2.4.3 -- and every one of them
+     * is somewhere the ground genuinely does not connect: the drop off the Booty Bay
+     * dock, two ledges in Blade's Edge Arena. A creature chasing a player off that dock
+     * stops at the edge and evades without it.
+     */
+    struct LinkSpec
+    {
+        float ax = 0.0f, ay = 0.0f, az = 0.0f;
+        float bx = 0.0f, by = 0.0f, bz = 0.0f;
+
+        /// How far from the stated point a walkable cell may be and still count as the
+        /// mouth. The file's own column; 2.5 yards in every shipped line.
+        float radius = 2.5f;
+    };
+
     /**
      * @brief What the bake assumes about the creature it is baking for.
      *
@@ -77,6 +96,11 @@ namespace Nav
         /// Cells sampled outside the tile on every side, so quantities measured from
         /// neighbours are right up to the border. See the header comment.
         int margin = 8;
+
+        /// Hand-authored crossings for this MAP. The builder keeps the ones whose both
+        /// ends land on walkable ground inside the tile it is baking and ignores the
+        /// rest, so the whole map's list can be passed to every tile.
+        std::vector<LinkSpec> links;
     };
 
     /**

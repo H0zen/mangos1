@@ -734,6 +734,29 @@ namespace Nav
             return (side == NavTile::SIDE_LOW_X || side == NavTile::SIDE_HIGH_X) ? 3 : 1;
         }
 
+        /// Which surface of its cell a node is, counting only the walkable ones -- the
+        /// same numbering Emit gives the tile, so a gateway can name it. Both agree
+        /// because the candidates in a cell are sorted by height and both walk them in
+        /// that order, skipping the same ones.
+        uint16_t LayerOfNode(const Work& work, int32_t node)
+        {
+            const int cell = work.nodeCell[size_t(node)];
+            uint16_t layer = 0;
+            for (uint32_t n = work.NodeBegin(cell); n < work.NodeEnd(cell); ++n)
+            {
+                if (work.nodes[n].area == NavArea::Blocked || work.nodes[n].region < 0)
+                {
+                    continue;
+                }
+                if (int32_t(n) == node)
+                {
+                    return layer;
+                }
+                ++layer;
+            }
+            return 0;
+        }
+
         /**
          * @brief Find the tile's ways in and out.
          *
@@ -749,7 +772,7 @@ namespace Nav
             out.clear();
             members.clear();
 
-            for (uint8_t side = 0; side < NavTile::SIDE_COUNT; ++side)
+            for (uint8_t side = 0; side < NavTile::SIDE_BORDER_COUNT; ++side)
             {
                 const int along = AlongDir(side);
                 std::vector<Run> runs;
@@ -842,6 +865,15 @@ namespace Nav
                         g.y = CellCentre(GlobalCell(work.tileY, my - work.margin));
                         g.z = work.nodes[mid].z;
 
+                        // The midpoint cell, named as well as measured. Nothing reads it
+                        // for a border gateway today -- only a link mouth is aimed at by
+                        // cell -- but a field that is correct on three gateways in the
+                        // game and zero on every other is a trap for whoever reads it
+                        // next.
+                        g.cell = uint32_t((mx - work.margin) * CELLS_PER_TILE +
+                                          (my - work.margin));
+                        g.layer = LayerOfNode(work, int32_t(mid));
+
                         out.push_back(g);
                         members.push_back(runNodes[r]);
 
@@ -849,6 +881,144 @@ namespace Nav
                         runNodes.erase(runNodes.begin() + long(r));
                     }
                 }
+            }
+        }
+
+        /**
+         * @brief The tile's own walkable node nearest a world point, or -1.
+         *
+         * Used only to plant the mouth of a hand-authored link. The point in the file
+         * is where a person stood, not where the grid has a cell centre, so it is
+         * snapped -- outwards in rings, nearest cell first, and within the radius the
+         * file itself states. Refusing rather than reaching further is deliberate: a
+         * mouth that quietly moved ten yards is a link that no longer crosses what it
+         * was drawn to cross.
+         */
+        int32_t SnapToNode(const Work& work, float worldX, float worldY, float worldZ,
+                           float radius)
+        {
+            const int cellX = CellIndex(worldX);
+            const int cellY = CellIndex(worldY);
+            if (!OnMap(cellX) || !OnMap(cellY))
+            {
+                return -1;
+            }
+
+            const int px = cellX - work.tileX * CELLS_PER_TILE + work.margin;
+            const int py = cellY - work.tileY * CELLS_PER_TILE + work.margin;
+
+            const int rings = std::max(1, int(radius / CELL_SIZE) + 1);
+
+            int32_t best = -1;
+            float bestScore = 0.0f;
+
+            for (int dx = -rings; dx <= rings; ++dx)
+            {
+                for (int dy = -rings; dy <= rings; ++dy)
+                {
+                    const int ax = px + dx;
+                    const int ay = py + dy;
+                    if (!work.InTile(ax, ay))
+                    {
+                        continue;   // the mouth must be one of THIS tile's own cells
+                    }
+
+                    const float offX = float(dx) * CELL_SIZE;
+                    const float offY = float(dy) * CELL_SIZE;
+                    if (offX * offX + offY * offY > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    const int cell = work.CellAt(ax, ay);
+                    for (uint32_t n = work.NodeBegin(cell); n < work.NodeEnd(cell); ++n)
+                    {
+                        if (work.nodes[n].area == NavArea::Blocked ||
+                            work.nodes[n].region < 0)
+                        {
+                            continue;
+                        }
+
+                        const float dz = work.nodes[n].z - worldZ;
+                        const float score = offX * offX + offY * offY + dz * dz;
+                        if (best < 0 || score < bestScore)
+                        {
+                            bestScore = score;
+                            best = int32_t(n);
+                        }
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        /**
+         * @brief Plant the mouths of every link whose both ends land in this tile.
+         *
+         * A mouth is added as a GATEWAY, which is the whole trick: the coarse search
+         * already walks gateways, the cost matrix below already measures the distance
+         * from every gateway to every other, and the fine search already knows how to
+         * aim at one. A link becomes an edge in a graph that exists rather than a new
+         * mechanism beside it.
+         *
+         * Both ends must be in this tile. Every shipped link spans about eight yards,
+         * so that is nearly always true; one that straddles a tile border is skipped
+         * rather than half-built, and says so.
+         */
+        void PlantLinks(const Work& work, const BuildParams& params,
+                        std::vector<Gateway>& gateways,
+                        std::vector<std::vector<uint32_t>>& members,
+                        std::vector<Link>& links)
+        {
+            for (const LinkSpec& spec : params.links)
+            {
+                const int32_t a = SnapToNode(work, spec.ax, spec.ay, spec.az,
+                                             spec.radius);
+                const int32_t b = SnapToNode(work, spec.bx, spec.by, spec.bz,
+                                             spec.radius);
+                if (a < 0 || b < 0 || a == b)
+                {
+                    continue;
+                }
+
+                const auto mouth = [&](int32_t node) -> uint16_t
+                {
+                    const int cell = work.nodeCell[size_t(node)];
+                    const int mx = cell / work.side;
+                    const int my = cell % work.side;
+
+                    Gateway g;
+                    g.side = NavTile::SIDE_LINK;
+                    g.first = 0;
+                    g.last = 0;
+                    g.region = uint16_t(work.nodes[size_t(node)].region);
+                    g.firstZ = work.nodes[size_t(node)].z;
+                    g.lastZ = g.firstZ;
+                    g.width = work.nodes[size_t(node)].clearance;
+                    g.x = CellCentre(GlobalCell(work.tileX, mx - work.margin));
+                    g.y = CellCentre(GlobalCell(work.tileY, my - work.margin));
+                    g.z = g.firstZ;
+                    g.cell = uint32_t((mx - work.margin) * CELLS_PER_TILE +
+                                      (my - work.margin));
+                    g.layer = LayerOfNode(work, node);
+
+                    gateways.push_back(g);
+                    members.push_back({uint32_t(node)});
+                    return uint16_t(gateways.size() - 1);
+                };
+
+                Link link;
+                link.fromGate = mouth(a);
+                link.toGate = mouth(b);
+
+                const float dx = spec.bx - spec.ax;
+                const float dy = spec.by - spec.ay;
+                const float dz = spec.bz - spec.az;
+                link.cost = std::sqrt(dx * dx + dy * dy + dz * dz);
+                link.bidirectional = true;
+
+                links.push_back(link);
             }
         }
 
@@ -1102,6 +1272,10 @@ namespace Nav
 
         std::vector<std::vector<uint32_t>> members;
         FindGateways(work, out.MutableGateways(), members);
+
+        // Before the cost matrix, so the measured distances cover the link mouths too.
+        PlantLinks(work, params, out.MutableGateways(), members, out.MutableLinks());
+
         GatewayCosts(work, out.Gateways(), members, out.MutableGatewayCost());
 
         return true;

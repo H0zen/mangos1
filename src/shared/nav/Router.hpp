@@ -103,6 +103,13 @@ namespace Nav
                 /// to it.
                 std::shared_ptr<const NavTile> tile;
                 std::vector<std::pair<int, Surface>> cells;
+
+                /// This leg is the far side of a hand-authored link: one cell, arrived
+                /// at by crossing what the ground does not bridge. The emitter may not
+                /// fold it into the step before it -- the take-off point is the whole
+                /// content of the jump, and a route that lost it would walk a creature
+                /// to a ledge and describe no ledge.
+                bool jump = false;
             };
 
             /// Stage one: which gateways, in which order. Exact, because the cost of

@@ -300,6 +300,15 @@ void TerrainInfo::CleanUpGrids(const uint32 diff)
 {
     m_terrain.Update(diff);
 
+    // Bring in navigation a search asked for and could not have. Routing only sees
+    // tiles the grids happen to hold, so a route across country nobody is standing in
+    // failed at a gap in the middle; the router records what it wanted rather than
+    // stalling its own tick to read a file, and this is where the reading happens.
+    //
+    // Two per call, and the store caps how many unpinned tiles it will keep, so this
+    // cannot page a continent in behind one wandering creature.
+    Nav::NavStores::Instance().For(m_mapId).PumpWanted(2);
+
     i_timer.Update(diff);
     if (!i_timer.Passed())
     {

@@ -6,11 +6,24 @@
 #include <cmath>
 #include <mutex>
 
+namespace
+{
+    /// Wanted tiles remembered at once. A search that misses more than this is
+    /// asking for ground nobody is anywhere near, and forgetting the tail is the
+    /// right answer -- it will be wanted again if it is wanted at all.
+    constexpr size_t MAX_WANTED = 32;
+}
+
 namespace Nav
 {
     // ---------------------------------------------------------------- NavStore ----
 
     bool NavStore::LoadTile(int tileX, int tileY)
+    {
+        return LoadTileInternal(tileX, tileY, true);
+    }
+
+    bool NavStore::LoadTileInternal(int tileX, int tileY, bool pinned)
     {
         const uint32_t key = Pack(tileX, tileY);
 
@@ -44,7 +57,14 @@ namespace Nav
             return true;
         }
 
-        m_tiles.emplace(key, std::move(tile));
+        Resident resident;
+        resident.tile = std::move(tile);
+        resident.pinned = pinned;
+        resident.touched = ++m_clock;
+        m_tiles.emplace(key, std::move(resident));
+
+        m_wanted.erase(std::remove(m_wanted.begin(), m_wanted.end(), key),
+                       m_wanted.end());
 
         // Join it to whichever of its four neighbours are already here. A neighbour
         // arriving later stitches from its own side, so the pair is joined exactly once
@@ -90,7 +110,13 @@ namespace Nav
     std::shared_ptr<const NavTile> NavStore::TileAtLocked(int tileX, int tileY) const
     {
         const auto it = m_tiles.find(Pack(tileX, tileY));
-        return it == m_tiles.end() ? nullptr : it->second;
+        if (it == m_tiles.end())
+        {
+            return nullptr;
+        }
+
+        it->second.touched = ++m_clock;
+        return it->second.tile;
     }
 
     std::shared_ptr<const NavTile> NavStore::TileAt(int tileX, int tileY) const
@@ -116,8 +142,8 @@ namespace Nav
         for (const auto& entry : m_tiles)
         {
             TileKey key;
-            key.x = int16_t(entry.second->TileX());
-            key.y = int16_t(entry.second->TileY());
+            key.x = int16_t(entry.second.tile->TileX());
+            key.y = int16_t(entry.second.tile->TileY());
             out.push_back(key);
         }
     }
@@ -134,7 +160,7 @@ namespace Nav
         size_t total = 0;
         for (const auto& entry : m_tiles)
         {
-            total += entry.second->Footprint();
+            total += entry.second.tile->Footprint();
         }
         for (const auto& entry : m_crossings)
         {
@@ -148,6 +174,140 @@ namespace Nav
         std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_crossings.find(PackGate(from));
         return it == m_crossings.end() ? std::vector<Crossing>() : it->second;
+    }
+
+    void NavStore::Want(int tileX, int tileY) const
+    {
+        if (tileX < 0 || tileY < 0 || tileX >= TILES_PER_MAP ||
+            tileY >= TILES_PER_MAP)
+        {
+            return;
+        }
+
+        const uint32_t key = Pack(tileX, tileY);
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_tiles.find(key) != m_tiles.end())
+        {
+            return;   // already here; nothing was missing
+        }
+
+        if (std::find(m_wanted.begin(), m_wanted.end(), key) != m_wanted.end())
+        {
+            return;
+        }
+
+        if (m_wanted.size() >= MAX_WANTED)
+        {
+            return;
+        }
+
+        m_wanted.push_back(key);
+    }
+
+    void NavStore::WantAlong(float fromX, float fromY, float toX, float toY) const
+    {
+        // Every tile the straight line passes through, plus the two ends. Not the
+        // route -- there is no route, that is why this is being called -- but the
+        // corridor a route would most likely need, which is what the next attempt
+        // will search once these are in.
+        const CellRef a = CellAt(fromX, fromY);
+        const CellRef b = CellAt(toX, toY);
+        if (!a.Valid() || !b.Valid())
+        {
+            return;
+        }
+
+        const int ax = a.TileX();
+        const int ay = a.TileY();
+        const int bx = b.TileX();
+        const int by = b.TileY();
+
+        const int steps = std::max(std::abs(bx - ax), std::abs(by - ay));
+        if (steps == 0)
+        {
+            Want(ax, ay);
+            return;
+        }
+
+        for (int i = 0; i <= steps; ++i)
+        {
+            const float t = float(i) / float(steps);
+            Want(ax + int(std::lround(t * float(bx - ax))),
+                 ay + int(std::lround(t * float(by - ay))));
+        }
+    }
+
+    size_t NavStore::PumpWanted(size_t maxLoads)
+    {
+        std::vector<uint32_t> take;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            while (!m_wanted.empty() && take.size() < maxLoads)
+            {
+                take.push_back(m_wanted.back());
+                m_wanted.pop_back();
+            }
+        }
+
+        size_t loaded = 0;
+        for (uint32_t key : take)
+        {
+            const int tileX = int(int16_t(uint16_t(key >> 16)));
+            const int tileY = int(int16_t(uint16_t(key & 0xFFFFu)));
+
+            // Unpinned: no grid is holding this one, so the cap below may drop it
+            // again once nothing has used it for a while.
+            if (LoadTileInternal(tileX, tileY, false))
+            {
+                ++loaded;
+            }
+        }
+
+        EvictUnpinned();
+        return loaded;
+    }
+
+    void NavStore::EvictUnpinned()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        size_t unpinned = 0;
+        for (const auto& entry : m_tiles)
+        {
+            if (!entry.second.pinned)
+            {
+                ++unpinned;
+            }
+        }
+
+        while (unpinned > MAX_UNPINNED)
+        {
+            // The least recently touched of the ones no grid holds. Linear, over a few
+            // dozen entries, once per pump -- cheaper than keeping an order.
+            auto oldest = m_tiles.end();
+            for (auto it = m_tiles.begin(); it != m_tiles.end(); ++it)
+            {
+                if (!it->second.pinned &&
+                    (oldest == m_tiles.end() ||
+                     it->second.touched < oldest->second.touched))
+                {
+                    oldest = it;
+                }
+            }
+
+            if (oldest == m_tiles.end())
+            {
+                break;
+            }
+
+            const int tileX = int(int16_t(uint16_t(oldest->first >> 16)));
+            const int tileY = int(int16_t(uint16_t(oldest->first & 0xFFFFu)));
+
+            m_tiles.erase(oldest);
+            UnstitchLocked(tileX, tileY);
+            --unpinned;
+        }
     }
 
     int NavStore::FindGateway(const NavTile& tile, uint8_t side, int position,
@@ -187,7 +347,7 @@ namespace Nav
         }
 
         const uint8_t side = NavTile::SideTowards(neighbourX - tileX, neighbourY - tileY);
-        if (side >= NavTile::SIDE_COUNT)
+        if (side >= NavTile::SIDE_BORDER_COUNT)
         {
             return;
         }

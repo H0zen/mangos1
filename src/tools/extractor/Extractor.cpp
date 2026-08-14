@@ -179,9 +179,8 @@ namespace
 "\n"
 "  --vessels <f>   \"<mapId> <displayId>\" per line: which hull to bake into\n"
 "                  which vessel map.                  (default: vessels.txt)\n"
-"  --offmesh <f>   hand-authored links -- a jump down a dock, a gap over\n"
-"                  water. NOT YET READ by the current baker; the option is\n"
-"                  accepted so existing scripts keep working.\n"
+"  --offmesh <f>   hand-authored links the ground does not bridge -- a jump\n"
+"                  down a dock, a gap over water.     (default: offmesh.txt)\n"
 "\n"
 "OTHER\n"
 "\n"
@@ -539,6 +538,7 @@ namespace
 
         Nav::BakeConfig cfg;
         cfg.threads = opt.threads;
+        cfg.offMeshFile = opt.offMesh;
 
         Nav::NavBaker baker(tileDir, opt.dest + "/nav", cfg);
         baker.SetProgress(&NavProgress, nullptr);

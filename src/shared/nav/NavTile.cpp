@@ -20,6 +20,7 @@ namespace Nav
         m_regions.clear();
         m_gateways.clear();
         m_gatewayCost.clear();
+        m_links.clear();
     }
 
     void NavTile::SetCell(int inTile, uint16_t z, uint8_t area, uint8_t clearance,
@@ -207,6 +208,7 @@ namespace Nav
                m_stacked.size() * sizeof(StackedLayer) +
                m_regions.size() * sizeof(Region) +
                m_gateways.size() * sizeof(Gateway) +
-               m_gatewayCost.size() * sizeof(float);
+               m_gatewayCost.size() * sizeof(float) +
+               m_links.size() * sizeof(Link);
     }
 }

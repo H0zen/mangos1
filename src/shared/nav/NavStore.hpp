@@ -131,6 +131,45 @@ namespace Nav
             /// Drop one tile, and every crossing that mentioned it.
             void UnloadTile(int tileX, int tileY);
 
+            /**
+             * @brief Note that a search needed a tile nobody had loaded.
+             *
+             * Routing is bounded by RESIDENCY, and residency follows the map's grids --
+             * which follow players and active objects. A chase across two tiles of
+             * empty countryside therefore failed at a tile in the middle that nothing
+             * happened to be standing in, and the mover fell back to a straight line
+             * through whatever was there.
+             *
+             * The tile is not loaded here. Reading one is a megabyte of file, and this
+             * is called from the middle of a search on the map's own thread; stalling
+             * the tick to widen a route is a worse bargain than the route. It is
+             * remembered, PumpWanted brings a few in per tick, and the next attempt --
+             * a chase replans every few hundred milliseconds -- has them.
+             *
+             * Const because a search is const. The want list is what changes, and it is
+             * guarded like everything else here.
+             */
+            void Want(int tileX, int tileY) const;
+
+            /// Every tile the straight line between two points passes through, wanted.
+            void WantAlong(float fromX, float fromY, float toX, float toY) const;
+
+            /**
+             * @brief Bring in a few wanted tiles, and drop unpinned ones over the cap.
+             *
+             * Called from the map's own update, where a few milliseconds of file
+             * reading is affordable and a search is not running.
+             *
+             * @param maxLoads How many to read this call. Small on purpose.
+             * @return How many were loaded.
+             */
+            size_t PumpWanted(size_t maxLoads = 2);
+
+            /// Tiles the pump may hold that no grid pins. Beyond this the least
+            /// recently used are dropped, so a creature routing across a continent
+            /// cannot pull the whole map into memory.
+            static constexpr size_t MAX_UNPINNED = 48;
+
             void Clear();
 
             bool IsResident(int tileX, int tileY) const;
@@ -191,16 +230,45 @@ namespace Nav
             /// Lookup without taking the lock, for the methods that already hold it.
             std::shared_ptr<const NavTile> TileAtLocked(int tileX, int tileY) const;
 
+            /// The one loader. `pinned` says whether a GRID is asking, which decides
+            /// whether the cap may later evict it.
+            bool LoadTileInternal(int tileX, int tileY, bool pinned);
+
+            /// Drop unpinned tiles beyond MAX_UNPINNED, least recently used first.
+            void EvictUnpinned();
+
+
             /// The gateway of `tile` covering a border position in a given region.
             static int FindGateway(const NavTile& tile, uint8_t side, int position,
                                    uint16_t region);
+
+            /// A resident tile, and whether a GRID is holding it here.
+            struct Resident
+            {
+                std::shared_ptr<const NavTile> tile;
+
+                /// True when TerrainInfo loaded it with a grid. Those come and go with
+                /// GridMap and are never evicted by the cap; only the pump's own are.
+                bool pinned = false;
+
+                /// Bumped on every lookup, for the cap's eviction order. Mutable
+                /// because a LOOKUP is const and still counts as use -- that is the
+                /// whole point of tracking it.
+                mutable uint64_t touched = 0;
+            };
 
             uint32_t m_mapId = 0;
 
             /// Guards both tables. Held across a lookup, never across a search.
             mutable std::mutex m_mutex;
 
-            std::unordered_map<uint32_t, std::shared_ptr<const NavTile>> m_tiles;
+            std::unordered_map<uint32_t, Resident> m_tiles;
+
+            /// Wanted but not resident. Bounded: a search that wants a hundred tiles is
+            /// a search that should fail, not one that should page in a continent.
+            mutable std::vector<uint32_t> m_wanted;
+
+            mutable uint64_t m_clock = 0;
 
             /// Gateway -> the crossings out of it. Rebuilt as tiles come and go.
             std::unordered_map<uint64_t, std::vector<Crossing>> m_crossings;

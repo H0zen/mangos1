@@ -136,6 +136,43 @@ namespace Nav
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+
+        /// The in-tile cell this gateway stands on. Meaningful for SIDE_LINK, where
+        /// the mouth is one cell and `first`/`last` say nothing; for a border gateway
+        /// it is the midpoint cell, which is where the coarse search aims anyway.
+        uint32_t cell = 0;
+
+        /// Which surface of that cell, where floors stack.
+        uint16_t layer = 0;
+
+        bool IsLink() const { return side == 4; }   ///< NavTile::SIDE_LINK
+    };
+
+    /**
+     * @brief A hand-authored way across a gap the ground does not bridge.
+     *
+     * The jump off the Booty Bay dock, the two ledges in Blade's Edge Arena. Three in
+     * the whole of 2.4.3 -- but the dock is a place creatures chase players off, and
+     * without it they stop at the edge and evade.
+     *
+     * Expressed as an edge between two GATEWAYS rather than between two cells, which is
+     * what keeps it small: the coarse search already walks gateways, the baker already
+     * measures the distance from every gateway to every other, and the fine search
+     * already knows how to aim at one. A link adds an edge to a graph that exists.
+     */
+    struct Link
+    {
+        uint16_t fromGate = 0;
+        uint16_t toGate = 0;
+
+        /// What crossing costs, in yards. The straight distance between the mouths:
+        /// a jump is not free, and pricing it at zero would make a router prefer a
+        /// detour through a link to walking three yards round it.
+        float cost = 0.0f;
+
+        /// Usable in both directions. Every link in the shipped file is -- a dock can
+        /// be jumped off and climbed back onto -- but a one-way drop is expressible.
+        bool bidirectional = true;
     };
 
     /**
@@ -182,7 +219,21 @@ namespace Nav
                 SIDE_LOW_Y = 2,    ///< local y == 0
                 SIDE_HIGH_Y = 3,   ///< local y == CELLS_PER_TILE - 1
 
-                SIDE_COUNT = 4
+                /// Borders only. Loops that scan the tile's edges stop here.
+                SIDE_BORDER_COUNT = 4,
+
+                /// Not an edge at all: the mouth of a hand-authored link, which sits
+                /// wherever it sits. It is a gateway so that the coarse search, the
+                /// baked cost matrix and the fine search's aim all work on it unchanged
+                /// -- a jump off a dock is just another way out of a region.
+                SIDE_LINK = 4,
+
+                SIDE_COUNT = 5,
+
+                /// Returned by SideTowards for an offset that is not one of the four
+                /// orthogonal neighbours. Distinct from SIDE_LINK, which is a real
+                /// place; this one means "no answer".
+                SIDE_NONE = 0xFF
             };
 
             /// The cost matrix entry for a pair of gateways that cannot reach each
@@ -209,7 +260,7 @@ namespace Nav
                 if (deltaY == 0 && deltaX == 1)  { return SIDE_HIGH_X; }
                 if (deltaX == 0 && deltaY == -1) { return SIDE_LOW_Y; }
                 if (deltaX == 0 && deltaY == 1)  { return SIDE_HIGH_Y; }
-                return SIDE_COUNT;
+                return SIDE_NONE;
             }
 
             /// The in-tile cell index of a position along one border.
@@ -296,6 +347,32 @@ namespace Nav
 
             const std::vector<Gateway>& Gateways() const { return m_gateways; }
 
+            const std::vector<Link>& Links() const { return m_links; }
+
+            /**
+             * @brief The link joining two gateways, or nullptr.
+             *
+             * Asked by the refinement, which has to tell "walk from this gateway to
+             * that one" from "jump". A tile has at most a handful of links, so this is
+             * a scan and not an index.
+             */
+            const Link* LinkBetween(uint16_t from, uint16_t to) const
+            {
+                for (const Link& link : m_links)
+                {
+                    if (link.fromGate == from && link.toGate == to)
+                    {
+                        return &link;
+                    }
+                    if (link.bidirectional && link.fromGate == to &&
+                        link.toGate == from)
+                    {
+                        return &link;
+                    }
+                }
+                return nullptr;
+            }
+
             /**
              * @brief What it really costs to walk from one gateway of this tile to
              *        another, in yards, without leaving the tile.
@@ -330,6 +407,7 @@ namespace Nav
 
             std::vector<Region>& MutableRegions() { return m_regions; }
             std::vector<Gateway>& MutableGateways() { return m_gateways; }
+            std::vector<Link>& MutableLinks() { return m_links; }
             std::vector<float>& MutableGatewayCost() { return m_gatewayCost; }
             const std::vector<float>& GatewayCostMatrix() const
             {
@@ -380,6 +458,9 @@ namespace Nav
             std::vector<Region> m_regions;
 
             std::vector<Gateway> m_gateways;
+
+            /// Hand-authored crossings. Empty for almost every tile in the game.
+            std::vector<Link> m_links;
 
             /// Row-major, gateways x gateways, symmetric. Small: a tile has tens of
             /// gateways, not thousands, because a gateway is a whole RUN of border

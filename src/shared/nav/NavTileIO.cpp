@@ -1,5 +1,6 @@
 #include "nav/NavTileIO.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -222,9 +223,21 @@ namespace Nav
             ok = ok && WPod(f, g.x);
             ok = ok && WPod(f, g.y);
             ok = ok && WPod(f, g.z);
+            ok = ok && WPod(f, g.cell);
+            ok = ok && WPod(f, g.layer);
         }
 
         ok = ok && WPlane(f, tile.GatewayCostMatrix());
+
+        const std::vector<Link>& links = tile.Links();
+        ok = ok && WPod(f, uint32_t(links.size()));
+        for (const Link& link : links)
+        {
+            ok = ok && WPod(f, link.fromGate);
+            ok = ok && WPod(f, link.toGate);
+            ok = ok && WPod(f, link.cost);
+            ok = ok && WPod(f, uint8_t(link.bidirectional ? 1 : 0));
+        }
 
         if (std::fclose(f) != 0)
         {
@@ -443,13 +456,21 @@ namespace Nav
             Gateway& g = gateways[i];
             if (!RPod(f, g.side) || !RPod(f, g.first) || !RPod(f, g.last) ||
                 !RPod(f, g.region) || !RPod(f, g.firstZ) || !RPod(f, g.lastZ) ||
-                !RPod(f, g.width) || !RPod(f, g.x) || !RPod(f, g.y) || !RPod(f, g.z))
+                !RPod(f, g.width) || !RPod(f, g.x) || !RPod(f, g.y) ||
+                !RPod(f, g.z) || !RPod(f, g.cell) || !RPod(f, g.layer))
             {
                 return false;
             }
 
             if (g.side >= NavTile::SIDE_COUNT || g.region >= regions.size() ||
-                g.first > g.last || g.last >= uint16_t(CELLS_PER_TILE))
+                g.cell >= uint32_t(CELLS_PER_TILE_SQ))
+            {
+                return false;
+            }
+
+            // The run bounds mean nothing for a link mouth, which is one cell.
+            if (g.side < NavTile::SIDE_BORDER_COUNT &&
+                (g.first > g.last || g.last >= uint16_t(CELLS_PER_TILE)))
             {
                 return false;
             }
@@ -460,6 +481,50 @@ namespace Nav
         if (!RPlane(f, tile.MutableGatewayCost(), gatewayCount * gatewayCount))
         {
             return false;
+        }
+
+        uint32_t linkCount = 0;
+        if (!RPod(f, linkCount) || linkCount > MAX_GATEWAYS)
+        {
+            return false;
+        }
+        {
+            const long left = RemainingBytes(f);
+            if (left < 0 || uint64_t(left) < uint64_t(linkCount) * 9u)
+            {
+                return false;
+            }
+        }
+        std::vector<Link>& links = tile.MutableLinks();
+        links.resize(linkCount);
+        for (uint32_t i = 0; i < linkCount; ++i)
+        {
+            Link& link = links[i];
+            uint8_t both = 0;
+            if (!RPod(f, link.fromGate) || !RPod(f, link.toGate) ||
+                !RPod(f, link.cost) || !RPod(f, both))
+            {
+                return false;
+            }
+            link.bidirectional = (both != 0);
+
+            // Both mouths must exist. The search indexes the gateway table with these
+            // without re-checking, and a link naming a gateway that is not there is the
+            // one corruption that reads as a valid tile and then walks off the end.
+            if (link.fromGate >= gatewayCount || link.toGate >= gatewayCount ||
+                link.fromGate == link.toGate)
+            {
+                return false;
+            }
+
+            // The cost is added to a running g in the coarse search and compared with
+            // every other edge. A negative one makes the queue prefer going round the
+            // link forever, and a NaN compares false against everything, so the search
+            // would neither settle nor terminate on a route that touched this tile.
+            if (!(link.cost >= 0.0f) || !std::isfinite(link.cost))
+            {
+                return false;
+            }
         }
 
         // Every walkable cell names a region, and the search indexes the region table

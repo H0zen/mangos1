@@ -22,9 +22,18 @@
 
 namespace Nav
 {
-    /// Bumped whenever the byte layout OR the meaning of a field changes. A bump
-    /// requires a re-bake before the branch is served.
-    constexpr uint32_t NAV_TILE_VERSION = 1;
+    /**
+     * @brief Bumped whenever the byte layout OR the meaning of a field changes.
+     *
+     * A BUMP REQUIRES A FULL RE-BAKE before the branch is served. A stale tile is
+     * refused, and a refused tile is silence: no ground, no route through it, and the
+     * movement code falls back to straight lines over that square of the world.
+     *
+     * Version 2 adds the cell and layer a gateway stands on, and a table of
+     * hand-authored links -- the jump off the Booty Bay dock and the two ledges in
+     * Blade's Edge Arena.
+     */
+    constexpr uint32_t NAV_TILE_VERSION = 2;
 
     /// The file one tile of one map lives in, relative to the nav directory.
     std::string NavTileFileName(uint32_t mapId, int tileX, int tileY);

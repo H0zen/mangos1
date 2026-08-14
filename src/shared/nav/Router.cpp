@@ -312,7 +312,7 @@ namespace Nav
         {
             const uint8_t side = NavTile::SideTowards(to.TileX() - from.TileX(),
                                                       to.TileY() - from.TileY());
-            if (side >= NavTile::SIDE_COUNT)
+            if (side >= NavTile::SIDE_BORDER_COUNT)
             {
                 return false;
             }
@@ -407,6 +407,13 @@ namespace Nav
             if (!goal.gateway || surface.region != goal.gateway->region)
             {
                 return false;
+            }
+
+            // A link mouth is a single cell, and its first/last say nothing. Aiming at
+            // it by the border rules below would test an index it never set.
+            if (goal.gateway->IsLink())
+            {
+                return uint32_t(inTile) == goal.gateway->cell;
             }
 
             const int lx = LocalX(inTile);
@@ -575,6 +582,13 @@ namespace Nav
         void GatewayEnds(const NavTile& tile, const Gateway& gate,
                          Geometry::Vector3& a, Geometry::Vector3& b)
         {
+            if (gate.IsLink())
+            {
+                a = Geometry::Vector3(gate.x, gate.y, gate.z);
+                b = a;
+                return;
+            }
+
             const bool varyY = gate.side == NavTile::SIDE_LOW_X ||
                                gate.side == NavTile::SIDE_HIGH_X;
             const int fixed = (gate.side == NavTile::SIDE_LOW_X ||
@@ -680,53 +694,114 @@ namespace Nav
             return false;
         }
 
-        const float climb = std::max(tile->Params().maxClimb, profile.maxClimb);
+        // The stricter of the bake's limit and the mover's, never a larger one -- the
+        // same rule the fine search uses, for the same reason.
+        const float climb = std::min(tile->Params().maxClimb, profile.maxClimb);
 
-        // Walk the line one cell at a time, carrying the surface forward. Carrying it
-        // is the point: a line that crosses a step of half a yard four times is fine,
-        // and a line that crosses a single drop of ten is not, and only a walk that
-        // remembers where it was standing can tell those apart.
-        int cell = fromCell.InTile();
+        // === The cells the SEGMENT crosses, not a walk that merely ends where it ends.
+        //
+        // This used to step greedily towards the target, diagonally while both axes had
+        // ground left, and it answered a different question than the one being asked.
+        // The caller is deciding whether to drop a corner from the route -- which means
+        // the CLIENT will walk the straight chord between the two surviving points. A
+        // greedy walk can go round the corner of a building and report success, and the
+        // chord then clips that corner: the creature walks into the wall, stops, and the
+        // route it was given never mentioned the obstacle.
+        //
+        // So walk the segment's supercover: every cell it actually enters, in order,
+        // by the standard grid traversal. One axis crosses at a time, so each step is
+        // orthogonal -- except where the chord passes exactly through a cell corner,
+        // which is a diagonal and gets the corner rule.
+        //
+        // The surface is carried forward through all of it. That is what tells a line
+        // crossing four half-yard steps (fine) from one crossing a single ten-yard drop
+        // (not fine), and no per-cell test can.
+        const float originX = float(tile->TileX() * CELLS_PER_TILE);
+        const float originY = float(tile->TileY() * CELLS_PER_TILE);
+
+        const float px = CellCoord(from.x) - originX;
+        const float py = CellCoord(from.y) - originY;
+        const float qx = CellCoord(to.x) - originX;
+        const float qy = CellCoord(to.y) - originY;
+
+        const float dx = qx - px;
+        const float dy = qy - py;
+
+        int ix = LocalX(fromCell.InTile());
+        int iy = LocalY(fromCell.InTile());
+
+        const int targetX = LocalX(toCell.InTile());
+        const int targetY = LocalY(toCell.InTile());
+
+        const int stepX = (dx > 0.0f) ? 1 : ((dx < 0.0f) ? -1 : 0);
+        const int stepY = (dy > 0.0f) ? 1 : ((dy < 0.0f) ? -1 : 0);
+
+        // How far along the segment the next boundary crossing lies, per axis, and how
+        // far apart consecutive crossings are. Both in units of the segment's length,
+        // so the two axes are directly comparable and the smaller one is next.
+        const float invX = (stepX != 0) ? 1.0f / std::fabs(dx) : 0.0f;
+        const float invY = (stepY != 0) ? 1.0f / std::fabs(dy) : 0.0f;
+
+        float tMaxX = (stepX > 0) ? (float(ix + 1) - px) * invX
+                                  : ((stepX < 0) ? (px - float(ix)) * invX : INF);
+        float tMaxY = (stepY > 0) ? (float(iy + 1) - py) * invY
+                                  : ((stepY < 0) ? (py - float(iy)) * invY : INF);
+
+        const float tDeltaX = (stepX != 0) ? invX : INF;
+        const float tDeltaY = (stepY != 0) ? invY : INF;
+
         Surface surface = fromSurface;
 
-        const int targetCell = toCell.InTile();
-        int guard = CELLS_PER_TILE * 2;
+        // A segment inside one tile crosses at most one boundary per cell per axis.
+        int guard = CELLS_PER_TILE * 3;
 
-        while (cell != targetCell && guard-- > 0)
+        while ((ix != targetX || iy != targetY) && guard-- > 0)
         {
-            const int dx = LocalX(targetCell) - LocalX(cell);
-            const int dy = LocalY(targetCell) - LocalY(cell);
+            // Equal within a rounding of each other means the chord goes through the
+            // corner exactly. Taking two orthogonal steps there would visit a cell the
+            // chord never enters -- and refuse the line because of it -- so it is one
+            // diagonal step, which Neighbour already guards with the corner rule.
+            const bool corner = std::fabs(tMaxX - tMaxY) < 1e-6f;
 
-            // Step towards the target, preferring the diagonal when both axes still
-            // have ground to cover. Not a Bresenham line: the exact cells a line
-            // crosses matter less than that every step taken is a step a mover could
-            // take, and this walk only ever takes those.
             int dir = -1;
-            if (dx != 0 && dy != 0)
+            if (corner && stepX != 0 && stepY != 0)
             {
-                dir = dx < 0 ? (dy < 0 ? 4 : 5) : (dy < 0 ? 6 : 7);
+                dir = (stepX < 0) ? ((stepY < 0) ? 4 : 5) : ((stepY < 0) ? 6 : 7);
+                tMaxX += tDeltaX;
+                tMaxY += tDeltaY;
+                ix += stepX;
+                iy += stepY;
             }
-            else if (dx != 0)
+            else if (tMaxX < tMaxY)
             {
-                dir = dx < 0 ? 0 : 1;
+                dir = (stepX < 0) ? 0 : 1;
+                tMaxX += tDeltaX;
+                ix += stepX;
             }
             else
             {
-                dir = dy < 0 ? 2 : 3;
+                dir = (stepY < 0) ? 2 : 3;
+                tMaxY += tDeltaY;
+                iy += stepY;
             }
 
-            int nextCell = 0;
-            Surface next;
-            if (!Neighbour(*tile, cell, surface, dir, profile, climb, nextCell, next))
+            if (!InTileBounds(ix, iy))
             {
                 return false;
             }
 
-            cell = nextCell;
+            int nextCell = 0;
+            Surface next;
+            if (!Neighbour(*tile, InTileOf(ix - DX[dir], iy - DY[dir]), surface, dir,
+                           profile, climb, nextCell, next))
+            {
+                return false;
+            }
+
             surface = next;
         }
 
-        return cell == targetCell;
+        return ix == targetX && iy == targetY;
     }
 
     void Router::Find(const RouteRequest& request, Route& out) const
@@ -815,6 +890,15 @@ namespace Nav
             if (!Coarse(startCell, startSurface, endCell, endSurface, request.profile,
                         corridor))
             {
+                // Before calling it a wall: the corridor may simply not be IN MEMORY.
+                // Routing is bounded by which tiles the map's grids happen to hold, and
+                // a route across open country can fail at a tile in the middle that
+                // nobody is standing in. Ask for them; the store brings a few in per
+                // tick and the next attempt has them. Nothing is loaded here -- a file
+                // read in the middle of a search would stall the map's tick.
+                m_store.WantAlong(request.start.x, request.start.y, request.end.x,
+                                  request.end.y);
+
                 out.outcome = RouteOutcome::Unroutable;
                 out.stop = RouteStop::Wall;
                 return;
@@ -964,6 +1048,44 @@ namespace Nav
                            nextKey});
             }
 
+            // And the hand-authored crossings: a jump off a dock is a way out of a
+            // region like any other, priced at what it spans so a router does not
+            // prefer it to walking three yards round.
+            for (const Link& link : tile->Links())
+            {
+                uint16_t far = 0xFFFF;
+                if (link.fromGate == here.gate)
+                {
+                    far = link.toGate;
+                }
+                else if (link.bidirectional && link.toGate == here.gate)
+                {
+                    far = link.fromGate;
+                }
+
+                if (far >= tile->Gateways().size() ||
+                    !UsableGateway(*tile, tile->Gateways()[far], profile))
+                {
+                    continue;
+                }
+
+                GateRef next = here;
+                next.gate = far;
+                const uint64_t nextKey = PackGate(next);
+
+                CoarseEntry& entry = seen[nextKey];
+                if (g + link.cost >= entry.g)
+                {
+                    continue;
+                }
+
+                entry.g = g + link.cost;
+                entry.parent = here;
+                entry.hasParent = true;
+                open.push({entry.g + DistToGateway(*tile, tile->Gateways()[far], to),
+                           nextKey});
+            }
+
             // Across the border: the joins the store computed when both tiles arrived.
             for (const Crossing& crossing : m_store.CrossingsOf(here))
             {
@@ -1041,6 +1163,11 @@ namespace Nav
 
         std::vector<std::pair<int, Surface>> path;
 
+        // The gateway the previous step left us standing on, so a link between it and
+        // the next one can be recognised. Null for the first leg, which starts at the
+        // caller's position rather than at a gateway.
+        const GateRef* previous = nullptr;
+
         for (size_t i = 0; i < corridor.size(); ++i)
         {
             const GateRef& ref = corridor[i];
@@ -1066,6 +1193,43 @@ namespace Nav
                 leg.tile = tile;
                 leg.cells.push_back({cell, surface});
                 legs.push_back(std::move(leg));
+
+                previous = &ref;
+                continue;
+            }
+
+            // A LINK, not a walk: the gateway we are standing on and this one are the
+            // two mouths of a hand-authored crossing, and no sequence of steps joins
+            // them -- that is what makes it a link. Searching for one would fail and
+            // report the whole route as a wall.
+            //
+            // Only when the tile's own cost matrix says the walk is UNREACHABLE. Where
+            // both exist the walk is taken, because a walk is the edge the coarse stage
+            // measured and a jump is a straight segment over ground nobody checked; the
+            // two mouths of a link are normally in different regions, so this costs
+            // nothing at the dock it was written for.
+            if (previous && previous->gate != ref.gate &&
+                previous->tileX == ref.tileX && previous->tileY == ref.tileY &&
+                tile->GatewayCost(previous->gate, ref.gate) >= NavTile::UNREACHABLE &&
+                tile->LinkBetween(previous->gate, ref.gate) != nullptr)
+            {
+                const Gateway& mouth = tile->Gateways()[ref.gate];
+                const Surface landing = tile->SurfaceAt(int(mouth.cell), mouth.layer);
+                if (!landing.Valid() || !Admits(profile, landing))
+                {
+                    return false;
+                }
+
+                cell = int(mouth.cell);
+                surface = landing;
+
+                Leg leg;
+                leg.tile = tile;
+                leg.jump = true;
+                leg.cells.push_back({cell, surface});
+                legs.push_back(std::move(leg));
+
+                previous = &ref;
                 continue;
             }
 
@@ -1087,6 +1251,7 @@ namespace Nav
 
             cell = path.back().first;
             surface = path.back().second;
+            previous = &ref;
         }
 
         // The last stretch: from wherever the final gateway left us, to the goal.
@@ -1152,7 +1317,13 @@ namespace Nav
                 const Corner corner{CellWorld(*leg.tile, step.first, step.second.z),
                                     step.second.area};
 
-                if (!havePrev || leg.tile.get() != prevTile)
+                // A jump's landing is always a corner of its own. The merge below
+                // replaces the previous point when a step repeats the last direction,
+                // and a link between two surfaces of ONE cell steps nowhere at all --
+                // (0,0), which is exactly the direction a fresh leg starts with. That
+                // would delete the take-off and leave a route that says nothing about
+                // the ledge it was written for.
+                if (!havePrev || leg.tile.get() != prevTile || leg.jump)
                 {
                     corners.push_back(corner);
                     havePrev = true;

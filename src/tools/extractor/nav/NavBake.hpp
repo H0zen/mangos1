@@ -17,12 +17,16 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace Nav
 {
     struct BakeConfig
     {
         BuildParams params;
+
+        /// The hand-authored links file, or empty for none. See LoadOffMesh.
+        std::string offMeshFile;
 
         /// Worker threads. Zero asks the hardware.
         ///
@@ -56,7 +60,8 @@ namespace Nav
 
         private:
             int BakeMap(uint32_t mapId, const std::string& label,
-                        const std::vector<std::pair<int, int>>& grids);
+                        const std::vector<std::pair<int, int>>& grids,
+                        const std::vector<LinkSpec>& links);
 
             std::string m_tileDir;
             std::string m_outDir;
