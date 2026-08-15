@@ -52,6 +52,7 @@ set(SRC_GRP_TESTS
     PlacementTest.cpp
     GeometryMathTest.cpp
     DataIntegrityTest.cpp
+    CombatCoreTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These three know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp
@@ -87,6 +88,7 @@ target_link_libraries(mangos_tests
     PRIVATE
         proto
         shared
+        combat_pure
         dataintegrity
         extractor_client
         extractor_data
@@ -115,6 +117,11 @@ add_test(NAME movement_state_seed
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckMovementStateSeed.cmake)
+
+add_test(NAME combat_boundary
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCombatBoundary.cmake)
 
 # Put the runtime DLLs beside the test binary so it can be run from the build tree.
 # A convenience, never a gate: the search is derived from the library that was actually

@@ -23,6 +23,13 @@
 add_subdirectory(shared/Geometry)
 add_subdirectory(shared/terrain)
 
+# The combat rules, and nothing else: no Unit, no World, no DBC, no packet.
+# Configured unconditionally and outside the BUILD_MANGOSD guard for the same
+# reason geometry is -- the unit tests link it directly, without the game
+# library, which is the only way a hit table can be rolled against a written-down
+# number instead of a running server.
+add_subdirectory(game/combat/pure)
+
 # Build the mangos shared library
 add_subdirectory(shared)
 
