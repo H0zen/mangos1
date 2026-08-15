@@ -63,6 +63,22 @@ namespace Combat
         std::uint32_t schoolMask = 0;
     };
 
+    /// The proc machinery, deferred.
+    ///
+    /// This is the ordering fix in one struct. The old path called
+    /// ProcDamageAndSpell between sending the combat log and applying the
+    /// damage, so a proc that killed the target made the log a lie and left
+    /// the rest of the swing running on a corpse. The masks are captured at
+    /// commit time and the run happens after the health has moved.
+    struct ProcTrigger
+    {
+        std::uint32_t attackerMask = 0;
+        std::uint32_t victimMask   = 0;
+        std::uint32_t extraMask    = 0;
+        std::uint32_t damage       = 0;
+        Hand          hand         = Hand::Main;
+    };
+
     /// Weapon enchants and poisons.
     struct ItemCombat
     {
@@ -88,7 +104,8 @@ namespace Combat
         ObjectGuid   target;
         std::uint8_t depth = 0;
 
-        std::variant<ExtraSwing, ProcCast, DamageShield, ItemCombat, Daze> what;
+        std::variant<ExtraSwing, ProcTrigger, ProcCast, DamageShield,
+                     ItemCombat, Daze> what;
     };
 
     /**
