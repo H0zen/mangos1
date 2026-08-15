@@ -91,7 +91,11 @@ namespace Helm
                     break;
             }
 
-            out << uint32(FlagsOf(course));
+            // Fake Runmode (0x100) on every monster-move. The 2.4.3 client has
+            // strange issues without that flag -- same OR the pre-Helm builder
+            // applied in packet_builder.cpp. FlagsOf() stays truthful for the
+            // create block, which never forced the bit.
+            out << uint32(FlagsOf(course) | FLAG_RUNNING);
             out << uint32(course.Duration());
 
             // The count field is the INDEX of the final point, not how many there are:
