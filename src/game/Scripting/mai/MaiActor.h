@@ -30,6 +30,7 @@
 
 #include "ObjectGuid.h"
 #include "Platform/Define.h"
+#include "combat/pure/ProcPoints.h"
 
 class Creature;
 class Map;
@@ -99,6 +100,16 @@ namespace mai
         /// The AI driving this creature, when a creature is running the step.
         /// Null for a sequence the world started, which has no AI behind it.
         Driver*      driver = nullptr;
+
+        /// The numbers the thing that started this carried.
+        ///
+        /// A cast can compute its base points from them instead of using the
+        /// spell's own: "fifteen percent of the damage that triggered this"
+        /// has no value to write in a table, because the damage is not known
+        /// until the moment it fires. A proc fills these in; anything else
+        /// leaves them zero, and a `points_source` that reads a zero gets a
+        /// zero, which is what a spell nobody gave numbers to should get.
+        Combat::PointsInputs numbers;
 
         Unit*     SourceUnit() const;
         Creature* SourceCreature() const;

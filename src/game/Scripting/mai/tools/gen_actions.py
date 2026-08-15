@@ -76,6 +76,15 @@ TYPES = {
     # rather than the loader translating first: interning needs the creature it
     # belongs to, and the parser is where the creature is known.
     'state':      ('uint32', 'State'),
+
+    # Names from a closed set, resolved by the parser into the enums in
+    # combat/pure/ProcPoints.h. A spell's base points are a number computed
+    # from something the moment it is cast -- the damage that triggered it,
+    # the caster's attack power, what the spell that procced cost -- and the
+    # source and the scale are what say which. Written as words so a row reads
+    # `points_source=damage` rather than carrying a magic number.
+    'points_source': ('uint32', 'PointsSource'),
+    'points_scale':  ('uint32', 'PointsScale'),
 }
 
 

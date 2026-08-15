@@ -258,6 +258,32 @@ namespace mai
          * is what EventAI's own column held. `command_additional` on the step
          * means triggered, which is how the DB scripts spelled the same thing.
          */
+        /**
+         * The base points a step computes, when it says to compute any.
+         *
+         * Slots 4 to 7 are the `points` facet. Absent `points_source` means
+         * the spell keeps the base points it carries, which is why this
+         * answers with the formula rather than with a number: an undefined
+         * formula and a formula that works out to zero are different, and
+         * only the first one leaves the spell alone.
+         */
+        Combat::PointsFormula PointsOf(Step const& step)
+        {
+            Combat::PointsFormula formula;
+
+            if (!step.Has(4))
+            {
+                return formula;
+            }
+
+            formula.source  = Combat::PointsSource(Given(step, 4));
+            formula.scale   = Combat::PointsScale(Given(step, 5));
+            formula.coeff   = step.Has(6) ? step.operands[6].i : 100;
+            formula.divisor = int32(Given(step, 7, 1));
+
+            return formula;
+        }
+
         bool CastSpell(Doing& doing, Step const& step, bool& handled)
         {
             Creature* self = doing.SourceCreature();
@@ -290,6 +316,31 @@ namespace mai
             // "the player you just killed casts the mark on himself, and it is
             // YOURS" -- would silently lose the attribution, which is the
             // whole of what the step was for.
+            Combat::PointsFormula const points = PointsOf(step);
+
+            // A step that computes its base points casts them directly. There
+            // is no "may I?" to ask: the number was worked out from something
+            // that already happened, and a spell whose damage is a share of a
+            // hit that landed is not a spell the caster can be talked out of.
+            if (points.Defined())
+            {
+                Unit* caster = doing.SourceUnit();
+                if (!caster)
+                {
+                    handled = false;
+                    return false;
+                }
+
+                int32 const base =
+                    Combat::EvaluatePoints(points, doing.numbers);
+
+                caster->CastCustomSpell(victim ? victim : caster,
+                                        Given(step, 0), &base, nullptr,
+                                        nullptr, true, nullptr, nullptr,
+                                        credited);
+                return false;
+            }
+
             if (!self || !self->AI())
             {
                 Unit* caster = doing.SourceUnit();

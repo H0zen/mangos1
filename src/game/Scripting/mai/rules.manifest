@@ -109,6 +109,23 @@ category self = 0x03
     missing_aura            27   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
     timer                   29   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
 
+    # One of this unit's auras procced.
+    #
+    # `aura` is the spell that holds the procing aura, so a rule names the
+    # buff rather than the event, which is how a person looking for what
+    # Ignite does finds it.
+    #
+    # The conditions under which an aura procs at all -- which schools, which
+    # spell families, how often, at what chance -- are `spell_proc_event`'s
+    # and are read before this fires. What is left for the guard is the part
+    # that varies per encounter.
+    #
+    # The invoker is whoever was on the other end, so a step reaches them with
+    # `select=6` and acts as them with `select_source=6`, the same as
+    # `spell_hit_target`.
+    aura_procced            36   aura:spell? proc_spell:spell? \
+                                 repeat:ms? repeat_max:ms?
+
 # The order here is the UNION'S, not the one that reads best, and the three
 # lines below were the only ones in this file that got that wrong. A trigger's
 # parameters are copied across by position -- that is what lets the lowering be

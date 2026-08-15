@@ -39,6 +39,23 @@
 #     texts       up to four text ids, because TALK picks one at random
 #     at          a position, for the verbs that need one
 #
+# And one that only the casting verbs carry:
+#
+#     points      base points computed when the spell is cast, rather than the
+#                 fixed ones the spell carries. A proc that deals "15% of the
+#                 damage that triggered it" has no number to write down until
+#                 the moment it fires: the number is
+#
+#                     source * percent / 100 / divisor
+#
+#                 where `points_source` names what to read, `points_scale`
+#                 says where the percentage itself comes from -- the row, the
+#                 aura's own amount, or a second effect of the aura spell --
+#                 and the arithmetic is in combat/pure/ProcPoints.h, where it
+#                 is tested without a world.
+#
+#                 Absent means the spell keeps its own base points.
+#
 # The buddy search is NOT among them, and that is a correction rather than an
 # omission. In `dbscripts_on_*` it is a property of the ROW, not of the
 # command: any command at all may be redirected to act on some other creature
@@ -48,6 +65,8 @@
 
 facet texts   text0:text? text1:text? text2:text? text3:text?
 facet at      x:f32? y:f32? z:f32? o:f32?
+facet points  points_source:points_source? points_scale:points_scale? \
+              points_coeff:i32? points_divisor:u32?
 
 category say = 0x01
     talk                     0   texts
@@ -128,7 +147,8 @@ category combat = 0x04
     # everywhere an ability announces itself. Without it the boss says his line
     # and does nothing, once per attempt, which is worse than silence: the raid
     # is told to move out of something that is not there.
-    cast_spell              15   spell:spell flags:flags? credit_owner:bool?                                  stop_if_refused:bool?
+    cast_spell              15   spell:spell flags:flags? credit_owner:bool? \
+                                 stop_if_refused:bool? points
     remove_aura             14   spell:spell
     attack_start            26
     despawn_self            18   delay:ms?

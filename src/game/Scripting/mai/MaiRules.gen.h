@@ -76,6 +76,7 @@ namespace mai
         HasAura                    = 23,
         MissingAura                = 27,
         Timer                      = 29,
+        AuraProcced                = 36,
 
         // friendly
         FriendlyHurt               = 14,
@@ -286,6 +287,14 @@ namespace mai
         { "repeat_max", ParamType::Ms, true },
     };
 
+    inline constexpr ParamSpec g_ruleParamsAuraProcced[] =
+    {
+        { "aura", ParamType::Spell, true },
+        { "proc_spell", ParamType::Spell, true },
+        { "repeat", ParamType::Ms, true },
+        { "repeat_max", ParamType::Ms, true },
+    };
+
     inline constexpr ParamSpec g_ruleParamsFriendlyHurt[] =
     {
         { "missing_hp", ParamType::U32, false },
@@ -432,6 +441,7 @@ namespace mai
         { RuleId::HasAura, "has_aura", g_ruleParamsHasAura, 4, 4, 0 },
         { RuleId::MissingAura, "missing_aura", g_ruleParamsMissingAura, 4, 4, 0 },
         { RuleId::Timer, "timer", g_ruleParamsTimer, 4, 4, 0 },
+        { RuleId::AuraProcced, "aura_procced", g_ruleParamsAuraProcced, 4, 4, 0 },
         { RuleId::FriendlyHurt, "friendly_hurt", g_ruleParamsFriendlyHurt, 6, 6, 0 },
         { RuleId::FriendlyControlled, "friendly_controlled", g_ruleParamsFriendlyControlled, 6, 6, 0 },
         { RuleId::FriendlyMissingBuff, "friendly_missing_buff", g_ruleParamsFriendlyMissingBuff, 6, 6, 0 },

@@ -37,6 +37,8 @@
 
 #include "MaiParse.h"
 
+#include "combat/pure/ProcPoints.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -198,6 +200,42 @@ namespace mai
                     }
 
                     operands[slot].u = uint32(at);
+                    given |= uint16(1u << slot);
+                    continue;
+                }
+
+                if (type == ParamType::PointsSource ||
+                    type == ParamType::PointsScale)
+                {
+                    // A word from a closed set. Refused by name, with the set
+                    // it had to come from, because "damge" is otherwise a
+                    // spell that computes its damage from nothing.
+                    bool known = false;
+
+                    if (type == ParamType::PointsSource)
+                    {
+                        Combat::PointsSource source = Combat::PointsSource::None;
+                        known = Combat::ParsePointsSource(text.c_str(), source);
+                        operands[slot].u = uint32(source);
+                    }
+                    else
+                    {
+                        Combat::PointsScale scale = Combat::PointsScale::Literal;
+                        known = Combat::ParsePointsScale(text.c_str(), scale);
+                        operands[slot].u = uint32(scale);
+                    }
+
+                    if (!known)
+                    {
+                        std::snprintf(buffer, sizeof(buffer),
+                                      "%s.%s is '%s', which is not one of the "
+                                      "names this parameter takes",
+                                      spec.name, spec.params[slot].name,
+                                      text.c_str());
+                        error = buffer;
+                        return false;
+                    }
+
                     given |= uint16(1u << slot);
                     continue;
                 }
