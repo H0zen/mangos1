@@ -85,9 +85,12 @@ namespace Nav
         // to every other regardless of the drop between them; a parameter of 91 links
         // none at all, and both come back from a corrupt or hand-edited bake file
         // looking like an ordinary number. The bakes ship 55.
-        const float degrees = maxSlopeDeg > 89.0f    ? 89.0f
-                              : maxSlopeDeg < 0.0f   ? 0.0f
-                                                     : maxSlopeDeg;
+        // `isfinite` first: NaN is neither > 89 nor < 0, and tan(NaN) is NaN, so
+        // every pair would stitch (`fabs(dz) > NaN` is false).
+        const float degrees = !std::isfinite(maxSlopeDeg) ? 0.0f
+                              : maxSlopeDeg > 89.0f       ? 89.0f
+                              : maxSlopeDeg < 0.0f        ? 0.0f
+                                                          : maxSlopeDeg;
 
         const float rise = length * std::tan(degrees * 3.14159265f / 180.0f);
         return maxClimb > rise ? maxClimb : rise;

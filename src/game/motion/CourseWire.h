@@ -225,6 +225,10 @@ namespace Helm
         /// by the quantum and cannot tell how the value was chosen.
         inline int32 Quantise(float yards)
         {
+            if (!std::isfinite(yards) || yards > kMaxOffsetXY || yards < -kMaxOffsetXY)
+            {
+                return kPackedMaxXY + 1;
+            }
             return int32(std::lround(yards / kQuantum));
         }
 
@@ -278,7 +282,7 @@ namespace Helm
 
             // One bit for two meanings, so Course::Plan already forced the gait to
             // match; this is the other half of that bargain.
-            if (course.GetCurve() == Curve::Smooth || course.GetGait() == Gait::Fly)
+            if (course.GetCurve() == Curve::Smooth)
             {
                 flags |= FLAG_SMOOTH_FLYING;
             }

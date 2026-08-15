@@ -426,6 +426,11 @@ namespace Helm
             Curve                m_curve = Curve::Segmented;
             bool                 m_quantised = false; ///< Has interior points.
             bool                 m_falling = false;   ///< Timed by gravity, not speed.
+
+            /// Last non-zero XY tangent. A vertical fall (and any zero-length
+            /// segment) has no heading of its own; inventing +X is what spun
+            /// the pose east for the whole drop.
+            mutable float        m_lastHeading = 0.0f;
     };
 }
 

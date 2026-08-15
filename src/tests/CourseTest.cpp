@@ -713,3 +713,69 @@ TEST(Sync_ANewCourseResetsTheSchedule)
     CHECK(CourseSync::Due(state, second.LegAt(11200), clock, 11200,
                           CourseSync::Reach::AnyCourse));
 }
+
+TEST(Course_VerticalSegmentKeepsTheWalkFacing)
+{
+    std::vector<Vector3> pts;
+    pts.push_back(Vector3(0.0f, 0.0f, 0.0f));
+    pts.push_back(Vector3(10.0f, 0.0f, 0.0f));
+    pts.push_back(Vector3(10.0f, 0.0f, 20.0f));
+
+    const Course c = Course::Plan(World(), pts, Gait::Run, 7.0f, Facing(),
+                                  Curve::Segmented, 1000, 1);
+    REQUIRE(!c.Empty());
+
+    // First segment points +X. The vertical hop that follows has no XY tangent
+    // and must not snap the heading to east-by-accident -- that is atan2(0, 0).
+    const float along = c.Heading(Advance(c.StartedAt(), Millis(100)));
+    CHECK(Near(along, 0.0f, 0.05f));
+
+    const float up = c.Heading(c.EndsAt());
+    CHECK(Near(up, along, 0.05f));
+}
+
+TEST(Course_AFallDoesNotInventAFacing)
+{
+    const Course c = Course::Falling(World(), Vector3(3.0f, 4.0f, 40.0f),
+                                     Vector3(3.0f, 4.0f, 10.0f), Facing(),
+                                     1000, 1);
+    REQUIRE(!c.Empty());
+    CHECK(c.IsFalling());
+    CHECK_EQ(c.Heading(1100), 0.0f);
+}
+
+TEST(Course_HugeFacingDoesNotHang)
+{
+    Facing facing = Facing::ToAngle(1.0e20f);
+    std::vector<Vector3> pts;
+    pts.push_back(Vector3(0.0f, 0.0f, 0.0f));
+    pts.push_back(Vector3(5.0f, 0.0f, 0.0f));
+    const Course c = Course::Plan(World(), pts, Gait::Walk, 2.5f, facing,
+                                  Curve::Segmented, 1000, 1);
+    REQUIRE(!c.Empty());
+    const float h = c.Heading(c.EndsAt());
+    CHECK(std::isfinite(h));
+    CHECK(h >= 0.0f);
+    CHECK(h < 6.3f);
+}
+
+TEST(Clock_EvictedHistoryUnderstatesRatherThanInventing)
+{
+    ClientClock clock;
+    clock.Sync(1000, 1000, 1060);
+
+    for (int i = 0; i < 300; ++i)
+    {
+        clock.Skipped(10, Instant(2000 + i * 10));
+    }
+
+    const Millis total = clock.TotalSkew();
+    CHECK(total >= 3000);
+
+    // Older than every retained stamp. Returning `total` here was the whole
+    // session's debt and made long flights hitch. The floor is the evicted
+    // prefix, so this is strictly smaller.
+    const Millis since = clock.SkewSince(1000);
+    CHECK(since < total);
+    CHECK(since > 0);
+}

@@ -194,6 +194,64 @@ namespace Nav
 
             return false;
         }
+
+        /**
+         * @brief Put the floor under a long taut run.
+         *
+         * Polyanya's points are the turns. A maximal rectangle can be hundreds of yards
+         * of hillside, and the 3D chord between its ends goes through the dirt -- the
+         * height field exists because no plane (and therefore no chord) fits the ADT.
+         * Sample every SMOOTH_STEP and seat each sample, so the client walks the ground.
+         */
+        void SeatLongLegs(const NavStore& store, float tolerance,
+                          std::vector<Geometry::Vector3>& points)
+        {
+            if (points.size() < 2)
+            {
+                return;
+            }
+
+            std::vector<Geometry::Vector3> seated;
+            seated.reserve(points.size());
+            seated.push_back(points.front());
+
+            for (size_t i = 1; i < points.size(); ++i)
+            {
+                const Geometry::Vector3& a = seated.back();
+                const Geometry::Vector3& b = points[i];
+                const float leg = Dist2D(a, b);
+                const int samples = static_cast<int>(leg / SMOOTH_STEP);
+
+                for (int k = 1; k <= samples; ++k)
+                {
+                    const float along = float(k) * SMOOTH_STEP;
+                    if (along + 0.01f >= leg)
+                    {
+                        break;
+                    }
+
+                    const float t = along / leg;
+                    Geometry::Vector3 p = a + (b - a) * t;
+
+                    CellRef cell;
+                    Surface surface;
+                    if (store.SurfaceAt(p.x, p.y, p.z, tolerance + CELL_SIZE, cell,
+                                        surface) &&
+                        surface.Valid())
+                    {
+                        p.z = surface.z + (AreaOf(surface.area) == NavArea::Water
+                                               ? -SWIM_SEAT_DEPTH
+                                               : GROUND_CLEARANCE);
+                    }
+
+                    seated.push_back(p);
+                }
+
+                seated.push_back(b);
+            }
+
+            points.swap(seated);
+        }
     }
 
     // ------------------------------------------------------------------ Router ----
@@ -385,13 +443,14 @@ namespace Nav
         // THE MESH IS THE ROUTE. Areas and the openings between them, a coarse search
         // over those, and Polyanya inside each tile -- no cells anywhere in it, and the
         // points come back already taut so there is nothing to straighten afterwards.
-        //
-        // What follows it is not a second implementation kept for taste. A tile can be
-        // resident before its mesh has been derived, and a query arriving in that window
-        // still has to be answered; deriving one here would put a pass over a quarter of
-        // a million cells on the map's tick.
         if (FindOnMesh(request, startCell, startSurface, endCell, endSurface, out))
         {
+            // Height is a field, not a plane: a taut 2-point leg across a hillside is a
+            // chord through the dirt. Sample the floor along any long run before the
+            // caps measure it, so a flee ceiling and a point budget see the walked
+            // ground rather than the chord.
+            SeatLongLegs(m_store, request.seatTolerance, out.points);
+
             // THE LENGTH CAP, measured in yards over the points actually emitted. It is
             // the only place it can be measured: a point stands for a corner, so the
             // count of them is not a distance and never was. Flee and confused movement
@@ -417,27 +476,36 @@ namespace Nav
                 return;
             }
 
-            if (out.points.size() <= request.budget.points)
+            if (out.points.size() > request.budget.points)
             {
-                out.outcome = RouteOutcome::Routed;
-                out.stop = RouteStop::Reached;
-            }
-            else
-            {
+                // The label used to be the whole of the budget: Partial/PointBudget
+                // with the vector left intact, which is the one thing the client was
+                // measured not to accept past 93. Keep the reachable prefix.
+                out.points.resize(request.budget.points);
+                if (out.points.size() < 2)
+                {
+                    out.Clear();
+                    out.outcome = RouteOutcome::Unroutable;
+                    out.stop = RouteStop::PointBudget;
+                    return;
+                }
+
                 out.outcome = RouteOutcome::Partial;
                 out.stop = RouteStop::PointBudget;
+                return;
             }
+
+            out.outcome = RouteOutcome::Routed;
+            out.stop = RouteStop::Reached;
             return;
         }
 
-        // Nothing else to try. The cell engine that used to sit here -- Coarse over
-        // gateways, Refine over cells, Emit to flatten a cell path back into corners --
-        // is gone; what is left of it is MARKED FOR DELETION where it stands, and the
-        // header lists it. It was not a fallback, it was a
-        // second answer: it admitted areas the mesh refused, priced them differently,
-        // ignored the floor a point was on, and enforced a length limit the mesh did
-        // not. Two engines for one question is how a bridge became walkable to one of
-        // them and a thing to route under for the other.
+        // The tile in the middle of a chase across empty countryside is nobody's grid.
+        // Remember it so the next replan -- a few hundred milliseconds -- has it. The
+        // cell engine used to do this; deleting the engine deleted the only caller.
+        m_store.WantAlong(request.start.x, request.start.y,
+                          request.end.x, request.end.y);
+
         out.outcome = RouteOutcome::Unroutable;
         out.stop = RouteStop::Wall;
     }
@@ -504,6 +572,27 @@ namespace Nav
 
         const uint8_t needed = QuantiseClearance(profile.radius);
 
+        // A loaded neighbour with no mesh is invisible to coarse: the stitch runs
+        // only when a mesh is first published. Derive the four orthogonal residents
+        // now, so a corridor of three tiles (or a diagonal hop) can exist on the
+        // first try rather than after someone happens to stand in the middle.
+        const auto ensureNeighbourMeshes = [this](int tileX, int tileY)
+        {
+            static const int dx[4] = {-1, 1, 0, 0};
+            static const int dy[4] = {0, 0, -1, 1};
+            for (int i = 0; i < 4; ++i)
+            {
+                (void)m_store.MeshOf(tileX + dx[i], tileY + dy[i]);
+            }
+        };
+
+        ensureNeighbourMeshes(startCell.TileX(), startCell.TileY());
+        if (startCell.TileX() != endCell.TileX() ||
+            startCell.TileY() != endCell.TileY())
+        {
+            ensureNeighbourMeshes(endCell.TileX(), endCell.TileY());
+        }
+
         const uint64_t goal =
             pack(endCell.TileX(), endCell.TileY(), static_cast<uint32_t>(endRect));
 
@@ -560,6 +649,11 @@ namespace Nav
             const int tileX = static_cast<int16_t>(key >> 48);
             const int tileY = static_cast<int16_t>(key >> 32);
             const uint32_t rect = static_cast<uint32_t>(key);
+
+            // Each hop can reveal a further resident tile the start/end pair never
+            // touched. Five tiles in a line, the middle one is nobody's neighbour
+            // at the ends.
+            ensureNeighbourMeshes(tileX, tileY);
 
             const std::shared_ptr<const NavTile> tile = m_store.TileAt(tileX, tileY);
             const std::shared_ptr<const TileMesh> mesh = m_store.MeshOf(tileX, tileY);
@@ -828,10 +922,10 @@ namespace Nav
                 return true;
             }
 
-            if (startMesh->links.empty())
-            {
-                return false;
-            }
+            // Always try coarse. A U-shaped walkable set that only reconnects through
+            // the neighbour is a wall to Polyanya -- it never leaves the tile -- and
+            // falling through only when the tile had a MeshLink left every other map
+            // without that detour. Booty Bay has links; Elwynn does not.
         }
 
         std::vector<MeshStep> corridor;

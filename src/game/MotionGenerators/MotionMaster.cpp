@@ -314,9 +314,16 @@ void MotionMaster::MoveIdle()
         return;   // already idle, and nothing to interrupt
     }
 
+    // Stop the current mover, then cover the default -- do not delete it.
+    // Clear(..., true) is the death path: it throws the waypoint/wander away,
+    // and after evade GetResetPosition on idle is false, so the creature
+    // "comes home" to its spawn instead of its last node.
     m_owner->StopMoving();
-    Clear(false, true);
-    m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
+    Clear(false, false);
+    if (m_roster.Empty() || !isStatic(top()))
+    {
+        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
+    }
 }
 
 /**

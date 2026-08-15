@@ -243,6 +243,12 @@ namespace Nav
         {
             ok = false;
         }
+
+        if (!ok)
+        {
+            std::remove(path.c_str());
+        }
+
         return ok;
     }
 

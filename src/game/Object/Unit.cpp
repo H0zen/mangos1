@@ -5411,7 +5411,8 @@ void Unit::InterruptMoving(bool forceSendStop /*=false*/)
     {
         const uint32 now = getMSTime();
         const Geometry::Vector3 at = m_course.At(now);
-        const float heading = m_course.Heading(now);
+        const float heading = m_course.IsFalling() ? Where().Facing()
+                                                   : m_course.Heading(now);
         AbandonCourse();
         Place().MoveTo(at.x, at.y, at.z, heading);
 
@@ -6461,7 +6462,11 @@ bool Unit::RefreshPoseFromCourse()
         return false;
     }
 
-    Place().MoveTo(m_course.At(now), m_course.Heading(now));
+    // A fall has no XY tangent. Heading() would be atan2(0,0) = east, and the
+    // client keeps the entry facing. Keep the pose's facing too.
+    const float heading = m_course.IsFalling() ? Where().Facing()
+                                               : m_course.Heading(now);
+    Place().MoveTo(m_course.At(now), heading);
     return true;
 }
 

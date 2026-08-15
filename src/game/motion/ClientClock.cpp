@@ -84,6 +84,7 @@ namespace Helm
         m_skew.emplace_back(when, m_skewTotal);
         while (m_skew.size() > kSkewHistory)
         {
+            m_skewFloor = m_skew.front().second;
             m_skew.pop_front();
         }
     }
@@ -96,6 +97,7 @@ namespace Helm
         m_offset = 0;
         m_spread = 0;
         m_skewTotal = 0;
+        m_skewFloor = 0;
         m_lastSyncAt = 0;
         m_known = false;
     }
@@ -104,11 +106,11 @@ namespace Helm
     {
         std::lock_guard<std::mutex> lock(m_mutex);
 
-        // The cumulative total as of `when`, subtracted from the total now. Entries are
-        // ordered, so this is the last entry at or before `when`; anything older than
-        // the retained history counts as already settled, which is the safe direction
-        // (it understates the debt rather than inventing one).
-        Millis before = 0;
+        // The cumulative total as of `when`, subtracted from the total now. Entries
+        // are ordered, so this is the last entry at or before `when`. Anything older
+        // than the retained history is already settled -- use the evicted floor,
+        // never 0 against a non-zero total, which was the whole session's debt.
+        Millis before = m_skewFloor;
         for (auto const& entry : m_skew)
         {
             if (Since(entry.first, when) > 0)

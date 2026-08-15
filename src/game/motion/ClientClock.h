@@ -170,6 +170,11 @@ namespace Helm
             Millis  m_offset = 0;      ///< server = client + offset
             Millis  m_spread = 0;      ///< half the best round trip
             Millis  m_skewTotal = 0;
+            /// Cumulative debt already dropped from the front of m_skew. A
+            /// SkewSince older than the retained history uses this rather
+            /// than 0, so eviction understates the remaining debt instead of
+            /// returning the whole session total.
+            Millis  m_skewFloor = 0;
             Instant m_lastSyncAt = 0;
             bool    m_known = false;
     };

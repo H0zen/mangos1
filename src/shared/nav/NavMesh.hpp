@@ -356,8 +356,9 @@ namespace Nav
         float farY = 0.0f;
         float farZ = 0.0f;
 
-        /// The widest matched run, in the packed clearance byte: a crossing is usable by
-        /// anyone who fits through its most generous part.
+        /// The narrowest cell on the emitted run, in the packed clearance byte. A
+        /// crossing is a door, not a field: the mover has to fit through every cell
+        /// of the run that was kept.
         uint8_t clearance = 0;
     };
 

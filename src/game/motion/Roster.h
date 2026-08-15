@@ -28,6 +28,7 @@
 
 #include "Platform/Define.h"
 
+#include <cassert>
 #include <cstddef>
 #include <vector>
 
@@ -111,8 +112,16 @@ namespace Helm
              * Only call it when the roster is not empty; there is no null payload to
              * return and inventing one would put the check in every caller.
              */
-            T const& Active() const { return m_entries[ActiveIndex()].payload; }
-            T& Active() { return m_entries[ActiveIndex()].payload; }
+            T const& Active() const
+            {
+                assert(!Empty());
+                return m_entries[ActiveIndex()].payload;
+            }
+            T& Active()
+            {
+                assert(!Empty());
+                return m_entries[ActiveIndex()].payload;
+            }
 
             /// What the driving entry is worth.
             Rank ActiveRank() const { return m_entries[ActiveIndex()].rank; }

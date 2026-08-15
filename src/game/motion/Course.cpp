@@ -106,13 +106,12 @@ namespace
             return 0.0f;
         }
 
-        while (a < 0.0f)
+        // `fmod` of a huge finite angle finishes. The `while` this replaces
+        // never came back from 1e20, and a script facing is allowed to be that.
+        a = std::fmod(a, TWO_PI_F);
+        if (a < 0.0f)
         {
             a += TWO_PI_F;
-        }
-        while (a >= TWO_PI_F)
-        {
-            a -= TWO_PI_F;
         }
         return a;
     }
@@ -141,7 +140,7 @@ namespace Helm
 
         const float drop = from.z - to.z;
         if (!(drop > 0.0f) || !std::isfinite(from.x) || !std::isfinite(from.y) ||
-            !std::isfinite(to.z))
+            !std::isfinite(from.z) || !std::isfinite(to.z))
         {
             // Not a fall: level ground, upward, or a position that is not a position.
             // An empty course has ended everywhere, which is the honest answer for
@@ -295,6 +294,19 @@ namespace Helm
             return Course();
         }
 
+        // Seed the heading from the first segment that actually points somewhere,
+        // so a later vertical hop keeps the facing the walk arrived with.
+        for (size_t i = 1; i < c.m_points.size(); ++i)
+        {
+            const float dx = c.m_points[i].x - c.m_points[i - 1].x;
+            const float dy = c.m_points[i].y - c.m_points[i - 1].y;
+            if (dx != 0.0f || dy != 0.0f)
+            {
+                c.m_lastHeading = Wrap2Pi(std::atan2(dy, dx));
+                break;
+            }
+        }
+
         return c;
     }
 
@@ -416,6 +428,11 @@ namespace Helm
         float u = 0.0f;
         Locate(Elapsed(now), k, u);
 
+        if (m_falling)
+        {
+            return m_lastHeading;
+        }
+
         Vector3 d;
         if (m_curve == Curve::Smooth)
         {
@@ -427,7 +444,14 @@ namespace Helm
         {
             d = m_points[k + 1] - m_points[k];
         }
-        return Wrap2Pi(std::atan2(d.y, d.x));
+
+        if (d.x == 0.0f && d.y == 0.0f)
+        {
+            return m_lastHeading;
+        }
+
+        m_lastHeading = Wrap2Pi(std::atan2(d.y, d.x));
+        return m_lastHeading;
     }
 
     float Course::Slack(Instant now) const

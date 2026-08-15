@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace Nav
 {
@@ -671,7 +672,44 @@ namespace Nav
                     crossing.farTileX = farTile.TileX();
                     crossing.farTileY = farTile.TileY();
                     crossing.farRect = there.rect;
-                    crossing.clearance = std::min(here.clearance, there.clearance);
+                    // The run we are emitting, not the whole portal. A door next to a
+                    // crack on the same rectangle edge used to inherit the crack.
+                    uint8_t narrowest = 0xFF;
+                    for (int at = int(from); at <= int(to); ++at)
+                    {
+                        const int nearIn = alongY
+                                               ? nearFixed * SIDE + at
+                                               : at * SIDE + nearFixed;
+                        const int farIn = alongY
+                                              ? farFixed * SIDE + at
+                                              : at * SIDE + farFixed;
+
+                        const auto pick = [](const NavTile& tile, int inTile,
+                                             float height) -> uint8_t
+                        {
+                            std::vector<Surface> surfaces;
+                            tile.SurfacesAt(inTile, surfaces);
+                            float best = std::numeric_limits<float>::max();
+                            uint8_t clearance = 0xFF;
+                            for (const Surface& s : surfaces)
+                            {
+                                const float delta = std::fabs(s.z - height);
+                                if (delta < best)
+                                {
+                                    best = delta;
+                                    clearance = s.clearance;
+                                }
+                            }
+                            return clearance;
+                        };
+
+                        narrowest = std::min(
+                            narrowest, pick(nearTile, nearIn, heightAt(here, uint16_t(at))));
+                        narrowest = std::min(
+                            narrowest, pick(farTile, farIn, heightAt(there, uint16_t(at))));
+                    }
+
+                    crossing.clearance = narrowest;
 
                     const uint16_t middle = static_cast<uint16_t>((from + to) / 2);
 

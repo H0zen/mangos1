@@ -450,11 +450,28 @@ namespace Nav
             return;
         }
 
-        for (int i = 0; i <= steps; ++i)
+        int prevX = ax;
+        int prevY = ay;
+        Want(ax, ay);
+
+        for (int i = 1; i <= steps; ++i)
         {
             const float t = float(i) / float(steps);
-            Want(ax + int(std::lround(t * float(bx - ax))),
-                 ay + int(std::lround(t * float(by - ay))));
+            const int nx = ax + int(std::lround(t * float(bx - ax)));
+            const int ny = ay + int(std::lround(t * float(by - ay)));
+
+            // A diagonal hop in tile space has no rim. The two orthogonal tiles
+            // are the stepping stones coarse actually walks, and omitting them
+            // is how a chase across a corner stayed Wall forever.
+            if (nx != prevX && ny != prevY)
+            {
+                Want(prevX, ny);
+                Want(nx, prevY);
+            }
+
+            Want(nx, ny);
+            prevX = nx;
+            prevY = ny;
         }
     }
 

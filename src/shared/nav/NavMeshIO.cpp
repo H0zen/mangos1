@@ -25,6 +25,7 @@
 
 #include "nav/NavMeshIO.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -232,10 +233,9 @@ namespace Nav
             ok = out.mesh.first.size() == out.mesh.rects.size() + 1;
         }
 
-        // The field is either whole or absent; a partial one would answer heights over
-        // part of the tile and the base elevation over the rest, which is worse than
-        // deriving the mesh again.
-        if (ok && !out.mesh.heights.empty())
+        // The field is the ground. Absent, HeightSample answers the tile base, which
+        // seats every layer-0 point in the cellar. Rebuild rather than accept that.
+        if (ok)
         {
             ok = out.mesh.heights.size() == MAX_HEIGHTS;
         }
@@ -280,7 +280,8 @@ namespace Nav
             for (const MeshLink& link : out.mesh.links)
             {
                 if (link.fromRect >= out.mesh.rects.size() ||
-                    link.toRect >= out.mesh.rects.size())
+                    link.toRect >= out.mesh.rects.size() ||
+                    !(link.cost >= 0.0f) || !std::isfinite(link.cost))
                 {
                     ok = false;
                     break;

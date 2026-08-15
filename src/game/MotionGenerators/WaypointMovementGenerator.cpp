@@ -875,9 +875,9 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
         return;
     }
 
-    // The spline flies straight through the hub, but the booking must not: a relog resumes
-    // from m_taxi, and GetCurrentTaxiPath() is what names the leg currently being flown.
-    // Retire it here, exactly as HandleMoveSplineDoneOpcode does for the last leg.
+    // Arrival of THIS path's last node, before the booking is retired. Update
+    // skips it so the script cannot run twice -- and so the opcode at a map
+    // edge cannot fire the NEXT path's event after we pop.
     if (uint32 pathid = player.m_taxi.GetCurrentTaxiPath())
     {
         TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
@@ -916,24 +916,56 @@ uint32 FlightPathMovementGenerator::PointIndex(uint32 now) const
     return m_legFirstNode + uint32(segment) + (finished ? 1u : 0u);
 }
 
+void FlightPathMovementGenerator::DoEventIfAny(Player& player,
+                                               TaxiPathNodeEntry const& node,
+                                               bool departure)
+{
+    const uint32 eventid = departure ? node.DepartureEventID : node.ArrivalEventID;
+    if (!eventid)
+    {
+        return;
+    }
+
+    if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, departure))
+    {
+        player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
+    }
+}
+
 bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
 {
     const uint32 pointId = PointIndex(getMSTime());
+    Player& player = static_cast<Player&>(owner);
 
-    // Each node produces a departure and an arrival event, so the spline index advances
-    // two per node.
     if (pointId > m_currentNode)
     {
-        bool departure = true;
-        while (pointId != m_currentNode)
+        while (pointId > m_currentNode && m_currentNode + 1 < m_path->size())
         {
-            m_currentNode += uint32(departure);
-            departure = !departure;
+            DoEventIfAny(player, (*m_path)[m_currentNode], true);
+            ++m_currentNode;
+
+            bool junction = false;
+            for (uint32 at : m_junctions)
+            {
+                if (at == m_currentNode)
+                {
+                    junction = true;
+                    break;
+                }
+            }
+
+            // Junction arrival is PassJunction (must run before the booking
+            // pops). Last-node arrival is HandleMoveSplineDoneOpcode.
+            if (!junction && m_currentNode + 1 < m_path->size())
+            {
+                DoEventIfAny(player, (*m_path)[m_currentNode], false);
+            }
         }
 
-        while (m_nextJunction < m_junctions.size() && m_currentNode >= m_junctions[m_nextJunction])
+        while (m_nextJunction < m_junctions.size() &&
+               m_currentNode >= m_junctions[m_nextJunction])
         {
-            PassJunction(static_cast<Player&>(owner));
+            PassJunction(player);
             ++m_nextJunction;
         }
     }

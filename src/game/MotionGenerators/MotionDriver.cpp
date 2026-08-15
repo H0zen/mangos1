@@ -210,7 +210,14 @@ bool MotionDriver::LayLeg(Unit& owner, Motion::MoveIntent const& intent)
     // The velocity is left to MoveSplineInit, which resolves the unit's live
     // walk/run/swim/flight speed from its movement flags at Launch — so a speed change
     // re-paces the next leg instead of a stale value being baked in here.
-    init.Launch();
+    if (init.Launch() <= 0)
+    {
+        // Nothing went on the wire and the previous course is still the plan.
+        // Recording the new goal here is how a failed launch was reported as
+        // arrival at a destination the unit never walked toward.
+        m_blocked = true;
+        return false;
+    }
 
     m_legGoal = intent.goal;
     m_haveLeg = true;

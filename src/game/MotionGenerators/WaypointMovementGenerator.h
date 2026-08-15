@@ -216,6 +216,12 @@ class FlightPathMovementGenerator final : public MovementGenerator
         /// Retires the leg just flown over: pops its destination and fires its arrival event.
         void PassJunction(Player& player);
 
+        /// One node's DBC script. Departure of the node being left, arrival of the
+        /// node just reached -- the pair the old spline toggle used to walk, and
+        /// which Update stopped firing when PointIndex became one-per-node.
+        void DoEventIfAny(Player& player, TaxiPathNodeEntry const& node,
+                          bool departure);
+
         TaxiPathNodeList m_owned;           ///< Backs m_path only for a merged route.
         TaxiPathNodeList const* m_path;
         std::vector<uint32> m_junctions;
