@@ -25,6 +25,7 @@
 
 #include "Utilities/Errors.h"
 #include "SpellMgr.h"
+#include "combat/SpellFactsStore.h"
 #include "ObjectMgr.h"
 #include "SpellAuraDefines.h"
 #include "ProgressBar.h"
@@ -90,7 +91,7 @@ SpellMgr& SpellMgr::Instance()
  * @param spellInfo The spell entry.
  * @return The base duration in milliseconds, or 0 if unavailable.
  */
-int32 GetSpellDuration(SpellEntry const* spellInfo)
+int32 LegacySpellDuration(SpellEntry const* spellInfo)
 {
     if (!spellInfo)
     {
@@ -104,13 +105,38 @@ int32 GetSpellDuration(SpellEntry const* spellInfo)
     return (du->Duration[0] == -1) ? -1 : abs(du->Duration[0]);
 }
 
+int32 GetSpellDuration(SpellEntry const* spellInfo)
+{
+    if (!spellInfo)
+    {
+        return 0;
+    }
+
+    // Read the decoded value. The row carries an INDEX into another store, so
+    // this used to be a second lookup on every question about how long a spell
+    // lasts -- and it is asked from targeting, apply, refresh and the client
+    // update alike.
+    //
+    // The fallback is not defensive padding: these accessors are called during
+    // start-up, before the facts exist. Once the store is loaded, every id in
+    // the DBC is known, and SpellFactsStore::Audit has already compared this
+    // very number against LegacySpellDuration for every one of them.
+    Combat::SpellFacts const& facts = sSpellFacts.Get(spellInfo->ID);
+    if (facts.known)
+    {
+        return facts.durationMs;
+    }
+
+    return LegacySpellDuration(spellInfo);
+}
+
 /**
  * @brief Returns the maximum duration of a spell.
  *
  * @param spellInfo The spell entry.
  * @return The maximum duration in milliseconds, or 0 if unavailable.
  */
-int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
+int32 LegacySpellMaxDuration(SpellEntry const* spellInfo)
 {
     if (!spellInfo)
     {
@@ -122,6 +148,22 @@ int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
         return 0;
     }
     return (du->Duration[2] == -1) ? -1 : abs(du->Duration[2]);
+}
+
+int32 GetSpellMaxDuration(SpellEntry const* spellInfo)
+{
+    if (!spellInfo)
+    {
+        return 0;
+    }
+
+    Combat::SpellFacts const& facts = sSpellFacts.Get(spellInfo->ID);
+    if (facts.known)
+    {
+        return facts.maxDurationMs;
+    }
+
+    return LegacySpellMaxDuration(spellInfo);
 }
 
 /**
@@ -186,6 +228,15 @@ uint32 GetSpellCastTime(SpellEntry const* spellInfo, Spell const* spell)
                     }
     }
 
+    // Deliberately still a store lookup.
+    //
+    // The materialised cast time cannot replace this one, because the row
+    // distinguishes "no cast time entry" -- a passive, which returns zero
+    // before any modifier runs -- from "an entry whose cast time is zero" --
+    // an instant, which still goes through the modifiers below. A single
+    // number cannot carry that difference, and inventing a second field to
+    // save one lookup on a path that is already about to walk the caster's
+    // spell modifiers is not worth the risk of getting a passive wrong.
     SpellCastTimesEntry const* spellCastTimeEntry = sSpellCastTimesStore.LookupEntry(spellInfo->CastingTimeIndex);
 
     // not all spells have cast time index and this is all is pasiive abilities

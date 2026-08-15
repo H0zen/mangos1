@@ -110,8 +110,11 @@ namespace Combat
             facts.dispelType  = entry->DispelType;
             facts.mechanic    = entry->Mechanic;
 
-            facts.durationMs    = GetSpellDuration(entry);
-            facts.maxDurationMs = GetSpellMaxDuration(entry);
+            // The raw decoders, not the accessors: those now read this very
+            // store, and a store filled from itself would audit clean and be
+            // empty.
+            facts.durationMs    = LegacySpellDuration(entry);
+            facts.maxDurationMs = LegacySpellMaxDuration(entry);
             facts.castTimeMs    = GetSpellCastTime(entry);
 
             SpellRangeEntry const* range =
@@ -188,11 +191,11 @@ namespace Combat
                 continue;
             }
 
-            if (facts.durationMs != GetSpellDuration(entry))
+            if (facts.durationMs != LegacySpellDuration(entry))
             {
                 report(0, "duration", facts.id, "differs from the live query");
             }
-            if (facts.maxDurationMs != GetSpellMaxDuration(entry))
+            if (facts.maxDurationMs != LegacySpellMaxDuration(entry))
             {
                 report(1, "max duration", facts.id, "differs from the live query");
             }

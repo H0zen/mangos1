@@ -112,6 +112,9 @@ inline float GetSpellMaxRange(SpellRangeEntry const* range) { return (range ? ra
 inline uint32 GetSpellRecoveryTime(SpellEntry const* spellInfo) { return spellInfo->RecoveryTime > spellInfo->CategoryRecoveryTime ? spellInfo->RecoveryTime : spellInfo->CategoryRecoveryTime; }
 /**
  * Returns the base duration of the specified spell.
+ *
+ * Reads the materialised fact once the store is loaded; see
+ * src/game/combat/SpellFactsStore.h.
  */
 int32 GetSpellDuration(SpellEntry const* spellInfo);
 
@@ -119,6 +122,17 @@ int32 GetSpellDuration(SpellEntry const* spellInfo);
  * Returns the maximum duration of the specified spell.
  */
 int32 GetSpellMaxDuration(SpellEntry const* spellInfo);
+
+/**
+ * The raw DBC decode, straight out of sSpellDurationStore.
+ *
+ * Kept because the fact store has to be checked against something, and it
+ * cannot be checked against an accessor that reads the fact store. Only the
+ * loader and SpellFactsStore::Audit call these; everything else asks
+ * GetSpellDuration and gets the decoded answer.
+ */
+int32 LegacySpellDuration(SpellEntry const* spellInfo);
+int32 LegacySpellMaxDuration(SpellEntry const* spellInfo);
 
 /**
  * Calculates the spell duration after caster-based modifiers are applied.
