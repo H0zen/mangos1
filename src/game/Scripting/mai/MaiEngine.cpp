@@ -1350,8 +1350,8 @@ namespace scripting
         {
             Creature* creature = static_cast<Creature*>(actor);
 
-            if (MaiCreatureAI* ai =
-                    dynamic_cast<MaiCreatureAI*>(creature->AI()))
+            if (mai::MaiCreatureAI* ai =
+                    dynamic_cast<mai::MaiCreatureAI*>(creature->AI()))
             {
                 ai->AuraProcced(other, auraSpellId, procSpellId, numbers);
                 handled = true;
