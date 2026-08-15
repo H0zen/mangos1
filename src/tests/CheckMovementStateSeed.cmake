@@ -41,7 +41,7 @@ set(SEEDED_SITES
     "Object/Player.cpp|PlayerRelocation\\(this,"
     "Object/PlayerLoad.cpp|Place\\(\\)\\.MoveTo\\(fields\\[12\\]"
     "Object/PlayerLoad.cpp|SetFallInformation\\(0, Where\\(\\)\\.Z\\(\\)\\)"
-    "Object/Unit.cpp|Place\\(\\)\\.MoveTo\\(loc\\.x, loc\\.y, loc\\.z, loc\\.orientation\\)"
+    "Object/Unit.cpp|Place\\(\\)\\.MoveTo\\(at\\.x, at\\.y, at\\.z, heading\\)"
     "WorldHandlers/Map.cpp|player->Place\\(\\)\\.MoveTo\\(x, y, z, orientation\\)"
     "WorldHandlers/Map.cpp|creature->Place\\(\\)\\.MoveTo\\(x, y, z, ang\\)"
     "WorldHandlers/Map.cpp|c->Place\\(\\)\\.MoveTo\\(resp_x"
