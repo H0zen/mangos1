@@ -174,7 +174,7 @@ namespace mai
 
     inline constexpr ParamSpec g_ruleParamsSawUnit[] =
     {
-        { "in_combat", ParamType::Bool, false },
+        { "friendly", ParamType::Bool, false },
         { "range", ParamType::F32, false },
         { "repeat", ParamType::Ms, true },
         { "repeat_max", ParamType::Ms, true },

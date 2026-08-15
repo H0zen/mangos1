@@ -137,7 +137,7 @@ namespace mai
         }
     };
 
-    struct RuleTimers;
+    struct Driver;
 
     /**
      * Everything one action needs, gathered once.
@@ -181,10 +181,9 @@ namespace mai
         /// queued sequence has nothing left to refuse by the time it runs.
         bool*        cancel = nullptr;
 
-        /// This creature's own rule timers, when a creature is running the
-        /// step. Null for a sequence the world started, which has no rules to
-        /// arm.
-        RuleTimers*  timers = nullptr;
+        /// The AI driving this creature, when a creature is running the step.
+        /// Null for a sequence the world started, which has no AI behind it.
+        Driver*      driver = nullptr;
 
         Unit*     SourceUnit() const;
         Creature* SourceCreature() const;
@@ -192,34 +191,69 @@ namespace mai
     };
 
     /**
-     * Reaching this creature's own rule timers, from inside a step.
-     *
-     * A rule arms itself and re-arms itself, which is the whole of what a
-     * timer needed to be until a script wanted to say "and cancel that". The
-     * shape is always the same: something is given a deadline, something else
-     * may make the deadline moot, and whichever happens first must stop the
-     * other.
-     *
-     * Taerar is the example that forced it. He banishes himself and summons
-     * three shades; sixty seconds later he comes back, UNLESS the shades die
-     * first, in which case he comes back at once. Encoded as a delayed step
-     * the sixty-second half survives the shades' death and unbanishes the
-     * NEXT banish early; encoded as a guarded rule its timer freezes half-
-     * counted rather than resetting. Neither is what the C++ does, and both
-     * are wrong by twenty seconds in a fight that lasts three minutes.
+     * The creature's AI, as much of it as a verb is allowed to touch.
      *
      * An interface rather than a pointer to the AI, because a verb must not
      * know what a creature's AI is -- MaiPerform is testable with no world at
      * all, and that is worth keeping.
+     *
+     * It was called RuleTimers while arming was the only thing on it, and the
+     * other three were written the only way a free function could write them:
+     * on to the Actor, where nothing reads them, or through the MotionMaster,
+     * behind the AI's back. Both are how a verb ends up half-done -- the
+     * creature is told to stand still and the AI, which was never told,
+     * chases again at the next retarget. What is here is the whole of what
+     * only the AI object can carry out.
      */
-    struct RuleTimers
+    struct Driver
     {
-        virtual ~RuleTimers() = default;
+        virtual ~Driver() = default;
 
-        /// Set rule @a id's timer to @a ms, and enable or disable it. A rule
-        /// this creature does not have is ignored: a script naming one is a
-        /// mistake worth a log, not worth a crash.
+        /**
+         * Set rule @a id's timer to @a ms, and enable or disable it.
+         *
+         * A rule arms itself and re-arms itself, which is the whole of what a
+         * timer needed to be until a script wanted to say "and cancel that".
+         * The shape is always the same: something is given a deadline,
+         * something else may make the deadline moot, and whichever happens
+         * first must stop the other.
+         *
+         * Taerar is the example that forced it. He banishes himself and
+         * summons three shades; sixty seconds later he comes back, UNLESS the
+         * shades die first, in which case he comes back at once. Encoded as a
+         * delayed step the sixty-second half survives the shades' death and
+         * unbanishes the NEXT banish early; encoded as a guarded rule its
+         * timer freezes half-counted rather than resetting. Neither is what
+         * the C++ does, and both are wrong by twenty seconds in a fight that
+         * lasts three minutes.
+         *
+         * A rule this creature does not have is ignored: a script naming one
+         * is a mistake worth a log, not worth a crash.
+         */
         virtual void Arm(uint32 id, uint32 ms, bool enable) = 0;
+
+        /// Whether the AI drives movement in combat at all, told to the AI
+        /// and not merely remembered beside it: the flag the base class keeps
+        /// is what every later retarget reads.
+        /// @param sendMelee  also tell the client the swing is starting or
+        ///                   stopping, which is EventAI's own second column.
+        virtual void SetCombatMovementAllowed(bool enable, bool sendMelee) = 0;
+
+        /// How this creature chases from here on -- the distance a caster
+        /// keeps and the angle it keeps it at. Written to the AI's own pair,
+        /// so the NEXT AttackStart chases the same way rather than closing to
+        /// nought.
+        virtual void SetChase(float distance, float angle) = 0;
+
+        /// Start sequence @a kind / @a id on this creature, keeping the actor,
+        /// the selectors and the timers the rule had. @a source and @a target
+        /// are whom the branch's steps act as and on, which is whom the step
+        /// that started it had after its own flags moved things.
+        /// @return false when there is no such sequence, which is not an
+        ///         error: a branch that has not been written yet is a branch
+        ///         not taken.
+        virtual bool StartBranch(uint32 kind, uint32 id, ObjectGuid source,
+                                 ObjectGuid target) = 0;
     };
 
     /**
@@ -272,6 +306,20 @@ namespace mai
     bool StartSequence(Map* map, uint32 kind, uint32 id, WorldObject* source,
                        WorldObject* target, ObjectGuid owner, ObjectGuid item,
                        bool* cancel);
+
+    /**
+     * The sequence @a kind / @a id names, or nullptr when there is none.
+     *
+     * Declared here and defined by the engine for the same reason
+     * StartSequence is: a creature's AI runs a branch on ITSELF -- that is
+     * what keeps the actor, the phase and the selectors the rule had -- and to
+     * do that it needs the steps, not a request to somebody else to run them.
+     *
+     * The result is owned by the engine and outlives every frame pointing at
+     * it: the sequences are rebuilt only by a reload, which clears the frames
+     * first.
+     */
+    Sequence const* FindSequence(uint32 kind, uint32 id);
 }
 
 #endif //MANGOS_MAI_ACTOR_H

@@ -93,6 +93,26 @@ namespace mai
             return step.Has(slot) ? step.operands[slot].f : fallback;
         }
 
+        /**
+         * The AI to tell, when the step is still acting as its own creature.
+         *
+         * There is exactly one AI a verb can reach -- the one whose rule this
+         * step belongs to -- and a step that was redirected at a buddy or told
+         * to act AS somebody else is no longer about that creature. Telling it
+         * anyway would stop the boss moving because his add was told to.
+         *
+         * `ruleOwner` is the source as it stood before any of the four flags
+         * or either selector moved it, so the two being the same object IS the
+         * question "is this still about me".
+         */
+        Driver* DriverFor(Doing const& doing)
+        {
+            return (doing.driver && doing.source &&
+                    doing.source == doing.ruleOwner)
+                       ? doing.driver
+                       : nullptr;
+        }
+
         // ---- phases ---------------------------------------------------------
 
         bool SetPhase(Doing& doing, Step const& step)
@@ -890,11 +910,43 @@ namespace mai
 
         // ---- the branch -----------------------------------------------------
 
+        /**
+         * A branch, and WHERE it runs.
+         *
+         * A branch started from a rule stays on the creature that started it.
+         * Handed to the engine instead it becomes one of the MAP's frames,
+         * which have no actor and no rule behind them -- so every `set_state`,
+         * `set_phase`, `set_timer` and `select=` in the branch quietly does
+         * nothing. Not a load error and not a log line: the steps run, and the
+         * half of them that were about the creature have no creature.
+         *
+         * The engine still gets the ones a rule did not start -- a sequence
+         * the world started has no AI to run a branch on -- and it always gets
+         * an INLINE one, where the caller is waiting on an answer that a
+         * queued frame could not give.
+         */
+        bool StartBranchOn(Doing& doing, uint32 kind, uint32 id)
+        {
+            ObjectGuid const source =
+                doing.source ? doing.source->GetObjectGuid() : ObjectGuid();
+            ObjectGuid const target =
+                doing.target ? doing.target->GetObjectGuid() : ObjectGuid();
+
+            if (doing.driver && !doing.cancel &&
+                doing.driver->StartBranch(kind, id, source, target))
+            {
+                return true;
+            }
+
+            return StartSequence(doing.map, kind, id, doing.source,
+                                 doing.target, doing.owner, doing.item,
+                                 doing.cancel);
+        }
+
         bool StartScript(Doing& doing, Step const& step)
         {
-            StartSequence(doing.map, step.Has(0) ? Given(step, 0) : KindBranch,
-                          Given(step, 1), doing.source, doing.target,
-                          doing.owner, doing.item, doing.cancel);
+            StartBranchOn(doing, step.Has(0) ? Given(step, 0) : KindBranch,
+                          Given(step, 1));
             return false;
         }
 
@@ -930,10 +982,8 @@ namespace mai
             // columns.
             if (step.Has(3) && step.Has(4) && Given(step, 4))
             {
-                StartSequence(doing.map, KindBranch,
-                              Given(step, 3) + urand(0, Given(step, 4) - 1),
-                              doing.source, doing.target, doing.owner,
-                              doing.item, doing.cancel);
+                StartBranchOn(doing, KindBranch,
+                              Given(step, 3) + urand(0, Given(step, 4) - 1));
                 return false;
             }
 
@@ -953,9 +1003,7 @@ namespace mai
                 return false;
             }
 
-            StartSequence(doing.map, KindBranch, pick[urand(0, count - 1)],
-                          doing.source, doing.target, doing.owner, doing.item,
-                          doing.cancel);
+            StartBranchOn(doing, KindBranch, pick[urand(0, count - 1)]);
             return false;
         }
 
@@ -1071,9 +1119,9 @@ namespace mai
          */
         bool SetTimer(Doing& doing, Step const& step)
         {
-            if (doing.timers)
+            if (doing.driver)
             {
-                doing.timers->Arm(Given(step, 0), Given(step, 1),
+                doing.driver->Arm(Given(step, 0), Given(step, 1),
                                   !step.Has(2) || Given(step, 2) != 0);
             }
             return false;
@@ -1189,29 +1237,58 @@ namespace mai
             return false;
         }
 
+        /**
+         * Whether the AI drives movement in combat.
+         *
+         * Told to the AI, not merely written down beside it. The flag the base
+         * class keeps -- COMBAT_MOVEMENT_SCRIPT, and the unit state that
+         * follows it -- is what HandleMovementOnAttackStart reads, and that
+         * runs at every retarget: a creature told to stand still by moving it
+         * to idle alone starts chasing again the moment its victim changes,
+         * which is the whole of "the script stopped working half way through
+         * the fight".
+         *
+         * THE SECOND PARAMETER IS `melee`, and is the column EventAI's action
+         * 21 has always had: whether to tell the CLIENT that the swing is
+         * starting or stopping, which is what makes a caster stop showing an
+         * attack animation at something it is no longer walking towards. It
+         * was being read as "start chasing now" -- so a row saying "stand
+         * still and stop swinging" said nothing about the swing, and one
+         * saying "resume, quietly" was the only shape that ever chased.
+         */
         bool CombatMovement(Doing& doing, Step const& step)
         {
-            if (!doing.actor)
+            bool const enable = Given(step, 0) != 0;
+            Driver* const driver = DriverFor(doing);
+
+            if (doing.actor && driver)
             {
+                doing.actor->combatMovement = enable;
+            }
+
+            if (driver)
+            {
+                driver->SetCombatMovementAllowed(enable, Given(step, 1) != 0);
                 return false;
             }
 
-            doing.actor->combatMovement = Given(step, 0) != 0;
-
-            // The second parameter says whether to start chasing right now
-            // rather than at the next decision. Without it a creature told to
-            // resume movement stands still until something else moves it,
-            // which reads as the script having failed.
+            // Redirected at somebody else, whose AI this cannot reach: the
+            // movement is all there is to change, and it lasts until that
+            // creature's own AI decides otherwise.
             if (Creature* self = doing.SourceCreature())
             {
-                if (doing.actor->combatMovement && Given(step, 1) != 0)
+                if (Unit* victim = self->getVictim())
                 {
-                    if (Unit* victim = self->getVictim())
+                    if (enable)
                     {
                         self->GetMotionMaster()->MoveChase(victim);
                     }
+                    else
+                    {
+                        self->GetMotionMaster()->MoveIdle();
+                    }
                 }
-                else if (!doing.actor->combatMovement)
+                else if (!enable)
                 {
                     self->GetMotionMaster()->MoveIdle();
                 }
@@ -1219,18 +1296,33 @@ namespace mai
             return false;
         }
 
+        /**
+         * How far away, and at what angle, this creature fights from.
+         *
+         * The pair is the AI's, not this one chase's. Issued as a bare
+         * MoveChase it lasts until the next retarget and no further -- the
+         * caster kites for one victim and then walks into melee for the next,
+         * because HandleMovementOnAttackStart chases at whatever the AI's own
+         * distance and angle say, which nobody had written.
+         */
         bool RangedMovement(Doing& doing, Step const& step)
         {
-            Creature* self = doing.SourceCreature();
-            if (!self)
+            if (Driver* const driver = DriverFor(doing))
             {
+                driver->SetChase(GivenF(step, 0), GivenF(step, 1));
                 return false;
             }
 
-            if (Unit* victim = self->getVictim())
+            // No AI behind the step -- a sequence the world started -- so
+            // there is nothing to remember it on, and the one chase is all
+            // this can mean.
+            if (Creature* self = doing.SourceCreature())
             {
-                self->GetMotionMaster()->MoveChase(victim, GivenF(step, 0),
-                                                   GivenF(step, 1));
+                if (Unit* victim = self->getVictim())
+                {
+                    self->GetMotionMaster()->MoveChase(victim, GivenF(step, 0),
+                                                       GivenF(step, 1));
+                }
             }
             return false;
         }

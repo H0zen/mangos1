@@ -64,7 +64,13 @@ category sight = 0x01
     # means "anyone", the behaviour it always had. Naming an entry narrows it
     # to that one, which is what every "banish the helper the moment you see
     # it" script needs and none of them could say.
-    saw_unit                10   in_combat:bool range:f32 repeat:ms? repeat_max:ms? creature:creature? any_hostility:bool? while_fighting:bool?
+    # `friendly` is EventAI's first column and says WHOM to watch for: 0 is an
+    # enemy, 1 is a friend. It was called `in_combat`, which is a different
+    # question with a different answer -- `while_fighting`, six slots along --
+    # and a rule written by hand as `saw_unit in_combat=1` watched for friends
+    # instead. Converted rows never noticed, because a conversion copies the
+    # column by position and never reads the name.
+    saw_unit                10   friendly:bool range:f32 repeat:ms? repeat_max:ms? creature:creature? any_hostility:bool? while_fighting:bool?
     spawned                 11   condition:u32? value:u32?
     reached_waypoint        31   waypoint:u32? path:u32?
     reached_home            21

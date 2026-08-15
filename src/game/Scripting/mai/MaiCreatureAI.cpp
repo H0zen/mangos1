@@ -619,7 +619,13 @@ namespace mai
                 return false;
             }
 
-            if (static_cast<Creature*>(invoker)->GetEntry() != rule.Param(0))
+            // MAY name it. The entry is optional and the conversion drops an
+            // optional zero, so a rule that cares about any summon at all has
+            // no operand in slot 0 -- and comparing the entry against the zero
+            // that leaves behind is a test no creature can pass. `saw_unit`
+            // asks the same question with Has(4) and always did.
+            if (rule.Has(0) &&
+                static_cast<Creature*>(invoker)->GetEntry() != rule.Param(0))
             {
                 return false;
             }
@@ -681,15 +687,20 @@ namespace mai
             return true;
 
         default:
+            // Refused, not allowed through. A trigger nothing here can check
+            // is a rule whose condition is unknown, and firing it would be
+            // guessing that the condition was true -- on a creature whose
+            // rules somebody has just mistyped.
             sLog.outErrorDb("MAI: creature %u rule %u has trigger %u, which "
                             "nothing here knows how to check.",
                             m_creature->GetEntry(), rule.id,
                             uint32(rule.trigger));
-            return true;
+            return false;
         }
     }
 
-    bool MaiCreatureAI::Fire(Armed& armed, Unit* invoker, Creature* sender)
+    bool MaiCreatureAI::Fire(Armed& armed, Unit* invoker, Creature* sender,
+                             bool now)
     {
         if (!Ready(armed))
         {
@@ -716,17 +727,18 @@ namespace mai
             return false;
         }
 
-        Start(*armed.rule, invoker, sender);
+        Start(*armed.rule, invoker, sender, now);
         return true;
     }
 
-    void MaiCreatureAI::Fire(RuleId trigger, Unit* invoker, Creature* sender)
+    void MaiCreatureAI::Fire(RuleId trigger, Unit* invoker, Creature* sender,
+                             bool now)
     {
         for (Armed& armed : m_armed)
         {
             if (armed.rule->trigger == trigger)
             {
-                Fire(armed, invoker, sender);
+                Fire(armed, invoker, sender, now);
             }
         }
     }
@@ -734,7 +746,7 @@ namespace mai
     // -- running what fired --------------------------------------------------
 
     void MaiCreatureAI::Start(Rule const& rule, Unit* invoker,
-                              Creature* sender)
+                              Creature* sender, bool now)
     {
         if (rule.steps.steps.empty())
         {
@@ -763,7 +775,7 @@ namespace mai
             run.from.invoker = invoker;
             run.from.sender = sender;
             run.actor = &m_actor;
-            run.timers = this;
+            run.driver = this;
             run.fromRule = true;
 
             Execute(run, rule.steps.steps[pick]);
@@ -773,8 +785,24 @@ namespace mai
         // Kept and ticked, even when every step is at time zero: the first
         // tick runs all of them and drops it. Running them here instead would
         // be a second execution path that only the common case takes, which is
-        // how the two would drift.
+        // how the two would drift -- which is why `now` below does not open
+        // one. It queues the frame exactly as this does and then walks it
+        // through RunFrame, the same walk a tick makes, with no time passed.
         m_frames.push_back(frame);
+
+        if (!now)
+        {
+            return;
+        }
+
+        // Unless there is no next tick. A creature that has just died is no
+        // longer ALIVE and one walking home is in evade mode, and
+        // Creature::Update skips the AI in both -- so the frame just queued
+        // would sit there until a Reset threw it away. It is the SAME path,
+        // walked at once with no time passed: everything at zero runs, in
+        // order, and anything later stays queued for whoever ticks next.
+        RunFrame(m_frames.size() - 1, 0);
+        Sweep();
     }
 
     void MaiCreatureAI::Arm(uint32 id, uint32 ms, bool enable)
@@ -804,47 +832,142 @@ namespace mai
             return;
         }
 
-        Map* map = m_creature->GetMap();
-
         // Indexed rather than iterated: a step can start another sequence on
         // this same creature, which appends here.
         std::size_t const was = m_frames.size();
         for (std::size_t i = 0; i < was && i < m_frames.size(); ++i)
         {
-            Frame& frame = m_frames[i];
+            RunFrame(i, diff);
+        }
 
-            // Whether anything in this frame was refused rather than done.
-            // Only a rule with a retry cares, and finding out costs a bool.
-            bool refused = false;
+        Sweep();
+    }
 
-            Run go;
-            go.map = map;
-            go.source = frame.source;
-            go.target = frame.target;
-            go.owner = frame.owner;
-            go.actor = &m_actor;
-            go.timers = this;
-            go.refused = &refused;
-            go.fromRule = true;
+    /**
+     * One frame, by index.
+     *
+     * BY INDEX AND ON A COPY, and both halves of that are load-bearing. A step
+     * runs arbitrary world code, and two things it can do put the frame this
+     * loop was walking somewhere else:
+     *
+     *   * START ANOTHER SEQUENCE on this creature -- a branch, or a rule fired
+     *     by something the step did -- which push_backs into m_frames and
+     *     reallocates it. A `Frame&` taken before the call, and the Runner
+     *     holding it, then point into the freed buffer.
+     *
+     *   * END THE CREATURE. `die` reaches DealDamage, which reaches JustDied,
+     *     which resets -- and the reset cancels every frame, including this
+     *     one. The step returns false, so the loop would ask the runner for
+     *     the next step of a sequence about a fight that is over.
+     *
+     * The copy takes both away: nothing anything does can move it. What is
+     * left is telling whether the frame is still WANTED, which is the one
+     * question the vector still has to answer, and it answers it by index.
+     */
+    void MaiCreatureAI::RunFrame(std::size_t index, uint32 diff)
+    {
+        if (index >= m_frames.size() || m_frames[index].Finished())
+        {
+            return;
+        }
 
-            // Resolved fresh each tick and never stored: anything a rule named
-            // can die between two steps of the sequence that named it.
-            go.from.invoker = map->GetUnit(frame.target);
-            go.from.sender = map->GetAnyTypeCreature(frame.sender);
+        // A step can start a sequence that runs a step, and now that some of
+        // them run in place rather than next tick, that nesting is a STACK
+        // rather than a queue: a repeatable `evaded` rule whose step calls
+        // `evade` would recurse until the stack ran out. Queued, the same
+        // mistake merely spun once per tick and was survivable. Eight is far
+        // past anything a real script does and short of anything dangerous.
+        enum : uint32 { MaxNesting = 8 };
+        if (m_running >= MaxNesting)
+        {
+            sLog.outErrorDb("MAI: creature %u nested sequences %u deep; one of "
+                            "its rules starts something that starts it again.",
+                            m_creature->GetEntry(), MaxNesting);
+            return;
+        }
 
-            Runner runner(frame, diff);
-            while (Step const* step = runner.Next())
+        Frame frame = m_frames[index];
+
+        // Whether anything in this frame was refused rather than done.
+        // Only a rule with a retry cares, and finding out costs a bool.
+        bool refused = false;
+
+        Map* map = m_creature->GetMap();
+
+        Run go;
+        go.map = map;
+        go.source = frame.source;
+        go.target = frame.target;
+        go.owner = frame.owner;
+        go.item = frame.item;
+        go.origin = frame.sequence ? frame.sequence->origin : 0;
+        go.actor = &m_actor;
+        go.driver = this;
+        go.refused = &refused;
+        go.fromRule = true;
+
+        // Resolved fresh each tick and never stored: anything a rule named
+        // can die between two steps of the sequence that named it.
+        go.from.invoker = map->GetUnit(frame.target);
+        go.from.sender = map->GetAnyTypeCreature(frame.sender);
+
+        ++m_running;
+
+        bool cancelled = false;
+        Runner runner(frame, diff);
+        while (Step const* step = runner.Next())
+        {
+            if (Execute(go, *step))
             {
-                if (Execute(go, *step))
-                {
-                    runner.Stop();
-                }
+                runner.Stop();
             }
 
-            if (refused)
+            // Marked by DropFrames, from inside the step that just ran.
+            if (!m_frames[index].sequence)
             {
-                Retry(frame);
+                cancelled = true;
+                break;
             }
+        }
+
+        --m_running;
+
+        if (cancelled)
+        {
+            return;
+        }
+
+        m_frames[index] = frame;
+
+        if (refused)
+        {
+            Retry(frame);
+        }
+    }
+
+    void MaiCreatureAI::DropFrames()
+    {
+        if (!m_running)
+        {
+            m_frames.clear();
+            return;
+        }
+
+        // A step is walking these right now. Marking is what a clear cannot
+        // be here -- and it is also what lets the rules fired IMMEDIATELY
+        // after a drop survive it, since those are appended afterwards and
+        // are not marked.
+        for (Frame& frame : m_frames)
+        {
+            frame.sequence = nullptr;
+        }
+    }
+
+    void MaiCreatureAI::Sweep()
+    {
+        if (m_running)
+        {
+            return;
         }
 
         m_frames.erase(std::remove_if(m_frames.begin(), m_frames.end(),
@@ -895,28 +1018,29 @@ namespace mai
         {
             if (armed.timeMs)
             {
-                if (armed.timeMs > diff)
+                // A timer does not run down in a phase its rule cannot
+                // fire in. Not an optimisation: a rule that counted while
+                // suppressed would come due the instant the phase changed,
+                // which is how a boss fires four abilities at once on
+                // entering phase two.
+                //
+                // A GUARD suppresses it the same way, and for the same
+                // reason. Golemagg's earthquake is on a three-second timer
+                // that the script only decrements once he has enraged; let
+                // it run underneath and the earthquake lands the instant
+                // he does, which is not the fight anyone wrote.
+                //
+                // THE LAST TICK COUNTS TOO. Written as "count down, else set
+                // to zero", the freeze let go of every timer with less than a
+                // tick left on it: a suppressed rule with 30ms to run came due
+                // anyway, and the whole point of the freeze -- that a phase
+                // change does not empty a boss's cooldowns at once -- was lost
+                // for exactly the rules nearest to firing.
+                if (m_actor.phases.Allows(armed.rule->inversePhaseMask) &&
+                    Allowed(*armed.rule))
                 {
-                    // A timer does not run down in a phase its rule cannot
-                    // fire in. Not an optimisation: a rule that counted while
-                    // suppressed would come due the instant the phase changed,
-                    // which is how a boss fires four abilities at once on
-                    // entering phase two.
-                    //
-                    // A GUARD suppresses it the same way, and for the same
-                    // reason. Golemagg's earthquake is on a three-second timer
-                    // that the script only decrements once he has enraged; let
-                    // it run underneath and the earthquake lands the instant
-                    // he does, which is not the fight anyone wrote.
-                    if (m_actor.phases.Allows(armed.rule->inversePhaseMask) &&
-                        Allowed(*armed.rule))
-                    {
-                        armed.timeMs -= diff;
-                    }
-                }
-                else
-                {
-                    armed.timeMs = 0;
+                    armed.timeMs = armed.timeMs > diff ? armed.timeMs - diff
+                                                       : 0;
                 }
             }
 
@@ -946,6 +1070,13 @@ namespace mai
             case RuleId::FriendlyHurt:
             case RuleId::FriendlyControlled:
             case RuleId::FriendlyMissingBuff:
+
+            // The inverse question, and it asks the world exactly as the rest
+            // of them do -- "is nobody of that entry near me" is still a grid
+            // search. Left out of this list it was a rule that loaded, armed
+            // itself, and was never once asked: every separation-anxiety add
+            // in the world simply did not have the behaviour.
+            case RuleId::AwayFrom:
                 Fire(armed);
                 break;
 
@@ -1048,7 +1179,25 @@ namespace mai
         m_throwStep = 0;
 
         // Anything still running is about a fight that is over.
-        m_frames.clear();
+        DropFrames();
+
+        // And so is everything the fight wrote down. MaiActor says as much
+        // beside each field -- `enraged=0` means "not in THIS fight", a focus
+        // does not survive a wipe -- and nothing was delivering it: the states,
+        // the remembered target, the invincibility floor, the throw mask and
+        // both AI switches were set once and kept for the life of the
+        // creature. A boss that enraged at twenty per cent could not enrage
+        // again after a wipe, and one whose script had turned melee off in its
+        // last phase spent the rest of its existence refusing to swing.
+        m_actor.Reset();
+
+        // The base class's half of the same switch. m_actor.combatMovement is
+        // what a rule reads and this is what the WORLD reads, and they are one
+        // switch: leaving this one alone would resume the fight with the AI
+        // still refusing to chase.
+        AddCombatMovementFlags(COMBAT_MOVEMENT_SCRIPT);
+        m_attackDistance = 0.0f;
+        m_attackAngle = 0.0f;
 
         for (Armed& armed : m_armed)
         {
@@ -1120,21 +1269,31 @@ namespace mai
 
         m_creature->SetLootRecipient(nullptr);
 
-        Fire(RuleId::Evaded);
+        // AT ONCE. MoveTargetedHome above has just put the creature into evade
+        // mode, and Creature::Update does not call the AI while it is there --
+        // so a queued `evaded` sequence waits for a tick that only arrives
+        // after the creature is home, by which point JustReachedHome has
+        // thrown it away. EventAI ran these in the callback and this is the
+        // same instant.
+        Fire(RuleId::Evaded, nullptr, nullptr, true);
 
         m_creature->ResetPlayerDamageReq();
     }
 
     void MaiCreatureAI::JustReachedHome()
     {
-        Fire(RuleId::ReachedHome);
+        // Reset FIRST. The other way round -- which is how this read -- the
+        // rules were queued and the very next line cleared them, so a
+        // `reached_home` rule had never once run a step. Reset here means the
+        // steps that follow are the only thing in the queue, and the ones with
+        // a time on them survive to be ticked: the creature is out of evade
+        // mode by now, so there IS a next UpdateAI.
         Reset();
+        Fire(RuleId::ReachedHome, nullptr, nullptr, true);
     }
 
     void MaiCreatureAI::JustDied(Unit* killer)
     {
-        Reset();
-
         if (m_creature->IsGuard() && killer)
         {
             if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
@@ -1148,11 +1307,25 @@ namespace mai
             SendAIEventAround(AI_EVENT_JUST_DIED, killer, 0, AiEventRadius);
         }
 
-        Fire(RuleId::Died, killer);
+        // AT ONCE, and BEFORE the reset. Both halves were wrong and each hid
+        // the other:
+        //
+        //   * queued, the sequence waited for an UpdateAI that never comes --
+        //     Creature::Update stops calling the AI the moment the creature is
+        //     not ALIVE -- so "say this when I die" was silent for every
+        //     creature in the world. The only death rules that ever ran were
+        //     the handful carrying the random-step flag, which executes in
+        //     place;
+        //
+        //   * and the reset came first, so the phase, the states and the
+        //     invincibility a death rule may ask about were already gone. It
+        //     is the fight's state, and this is the last moment it is true.
+        Fire(RuleId::Died, killer, nullptr, true);
 
-        // After the death rules, not before: one of them may have wanted to
-        // know which phase the creature died in.
-        m_actor.phases.current = 0;
+        // Which also puts the phase back to zero, and throws away whatever the
+        // death rules queued for later: a corpse is never ticked, so a step
+        // with a time on it is a step that cannot happen.
+        Reset();
     }
 
     void MaiCreatureAI::KilledUnit(Unit* victim)
@@ -1238,7 +1411,13 @@ namespace mai
                 continue;
             }
 
-            if (!(spell->SchoolMask & armed.rule->Param(1)))
+            // The school is optional in exactly the same way the spell is, and
+            // means the same thing when absent: any. Tested unconditionally it
+            // is a mask of zero for every rule that did not name one -- which
+            // is every converted row, EventAI writing 0 for "any school" --
+            // and nothing overlaps zero, so the rule was skipped at every hit.
+            if (armed.rule->Has(1) &&
+                !(spell->SchoolMask & armed.rule->Param(1)))
             {
                 continue;
             }
@@ -1374,7 +1553,9 @@ namespace mai
 
                 // A rule watches for a friend or for an enemy, never both --
                 // unless it says it does not care, which several ScriptDev
-                // scripts do by testing nothing at all.
+                // scripts do by testing nothing at all. Slot 0 is `friendly`,
+                // EventAI's own first column; it was named `in_combat` in the
+                // manifest, which is the question slot 6 answers.
                 if (!armed.rule->Param(5))
                 {
                     bool const wantsFriendly = armed.rule->Param(0) != 0;
@@ -1473,8 +1654,15 @@ namespace mai
                                                   AI_EVENT_LOST_HEALTH,
                                                   AI_EVENT_CRITICAL_HEALTH };
 
-        float const after = (m_creature->GetHealth() - damage) * 100.0f /
-                            m_creature->GetMaxHealth();
+        // Clamped, because the subtraction is between two uint32 and a killing
+        // blow is routinely bigger than the health it lands on. Wrapped, the
+        // remaining health came out around four billion, every mark was
+        // "above", and a creature one-shot from full announced nothing at all
+        // -- which is the case where its friends most needed to hear it.
+        uint32 const health = m_creature->GetHealth();
+        uint32 const left = damage < health ? health - damage : 0;
+
+        float const after = left * 100.0f / m_creature->GetMaxHealth();
         if (after > marks[step])
         {
             return;
@@ -1515,6 +1703,127 @@ namespace mai
             }
             m_throwStep = ThrowDone;
         }
+    }
+
+    /**
+     * A quest was taken from, or handed in to, this creature.
+     *
+     * Not a CreatureAI callback: the world has never had one, and the two
+     * triggers were converted, loaded, armed and unreachable -- `Holds` treats
+     * them as "it happened" and nothing ever said that it had. The engine
+     * calls this from the event the world DOES raise, which is the same moment
+     * the quest-start and quest-end sequences run.
+     */
+    void MaiCreatureAI::QuestFor(Player* player, uint32 questId, bool accepted)
+    {
+        RuleId const trigger = accepted ? RuleId::QuestAccepted
+                                        : RuleId::QuestCompleted;
+
+        for (Armed& armed : m_armed)
+        {
+            // The quest is not optional on either trigger: a rule that fired
+            // on every quest this creature carries is not a thing anybody has
+            // ever wanted.
+            if (armed.rule->trigger != trigger ||
+                armed.rule->Param(0) != questId)
+            {
+                continue;
+            }
+
+            Fire(armed, player);
+        }
+    }
+
+    // -- Driver: what a step cannot do for itself ----------------------------
+
+    void MaiCreatureAI::SetCombatMovementAllowed(bool enable, bool sendMelee)
+    {
+        m_actor.combatMovement = enable;
+
+        // The flag, explicitly, because the base class's SetCombatMovement
+        // does not touch it in this core -- it only stops or starts the
+        // movement that is running now. The flag is the half that LASTS:
+        // HandleMovementOnAttackStart reads it at every retarget, so a
+        // creature told to stand still and left with the bit set walks up to
+        // the next thing it aggroes as if nothing had been said.
+        if (enable)
+        {
+            AddCombatMovementFlags(COMBAT_MOVEMENT_SCRIPT);
+        }
+        else
+        {
+            ClearCombatMovementFlags(COMBAT_MOVEMENT_SCRIPT);
+        }
+
+        // And now, not at the next decision: the original passes true here
+        // unconditionally, because a script that says "stop" and is obeyed
+        // three seconds later has not been obeyed. The argument is named at
+        // the call because the base signature is two bare bools and the second
+        // one gates the ENTIRE body -- `SetCombatMovement(false, false)` is a
+        // function call that does nothing at all.
+        SetCombatMovement(enable, /* stopOrStartMovement */ true);
+
+        if (!sendMelee || !m_creature->IsInCombat())
+        {
+            return;
+        }
+
+        // What the client is told. Without it a caster ordered to stand off
+        // keeps playing its melee swing at a target it is no longer walking
+        // to, which is the visible half of the change and the only half a
+        // player can see.
+        if (Unit* victim = m_creature->getVictim())
+        {
+            if (enable)
+            {
+                m_creature->SendMeleeAttackStart(victim);
+            }
+            else
+            {
+                m_creature->SendMeleeAttackStop(victim);
+            }
+        }
+    }
+
+    void MaiCreatureAI::SetChase(float distance, float angle)
+    {
+        // The AI's own pair, not one chase's arguments. A bare MoveChase lasts
+        // until the next retarget and no further, and the retarget chases at
+        // these two -- so a caster told to keep twenty yards closed to melee
+        // the moment its victim changed, which is the fight nobody wrote.
+        m_attackDistance = distance;
+        m_attackAngle = angle;
+
+        if (!m_actor.combatMovement)
+        {
+            return;
+        }
+
+        if (Unit* victim = m_creature->getVictim())
+        {
+            m_creature->GetMotionMaster()->MoveChase(victim, m_attackDistance,
+                                                     m_attackAngle);
+        }
+    }
+
+    bool MaiCreatureAI::StartBranch(uint32 kind, uint32 id, ObjectGuid source,
+                                    ObjectGuid target)
+    {
+        Sequence const* sequence = FindSequence(kind, id);
+        if (!sequence || sequence->steps.empty())
+        {
+            return false;
+        }
+
+        Frame frame;
+        frame.sequence = sequence;
+        frame.source = source.IsEmpty() ? m_creature->GetObjectGuid() : source;
+        frame.target = target;
+
+        // Queued, not run: a sequence starting now has had no time pass in it
+        // yet, which is the same answer the engine's own frames get.
+        m_frames.push_back(frame);
+        return true;
     }
 
     bool MaiCreatureAI::IsVisible(Unit* who) const

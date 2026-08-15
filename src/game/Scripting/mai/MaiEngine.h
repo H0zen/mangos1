@@ -34,6 +34,7 @@
 #include "mai/MaiScript.h"
 
 #include <cstddef>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -76,6 +77,11 @@ namespace scripting
                               WorldObject* source, WorldObject* target,
                               ObjectGuid owner, ObjectGuid item, bool* cancel);
 
+        /// What `mai::FindSequence` reaches, for the same reason and by the
+        /// same route: a creature's AI runs a branch on itself and needs the
+        /// steps to do it.
+        static mai::Sequence const* Find(uint32 kind, uint32 id);
+
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
 
@@ -117,7 +123,8 @@ namespace scripting
         ///         engine's own policy says one is enough.
         bool Start(Map* map, uint32 type, uint32 id, WorldObject* source,
                    WorldObject* target, uint32 unique,
-                   ObjectGuid owner = ObjectGuid());
+                   ObjectGuid owner = ObjectGuid(),
+                   ObjectGuid item = ObjectGuid());
 
         /**
          * Run a sequence NOW, rather than queueing it.
@@ -157,7 +164,28 @@ namespace scripting
         /// objects point into the result.
         void LoadRules();
 
+        /**
+         * The frames a map has running, and the lock only the CONTAINER needs.
+         *
+         * The maps update in parallel -- MapUpdateThreads defaults to two --
+         * and every one of them can reach this: a gossip option chosen on one
+         * map and a spell landing on another insert two different keys into
+         * one unordered_map at the same instant, which rehashes it under both.
+         * Two threads writing one container is a data race whatever the keys
+         * are, and a race is undefined behaviour rather than a lost entry.
+         *
+         * The VECTOR a map gets back needs no lock: a map is updated by one
+         * thread at a time and retired by the thread that owned it, so the
+         * only thread that can be running a map's frames is the one that would
+         * be dropping them. And the reference survives the rehash that another
+         * thread's insert causes -- an unordered_map is node-based, so only
+         * ITERATORS are invalidated, never pointers or references to elements.
+         */
+        std::vector<mai::Frame>& FramesOf(Map const* map);
+
         std::unordered_map<Key, mai::Sequence, KeyHash> m_sequences;
+
+        mutable std::mutex m_framesLock;
         std::unordered_map<Map const*, std::vector<mai::Frame>> m_frames;
 
         /// The rules, per creature ENTRY -- because that is what they are the

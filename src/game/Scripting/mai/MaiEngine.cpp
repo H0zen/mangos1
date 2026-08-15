@@ -51,7 +51,10 @@
 #include <cstring>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace scripting
 {
@@ -262,6 +265,7 @@ namespace scripting
             run.source = frame.source;
             run.target = frame.target;
             run.owner = frame.owner;
+            run.item = frame.item;
             run.origin = frame.sequence ? frame.sequence->origin : 0;
 
             // No creature behind it, so no Actor and no selector: a queued
@@ -313,7 +317,29 @@ namespace scripting
         // A branch may run only once per step, so uniqueness is nobody's
         // policy here: whoever started the parent already decided that.
         return s_instance->Start(map, kind, id, source, target,
-                                 Map::SCRIPT_EXEC_PARAM_NONE, owner);
+                                 Map::SCRIPT_EXEC_PARAM_NONE, owner, item);
+    }
+
+    mai::Sequence const* MaiEngine::Find(uint32 kind, uint32 id)
+    {
+        if (!s_instance)
+        {
+            return nullptr;
+        }
+
+        // Read-only at run time: the sequences are built at start-up and
+        // rebuilt only by a reload, which runs on the world thread with the
+        // parallel map update joined and clears every frame pointing into them
+        // first. So no lock, and none is missing.
+        auto found = s_instance->m_sequences.find(Key{ kind, id });
+        return found != s_instance->m_sequences.end() ? &found->second
+                                                      : nullptr;
+    }
+
+    std::vector<mai::Frame>& MaiEngine::FramesOf(Map const* map)
+    {
+        std::lock_guard<std::mutex> guard(m_framesLock);
+        return m_frames[map];
     }
 
     /**
@@ -418,7 +444,13 @@ namespace scripting
         // quietly did not, so every row written into `mai_step` since then sat
         // in a table nothing read: ported gameobjects and spell effects that
         // loaded, validated, and never ran.
-        m_sequences.clear();
+        //
+        // BUILT BESIDE THE LIVE TABLE, not into it. Clearing first and reading
+        // afterwards means a reload against a database that has gone away ends
+        // with a world that has no scripts at all -- the query fails, the
+        // function returns, and what is left is the empty table it made on its
+        // way in. What replaces the sequences is a set of sequences.
+        std::unordered_map<Key, mai::Sequence, KeyHash> loaded;
 
         std::size_t sequences = 0;
         std::size_t steps = 0;
@@ -502,8 +534,15 @@ namespace scripting
                 // Out of 100, and 100 is "always". A step's own roll, not the
                 // sequence's: `random_script` is how a script picks ONE of
                 // several, and this is how it says "and sometimes a third".
+                //
+                // ZERO IS NEVER, and is left alone. Rewriting it to 100 was
+                // the two tables disagreeing about one field: MaiScript says
+                // never, Execute rolls it as never, mai_rule_step loads it as
+                // never -- and this one line turned "never" into "always" for
+                // the sequences alone. The column defaults to 100, so a zero
+                // is somebody typing one.
                 step.chance = field[8].GetUInt8();
-                if (!step.chance || step.chance > 100)
+                if (step.chance > 100)
                 {
                     step.chance = 100;
                 }
@@ -518,8 +557,9 @@ namespace scripting
 
         if (!result)
         {
-            sLog.outString("MAI: `mai_script` is empty; nothing the world does "
-                           "starts a sequence.");
+            sLog.outString("MAI: `mai_script` gave no rows; nothing the world "
+                           "does starts a sequence. Whatever was already "
+                           "loaded is left as it was.");
             return;
         }
 
@@ -560,9 +600,11 @@ namespace scripting
 
             steps += sequence.steps.size();
             ++sequences;
-            m_sequences.emplace(Key{ type, id }, std::move(sequence));
+            loaded.emplace(Key{ type, id }, std::move(sequence));
         }
         while (result->NextRow());
+
+        m_sequences = std::move(loaded);
 
         sLog.outString("MAI: %u sequence(s), %u step(s); %u refused, %u step(s) "
                        "refused or naming something this world does not have.",
@@ -858,7 +900,10 @@ namespace scripting
             return true;
         }
 
-        m_frames.clear();
+        {
+            std::lock_guard<std::mutex> guard(m_framesLock);
+            m_frames.clear();
+        }
 
         // The SEQUENCES only. `mai_rule` is deliberately absent from the list
         // above and cannot be reloaded at all: every live MaiCreatureAI holds
@@ -870,7 +915,8 @@ namespace scripting
     }
 
     bool MaiEngine::Start(Map* map, uint32 type, uint32 id, WorldObject* source,
-                          WorldObject* target, uint32 unique, ObjectGuid owner)
+                          WorldObject* target, uint32 unique, ObjectGuid owner,
+                          ObjectGuid item)
     {
         auto found = m_sequences.find(Key{ type, id });
         if (found == m_sequences.end() || found->second.steps.empty())
@@ -883,33 +929,39 @@ namespace scripting
         ObjectGuid const targetGuid = target ? target->GetObjectGuid()
                                              : ObjectGuid();
 
+        std::vector<mai::Frame>& frames = FramesOf(map);
+
         // Refuse a second copy while the first is still running, on whichever
         // of the two actors the engine's own policy names. Without this a
         // player clicking a gossip option twice gets the sequence twice, which
         // for a script that summons something means two of it.
         if (unique != Map::SCRIPT_EXEC_PARAM_NONE)
         {
-            auto live = m_frames.find(map);
-            if (live != m_frames.end())
+            for (mai::Frame const& live : frames)
             {
-                for (mai::Frame const& frame : live->second)
+                if (live.Finished() || live.sequence != &found->second)
                 {
-                    if (frame.Finished() || frame.sequence != &found->second)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    bool const bySource =
-                        (unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE) &&
-                        frame.source == sourceGuid;
-                    bool const byTarget =
-                        (unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET) &&
-                        frame.target == targetGuid;
+                // EVERY dimension the flags name, together. The map's own
+                // constant is UNIQUE_BY_SOURCE_TARGET = 0x03, "the same script
+                // for the same source AND the same target", and refusing on
+                // either half alone means something else entirely: two players
+                // talking to one quest giver share a source, so the second one
+                // was told nothing at all. Each term is vacuously true when
+                // its bit is not asked for, which is what keeps the
+                // single-bit flags meaning what they always meant.
+                bool const sourceHolds =
+                    !(unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE) ||
+                    live.source == sourceGuid;
+                bool const targetHolds =
+                    !(unique & Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET) ||
+                    live.target == targetGuid;
 
-                    if (bySource || byTarget)
-                    {
-                        return false;
-                    }
+                if (sourceHolds && targetHolds)
+                {
+                    return false;
                 }
             }
         }
@@ -918,6 +970,7 @@ namespace scripting
         frame.sequence = &found->second;
         frame.source = sourceGuid;
         frame.target = targetGuid;
+        frame.item = item;
 
         // An item source is the one thing not findable from its guid, so the
         // player holding it rides along -- the same reason the seam's guid box
@@ -937,7 +990,7 @@ namespace scripting
             frame.owner = target->GetObjectGuid();
         }
 
-        m_frames[map].push_back(frame);
+        frames.push_back(frame);
         return true;
     }
 
@@ -995,7 +1048,13 @@ namespace scripting
         frame.target = run.target;
         frame.owner = owner;
 
-        m_frames[map].push_back(frame);
+        // Which item this was about. The inline half had it in the Run and the
+        // queued half did not, so "refuse the use, and two seconds later say
+        // why" lost the item between its two sentences -- and every verb that
+        // asks the owner's bags for it got an empty guid.
+        frame.item = item;
+
+        FramesOf(map).push_back(frame);
         return cancelled;
     }
 
@@ -1006,13 +1065,29 @@ namespace scripting
             return;
         }
 
-        auto found = m_frames.find(ctx.map);
-        if (found == m_frames.end() || found->second.empty())
+        // The lock covers the LOOKUP and nothing else. What it is there for is
+        // another map's thread inserting its own first frame at this instant,
+        // which rehashes the container; the vector it hands back belongs to
+        // this map and only this thread ever touches it, and the reference
+        // outlives any rehash because the container is node-based.
+        std::vector<mai::Frame>* held = nullptr;
+        {
+            std::lock_guard<std::mutex> guard(m_framesLock);
+
+            auto found = m_frames.find(ctx.map);
+            if (found == m_frames.end())
+            {
+                return;
+            }
+
+            held = &found->second;
+        }
+
+        std::vector<mai::Frame>& frames = *held;
+        if (frames.empty())
         {
             return;
         }
-
-        std::vector<mai::Frame>& frames = found->second;
 
         // Indexed rather than iterated: a step can start another sequence on
         // this same map, which appends here. An iterator would be invalidated
@@ -1049,6 +1124,7 @@ namespace scripting
 
         // Nothing survives the map. A sequence still running when the last
         // player left is a sequence about a world that is no longer there.
+        std::lock_guard<std::mutex> guard(m_framesLock);
         m_frames.erase(ctx.map);
     }
 
@@ -1094,6 +1170,27 @@ namespace scripting
                                  : quest->GetQuestCompleteScript();
                 source = args[1].AsEntity();     // the quest giver
                 target = args[0].AsEntity();     // the player
+
+                // And the quest giver's own RULES, which is the other half of
+                // this moment and had no way in at all. `quest_accepted` and
+                // `quest_completed` convert, load, arm, and are treated by the
+                // rule engine as "it happened" -- and nothing anywhere ever
+                // said that it had, because the world raises no CreatureAI
+                // callback for a quest. Both triggers were dead rows.
+                //
+                // Here rather than on a new callback because this IS the
+                // moment: the same event, the same two objects, and the
+                // sequence started below is the same fact told the other way.
+                if (Creature* giver = CreatureOn(ctx, source))
+                {
+                    if (mai::MaiCreatureAI* ai =
+                            dynamic_cast<mai::MaiCreatureAI*>(giver->AI()))
+                    {
+                        WorldObject* who = ObjectOn(ctx, target);
+                        ai->QuestFor(who ? who->ToPlayer() : nullptr,
+                                     quest->GetQuestId(), start);
+                    }
+                }
                 break;
             }
 
@@ -1384,5 +1481,10 @@ namespace mai
     {
         return scripting::MaiEngine::StartFrom(map, kind, id, source, target,
                                                owner, item, cancel);
+    }
+
+    Sequence const* FindSequence(uint32 kind, uint32 id)
+    {
+        return scripting::MaiEngine::Find(kind, id);
     }
 }

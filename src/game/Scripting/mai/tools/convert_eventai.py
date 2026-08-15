@@ -74,22 +74,35 @@ RULES = {
     7:  ('evaded', []),
     8:  ('hit_by_spell', ['spell', 'school', 'repeat', 'repeat_max']),
     9:  ('target_in_range', ['min', 'max', 'repeat', 'repeat_max']),
-    10: ('saw_unit', ['in_combat', 'range', 'repeat', 'repeat_max']),
+    10: ('saw_unit', ['friendly', 'range', 'repeat', 'repeat_max']),
     11: ('spawned', ['condition', 'value']),
     12: ('target_health_below',
          ['percent_max', 'percent_min', 'repeat', 'repeat_max']),
     13: ('target_casting', ['repeat', 'repeat_max']),
-    14: ('friendly_hurt', ['radius', 'missing_hp', 'repeat', 'repeat_max']),
-    15: ('friendly_controlled', ['radius', 'repeat', 'repeat_max']),
+    # THE UNION'S ORDER, which is the order the row holds the values in --
+    # these are written out as `name=value`, so a name in the wrong position
+    # does not rename a column, it moves a value into a different field. All
+    # three of these were wrong and all three load: a healer that watched a
+    # radius of 30 for a friend missing 3,000 health, and a `friendly_
+    # controlled` whose three names were spread over a four-column union so
+    # that every value landed one slot early. rules.manifest was corrected;
+    # this table was the other copy of it.
+    14: ('friendly_hurt', ['missing_hp', 'radius', 'repeat', 'repeat_max']),
+    15: ('friendly_controlled',
+         ['dispel', 'radius', 'repeat', 'repeat_max']),
     16: ('friendly_missing_buff',
-         ['radius', 'spell', 'repeat', 'repeat_max']),
+         ['spell', 'radius', 'repeat', 'repeat_max']),
     17: ('summoned_unit', ['creature', 'repeat', 'repeat_max']),
     18: ('target_mana_below',
          ['percent_max', 'percent_min', 'repeat', 'repeat_max']),
     19: ('quest_accepted', ['quest']),
     20: ('quest_completed', ['quest']),
     21: ('reached_home', []),
-    22: ('received_emote', ['emote', 'condition', 'value']),
+    # Four, not three: a PlayerCondition takes two values and the row has
+    # always carried both. Declared with three, the fourth column was dropped
+    # on the way in and every condition that uses it became a different
+    # condition. The manifest was widened; this is the same fix on this side.
+    22: ('received_emote', ['emote', 'condition', 'value', 'value2']),
     23: ('has_aura', ['spell', 'stacks', 'repeat', 'repeat_max']),
     24: ('target_has_aura', ['spell', 'stacks', 'repeat', 'repeat_max']),
     25: ('summon_died', ['creature', 'repeat', 'repeat_max']),
@@ -122,6 +135,59 @@ def optional_names(path):
             if ':' in token and token.endswith('?'):
                 optional[current].add(token.split(':')[0])
     return optional
+
+
+def declared_names(path):
+    """The parameters a manifest declares, in the order it declares them."""
+    names = {}
+    for raw in io.open(path, encoding='utf-8'):
+        line = raw.split('#')[0].strip()
+        if not line or line.startswith('category') or line.startswith('facet'):
+            continue
+        parts = line.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            continue
+        names[parts[0]] = [token.split(':')[0]
+                           for token in parts[2:] if ':' in token]
+    return names
+
+
+def check_rules(path):
+    """Whether RULES says what rules.manifest says, slot for slot.
+
+    THIS TABLE IS A SECOND COPY OF THE MANIFEST and drifts from it silently.
+    The rows are written as `name=value`, so a name in the wrong position does
+    not rename a column -- it puts the value in a different field, and both
+    fields parse, load and run. Three of them had drifted before anybody
+    looked: a healer watching a radius of 30 for a friend missing 3,000 health,
+    a `friendly_controlled` whose names covered three of a four-column union so
+    that every value landed one slot early, and a `received_emote` that dropped
+    the second half of every player condition.
+
+    Only a PREFIX is required, and that is the limit of what this can see.
+    Several rules have parameters appended after the four EventAI wrote --
+    `saw_unit creature`, `friendly_hurt initial` -- and no converted row can
+    fill those, so a short list is legitimate. Which means a list that is short
+    because a column was FORGOTTEN still passes: `received_emote` naming three
+    of a PlayerCondition's four is a valid prefix. Order drift is caught here;
+    a dropped last column is not.
+    """
+    declared = declared_names(path)
+    wrong = []
+
+    for event, (rule, names) in sorted(RULES.items()):
+        if rule not in declared:
+            wrong.append('event %d: rules.manifest has no rule `%s`'
+                         % (event, rule))
+            continue
+
+        want = declared[rule][:len(names)]
+        if names != want:
+            wrong.append('event %d `%s`: this table says [%s], the manifest '
+                         'declares [%s]'
+                         % (event, rule, ' '.join(names), ' '.join(want)))
+
+    return wrong
 
 
 def pairs(names, values, optional):
@@ -271,6 +337,15 @@ def main():
 
     action_optional = optional_names(os.path.join(MAI, 'actions.manifest'))
     rule_optional = optional_names(os.path.join(MAI, 'rules.manifest'))
+
+    # Before a single row is read. A converter that disagrees with the manifest
+    # produces 20,732 rows that all load and mean something else, and the only
+    # symptom is a creature behaving oddly six months later.
+    wrong = check_rules(os.path.join(MAI, 'rules.manifest'))
+    if wrong:
+        for line in wrong:
+            sys.stderr.write('convert_eventai: ' + line + EOL)
+        return 1
 
     creatures = collections.defaultdict(list)
     unknown_rules = collections.Counter()

@@ -410,6 +410,13 @@ namespace mai
         ObjectGuid      target;
         ObjectGuid      owner;          ///< the player holding an item source
 
+        /// The item whose use started this, when one did. Carried rather than
+        /// resolved because the owner's bags are the only place it can be
+        /// found -- and carried on the FRAME because an `item_use` sequence
+        /// that runs inline and then queues its later half would otherwise
+        /// hand those steps an empty guid and no way to say which item.
+        ObjectGuid      item;
+
         /// The creature that threw the AI event this run was started by, when
         /// one was. A guid like the rest and for the same reason: a sequence
         /// outlives the moment that started it, and the sender can be dead by

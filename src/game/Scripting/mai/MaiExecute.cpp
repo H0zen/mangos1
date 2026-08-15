@@ -370,7 +370,7 @@ namespace mai
         doing.target = finalTarget;
         doing.owner = run.owner;
         doing.actor = run.actor;
-        doing.timers = run.timers;
+        doing.driver = run.driver;
         doing.refused = run.refused;
         doing.item = run.item;
         doing.cancel = run.cancel;

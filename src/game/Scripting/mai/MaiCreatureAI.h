@@ -65,7 +65,7 @@
  */
 namespace mai
 {
-    class MaiCreatureAI : public CreatureAI, public RuleTimers
+    class MaiCreatureAI : public CreatureAI, public Driver
     {
         public:
             /// @a rules may be null: an entry bound to MAI with no rows is not
@@ -101,10 +101,22 @@ namespace mai
 
             void UpdateAI(uint32 diff) override;
 
-            /// RuleTimers: set one of this creature's rules to fire in @a ms,
+            /// Driver: set one of this creature's rules to fire in @a ms,
             /// or stop it firing at all. What `set_timer` reaches.
             void Arm(uint32 id, uint32 ms, bool enable) override;
+
+            /// Driver: the three a verb cannot carry out on its own.
+            void SetCombatMovementAllowed(bool enable, bool sendMelee) override;
+            void SetChase(float distance, float angle) override;
+            bool StartBranch(uint32 kind, uint32 id, ObjectGuid source,
+                             ObjectGuid target) override;
+
             bool IsVisible(Unit* who) const override;
+
+            /// A player accepted or handed in a quest to this creature. Not a
+            /// CreatureAI callback -- the world has never had one -- so the
+            /// engine calls it from the event it does raise.
+            void QuestFor(Player* player, uint32 questId, bool accepted);
 
         private:
             /**
@@ -138,15 +150,24 @@ namespace mai
             ///         rule -- the original's answer, and a loud one.
             bool ReArm(Armed& armed, std::size_t minSlot, std::size_t maxSlot);
 
-            /// Every rule with this trigger, in table order.
+            /**
+             * Every rule with this trigger, in table order.
+             *
+             * @a now runs the steps that are already due rather than leaving
+             * them for the next UpdateAI, and is for the three callbacks after
+             * which there is NO next UpdateAI: a corpse is not ALIVE and a
+             * creature walking home is in evade mode, so Creature::Update
+             * skips both. EventAI ran every action synchronously in the
+             * callback and never had the question.
+             */
             void Fire(RuleId trigger, Unit* invoker = nullptr,
-                      Creature* sender = nullptr);
+                      Creature* sender = nullptr, bool now = false);
 
             /// One rule: the phase, the trigger's own condition, the chance,
             /// and then the sequence.
             /// @return true when it fired.
             bool Fire(Armed& armed, Unit* invoker = nullptr,
-                      Creature* sender = nullptr);
+                      Creature* sender = nullptr, bool now = false);
 
             /// Whether the trigger's own condition holds, and re-arm it if so.
             /// Split from Fire because this is the half that reads the world.
@@ -155,10 +176,40 @@ namespace mai
             /// Start this rule's steps. They may not all be at time zero --
             /// EventAI's always were, but a rule is not required to be an
             /// EventAI row.
-            void Start(Rule const& rule, Unit* invoker, Creature* sender);
+            void Start(Rule const& rule, Unit* invoker, Creature* sender,
+                       bool now = false);
 
             /// Advance every running sequence by @a diff.
             void Advance(uint32 diff);
+
+            /**
+             * One frame, by INDEX, advanced by @a diff.
+             *
+             * By index and not by reference, and that is the whole of what
+             * keeps this safe: a step can start another sequence on this
+             * creature, which appends to m_frames and may reallocate it, and a
+             * step can END the creature -- `die` reaches JustDied, which
+             * cancels every frame there is. Either one leaves a `Frame&` taken
+             * before the call pointing at memory that is no longer the frame.
+             */
+            void RunFrame(std::size_t index, uint32 diff);
+
+            /**
+             * Drop everything still running, safely from inside a step.
+             *
+             * Reset() cannot simply clear the vector: it is reached from
+             * JustDied, which is reached from a `die` STEP, which the loop in
+             * RunFrame is in the middle of walking. So the frames are marked
+             * finished instead and swept when the walk is over -- which is
+             * also what lets the death rules queued immediately afterwards
+             * survive, since they are appended after the marking.
+             */
+            void DropFrames();
+
+            /// Erase the frames that have finished. Never while a step is
+            /// running: erasing is the one thing that moves the frames an
+            /// index points at.
+            void Sweep();
 
             /// A refused cast asks its rule to come round again sooner, when
             /// the rule said how soon.
@@ -181,6 +232,13 @@ namespace mai
             /// Which health marks this creature has already announced. 100 is
             /// "done", which is the original's sentinel and not a percentage.
             uint32 m_throwStep = 0;
+
+            /// How many RunFrame calls are on the stack. A step may start a
+            /// branch, which runs a frame from inside a frame, and the sweep
+            /// that erases finished frames must not run until the outermost
+            /// one is done: erasing is the one thing that moves the frames an
+            /// index points at.
+            uint32 m_running = 0;
 
             /// Whether any rule waits on line of sight, cached because
             /// MoveInLineOfSight is the hottest callback in the server.
