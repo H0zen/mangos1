@@ -274,9 +274,10 @@ namespace Combat
          */
         void RefreshJudgements(Unit const& attacker, Unit& victim)
         {
-            SpellAuraHolderMap const& holders = victim.GetSpellAuraHolderMap();
+            Unit::SpellAuraHolderMap const& holders =
+                victim.GetSpellAuraHolderMap();
 
-            for (SpellAuraHolderMap::const_iterator it = holders.begin();
+            for (Unit::SpellAuraHolderMap::const_iterator it = holders.begin();
                  it != holders.end(); ++it)
             {
                 SpellAuraHolder* holder = it->second;

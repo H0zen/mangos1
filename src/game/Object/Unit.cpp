@@ -43,6 +43,7 @@
 #include "SpellAuras.h"
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
+#include "combat/ProcRegistry.h"
 #include "CreatureAI.h"
 #include "TemporarySummon.h"
 #include "Pet.h"
@@ -5209,15 +5210,27 @@ void Unit::ProcDamageAndSpellFor(bool isVictim, Unit* pTarget, uint32 procFlag, 
                 }
             }
 
-            SpellAuraProcResult procResult = (*this.*AuraProcHandler[auraModifier->m_auraname])(pTarget, damage, triggeredByAura, procSpell, procFlag, procExtra, cooldown);
+            Combat::ProcEvent event;
+            event.actor     = this;
+            event.target    = pTarget;
+            event.aura      = triggeredByAura;
+            event.procSpell = procSpell;
+            event.damage    = damage;
+            event.flags     = procFlag;
+            event.extra     = procExtra;
+            event.cooldown  = cooldown;
+
+            const Combat::ProcResult procResult =
+                Combat::ProcHandlerFor(auraModifier->m_auraname)(event);
+
             switch (procResult)
             {
-                case SPELL_AURA_PROC_CANT_TRIGGER:
+                case Combat::ProcResult::CantTrigger:
                     continue;
-                case SPELL_AURA_PROC_FAILED:
+                case Combat::ProcResult::Failed:
                     procSuccess = false;
                     break;
-                case SPELL_AURA_PROC_OK:
+                case Combat::ProcResult::Ok:
                     break;
             }
 

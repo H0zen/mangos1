@@ -492,7 +492,7 @@ namespace Combat
                     return false;
                 }
 
-                return mai::MaiEngine::AuraProcced(
+                return scripting::MaiEngine::AuraProcced(
                     e.actor, e.target, aura->ID,
                     e.procSpell ? e.procSpell->ID : 0, NumbersOf(e));
             }
