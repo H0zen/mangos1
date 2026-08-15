@@ -30,6 +30,7 @@
 #include "Creature.h"
 #include "Player.h"
 #include "Unit.h"
+#include "World.h"
 #include "Utilities/MathDefines.h"
 
 #include <algorithm>
