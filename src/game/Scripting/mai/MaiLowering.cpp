@@ -113,12 +113,31 @@ namespace mai
 
         std::size_t slot = 0;
 
-        // The verb's own parameters: datalong, then datalong2. A verb with
-        // more than two of its own would be one the union could not express,
-        // so there are none, and the loop stops of its own accord.
+        // The verb's own parameters: datalong, then datalong2, and then
+        // NOTHING -- but the slot still moves.
+        //
+        // "A verb with more than two of its own would be one the union could
+        // not express, so there are none" was true when it was written and is
+        // not true now: fourteen verbs declare a third, and one of them --
+        // `temp_summon_creature`, which grew a `scatter` for scripts written
+        // since -- is also a `db_scripts` command. Stopping the loop without
+        // moving the slot left it short of the arity, and the check below then
+        // refused the ROW. Every temp_summon_creature in the world, 27,561
+        // steps, failed to lower over a parameter no row was ever going to
+        // supply.
+        //
+        // A parameter the union cannot carry is ABSENT, which is exactly what
+        // it is, and absent is what makes the native body stand aside for the
+        // borrowed one. It is not zero: `scatter=0` would summon everything on
+        // one spot rather than leaving the scattering to the old body.
         uint32 const raw[2] = { row.raw.data[0], row.raw.data[1] };
-        for (std::size_t i = 0; i < spec->own && i < 2; ++i, ++slot)
+        for (std::size_t i = 0; i < spec->own; ++i, ++slot)
         {
+            if (i >= 2)
+            {
+                continue;
+            }
+
             // Stored as the manifest declares it, not as the column holds it.
             // A DB row keeps every parameter in a uint32, including the ones
             // that are distances -- `quest_explored.distance`,
@@ -225,16 +244,29 @@ namespace mai
             return false;
         }
 
-        // A row has two datalongs and no more. The three verbs that take a
-        // third own parameter are all MAI's own and all have native bodies, so
-        // this is unreachable in practice -- but silently dropping the third
-        // is not the way to find out if that ever stops being true.
-        if (spec->own > 2)
+        // A row has two datalongs and no more. Which of the fourteen verbs
+        // that declare a third own parameter can be written back therefore
+        // depends on the STEP and not on the verb: an absent third is nothing
+        // to lose, and a step that gave one is a step this cannot express.
+        //
+        // Refusing on the verb alone -- which is what stood here, on the
+        // belief that all of them had native bodies -- made
+        // `temp_summon_creature` unusable from a rule. Its native body stands
+        // aside when no `scatter` was written, precisely so the borrowed one
+        // can take the ordinary case, and the borrowed one needs a row.
+        for (std::size_t extra = 2; extra < spec->own; ++extra)
         {
-            char buffer[160];
+            if (!step.Has(extra))
+            {
+                continue;
+            }
+
+            char buffer[192];
             std::snprintf(buffer, sizeof(buffer),
-                          "%s takes %u own parameters and a row holds 2",
-                          spec->name, uint32(spec->own));
+                          "%s was given `%s`, which is its %u%s own parameter "
+                          "and a row holds 2",
+                          spec->name, spec->params[extra].name,
+                          uint32(extra + 1), extra == 2 ? "rd" : "th");
             error = buffer;
             return false;
         }
@@ -283,9 +315,12 @@ namespace mai
         std::size_t slot = 0;
 
         uint32* const raw[2] = { &out.raw.data[0], &out.raw.data[1] };
-        for (std::size_t i = 0; i < spec->own && i < 2; ++i, ++slot)
+        for (std::size_t i = 0; i < spec->own; ++i, ++slot)
         {
-            if (!step.Has(slot))
+            // Past the two the union holds. Checked above to be absent, so
+            // there is nothing to write -- only a slot to step over, which is
+            // what keeps the count below honest.
+            if (i >= 2 || !step.Has(slot))
             {
                 continue;
             }
