@@ -87,9 +87,8 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
             break;
     }
 
-    int32 main_speed_mod  = 0;
-    float stack_bonus     = 1.0f;
-    float non_stack_bonus = 1.0f;
+    SpeedFactors factors;
+    factors.ratio = ratio;
 
     switch (mtype)
     {
@@ -99,15 +98,15 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
         {
             if (IsMounted()) // Use on mount auras
             {
-                main_speed_mod  = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
-                stack_bonus     = GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
-                non_stack_bonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
+                factors.mainMod       = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
+                factors.stackBonus    = GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
+                factors.nonStackBonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
             }
             else
             {
-                main_speed_mod  = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
-                stack_bonus     = GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
-                non_stack_bonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
+                factors.mainMod       = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
+                factors.stackBonus    = GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
+                factors.nonStackBonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
             }
             break;
         }
@@ -115,7 +114,7 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
             return;
         case MOVE_SWIM:
         {
-            main_speed_mod  = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED);
+            factors.mainMod = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED);
             break;
         }
         case MOVE_SWIM_BACK:
@@ -124,15 +123,15 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
         {
             if (IsMounted()) // Use on mount auras
             {
-                main_speed_mod  = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED);
-                stack_bonus     = GetTotalAuraMultiplier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED_STACKING);
-                non_stack_bonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED_NOT_STACKING)) / 100.0f;
+                factors.mainMod       = GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED);
+                factors.stackBonus    = GetTotalAuraMultiplier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED_STACKING);
+                factors.nonStackBonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_MOUNTED_NOT_STACKING)) / 100.0f;
             }
             else             // Use not mount (shapeshift for example) auras (should stack)
             {
-                main_speed_mod  = GetTotalAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED);
-                stack_bonus     = GetTotalAuraMultiplier(SPELL_AURA_MOD_FLIGHT_SPEED_STACKING);
-                non_stack_bonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACKING)) / 100.0f;
+                factors.mainMod       = GetTotalAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED);
+                factors.stackBonus    = GetTotalAuraMultiplier(SPELL_AURA_MOD_FLIGHT_SPEED_STACKING);
+                factors.nonStackBonus = (100.0f + GetMaxPositiveAuraModifier(SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACKING)) / 100.0f;
             }
             break;
         }
@@ -143,73 +142,41 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
             return;
     }
 
-    float bonus = non_stack_bonus > stack_bonus ? non_stack_bonus : stack_bonus;
-    // now we ready for speed calculation
-    float speed  = main_speed_mod ? bonus * (100.0f + main_speed_mod) / 100.0f : bonus;
+    // Aura 191 is a ceiling in yards per second rather than a percentage, and
+    // only the three forward move types honour it.
+    factors.normalization = GetMaxPositiveAuraModifier(SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED);
 
-    switch (mtype)
-    {
-        case MOVE_RUN:
-        case MOVE_SWIM:
-        case MOVE_FLIGHT:
-        {
-            // Normalize speed by 191 aura SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED if need
-            // TODO: possible affect only on MOVE_RUN
-            if (int32 normalization = GetMaxPositiveAuraModifier(SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED))
-            {
-                // Use speed from aura
-                float max_speed = normalization / baseMoveSpeed[mtype];
-                if (speed > max_speed)
-                {
-                    speed = max_speed;
-                }
-            }
-            break;
-        }
-        default:
-            break;
-    }
+    factors.slow = GetMaxNegativeAuraModifier(SPELL_AURA_MOD_DECREASE_SPEED);
 
-    // for creature case, we check explicit if mob searched for assistance
     if (GetTypeId() == TYPEID_UNIT)
     {
+        // a mob that went looking for help moves at a third less, so the pull
+        // reads as deliberate rather than as a charge
         if (((Creature*)this)->HasSearchedAssistance())
         {
-            speed *= 0.66f;                                  // best guessed value, so this will be 33% reduction. Based off initial speed, mob can then "run", "walk fast" or "walk".
+            factors.stateScale = 0.66f;
         }
-    }
-    // for player case, we look for some custom rates
-    else
-    {
-        if (GetDeathState() == CORPSE)
-        {
-            speed *= sWorld.getConfig(((Player*)this)->InBattleGround() ? CONFIG_FLOAT_GHOST_RUN_SPEED_BG : CONFIG_FLOAT_GHOST_RUN_SPEED_WORLD);
-        }
-    }
 
-    // Apply strongest slow aura mod to speed
-    int32 slow = GetMaxNegativeAuraModifier(SPELL_AURA_MOD_DECREASE_SPEED);
-    if (slow)
-    {
-        speed *= (100.0f + slow) / 100.0f;
-    }
-
-    if (GetTypeId() == TYPEID_UNIT)
-    {
         switch (mtype)
         {
             case MOVE_RUN:
-                speed *= ((Creature*)this)->GetCreatureInfo()->SpeedRun;
+                factors.creatureRate = ((Creature*)this)->GetCreatureInfo()->SpeedRun;
                 break;
             case MOVE_WALK:
-                speed *= ((Creature*)this)->GetCreatureInfo()->SpeedWalk;
+                factors.creatureRate = ((Creature*)this)->GetCreatureInfo()->SpeedWalk;
                 break;
             default:
                 break;
         }
     }
+    else if (GetDeathState() == CORPSE)
+    {
+        factors.stateScale = sWorld.getConfig(((Player*)this)->InBattleGround()
+                                              ? CONFIG_FLOAT_GHOST_RUN_SPEED_BG
+                                              : CONFIG_FLOAT_GHOST_RUN_SPEED_WORLD);
+    }
 
-    SetSpeedRate(mtype, speed * ratio, forced);
+    SetSpeedRate(mtype, ComposeSpeedRate(mtype, factors), forced);
 }
 
 /**
@@ -220,7 +187,7 @@ void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
  */
 float Unit::GetSpeed(UnitMoveType mtype) const
 {
-    return m_speed_rate[mtype] * baseMoveSpeed[mtype];
+    return m_speeds.Speed(mtype);
 }
 
 struct SetSpeedRateHelper
@@ -240,16 +207,9 @@ struct SetSpeedRateHelper
  */
 void Unit::SetSpeedRate(UnitMoveType mtype, float rate, bool forced)
 {
-    if (rate < 0)
+    // Everyone is told only when the rate actually moved
+    if (m_speeds.Store(mtype, rate))
     {
-        rate = 0.0f;
-    }
-
-    // Update speed only on change
-    if (m_speed_rate[mtype] != rate)
-    {
-        m_speed_rate[mtype] = rate;
-
         PropagateSpeedChange();
 
         const uint16 SetSpeed2Opc_table[MAX_MOVE_TYPE][2] =

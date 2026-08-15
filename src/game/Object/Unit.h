@@ -64,6 +64,8 @@
 #include "Opcodes.h"
 #include "SpellAuraDefines.h"
 #include "StatBlock.h"
+#include "PowerPool.h"
+#include "SpeedSet.h"
 #include "combat/Combatant.h"
 #include "combat/ProcEvent.h"
 #include "UpdateFields.h"
@@ -506,22 +508,6 @@ enum UnitState
     UNIT_STAT_ALL_STATE       = 0xFFFFFFFF,
     UNIT_STAT_ALL_DYN_STATES  = UNIT_STAT_ALL_STATE & ~(UNIT_STAT_NO_COMBAT_MOVEMENT | UNIT_STAT_RUNNING | UNIT_STAT_WAYPOINT_PAUSED | UNIT_STAT_IGNORE_PATHFINDING)
 };
-
-enum UnitMoveType
-{
-    MOVE_WALK           = 0,
-    MOVE_RUN            = 1,
-    MOVE_RUN_BACK       = 2,
-    MOVE_SWIM           = 3,
-    MOVE_SWIM_BACK      = 4,
-    MOVE_TURN_RATE      = 5,
-    MOVE_FLIGHT         = 6,
-    MOVE_FLIGHT_BACK    = 7,
-};
-
-#define MAX_MOVE_TYPE     8
-
-extern float baseMoveSpeed[MAX_MOVE_TYPE];
 
 enum CombatRating
 {
@@ -1176,9 +1162,6 @@ enum ReactiveType
 #define ATTACK_DISPLAY_DELAY 200
 #define MAX_PLAYER_STEALTH_DETECT_RANGE 45.0f               // max distance for detection targets by player
 #define MAX_CREATURE_ATTACK_RADIUS 45.0f                    // max distance for creature aggro (use with CONFIG_FLOAT_RATE_CREATURE_AGGRO)
-
-// Regeneration defines
-#define REGEN_TIME_FULL     2000                            // For this time difference is computed regen value
 
 // Power type values defines
 enum PowerDefaults
@@ -3773,7 +3756,7 @@ class Unit : public WorldObject
 
         virtual void  UpdateSpeed(UnitMoveType mtype, bool forced, float ratio = 1.0f);
         float GetSpeed(UnitMoveType mtype) const;
-        float GetSpeedRate(UnitMoveType mtype) const { return m_speed_rate[mtype]; }
+        float GetSpeedRate(UnitMoveType mtype) const { return m_speeds.Rate(mtype); }
         void SetSpeedRate(UnitMoveType mtype, float rate, bool forced = false);
 
         bool IsHover() const { return HasAuraType(SPELL_AURA_HOVER); }
@@ -3884,7 +3867,11 @@ class Unit : public WorldObject
         bool m_canModifyStats;
         // std::list< spellEffectPair > AuraSpells[TOTAL_AURAS];  // TODO: use this if ok for mem
 
-        float m_speed_rate[MAX_MOVE_TYPE];
+        /// Owns one movement rate per move type.
+        SpeedSet m_speeds;
+
+        /// Owns the countdown to this unit's next resource tick.
+        PowerPool m_powers;
 
         CharmInfo* m_charmInfo;
 
@@ -3894,7 +3881,6 @@ class Unit : public WorldObject
 
         uint32 m_schoolAllowedSince[MAX_SPELL_SCHOOL];
         uint32 m_reactiveTimer[MAX_REACTIVE];
-        uint32 m_regenTimer;
         uint32 m_lastManaUseTimer;
 
         void DisableSpline();

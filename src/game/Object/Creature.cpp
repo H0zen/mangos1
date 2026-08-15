@@ -254,7 +254,9 @@ Creature::Creature(CreatureSubtype subtype) : Unit(),
     assignedLooter = 0;
 
     m_killedTime = 0;
-    m_regenTimer = 200;
+    // a short first interval, so a freshly spawned creature does not wait a
+    // full tick before it starts filling
+    m_powers.ArmTick(200);
     m_valuesCount = UNIT_END;
 
     // Zero sentinel: lets waypoint evade tell "combat start never recorded"
@@ -960,18 +962,8 @@ void Creature::StopGroupLoot()
  */
 void Creature::RegenerateAll(uint32 update_diff)
 {
-    if (m_regenTimer > 0)
-    {
-        if (update_diff >= m_regenTimer)
-        {
-            m_regenTimer = 0;
-        }
-        else
-        {
-            m_regenTimer -= update_diff;
-        }
-    }
-    if (m_regenTimer != 0)
+    m_powers.Advance(update_diff);
+    if (!m_powers.TickDue())
     {
         return;
     }
@@ -983,7 +975,7 @@ void Creature::RegenerateAll(uint32 update_diff)
 
     RegeneratePower();
 
-    m_regenTimer = REGEN_TIME_FULL;
+    m_powers.ArmTick(REGEN_TIME_FULL);
 }
 
 /**

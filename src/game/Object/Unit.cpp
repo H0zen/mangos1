@@ -70,18 +70,6 @@
 #include <list>
 #include <string>
 
-float baseMoveSpeed[MAX_MOVE_TYPE] =
-{
-    2.5f,                                                   // MOVE_WALK
-    7.0f,                                                   // MOVE_RUN
-    4.5f,                                                   // MOVE_RUN_BACK
-    4.722222f,                                              // MOVE_SWIM
-    2.5f,                                                   // MOVE_SWIM_BACK
-    3.141594f,                                              // MOVE_TURN_RATE
-    7.0f,                                                   // MOVE_FLIGHT
-    4.5f,                                                   // MOVE_FLIGHT_BACK
-};
-
 ////////////////////////////////////////////////////////////
 // Methods of class MovementInfo
 
@@ -285,10 +273,6 @@ Unit::Unit() :
         m_threatModifier[i] = 1.0f;
     }
     m_isSorted = true;
-    for (int i = 0; i < MAX_MOVE_TYPE; ++i)
-    {
-        m_speed_rate[i] = 1.0f;
-    }
 
     // remove aurastates allowing special moves
     for (int i = 0; i < MAX_REACTIVE; ++i)

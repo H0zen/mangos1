@@ -59,6 +59,45 @@
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
 
+namespace
+{
+    /**
+     * @brief Mark a power field for the next group roster update.
+     *
+     * A player marks their own party; a controlled pet marks its owner's, with
+     * the pet flag rather than the player one. Anything else has no party to
+     * tell.
+     *
+     * @param own the flag when the unit is the group member itself
+     * @param asPet the flag when the unit is a group member's pet
+     */
+    void MarkGroupPower(Unit* unit, GroupUpdateFlags own, GroupUpdateFlags asPet)
+    {
+        if (unit->GetTypeId() == TYPEID_PLAYER)
+        {
+            Player* player = static_cast<Player*>(unit);
+            if (player->GetGroup())
+            {
+                player->SetGroupUpdateFlag(own);
+            }
+            return;
+        }
+
+        Creature* creature = static_cast<Creature*>(unit);
+        if (!creature->IsPet() || !static_cast<Pet*>(creature)->isControlled())
+        {
+            return;
+        }
+
+        Unit* owner = unit->GetOwner();
+        if (owner && owner->GetTypeId() == TYPEID_PLAYER
+            && static_cast<Player*>(owner)->GetGroup())
+        {
+            static_cast<Player*>(owner)->SetGroupUpdateFlag(asPet);
+        }
+    }
+}
+
 /**
  * @brief Changes the unit's power type and updates dependent state.
  *
@@ -69,26 +108,8 @@ void Unit::SetPowerType(Powers new_powertype)
     // set power type
     SetByteValue(UNIT_FIELD_BYTES_0, 3, new_powertype);
 
-    // group updates
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (((Player*)this)->GetGroup())
-        {
-            ((Player*)this)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_POWER_TYPE);
-        }
-    }
-    else if (((Creature*)this)->IsPet())
-    {
-        Pet* pet = ((Pet*)this);
-        if (pet->isControlled())
-        {
-            Unit* owner = GetOwner();
-            if (owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
-            {
-                ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_POWER_TYPE);
-            }
-        }
-    }
+    MarkGroupPower(this, GROUP_UPDATE_FLAG_POWER_TYPE,
+                   GROUP_UPDATE_FLAG_PET_POWER_TYPE);
 
     switch (new_powertype)
     {
@@ -135,31 +156,16 @@ void Unit::SetPower(Powers power, uint32 val)
 
     SetStatInt32Value(UNIT_FIELD_POWER1 + power, val);
 
-    // group update
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (((Player*)this)->GetGroup())
-        {
-            ((Player*)this)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_POWER);
-        }
-    }
-    else if (((Creature*)this)->IsPet())
-    {
-        Pet* pet = ((Pet*)this);
-        if (pet->isControlled())
-        {
-            Unit* owner = GetOwner();
-            if (owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
-            {
-                ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_CUR_POWER);
-            }
-        }
+    MarkGroupPower(this, GROUP_UPDATE_FLAG_CUR_POWER,
+                   GROUP_UPDATE_FLAG_PET_CUR_POWER);
 
-        // Update the pet's character sheet with happiness damage bonus
-        if (pet->getPetType() == HUNTER_PET && power == POWER_HAPPINESS)
-        {
-            pet->UpdateDamagePhysical(BASE_ATTACK);
-        }
+    // A hunter pet's melee damage is read off its happiness, so the sheet has
+    // to be redone whenever the happiness moves.
+    if (GetTypeId() != TYPEID_PLAYER && power == POWER_HAPPINESS
+        && static_cast<Creature*>(this)->IsPet()
+        && static_cast<Pet*>(this)->getPetType() == HUNTER_PET)
+    {
+        static_cast<Pet*>(this)->UpdateDamagePhysical(BASE_ATTACK);
     }
 }
 
@@ -174,26 +180,8 @@ void Unit::SetMaxPower(Powers power, uint32 val)
     uint32 cur_power = GetPower(power);
     SetStatInt32Value(UNIT_FIELD_MAXPOWER1 + power, val);
 
-    // group update
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (((Player*)this)->GetGroup())
-        {
-            ((Player*)this)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_MAX_POWER);
-        }
-    }
-    else if (((Creature*)this)->IsPet())
-    {
-        Pet* pet = ((Pet*)this);
-        if (pet->isControlled())
-        {
-            Unit* owner = GetOwner();
-            if (owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
-            {
-                ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_MAX_POWER);
-            }
-        }
-    }
+    MarkGroupPower(this, GROUP_UPDATE_FLAG_MAX_POWER,
+                   GROUP_UPDATE_FLAG_PET_MAX_POWER);
 
     if (val < cur_power)
     {
@@ -212,26 +200,8 @@ void Unit::ApplyPowerMod(Powers power, uint32 val, bool apply)
 {
     ApplyModUInt32Value(UNIT_FIELD_POWER1 + power, val, apply);
 
-    // group update
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (((Player*)this)->GetGroup())
-        {
-            ((Player*)this)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_POWER);
-        }
-    }
-    else if (((Creature*)this)->IsPet())
-    {
-        Pet* pet = ((Pet*)this);
-        if (pet->isControlled())
-        {
-            Unit* owner = GetOwner();
-            if (owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
-            {
-                ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_CUR_POWER);
-            }
-        }
-    }
+    MarkGroupPower(this, GROUP_UPDATE_FLAG_CUR_POWER,
+                   GROUP_UPDATE_FLAG_PET_CUR_POWER);
 }
 
 /**
@@ -245,26 +215,8 @@ void Unit::ApplyMaxPowerMod(Powers power, uint32 val, bool apply)
 {
     ApplyModUInt32Value(UNIT_FIELD_MAXPOWER1 + power, val, apply);
 
-    // group update
-    if (GetTypeId() == TYPEID_PLAYER)
-    {
-        if (((Player*)this)->GetGroup())
-        {
-            ((Player*)this)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_MAX_POWER);
-        }
-    }
-    else if (((Creature*)this)->IsPet())
-    {
-        Pet* pet = ((Pet*)this);
-        if (pet->isControlled())
-        {
-            Unit* owner = GetOwner();
-            if (owner && (owner->GetTypeId() == TYPEID_PLAYER) && ((Player*)owner)->GetGroup())
-            {
-                ((Player*)owner)->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_PET_MAX_POWER);
-            }
-        }
-    }
+    MarkGroupPower(this, GROUP_UPDATE_FLAG_MAX_POWER,
+                   GROUP_UPDATE_FLAG_PET_MAX_POWER);
 }
 
 /**

@@ -71,7 +71,7 @@ Pet::Pet(PetType type) :
     m_declinedname(NULL), m_petModeFlags(PET_MODE_DEFAULT)
 {
     m_name = "Pet";
-    m_regenTimer = 4000;
+    m_powers.ArmTick(PET_REGEN_INTERVAL);
 
     // pets always have a charminfo, even if they are not actually charmed
     CharmInfo* charmInfo = InitCharmInfo(this);
@@ -248,8 +248,9 @@ void Pet::Update(uint32 update_diff, uint32 diff)
  */
 void Pet::RegenerateAll(uint32 update_diff)
 {
-    // regenerate focus
-    if (m_regenTimer <= update_diff)
+    // a pet ticks on its own interval, not the two seconds everything else uses
+    m_powers.Advance(update_diff);
+    if (m_powers.TickDue())
     {
         if (!IsInCombat() || IsPolymorphed())
         {
@@ -258,11 +259,7 @@ void Pet::RegenerateAll(uint32 update_diff)
 
         RegeneratePower();
 
-        m_regenTimer = 4000;
-    }
-    else
-    {
-        m_regenTimer -= update_diff;
+        m_powers.ArmTick(PET_REGEN_INTERVAL);
     }
 
     if (getPetType() != HUNTER_PET)

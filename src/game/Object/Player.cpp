@@ -426,7 +426,6 @@ Player::Player(WorldSession* session): Unit(), m_petMgr(this), m_honorMgr(this),
 
     m_usedTalentCount = 0;
 
-    m_regenTimer = 0;
     m_weaponChangeTimer = 0;
 
     m_zoneUpdateId = 0;
@@ -1195,18 +1194,7 @@ void Player::Update(uint32 update_diff, uint32 p_time)
         }
     }
 
-    // Update regeneration timer
-    if (m_regenTimer)
-    {
-        if (update_diff >= m_regenTimer)
-        {
-            m_regenTimer = 0;
-        }
-        else
-        {
-            m_regenTimer -= update_diff;
-        }
-    }
+    m_powers.Advance(update_diff);
 
     // Update position status timer
     if (m_positionStatusUpdateTimer)

@@ -111,7 +111,7 @@ void Player::RewardRage(uint32 damage, uint32 weaponSpeedHitFactor, bool attacke
  */
 void Player::RegenerateAll()
 {
-    if (m_regenTimer != 0)
+    if (!m_powers.TickDue())
     {
         return;
     }
@@ -131,7 +131,7 @@ void Player::RegenerateAll()
 
     Regenerate(POWER_MANA);
 
-    m_regenTimer = REGEN_TIME_FULL;
+    m_powers.ArmTick(REGEN_TIME_FULL);
 }
 
 /**
@@ -141,8 +141,11 @@ void Player::RegenerateAll()
  */
 void Player::Regenerate(Powers power)
 {
-    uint32 curValue = GetPower(power);
-    uint32 maxValue = GetMaxPower(power);
+    RegenTick tick;
+    tick.current   = GetPower(power);
+    tick.maximum   = GetMaxPower(power);
+    tick.behaviour = power == POWER_RAGE ? PoolBehaviour::Drains
+                                         : PoolBehaviour::Fills;
 
     float addvalue = 0.0f;
 
@@ -181,6 +184,8 @@ void Player::Regenerate(Powers power)
             break;
     }
 
+    tick.base = addvalue;
+
     // Mana regen calculated in Player::UpdateManaRegen()
     // Exist only for POWER_MANA, POWER_ENERGY, POWER_FOCUS auras
     if (power != POWER_MANA)
@@ -190,32 +195,12 @@ void Player::Regenerate(Powers power)
         {
             if ((*i)->GetModifier()->m_miscvalue == int32(power))
             {
-                addvalue *= ((*i)->GetModifier()->m_amount + 100) / 100.0f;
+                tick.percent *= ((*i)->GetModifier()->m_amount + 100) / 100.0f;
             }
         }
     }
 
-    if (power != POWER_RAGE)
-    {
-        curValue += uint32(addvalue);
-        if (curValue > maxValue)
-        {
-            curValue = maxValue;
-        }
-    }
-    else
-    {
-        if (curValue <= uint32(addvalue))
-        {
-            curValue = 0;
-        }
-        else
-        {
-            curValue -= uint32(addvalue);
-        }
-    }
-
-    SetPower(power, curValue);
+    SetPower(power, RegeneratedValue(tick));
 }
 
 /**

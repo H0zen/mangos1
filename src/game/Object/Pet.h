@@ -194,6 +194,11 @@ extern const uint32 LevelStartLoyalty[6];
 
 #define ACTIVE_SPELLS_MAX           4
 
+/// Milliseconds between a pet's resource ticks. Twice the interval everything
+/// else regenerates on, which is what makes a hunter pet's focus the pacing
+/// resource it is.
+#define PET_REGEN_INTERVAL          4000
+
 #define PET_FOLLOW_DIST  1.0f
 #define PET_FOLLOW_ANGLE (M_PI_F/2.0f)
 

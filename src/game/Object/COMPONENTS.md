@@ -167,8 +167,8 @@ entitate. De făcut cât e încă cea mai mică, dar nu prima — vezi ordinea.
 | `AuraContainer` | `m_spellAuraHolders`, `m_deletedAuras`, `m_deletedHolders`, `m_modAuras` | 44 | parțial |
 | `Combat::ProcRegistry` | tabela de 262 `&Unit::Handle*Proc` | 15 | **da** |
 | `StatBlock` | `m_auraModifiersGroup`, `m_createStats` | 9 (+35 pe Player) | **da** |
-| `PowerPool` | regenerarea, `m_regenTimer` | 7 | **da** |
-| `SpeedSet` | `m_speed_rate` | 6 | **da** |
+| `PowerPool` | `m_regenTimer` + aritmetica unui tick | 7 | **da** |
+| `SpeedSet` | `m_speed_rate` + compunerea vitezei | 6 | **da** |
 | `SummonedObjects` | `m_dynObjGUIDs`, `m_gameObj`, `m_wildGameObjs`, `m_guardianPets` | 11 | nu |
 
 ### `Player` — cel mai rău, și cu cel mai mare câștig
