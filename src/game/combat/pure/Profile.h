@@ -64,10 +64,21 @@ namespace Combat
         std::array<std::uint32_t, HAND_COUNT> speedMs{};
 
         /// Already capped and rating-adjusted by the builder.
+        ///
+        /// Two of them, because a player's weapon skill against another
+        /// player is the skill they could have rather than the skill they
+        /// have trained. Which one applies is a property of the pair, so the
+        /// profile carries both and Matchup::Build picks -- that is what lets
+        /// one profile serve every opponent.
         std::array<std::int32_t, HAND_COUNT> weaponSkill{};
+        std::array<std::int32_t, HAND_COUNT> weaponSkillPvp{};
 
-        /// 5 * level, the ceiling a weapon skill may contribute.
-        std::int32_t maxSkillForLevel = 5;
+        /// True when this unit reports a level relative to whoever is looking
+        /// at it rather than its own. A world boss does; nothing else does.
+        bool scalesToOpponent = false;
+
+        /// What it adds to the opponent's level when it does.
+        std::int8_t opponentLevelBonus = 0;
 
         /// Own crit, including flat aura modifiers from this side only. The
         /// victim's contribution is @ref critTakenMod on the other profile.
@@ -95,7 +106,9 @@ namespace Combat
 
         // -- as defender ---------------------------------------------------
 
+        /// Both of them, for the same reason the weapon skills are two.
         std::int32_t defenseSkill = 5;
+        std::int32_t defenseSkillPvp = 5;
 
         Hundredths dodgeChance = 0;
         Hundredths parryChance = 0;
@@ -126,6 +139,55 @@ namespace Combat
         /// Resilience, as the fraction of crit damage removed. Carried as a
         /// number so the pure core never has to ask what a Player is.
         Hundredths critDamageReduction = 0;
+
+        // -- the three readings that depend on who is opposite --------------
+        //
+        // Everything above is a property of this unit alone, which is what
+        // makes a Profile worth keeping between swings. These three are where
+        // the opponent gets a say, and they are functions rather than fields
+        // so that the answer is computed at the pair and the cache stays one
+        // per unit.
+
+        /// The level ceiling a skill may contribute, against an opponent of
+        /// @a opponentLevel. Five per level of whichever level applies.
+        std::int32_t MaxSkillFor(std::uint8_t opponentLevel) const
+        {
+            const std::int32_t effective = scalesToOpponent
+                ? std::int32_t(opponentLevel) + opponentLevelBonus
+                : std::int32_t(level);
+
+            return (effective < 1 ? 1 : effective) * 5;
+        }
+
+        /// A creature has no trained skills: its defence and its weapon skill
+        /// are both its level ceiling, which is why they go back through
+        /// MaxSkillFor and pick up the boss scaling with it. Only a player
+        /// has two readings, and only against another player does the second
+        /// one apply.
+        std::int32_t DefenseAgainst(Kind opponentKind,
+                                    std::uint8_t opponentLevel) const
+        {
+            if (kind != Kind::Player)
+            {
+                return MaxSkillFor(opponentLevel);
+            }
+
+            return opponentKind == Kind::Player ? defenseSkillPvp
+                                                : defenseSkill;
+        }
+
+        std::int32_t WeaponSkillAgainst(Hand hand, Kind opponentKind,
+                                        std::uint8_t opponentLevel) const
+        {
+            if (kind != Kind::Player)
+            {
+                return MaxSkillFor(opponentLevel);
+            }
+
+            return opponentKind == Kind::Player
+                ? weaponSkillPvp[Index(hand)]
+                : weaponSkill[Index(hand)];
+        }
     };
 }
 

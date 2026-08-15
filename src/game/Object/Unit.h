@@ -2253,6 +2253,12 @@ class Unit : public WorldObject
          * \todo Is the logic for the return correct in here?
          */
         uint32 GetDefenseSkillValue(Unit const* target = NULL) const;
+
+        /// The same, with the question the target was ever asked spelled out:
+        /// whether the PvP reading applies. @a levelAgainst is only consulted
+        /// for a creature, whose skill is its level ceiling.
+        uint32 GetDefenseSkillValueFor(bool pvp,
+                                       Unit const* levelAgainst = NULL) const;
         /**
          * Get's the skill value for the given weapon type. The same idea as for
          * \ref Unit::GetDefenseSkillValue applies, if both target and this are Players
@@ -2264,6 +2270,11 @@ class Unit : public WorldObject
          * \see SkillType
          */
         uint32 GetWeaponSkillValue(WeaponAttackType attType, Unit const* target = NULL) const;
+
+        /// The same, with the PvP question spelled out rather than inferred
+        /// from a target that is only inspected for its type.
+        uint32 GetWeaponSkillValueFor(WeaponAttackType attType, bool pvp,
+                                      Unit const* levelAgainst = NULL) const;
         /**
          * Returns the proc chance for one weapon, if the \ref BASE_ATTACK is ready then the
          * proc chance for that is returned, otherwise if the \ref OFF_ATTACK is ready and

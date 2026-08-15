@@ -49,7 +49,9 @@ namespace Combat
 
         /// Miss, before the attacker's and victim's own modifiers.
         Hundredths BaseMiss(Profile const& attacker, Profile const& victim,
-                            Hand hand, bool special)
+                            Hand hand, bool special,
+                            std::int32_t attackerWeaponSkill,
+                            std::int32_t victimDefense)
         {
             using namespace Constants;
 
@@ -69,7 +71,7 @@ namespace Combat
             }
 
             const std::int32_t skillDiff =
-                attacker.weaponSkill[Index(hand)] - victim.defenseSkill;
+                attackerWeaponSkill - victimDefense;
 
             if (victim.kind == Kind::Player)
             {
@@ -141,15 +143,29 @@ namespace Combat
             return m;
         }
 
+        // The three readings that depend on both sides, asked once here and
+        // used everywhere below. This is the whole of what a Profile leaves
+        // undecided, and the reason one profile serves every opponent.
+        const std::int32_t attackerSkill =
+            attacker.WeaponSkillAgainst(hand, victim.kind, victim.level);
+        const std::int32_t victimDefense =
+            victim.DefenseAgainst(attacker.kind, attacker.level);
+
+        const std::int32_t attackerCeiling =
+            attacker.MaxSkillFor(victim.level);
+        const std::int32_t victimCeiling =
+            victim.MaxSkillFor(attacker.level);
+
         // Attacker skill over the victim's ceiling for its level. Positive
         // means the victim avoids less; the sign is applied by subtraction
         // below, matching the old path.
         const Hundredths skillBonus = AVOIDANCE_PER_SKILL *
-            (attacker.weaponSkill[h] - victim.maxSkillForLevel);
+            (attackerSkill - victimCeiling);
 
         // -- miss ----------------------------------------------------------
 
-        Hundredths miss = BaseMiss(attacker, victim, hand, special);
+        Hundredths miss = BaseMiss(attacker, victim, hand, special,
+                                   attackerSkill, victimDefense);
         miss -= attacker.hitChance[h];
         miss += victim.attackerMissMod[h];
         m.miss = std::min(std::max(miss, MISS_MIN), MISS_MAX);
@@ -159,7 +175,7 @@ namespace Combat
         Hundredths crit = attacker.critChance[h];
         crit += victim.attackerCritMod[h];
         crit += RoundToHundredths(
-            static_cast<float>(attacker.maxSkillForLevel - victim.defenseSkill) *
+            static_cast<float>(attackerCeiling - victimDefense) *
             CRIT_PER_DEFENCE_POINT);
         m.crit = std::max(crit, Hundredths(0));
 
@@ -219,8 +235,8 @@ namespace Combat
         {
             // Skill above the level ceiling buys nothing here.
             const std::int32_t skill =
-                std::min(attacker.weaponSkill[h], attacker.maxSkillForLevel);
-            const std::int32_t gap = victim.defenseSkill - skill;
+                std::min(attackerSkill, attackerCeiling);
+            const std::int32_t gap = victimDefense - skill;
 
             const Hundredths chance =
                 GLANCE_BASE + gap * GLANCE_PER_SKILL_POINT;
@@ -252,8 +268,8 @@ namespace Combat
         {
             // Defence above the level ceiling does not protect.
             const std::int32_t defense =
-                std::min(victim.defenseSkill, victim.maxSkillForLevel);
-            const std::int32_t deficit = attacker.maxSkillForLevel - defense;
+                std::min(victimDefense, victimCeiling);
+            const std::int32_t deficit = attackerCeiling - defense;
 
             if (deficit >= CRUSH_SKILL_THRESHOLD)
             {

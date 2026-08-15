@@ -2005,19 +2005,24 @@ void Unit::HandleEmote(uint32 emote_id)
  */
 uint32 Unit::GetDefenseSkillValue(Unit const* target) const
 {
+    return GetDefenseSkillValueFor(
+        target && target->GetTypeId() == TYPEID_PLAYER, target);
+}
+
+uint32 Unit::GetDefenseSkillValueFor(bool pvp, Unit const* levelAgainst) const
+{
     if (GetTypeId() == TYPEID_PLAYER)
     {
-        // in PvP use full skill instead current skill value
-        uint32 value = (target && target->GetTypeId() == TYPEID_PLAYER)
+        // In PvP the skill that counts is the one the level allows, not the
+        // one that has been trained.
+        uint32 value = pvp
                        ? ((Player*)this)->GetMaxSkillValue(SKILL_DEFENSE)
                        : ((Player*)this)->GetSkillValue(SKILL_DEFENSE);
         value += uint32(((Player*)this)->GetRatingBonusValue(CR_DEFENSE_SKILL));
         return value;
     }
-    else
-    {
-        return GetUnitMeleeSkill(target);
-    }
+
+    return GetUnitMeleeSkill(levelAgainst);
 }
 
 
@@ -2032,6 +2037,13 @@ uint32 Unit::GetDefenseSkillValue(Unit const* target) const
  * @return The effective weapon skill value.
  */
 uint32 Unit::GetWeaponSkillValue(WeaponAttackType attType, Unit const* target) const
+{
+    return GetWeaponSkillValueFor(
+        attType, target && target->GetTypeId() == TYPEID_PLAYER, target);
+}
+
+uint32 Unit::GetWeaponSkillValueFor(WeaponAttackType attType, bool pvp,
+                                    Unit const* levelAgainst) const
 {
     uint32 value = 0;
     if (GetTypeId() == TYPEID_PLAYER)
@@ -2052,8 +2064,8 @@ uint32 Unit::GetWeaponSkillValue(WeaponAttackType attType, Unit const* target) c
         // weapon skill or (unarmed for base attack)
         uint32 skill = item ? item->GetSkill() : uint32(SKILL_UNARMED);
 
-        // in PvP use full skill instead current skill value
-        value = (target && target->GetTypeId() == TYPEID_PLAYER)
+        // In PvP the skill that counts is the one the level allows.
+        value = pvp
                 ? ((Player*)this)->GetMaxSkillValue(skill)
                 : ((Player*)this)->GetSkillValue(skill);
         // Modify value from ratings
@@ -2067,7 +2079,7 @@ uint32 Unit::GetWeaponSkillValue(WeaponAttackType attType, Unit const* target) c
     }
     else
     {
-        value = GetUnitMeleeSkill(target);
+        value = GetUnitMeleeSkill(levelAgainst);
     }
     return value;
 }

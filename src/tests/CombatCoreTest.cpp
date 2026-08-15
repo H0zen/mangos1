@@ -101,7 +101,8 @@ namespace
         p.version          = 1;
         p.level            = 70;
         p.kind             = Kind::Player;
-        p.maxSkillForLevel = 350;
+        // 5 * level, which Profile::MaxSkillFor derives; the PvP readings
+        // match the trained ones for this fixture.
         p.defenseSkill     = 350;
 
         for (std::size_t h = 0; h < HAND_COUNT; ++h)
@@ -125,7 +126,7 @@ namespace
         p.version          = 1;
         p.level            = 73;
         p.kind             = Kind::Creature;
-        p.maxSkillForLevel = 365;
+
         p.defenseSkill     = 365;
 
         for (std::size_t h = 0; h < HAND_COUNT; ++h)

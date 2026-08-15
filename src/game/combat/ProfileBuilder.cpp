@@ -261,10 +261,24 @@ namespace Combat
         profile.level = static_cast<std::uint8_t>(unit->getLevel());
         profile.kind  = KindOf(unit);
 
-        profile.maxSkillForLevel =
-            static_cast<std::int32_t>(unit->GetMaxSkillValueForLevel(opponent));
+        // A world boss reports a level relative to whoever is looking at it.
+        // The profile carries the fact and the bonus rather than an answer,
+        // so it does not have to be rebuilt per opponent.
+        if (unit->GetTypeId() == TYPEID_UNIT &&
+            static_cast<Creature const*>(unit)->IsWorldBoss())
+        {
+            profile.scalesToOpponent = true;
+            profile.opponentLevelBonus = static_cast<std::int8_t>(
+                sWorld.getConfig(CONFIG_UINT32_WORLD_BOSS_LEVEL_DIFF));
+        }
+
+        // Both readings, for a player. A creature has neither: its defence is
+        // its level ceiling and Profile::DefenseAgainst goes back through
+        // MaxSkillFor for it.
         profile.defenseSkill =
-            static_cast<std::int32_t>(unit->GetDefenseSkillValue(opponent));
+            static_cast<std::int32_t>(unit->GetDefenseSkillValueFor(false));
+        profile.defenseSkillPvp =
+            static_cast<std::int32_t>(unit->GetDefenseSkillValueFor(true));
 
         profile.meleeSchoolMask =
             static_cast<std::uint32_t>(unit->GetMeleeSchoolMask());
@@ -303,8 +317,15 @@ namespace Combat
             const Hand hand = static_cast<Hand>(h);
             const WeaponAttackType attType = AttackTypeOf(hand);
 
+            // Asked without an opponent, which for a player is the trained
+            // reading; the PvP one is the same question with the maximum for
+            // the level instead. A creature answers with its ceiling either
+            // way and Profile::WeaponSkillAgainst supplies that.
             profile.weaponSkill[h] = static_cast<std::int32_t>(
-                unit->GetWeaponSkillValue(attType, opponent));
+                unit->GetWeaponSkillValueFor(attType, false));
+            profile.weaponSkillPvp[h] = static_cast<std::int32_t>(
+                unit->GetWeaponSkillValueFor(attType, true));
+
             profile.speedMs[h] = unit->GetAttackTime(attType);
 
             profile.critChance[h] = OwnCrit(unit, hand);
