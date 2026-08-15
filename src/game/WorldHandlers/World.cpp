@@ -638,11 +638,15 @@ void World::SetInitialWorldSettings()
     sSpellMgr.LoadSpellThreats();
 
     // Materialise what the DBC only implies, once, now that every overlay that
-    // can change a spell has been applied. Nothing reads this yet; the audit
-    // that follows is the gate that decides whether anything ever will.
+    // can change a spell has been applied.
+    //
+    // This IS read: GetSpellDuration and GetSpellMaxDuration answer from it,
+    // so a wrong decoder would be every duration in the game rather than a
+    // cold cache. LoadAndVerify is the gate -- it audits every field against
+    // the live query and throws the whole store away if anything disagrees,
+    // which drops every caller back to the DBC lookup it used before.
     sLog.outString("Materialising Spell Facts...");
-    sSpellFacts.Load();
-    sSpellFacts.Audit();
+    sSpellFacts.LoadAndVerify();
 
     sLog.outString("Loading NPC Texts...");
     sObjectMgr.LoadGossipText();

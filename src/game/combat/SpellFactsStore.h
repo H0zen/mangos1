@@ -87,12 +87,40 @@ namespace Combat
              */
             std::uint32_t Audit() const;
 
+            /**
+             * @brief Load, audit, and keep the result only if it is clean.
+             *
+             * The audit stopped being advisory the moment something read this
+             * store. GetSpellDuration and GetSpellMaxDuration now answer from
+             * it, and those are asked by aura application, refresh, targeting
+             * and the client update -- so a wrong decoder is not one stale
+             * cache entry, it is every duration in the game.
+             *
+             * A failed audit therefore discards the store instead of merely
+             * reporting. Every Get() answers "unknown" and every caller falls
+             * back to the DBC query it used before, which costs a second
+             * lookup and nothing else. The server starts either way.
+             *
+             * @return zero when the store is live; otherwise the number of
+             *         faults that made it be thrown away.
+             */
+            std::uint32_t LoadAndVerify();
+
+            /// Throw everything away. Get() then answers "unknown" for every
+            /// spell, which is the safe direction: callers fall back.
+            void Discard();
+
         private:
             SpellFactsStore() = default;
 
             std::vector<SpellFacts> m_facts;
             SpellFacts              m_absent;
             std::uint32_t           m_known = 0;
+
+            /// DBC rows whose ID does not match the index they were found at.
+            /// Zero for every client this core supports; counted rather than
+            /// assumed, because the whole store is an array indexed by id.
+            std::uint32_t           m_misfiled = 0;
     };
 }
 

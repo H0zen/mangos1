@@ -185,6 +185,25 @@ namespace Combat
             return ToHundredths(std::max(reduction, 0.0f));
         }
 
+        /// Whether this unit is able to dodge at all, as opposed to how often.
+        ///
+        /// The two are separate on purpose. A stunned unit's dodge CHANCE is
+        /// zero today only because GetUnitDodgeChance short-circuits on the
+        /// stun -- so a cached profile, which is the whole point of this
+        /// struct, would keep serving the pre-stun number. The capability is
+        /// read here from the same two gates the accessor uses, and the table
+        /// consults the capability rather than trusting the magnitude.
+        bool CanDodge(Unit const* unit)
+        {
+            if (unit->hasUnitState(UNIT_STAT_STUNNED))
+            {
+                return false;
+            }
+
+            return unit->GetTypeId() == TYPEID_PLAYER ||
+                   !static_cast<Creature const*>(unit)->IsTotem();
+        }
+
         void FillWeapon(Unit const* unit, Profile& profile, Hand hand)
         {
             const std::size_t h = Index(hand);
@@ -216,6 +235,16 @@ namespace Combat
             if (profile.weapon[h].high < profile.weapon[h].low)
             {
                 profile.weapon[h].high = profile.weapon[h].low;
+            }
+
+            // A unit with no damage fields swings for urand(0, 5), not for
+            // nothing. Unit::CalculateDamage has done this forever and a large
+            // number of creature rows -- and every unarmed punch -- depend on
+            // it. The first cut of the resolver treated a zero high end as an
+            // empty range and those units stopped hitting entirely.
+            if (profile.weapon[h].high == 0)
+            {
+                profile.weapon[h].high = Constants::WEAPON_FALLBACK_HIGH;
             }
         }
     }
@@ -255,7 +284,7 @@ namespace Combat
 
         const std::uint32_t extraFlags = ExtraFlagsOf(unit);
 
-        profile.caps.canDodge = true;
+        profile.caps.canDodge = CanDodge(unit);
         profile.caps.canParry =
             (extraFlags & CREATURE_FLAG_EXTRA_NO_PARRY) == 0;
         profile.caps.canBlock =
@@ -309,6 +338,15 @@ namespace Combat
 
             profile.attackerMissMod[h] = MissTaken(unit, hand);
             profile.attackerCritMod[h] = CritTaken(unit, hand);
+
+            // The victim's half of the crit-damage sum. Melee and ranged are
+            // separate auras in 2.4.3 and always were; the old path picked
+            // between them on attackType and this picks on the hand.
+            profile.attackerCritDamageMod[h] =
+                ToHundredths(static_cast<float>(unit->GetTotalAuraModifier(
+                    hand == Hand::Ranged
+                        ? SPELL_AURA_MOD_ATTACKER_RANGED_CRIT_DAMAGE
+                        : SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_DAMAGE)));
 
             FillWeapon(unit, profile, hand);
         }

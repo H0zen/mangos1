@@ -194,6 +194,47 @@ namespace Combat
 
         /// A connecting swing never lands for nothing.
         constexpr std::uint32_t MINIMUM_APPLIED_DAMAGE = 1;
+
+        // ------------------------------------------------------------------
+        // Weapon damage
+        // ------------------------------------------------------------------
+
+        /// What a unit with no damage fields at all swings for.
+        ///
+        /// Unit::CalculateDamage forces max to 5 when the row carries a zero,
+        /// so an NPC with no damage range still hits for urand(0, 5) rather
+        /// than nothing. Plenty of creature rows rely on it, and so does every
+        /// unarmed punch. Reproduced rather than dropped: removing it is a
+        /// balance change disguised as a cleanup.
+        constexpr std::uint32_t WEAPON_FALLBACK_HIGH = 5;
+
+        // ------------------------------------------------------------------
+        // Daze
+        // ------------------------------------------------------------------
+
+        /// A creature striking an unaware victim from behind may daze it.
+        /// 20% base, scaled by the attacker's melee skill over the victim's
+        /// defence, capped at 40%. Below level 30 the base is a linear newbie
+        /// protection instead: 0.65 * level + 0.5.
+        constexpr Hundredths DAZE_BASE        = 2000;
+        constexpr Hundredths DAZE_CAP         = 4000;
+        constexpr std::uint8_t DAZE_NEWBIE_LEVEL = 30;
+        constexpr float DAZE_NEWBIE_PER_LEVEL = 65.0f;
+        constexpr float DAZE_NEWBIE_OFFSET    = 50.0f;
+
+        // ------------------------------------------------------------------
+        // Extra attacks
+        // ------------------------------------------------------------------
+
+        /// Ceiling on how many extra swings one granting proc may cash in.
+        ///
+        /// Depth stops the next generation; it says nothing about the width of
+        /// the current one. m_extraAttacks is a plain counter that anything
+        /// may add to, so a chain of grants can accumulate an arbitrary number
+        /// and each one costs a full profile, table and commit. Windfury grants
+        /// two and Sword Specialization one, so this is a runaway guard rather
+        /// than a rule -- crossing it means something is wrong.
+        constexpr std::uint32_t MAX_EXTRA_ATTACKS = 10;
     }
 }
 

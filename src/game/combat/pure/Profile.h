@@ -115,6 +115,14 @@ namespace Combat
         std::array<Hundredths, HAND_COUNT> attackerMissMod{};
         std::array<Hundredths, HAND_COUNT> attackerCritMod{};
 
+        /// What this unit adds to the DAMAGE of a crit taken, as opposed to
+        /// the chance of one. SPELL_AURA_MOD_ATTACKER_MELEE_CRIT_DAMAGE and
+        /// its ranged twin -- the "takes n% more damage from critical hits"
+        /// half of the old calculation, which the first cut of this profile
+        /// dropped on the floor: only the attacker's half was filled in, so a
+        /// victim wearing a crit-damage-taken item stopped taking it.
+        std::array<Hundredths, HAND_COUNT> attackerCritDamageMod{};
+
         /// Resilience, as the fraction of crit damage removed. Carried as a
         /// number so the pure core never has to ask what a Player is.
         Hundredths critDamageReduction = 0;

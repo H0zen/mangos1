@@ -248,6 +248,19 @@ TEST(ReactionQueueDoesNotReenterItsOwnDrain)
     CHECK_EQ(sink.runs, 1);
 }
 
+TEST(ReactionExtraSwingGrantIsBounded)
+{
+    // A chain of procs can add to m_extraAttacks without limit. What reaches
+    // the queue cannot.
+    CHECK_EQ(ExtraSwing::Granted(Hand::Main, 1).count, 1u);
+    CHECK_EQ(ExtraSwing::Granted(Hand::Main, 2).count, 2u);
+    CHECK_EQ(ExtraSwing::Granted(Hand::Main, 5000).count,
+             Constants::MAX_EXTRA_ATTACKS);
+
+    // The hand that earned the grant is the hand that swings.
+    CHECK(ExtraSwing::Granted(Hand::Off, 3).hand == Hand::Off);
+}
+
 TEST(ReactionQueueClearResetsTheCount)
 {
     ReactionQueue queue;

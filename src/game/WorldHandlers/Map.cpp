@@ -1040,6 +1040,20 @@ void Map::Update(const uint32& t_diff)
         }
     }
 
+    // Anything a combat event left behind. A swing drains its own reactions
+    // straight after committing, so this is not the usual path -- it is the
+    // safety net for a producer that has no drain of its own, which is every
+    // spell path until triggered casts become reactions.
+    //
+    // BEFORE the grids are touched, and that ordering is the point. A reaction
+    // holds guids and resolves them against this map when it runs; draining
+    // after ProcessPendingCellUnloads meant resolving them against a map that
+    // had already begun putting cells away. Map::UnloadAll gets this right --
+    // it clears the queue while the units named in it still exist -- and the
+    // tick had it exactly backwards. Also before SendObjectUpdates, so the
+    // health a reaction moved goes out in this tick rather than the next.
+    m_combat.Drain(*this);
+
     // Send world objects and item update field changes
     SendObjectUpdates();
 
@@ -1058,12 +1072,6 @@ void Map::Update(const uint32& t_diff)
     }
 
     ProcessPendingCellUnloads();
-
-    // Anything a combat event left behind. A swing drains its own reactions
-    // straight after committing, so this is not the usual path -- it is the
-    // safety net for a producer that has no drain of its own, which is every
-    // spell path until triggered casts become reactions.
-    m_combat.Drain(*this);
 
     ///- Process necessary scripts
     if (!m_scriptSchedule.empty())

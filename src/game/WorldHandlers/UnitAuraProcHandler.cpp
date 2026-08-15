@@ -1639,9 +1639,33 @@ SpellAuraProcResult Unit::HandleDummyAuraProc(Unit* pVictim, uint32 damage, Aura
                     }
 
                     // Attack Twice
+                    //
+                    // The target is re-checked between the two, because the
+                    // first one can end it. This proc runs from the reaction
+                    // queue now, so getting HERE is safe -- both ends were
+                    // resolved from their guid a moment ago -- but the loop
+                    // itself still holds pVictim across a cast that deals
+                    // damage, and the second swing of a Windfury that killed
+                    // with the first was reading a unit that DealDamage had
+                    // already promoted to a corpse, or that a JustDied script
+                    // had despawned outright.
+                    //
+                    // A guard, not the fix. The fix is stage F, where a
+                    // triggered cast becomes a ProcCast reaction and stops
+                    // being a call from inside the thing that triggered it;
+                    // see src/game/combat/COMBAT.md.
+                    const ObjectGuid windfuryTarget = pVictim->GetObjectGuid();
+
                     for (uint32 i = 0; i < 2; ++i)
                     {
-                        CastCustomSpell(pVictim, triggered_spell_id, &basepoints[0], NULL, NULL, true, castItem, triggeredByAura);
+                        Unit* target = ObjectLookup::GetUnit(*this, windfuryTarget);
+
+                        if (!target || !target->IsInWorld() || !target->IsAlive())
+                        {
+                            break;
+                        }
+
+                        CastCustomSpell(target, triggered_spell_id, &basepoints[0], NULL, NULL, true, castItem, triggeredByAura);
                     }
 
                     return SPELL_AURA_PROC_OK;

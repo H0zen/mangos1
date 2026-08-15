@@ -745,6 +745,67 @@ void Unit::DealDamageMods(Unit* pVictim, uint32& damage, uint32* absorb)
     }
 }
 
+namespace
+{
+    /**
+     * @brief The rage one weapon swing earns its ATTACKER.
+     *
+     * The basis is the damage the swing was worth, which is not always the
+     * damage that landed. A dodged or parried swing pays the attacker rage in
+     * 2.4.3 -- it is most of what keeps a warrior's bar alive through a
+     * defensive fight -- and the whole roll arrives in cleanDamage with the
+     * applied damage at zero.
+     *
+     * That case was simply never reached. The calculation sat inside the
+     * damage-bearing half of DealDamage, past an early return taken by every
+     * zero-damage swing, so an avoided swing paid the VICTIM rage and the
+     * attacker nothing. Written out once here and called from both halves.
+     *
+     * @param attacker    The swinging unit. Anything but a rage-using player
+     *                    returns immediately.
+     * @param basis       Damage to compute the rage from.
+     * @param cleanDamage Carries the weapon and the outcome; crits pay double
+     *                    the speed factor.
+     */
+    void RewardSwingRage(Unit* attacker, uint32 basis,
+                         CleanDamage const* cleanDamage)
+    {
+        if (!attacker || !cleanDamage || basis == 0)
+        {
+            return;
+        }
+
+        if (attacker->GetTypeId() != TYPEID_PLAYER ||
+            attacker->GetPowerType() != POWER_RAGE)
+        {
+            return;
+        }
+
+        const uint32 speed = attacker->GetAttackTime(cleanDamage->attackType);
+        const bool   crit  = cleanDamage->hitOutCome == MELEE_HIT_CRIT;
+
+        float factor;
+
+        switch (cleanDamage->attackType)
+        {
+            case BASE_ATTACK:
+                factor = crit ? 7.0f : 3.5f;
+                break;
+
+            case OFF_ATTACK:
+                factor = crit ? 3.5f : 1.75f;
+                break;
+
+            // Ranged weapons generate no rage, and never have.
+            default:
+                return;
+        }
+
+        ((Player*)attacker)->RewardRage(
+            basis, uint32(speed / 1000.0f * factor), true);
+    }
+}
+
 /**
  * @brief Applies final damage to a victim and handles combat side effects.
  *
@@ -782,6 +843,15 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
             ((Player*)pVictim)->RewardRage(cleanDamage->damage, 0, false);
         }
 
+        // ...and rage for the attacker, from the swing that was answered
+        // rather than taken. Both sides of a dodge or a parry pay; only the
+        // victim's half was ever reached, because this return sits in front of
+        // the attacker's and a dodge arrives here with damage zero.
+        if (damagetype == DIRECT_DAMAGE && this != pVictim && cleanDamage)
+        {
+            RewardSwingRage(this, cleanDamage->damage, cleanDamage);
+        }
+
         return 0;
     }
 
@@ -792,45 +862,9 @@ uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDa
 
 
     // Rage from Damage made (only from direct weapon damage)
-    if (cleanDamage && damagetype == DIRECT_DAMAGE && this != pVictim && GetTypeId() == TYPEID_PLAYER && (GetPowerType() == POWER_RAGE))
+    if (cleanDamage && damagetype == DIRECT_DAMAGE && this != pVictim)
     {
-        uint32 weaponSpeedHitFactor;
-
-        switch (cleanDamage->attackType)
-        {
-            case BASE_ATTACK:
-            {
-                if (cleanDamage->hitOutCome == MELEE_HIT_CRIT)
-                {
-                    weaponSpeedHitFactor = uint32(GetAttackTime(cleanDamage->attackType) / 1000.0f * 7);
-                }
-                else
-                {
-                    weaponSpeedHitFactor = uint32(GetAttackTime(cleanDamage->attackType) / 1000.0f * 3.5f);
-                }
-
-                ((Player*)this)->RewardRage(damage, weaponSpeedHitFactor, true);
-
-                break;
-            }
-            case OFF_ATTACK:
-            {
-                if (cleanDamage->hitOutCome == MELEE_HIT_CRIT)
-                {
-                    weaponSpeedHitFactor = uint32(GetAttackTime(cleanDamage->attackType) / 1000.0f * 3.5f);
-                }
-                else
-                {
-                    weaponSpeedHitFactor = uint32(GetAttackTime(cleanDamage->attackType) / 1000.0f * 1.75f);
-                }
-
-                ((Player*)this)->RewardRage(damage, weaponSpeedHitFactor, true);
-
-                break;
-            }
-            case RANGED_ATTACK:
-                break;
-        }
+        RewardSwingRage(this, damage, cleanDamage);
     }
 
     // no xp,health if type 8 /critters/

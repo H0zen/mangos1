@@ -51,7 +51,13 @@ class DBCStorage
          *
          * @param f
          */
-        explicit DBCStorage(const char* f) : nCount(0), fieldCount(0), fmt(f), indexTable(NULL), m_dataTable(NULL) { }
+        /// @note `loaded` is initialised here rather than left to chance. Every
+        ///       DBCStorage in the tree is a namespace-scope global, so zero
+        ///       initialisation has always made it false before the constructor
+        ///       runs -- but that is a property of where they happen to live,
+        ///       not of the class. One on the stack would have read an
+        ///       indeterminate bool in GetNumRows and LookupEntry.
+        explicit DBCStorage(const char* f) : nCount(0), fieldCount(0), fmt(f), indexTable(NULL), m_dataTable(NULL), loaded(false) { }
         /**
          * @brief
          *
@@ -212,6 +218,39 @@ class DBCStorage
          * @param id
          */
         void InsertEntry(T* entry, uint32 id) { assert(id < nCount && "Entry to be inserted must be in bounds!"); indexTable[id] = entry; }
+
+        /**
+         * @brief One past the largest id this store can answer for.
+         *
+         * GetNumRows() is NOT that, and the difference is silent. Once
+         * SetEntry has been called the store keeps an id-keyed map beside the
+         * index table and GetNumRows() switches to that map's SIZE -- a count
+         * of entries, not a ceiling on their ids. The two are equal only while
+         * no overlay has been applied and the ids are dense from zero.
+         *
+         * Anything that walks ids from zero, or sizes an array by spell id,
+         * needs the ceiling. Asking GetNumRows() for it works right up until
+         * something calls SetEntry, and then quietly loses every id above the
+         * entry count.
+         *
+         * @return the bound, so valid ids are [0, bound).
+         */
+        uint32 GetIdBound() const
+        {
+            uint32 bound = nCount;
+
+            // std::map is ordered, so the last key is the largest.
+            if (loaded && !data.empty())
+            {
+                const uint32 top = data.rbegin()->first + 1;
+                if (top > bound)
+                {
+                    bound = top;
+                }
+            }
+
+            return bound;
+        }
 
     private:
         uint32 nCount; /**< TODO */

@@ -25,6 +25,9 @@
 
 #include "StrikeCommit.h"
 
+#include "CombatRng.h"
+#include "combat/pure/Matchup.h"
+
 #include "Creature.h"
 #include "ObjectLookup.h"
 #include "Player.h"
@@ -32,6 +35,8 @@
 #include "SpellMgr.h"
 #include "Unit.h"
 #include "Utilities/MathDefines.h"
+
+#include <cstdint>
 
 namespace Combat
 {
@@ -254,6 +259,47 @@ namespace Combat
             }
         }
 
+        /**
+         * @brief Re-stamp the Judgement the attacker has on this victim.
+         *
+         * A paladin's Judgement is refreshed by the attacker's own weapon
+         * hits, which is what makes a Judgement last as long as the paladin
+         * keeps swinging. The predicate is the old one exactly: the holder
+         * carries AttributesExC bit 18, belongs to the paladin spell family,
+         * and was cast by this attacker -- the caster test being what stops
+         * one paladin's swings from feeding another's Judgement.
+         *
+         * The rewrite had no equivalent, so switching the white swing over
+         * silently capped every Judgement at its base duration.
+         */
+        void RefreshJudgements(Unit const& attacker, Unit& victim)
+        {
+            SpellAuraHolderMap const& holders = victim.GetSpellAuraHolderMap();
+
+            for (SpellAuraHolderMap::const_iterator it = holders.begin();
+                 it != holders.end(); ++it)
+            {
+                SpellAuraHolder* holder = it->second;
+                if (!holder)
+                {
+                    continue;
+                }
+
+                SpellEntry const* proto = holder->GetSpellProto();
+                if (!proto)
+                {
+                    continue;
+                }
+
+                if ((proto->AttributesExC & 0x40000) != 0 &&
+                    proto->SpellClassSet == SPELLFAMILY_PALADIN &&
+                    holder->GetCasterGuid() == attacker.GetObjectGuid())
+                {
+                    holder->RefreshHolder();
+                }
+            }
+        }
+
         /// A creature striking from behind may daze. Conditions unchanged.
         bool DazeApplies(Unit const& attacker, Unit const& victim,
                          Strike const& strike)
@@ -358,6 +404,26 @@ namespace Combat
                                 info.damageSchoolMask, NULL, true);
 
             result.applied = strike.applied > 0;
+
+            // The pointer stops being trusted here.
+            //
+            // DealDamage can kill, and a kill is not a quiet bookkeeping
+            // update. A creature is promoted to CORPSE inside the call; a
+            // summoned pet goes further -- Pet::SetDeathState unsummons, which
+            // runs CleanupsBeforeDelete straight away and strips the unit of
+            // its auras, its combat state and its place in the world while the
+            // object is still allocated. A JustDied script may despawn it
+            // outright. Everything below this line reads the world through a
+            // fresh lookup on the guid, which is the same rule the reaction
+            // queue follows and the reason it carries guids at all.
+            victim = ObjectLookup::GetUnit(attacker, order.victim);
+
+            if (!victim || !victim->IsInWorld())
+            {
+                result.victimDied = true;
+                queue.DropInvolving(order.victim);
+                return result;
+            }
         }
 
         // -- 5. Death ------------------------------------------------------
@@ -366,11 +432,27 @@ namespace Combat
         {
             result.victimDied = true;
 
+            // A killing blow is still a blow. Unit::DealDamage notifies
+            // AttackedBy only when the victim SURVIVES, and the old path made
+            // up the difference by calling it again from AttackerStateUpdate
+            // without checking -- so a one-shot did reach
+            // CreatureAI::AttackedBy and did wake the victim's pet. The first
+            // cut of this commit returned here without notifying anything, and
+            // every script keyed on the last hit stopped seeing it.
+            victim->AttackedBy(&attacker);
+
             // Everything still queued against this unit stops existing. No
             // lifetime tracking, no null checks scattered down the chain --
             // the reaction is simply not there any more.
             queue.DropInvolving(order.victim);
             return result;
+        }
+
+        // The damage landed and the victim is still standing: the auras this
+        // attacker keeps on it get their clock reset.
+        if (result.applied)
+        {
+            RefreshJudgements(attacker, *victim);
         }
 
         // -- 6. React ------------------------------------------------------
@@ -403,12 +485,24 @@ namespace Combat
 
         if (result.applied && DazeApplies(attacker, *victim, strike))
         {
-            Reaction daze;
-            daze.source = attackerGuid;
-            daze.target = victimGuid;
-            daze.depth  = order.depth;
-            daze.what   = Daze{};
-            queue.Push(daze);
+            // Eligibility is not certainty: 20% base, scaled by skill over
+            // defence, capped at 40%.
+            const Hundredths chance = DazeChance(
+                static_cast<std::uint8_t>(victim->getLevel()),
+                static_cast<std::int32_t>(attacker.GetUnitMeleeSkill()),
+                static_cast<std::int32_t>(victim->GetDefenseSkillValue()));
+
+            WorldRng rng;
+
+            if (chance > 0 && rng.Roll10000() < chance)
+            {
+                Reaction daze;
+                daze.source = attackerGuid;
+                daze.target = victimGuid;
+                daze.depth  = order.depth;
+                daze.what   = Daze{};
+                queue.Push(daze);
+            }
         }
 
         // -- 7. Notify -----------------------------------------------------

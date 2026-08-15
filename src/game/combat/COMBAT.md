@@ -165,10 +165,22 @@ spune unde ajunge bucata la finalul etapei.
 
 Treaptă: **2**, pentru ceea ce e deja comutat.
 
-`Shadow<T>`, cheia `CombatShadow`, și calea veche (`CalculateMeleeDamage` /
-`RollMeleeOutcomeAgainst` / `DealMeleeDamage`) readusă ca implementare de
-referință care rulează în paralel cu `PerformSwing` și **nu aplică nimic**.
-Se compară rezultatul rollului, damage-ul aplicat, `clean`, și masca de proc.
+Cheia `CombatShadow` alege motorul, nu doar raportul:
+
+- `1` — `PerformLegacySwing`: `CalculateMeleeDamage` / `DealMeleeDamage`,
+  procuri înainte de damage, consecințe inline, nimic în coadă. Rollback real.
+- `2` — `PerformSwing`, cu aceleași benzi raportate.
+
+Cele două motoare nu se amestecă niciodată: jumătate din fiecare ar fi un al
+treilea comportament pe care nu l-a testat nimeni.
+
+Ce se compară sunt **benzile** — numerele care intră în roll — nu rezultatul.
+Motivul e că `CalculateDamageAbsorbAndResist` consumă scuturi de absorb: o
+umbră care rechema calea veche ar mânca un Power Word: Shield de două ori pe
+swing. Benzile sunt aritmetică pură peste aceiași accesori.
+
+Rămâne de plătit: umbra pe **rezultatul aplicat** (damage, `clean`, masca de
+proc) cere un motor care poate rula fără să miște lumea. Nu există încă.
 
 Tăcerea așteptată nu e totală: cinci divergențe sunt intenționate și se
 declară dinainte, ca umbra să le ignore pe nume — armura pe școală nefizică,
@@ -200,10 +212,16 @@ single-target, break-stealth, death-persist); `SpellSpecific`, grupul de
 diminishing, măștile; efectele ca structuri; familia de stacking precalculată;
 `spell_bonus_data` și `spell_proc_event` lipite de spell.
 
-Nimeni nu-l citește încă. Verificarea e un audit la boot care, pentru
-**fiecare** spell din DBC, compară faptul materializat cu răspunsul interogării
-vechi. Un `SpellInfo` greșit nu ajunge la treapta 2 — cade la pornire, cu ID-ul
-și câmpul.
+Verificarea e un audit la boot care, pentru **fiecare** spell din DBC, compară
+faptul materializat cu răspunsul interogării vechi. `LoadAndVerify` e poarta:
+la orice nepotrivire aruncă tot store-ul, `Get` răspunde „necunoscut" pentru
+orice ID, și fiecare apelant cade înapoi pe interogarea DBC. Serverul pornește
+în ambele cazuri; ce se pierde e o căutare economisită, nu corectitudinea.
+
+Store-ul e indexat pe ID, cu `GetIdBound()` ca plafon — `GetNumRows()` devine
+un *număr de intrări* de îndată ce ceva a chemat `SetEntry`, iar un vector
+dimensionat cu el pierde tăcut orice ID de deasupra. Un rând al cărui `ID` nu
+e egal cu indexul la care a fost găsit e numărat și lăsat necunoscut.
 
 Aici intră și matricea de no-stack: `IsNoStackSpellDueToSpell` e o funcție pură
 de `(a, b)` care azi costă două `LookupEntry` și șase sute de linii, **pe

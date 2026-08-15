@@ -119,9 +119,18 @@ namespace Combat
         /// to check gets nothing rather than garbage.
         bool known = false;
 
+        /**
+         * @brief One effect by index.
+         *
+         * An index past the end returns an ABSENT effect, not effect zero.
+         * Folding the mistake onto a real effect is how a loop that ran one
+         * step too far read a plausible answer instead of a wrong one; a
+         * caller that checks @ref SpellEffectFacts::present sees nothing.
+         */
         SpellEffectFacts const& Effect(std::size_t index) const
         {
-            return effects[index < MAX_SPELL_EFFECTS ? index : 0];
+            static const SpellEffectFacts absent;
+            return index < MAX_SPELL_EFFECTS ? effects[index] : absent;
         }
 
         bool HasEffect(std::uint32_t effectId) const
@@ -149,11 +158,26 @@ namespace Combat
         }
     };
 
-    /// The mechanic mask bit for a mechanic, with the guard the live code
-    /// does not have. Mechanic zero means "none" and contributes nothing.
+    /// How many mechanics fit in a mechanic mask. One bit each, and the mask
+    /// is a uint32 -- so mechanic 33 has nowhere to go.
+    constexpr std::uint32_t MECHANIC_MASK_BITS = 32;
+
+    /**
+     * @brief The mechanic mask bit for a mechanic, with both guards the live
+     *        code lacks.
+     *
+     * Mechanic zero means "none" and contributes nothing. A mechanic past the
+     * width of the mask contributes nothing either -- shifting by 32 or more
+     * is undefined, not zero, and a compiler is free to produce whatever the
+     * hardware happens to do. TBC stops at MECHANIC_SAPPED = 30, so today the
+     * upper guard never fires; it is here so that a client which adds one does
+     * not turn this into undefined behaviour on a shift.
+     */
     constexpr std::uint32_t MechanicBit(std::uint32_t mechanic)
     {
-        return mechanic == 0 ? 0u : (1u << (mechanic - 1));
+        return (mechanic == 0 || mechanic > MECHANIC_MASK_BITS)
+            ? 0u
+            : (1u << (mechanic - 1));
     }
 }
 

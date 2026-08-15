@@ -124,7 +124,13 @@ namespace Combat
         m.armor         = victim.armor;
         m.blockValue    = victim.blockValue;
 
-        m.critDamageMod       = attacker.critDamageMod[h];
+        // Both halves. The attacker's crit-damage auras and the victim's
+        // crit-damage-taken ones were summed into a single modifier by the old
+        // path, and they still are -- the split across two profiles is where
+        // each is READ from, not a change to how they combine.
+        m.critDamageMod = attacker.critDamageMod[h] +
+                          victim.attackerCritDamageMod[h];
+
         m.critDamageReduction = victim.critDamageReduction;
 
         m.evading = situation.victimEvading;
@@ -275,5 +281,40 @@ namespace Combat
                             HUNDRED_PERCENT);
 
         return m;
+    }
+
+    Hundredths DazeChance(std::uint8_t victimLevel,
+                          std::int32_t attackerMeleeSkill,
+                          std::int32_t victimDefenseSkill)
+    {
+        using namespace Constants;
+
+        float chance = static_cast<float>(DAZE_BASE);
+
+        if (victimLevel < DAZE_NEWBIE_LEVEL)
+        {
+            chance = DAZE_NEWBIE_PER_LEVEL * static_cast<float>(victimLevel) +
+                     DAZE_NEWBIE_OFFSET;
+        }
+
+        // The old path divided by the defence skill without asking whether it
+        // was zero. It never is for a unit in the world, but this function is
+        // also reachable from a test with whatever numbers it likes, and a
+        // division by zero is not a rule.
+        if (victimDefenseSkill > 0)
+        {
+            chance *= static_cast<float>(attackerMeleeSkill) /
+                      static_cast<float>(victimDefenseSkill);
+        }
+
+        if (chance <= 0.0f)
+        {
+            return 0;
+        }
+
+        const Hundredths rounded =
+            static_cast<Hundredths>(chance + 0.5f);
+
+        return std::min(rounded, DAZE_CAP);
     }
 }

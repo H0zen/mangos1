@@ -42,6 +42,7 @@
 #include "combat/pure/Matchup.h"
 #include "combat/pure/Profile.h"
 #include "combat/pure/Rng.h"
+#include "combat/pure/SpellFacts.h"
 #include "combat/pure/Strike.h"
 #include "combat/pure/StrikeResolver.h"
 
@@ -703,6 +704,154 @@ TEST(CombatAbsorbAndResistCannotOverdraw)
     CHECK_EQ(s.applied, 0u);
     CHECK_EQ(s.clean, 100u);
     CHECK(s.finalised);
+}
+
+// ---------------------------------------------------------------------------
+// Spell facts.
+// ---------------------------------------------------------------------------
+
+TEST(CombatMechanicBitStaysInsideTheMask)
+{
+    CHECK_EQ(MechanicBit(0), 0u);
+    CHECK_EQ(MechanicBit(1), 1u);
+    CHECK_EQ(MechanicBit(30), 1u << 29);
+    CHECK_EQ(MechanicBit(MECHANIC_MASK_BITS), 1u << 31);
+
+    // Past the width of the mask there is no bit to set, and the shift that
+    // would produce one is undefined.
+    CHECK_EQ(MechanicBit(MECHANIC_MASK_BITS + 1), 0u);
+    CHECK_EQ(MechanicBit(255), 0u);
+}
+
+TEST(CombatSpellFactsEffectOutOfRangeIsAbsent)
+{
+    SpellFacts facts;
+    facts.effects[0].present = true;
+    facts.effects[0].effect  = 42;
+
+    CHECK_EQ(facts.Effect(0).effect, 42u);
+
+    // Not effect zero wearing a different index.
+    CHECK(!facts.Effect(MAX_SPELL_EFFECTS).present);
+    CHECK_EQ(facts.Effect(MAX_SPELL_EFFECTS).effect, 0u);
+    CHECK(!facts.Effect(99).present);
+}
+
+TEST(CombatSpellFactsUnknownIsEmpty)
+{
+    SpellFacts facts;
+    CHECK(!facts.known);
+    CHECK_EQ(facts.durationMs, 0);
+    CHECK(!facts.HasEffect(1));
+    CHECK(!facts.HasAura(1));
+}
+
+// ---------------------------------------------------------------------------
+// Crit damage: both sides contribute.
+// ---------------------------------------------------------------------------
+
+TEST(CombatCritDamageSumsAttackerAndVictimAuras)
+{
+    Profile warrior = Warrior();
+    Profile boss    = Boss();
+    boss.armor = 0;
+
+    // +10% from the attacker's own crit-damage auras, +40% from the victim's
+    // "takes more damage from crits".
+    for (std::size_t h = 0; h < HAND_COUNT; ++h)
+    {
+        warrior.critDamageMod[h] = 1000;
+    }
+    boss.attackerCritDamageMod[Index(Hand::Main)] = 4000;
+
+    const Matchup m =
+        Matchup::Build(warrior, boss, Hand::Main, Situation());
+
+    CHECK_EQ(m.critDamageMod, 5000);
+
+    const HitTable table = HitTable::OneRoll(m);
+    ScriptedRng rng(table.Bound(Outcome::Block), 100, 0.5f);
+
+    const Strike s =
+        StrikeResolver::Resolve(m, table, DamageRange{100, 100}, rng);
+
+    REQUIRE(s.outcome == Outcome::Crit);
+
+    // 100 doubled, then +50%.
+    CHECK_EQ(s.applied, 300u);
+}
+
+TEST(CombatCritDamageTakenAloneStillApplies)
+{
+    // The victim's half on its own: the attacker contributes nothing.
+    Profile boss = Boss();
+    boss.armor = 0;
+    boss.attackerCritDamageMod[Index(Hand::Main)] = 2000;
+
+    const Matchup m =
+        Matchup::Build(Warrior(), boss, Hand::Main, Situation());
+
+    CHECK_EQ(m.critDamageMod, 2000);
+}
+
+TEST(CombatCritDamageIsPerHand)
+{
+    // Melee and ranged are separate auras, and the matchup reads the hand it
+    // was asked about.
+    Profile boss = Boss();
+    boss.attackerCritDamageMod[Index(Hand::Main)]   = 3000;
+    boss.attackerCritDamageMod[Index(Hand::Ranged)] = 0;
+
+    Profile warrior = Warrior();
+    warrior.caps.mayGlance = false;
+
+    CHECK_EQ(Matchup::Build(warrior, boss, Hand::Main,
+                            Situation()).critDamageMod, 3000);
+    CHECK_EQ(Matchup::Build(warrior, boss, Hand::Ranged,
+                            Situation()).critDamageMod, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Daze.
+// ---------------------------------------------------------------------------
+
+TEST(CombatDazeIsTwentyPercentAtEqualSkill)
+{
+    // Level 70 victim, attacker melee skill equal to the victim's defence.
+    CHECK_EQ(DazeChance(70, 350, 350), Constants::DAZE_BASE);
+}
+
+TEST(CombatDazeIsNeverCertain)
+{
+    // The cap is what stops an unaware back from being a guaranteed daze.
+    CHECK_EQ(DazeChance(70, 100000, 350), Constants::DAZE_CAP);
+    CHECK(DazeChance(70, 365, 350) < HUNDRED_PERCENT);
+}
+
+TEST(CombatDazeScalesWithSkillOverDefence)
+{
+    // 20% * 365/350.
+    CHECK_EQ(DazeChance(70, 365, 350), 2086);
+
+    // A victim with more defence than the attacker has skill is dazed less.
+    CHECK(DazeChance(70, 300, 400) < Constants::DAZE_BASE);
+}
+
+TEST(CombatDazeProtectsLowLevels)
+{
+    // 0.65 * level + 0.5, in hundredths, below level 30. At level 10 that is
+    // 7%, scaled by an equal skill ratio.
+    CHECK_EQ(DazeChance(10, 50, 50), 700);
+    CHECK_EQ(DazeChance(29, 145, 145), 65 * 29 + 50);
+
+    // Level 30 is the first one on the flat base.
+    CHECK_EQ(DazeChance(30, 150, 150), Constants::DAZE_BASE);
+}
+
+TEST(CombatDazeSurvivesZeroDefence)
+{
+    // No division by zero; the base stands unscaled.
+    CHECK_EQ(DazeChance(70, 350, 0), Constants::DAZE_BASE);
 }
 
 // ---------------------------------------------------------------------------

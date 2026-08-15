@@ -27,8 +27,10 @@
 #define MANGOS_COMBAT_REACTIONQUEUE_H
 
 #include "ObjectGuid.h"
+#include "combat/pure/CombatConstants.h"
 #include "combat/pure/CombatTypes.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <deque>
 #include <variant>
@@ -41,6 +43,15 @@ namespace Combat
     {
         Hand          hand  = Hand::Main;
         std::uint32_t count = 1;
+
+        /// Build one from a grant, bounded. Depth limits the next generation
+        /// of reactions; nothing else limits the width of this one, and each
+        /// swing costs a full profile, table and commit.
+        static ExtraSwing Granted(Hand hand, std::uint32_t count)
+        {
+            return ExtraSwing{
+                hand, std::min(count, Constants::MAX_EXTRA_ATTACKS)};
+        }
     };
 
     /// A spell a proc wants cast. Carried as an id, not a Spell object, so

@@ -87,16 +87,32 @@ namespace Combat
 
     void SpellFactsStore::Load()
     {
-        const std::uint32_t rows = sSpellStore.GetNumRows();
+        // The id ceiling, not the entry count. GetNumRows() returns the latter
+        // the moment anything has called SetEntry on the store, and sizing a
+        // by-id array with a count silently drops every spell above it.
+        const std::uint32_t bound = sSpellStore.GetIdBound();
 
-        m_facts.assign(rows + 1, SpellFacts());
-        m_known = 0;
+        m_facts.assign(bound, SpellFacts());
+        m_known    = 0;
+        m_misfiled = 0;
 
-        for (std::uint32_t id = 0; id < rows; ++id)
+        for (std::uint32_t id = 0; id < bound; ++id)
         {
             SpellEntry const* entry = sSpellStore.LookupEntry(id);
             if (!entry)
             {
+                continue;
+            }
+
+            // Indexed by the key it was FOUND under, because that is the key
+            // every caller will come back with: Get(spellInfo->ID) has to land
+            // on the fact built from that very row. A row whose ID disagrees
+            // with its slot would break that identity, so it is counted and
+            // left unknown rather than filed somewhere plausible -- the caller
+            // falls back to the live query and nothing reads a wrong answer.
+            if (entry->ID != id)
+            {
+                ++m_misfiled;
                 continue;
             }
 
@@ -159,6 +175,54 @@ namespace Combat
         }
 
         sLog.outString("Materialised facts for %u spells.", m_known);
+
+        if (m_misfiled > 0)
+        {
+            sLog.outError("SpellFacts: %u DBC row(s) carry an ID that is not "
+                          "their index. Those spells are left unknown and "
+                          "answered from the live query.", m_misfiled);
+        }
+    }
+
+    void SpellFactsStore::Discard()
+    {
+        m_facts.clear();
+        m_known    = 0;
+        m_misfiled = 0;
+    }
+
+    std::uint32_t SpellFactsStore::LoadAndVerify()
+    {
+        Load();
+
+        const std::uint32_t mismatches = Audit();
+        const std::uint32_t misfiled   = m_misfiled;
+
+        if (mismatches == 0 && misfiled == 0)
+        {
+            return 0;
+        }
+
+        // The gate, and the reason the audit exists.
+        //
+        // This store is no longer the additive, unread cache it was designed
+        // as -- GetSpellDuration and GetSpellMaxDuration read it on every
+        // question, which is every aura application, refresh and client
+        // update in the game. A decoder that is wrong is therefore not a
+        // stale cache entry, it is every duration in the world.
+        //
+        // So a failed audit does not merely get logged. The store is thrown
+        // away, every Get() answers "unknown", and every caller falls straight
+        // back to the DBC query it used before. Degraded and correct beats
+        // fast and wrong, and the server still starts.
+        sLog.outError("SpellFacts: the audit did not come back clean. The "
+                      "store is DISCARDED -- every question falls back to the "
+                      "live DBC query. This costs performance, not "
+                      "correctness.");
+
+        Discard();
+
+        return mismatches > 0 ? mismatches : misfiled;
     }
 
     std::uint32_t SpellFactsStore::Audit() const

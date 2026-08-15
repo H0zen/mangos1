@@ -129,6 +129,31 @@ namespace Combat
                              Situation const& situation,
                              std::uint32_t schoolMask);
     };
+
+    /**
+     * @brief The chance a creature's connecting swing from behind dazes.
+     *
+     * A pair number like everything else here, and the only reason it is a
+     * free function rather than a band on Matchup is that it is decided AFTER
+     * the outcome: the swing has to have connected before there is anything to
+     * daze. Putting it in the table would mean rolling for a consequence of a
+     * roll that has not happened yet.
+     *
+     * It exists at all because the commit layer used to skip it. The old path
+     * rolled this before casting spell 1604; the rewrite queued the daze on
+     * every eligible hit and never rolled, which made an unaware back is a
+     * guaranteed daze -- a five-fold change to how a creature fights nobody
+     * asked for.
+     *
+     * @param victimLevel         Level of the unit being dazed.
+     * @param attackerMeleeSkill  The attacker's melee skill.
+     * @param victimDefenseSkill  The victim's defence skill. Zero is treated
+     *                            as "no defence to scale against" and the base
+     *                            chance is used unscaled.
+     */
+    Hundredths DazeChance(std::uint8_t victimLevel,
+                          std::int32_t attackerMeleeSkill,
+                          std::int32_t victimDefenseSkill);
 }
 
 #endif

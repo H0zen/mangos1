@@ -60,6 +60,7 @@
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
 #include "combat/CombatRegistry.h"
+#include "combat/CombatShadow.h"
 #include "combat/MeleeSwing.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
@@ -129,6 +130,21 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType)
     const Combat::Hand hand = attType == OFF_ATTACK
         ? Combat::Hand::Off
         : Combat::Hand::Main;
+
+    // CombatShadow = 1 means what it says: compare the bands, then apply the
+    // OLD answer. It is the rollback the setting has always advertised and
+    // never performed -- the rewrite was applied in every mode and the shadow
+    // was only ever a log beside it.
+    //
+    // The two engines are never mixed. The old path has no reaction queue, so
+    // it runs its own consequences inline the way it always did; running half
+    // of each would be a third behaviour, and the point of a rollback is that
+    // it is not new.
+    if (Combat::CurrentShadowMode() == Combat::ShadowMode::Shadow)
+    {
+        Combat::PerformLegacySwing(*this, *pVictim, hand);
+        return;
+    }
 
     Map* map = GetMap();
     if (!map)

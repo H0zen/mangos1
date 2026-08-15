@@ -117,10 +117,13 @@ int32 GetSpellDuration(SpellEntry const* spellInfo)
     // lasts -- and it is asked from targeting, apply, refresh and the client
     // update alike.
     //
-    // The fallback is not defensive padding: these accessors are called during
-    // start-up, before the facts exist. Once the store is loaded, every id in
-    // the DBC is known, and SpellFactsStore::Audit has already compared this
-    // very number against LegacySpellDuration for every one of them.
+    // The fallback is not defensive padding, and it is load-bearing twice
+    // over. These accessors are called during start-up, before the facts
+    // exist; and SpellFactsStore::LoadAndVerify DISCARDS the whole store if
+    // its audit finds a single field that disagrees with the live query, at
+    // which point every call here comes down this branch again. Degrading to
+    // the second lookup is the safe direction -- reading a wrong duration is
+    // not.
     Combat::SpellFacts const& facts = sSpellFacts.Get(spellInfo->ID);
     if (facts.known)
     {

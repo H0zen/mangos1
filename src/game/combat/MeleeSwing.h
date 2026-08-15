@@ -50,6 +50,28 @@ namespace Combat
                       ReactionQueue& queue, std::uint8_t depth = 0);
 
     /**
+     * @brief The pre-rewrite white swing, applied rather than described.
+     *
+     * This is what CombatShadow = 1 runs, and until now that setting was a
+     * lie: the config called mode 1 "compare, apply the OLD answer" and the
+     * code applied the new one either way, so an operator who reached for it
+     * as a rollback got the rewrite with a log beside it.
+     *
+     * The old engine is still in the tree -- Unit::CalculateMeleeDamage and
+     * Unit::DealMeleeDamage were never touched -- so mode 1 now calls it, in
+     * the order it used: damage mods, log, procs, damage. Nothing goes on the
+     * reaction queue, because the old path had no queue and running half of
+     * each engine would be a third behaviour nobody has tested.
+     *
+     * The band comparison still happens first, and it is the one thing both
+     * modes share: what is reported is the same either way, and only the
+     * answer that gets applied changes.
+     *
+     * Removed with the rest of the scaffolding at stage M.
+     */
+    void PerformLegacySwing(Unit& attacker, Unit& victim, Hand hand);
+
+    /**
      * @brief Runs queued reactions against the world.
      *
      * Both ends of every reaction are re-resolved from their guid here. A
