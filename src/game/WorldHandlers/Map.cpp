@@ -1793,6 +1793,20 @@ bool Map::UnloadGrid(const uint32& x, const uint32& y, bool pForce)
  */
 void Map::UnloadAll(bool pForce)
 {
+    // Players live in the WORLD container of a cell, not the GRID one
+    // ObjectGridUnloader visits. Force-unload therefore deletes the NGrid
+    // (and, on the last TerrainInfo, NavStores::Drop -- every nav tile of
+    // this map) while the player still holds a Map* and a grid reference.
+    // World::~World then delete's the session, LogoutPlayer walks that
+    // pointer, and the exception lands in a destructor: SIGABRT.
+    if (pForce)
+    {
+        while (MapReference* ref = m_mapRefManager.getFirst())
+        {
+            Remove(ref->getSource(), false);
+        }
+    }
+
     for (GridRefManager<NGridType>::iterator i = GridRefManager<NGridType>::begin(); i != GridRefManager<NGridType>::end();)
     {
         NGridType& grid(*i->getSource());

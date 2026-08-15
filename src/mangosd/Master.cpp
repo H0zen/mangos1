@@ -561,6 +561,11 @@ void Master::ShutdownWorld()
 
     sLog.outString("[shutdown] draining remaining sessions");
     sWorld.UpdateSessions(1);
+    // KickAll only closes the socket. One UpdateSessions pass can leave the
+    // session in the map if Close() is not visible yet. UnloadAll then
+    // deletes every Map and NavStores::Drop's its tiles; World::~World
+    // delete's the leftover session and LogoutPlayer throws.
+    sWorld.DeleteAllSessions();
 
     sLog.outString("[shutdown] stopping the world listener");
     sWorldNetwork.Stop();

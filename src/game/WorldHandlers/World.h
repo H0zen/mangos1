@@ -717,6 +717,8 @@ class World
 
         void KickAll();
         void KickAllLess(AccountTypes sec);
+        /// Logout and delete every session while maps and nav tiles still exist.
+        void DeleteAllSessions();
         BanReturn BanAccount(BanMode mode, std::string nameOrIP, uint32 duration_secs, std::string reason, const std::string &author);
         bool RemoveBanAccount(BanMode mode, std::string nameOrIP);
 

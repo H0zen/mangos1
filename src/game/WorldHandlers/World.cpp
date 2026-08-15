@@ -262,8 +262,19 @@ World::~World()
     while (!m_sessions.empty())
     {
         // not remove from queue, prevent loading new sessions
-        delete m_sessions.begin()->second;
+        WorldSession* session = m_sessions.begin()->second;
         m_sessions.erase(m_sessions.begin());
+        // After UnloadAll the maps and nav tiles are gone. A leftover
+        // session whose destructor still walks them throws, and a throw
+        // out of this destructor is terminate.
+        try
+        {
+            delete session;
+        }
+        catch (...)
+        {
+            sLog.outError("World::~World: session destructor threw");
+        }
     }
 
     CliCommandHolder* command = NULL;
@@ -301,7 +312,28 @@ void World::CleanupsBeforeStop()
 {
     KickAll();                                       // save and kick all players
     UpdateSessions(1);                               // real players unload required UpdateSessions call
+    DeleteAllSessions();                             // KickAll only closes the socket
     sBattleGroundMgr.DeleteAllBattleGrounds();       // unload battleground templates before different singletons destroyed
+}
+
+void World::DeleteAllSessions()
+{
+    m_QueuedSessions.clear();
+
+    while (!m_sessions.empty())
+    {
+        WorldSession* session = m_sessions.begin()->second;
+        m_sessions.erase(m_sessions.begin());
+        session->LogoutPlayer(true);
+        delete session;
+    }
+
+    WorldSession* pending = NULL;
+    while (addSessQueue.next(pending))
+    {
+        pending->LogoutPlayer(true);
+        delete pending;
+    }
 }
 
 
