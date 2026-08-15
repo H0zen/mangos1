@@ -82,6 +82,16 @@ namespace scripting
         /// steps to do it.
         static mai::Sequence const* Find(uint32 kind, uint32 id);
 
+        /// Which loading of `m_sequences` is current. Bumped by LoadSequences,
+        /// never zero. What `mai::SequenceStamp` reaches, and the whole of how
+        /// a frame elsewhere in the process can tell that the sequence it is
+        /// holding was freed by a reload -- see Frame::stamp.
+        static uint32 Stamp() { return s_stamp; }
+
+        /// What `mai::AdoptFrame` reaches: a creature handing on what is left
+        /// of a sequence it can no longer tick. See MaiActor.h.
+        static void Adopt(Map* map, mai::Frame const& frame);
+
         Verdict Dispatch(Context const& ctx, EventId id, Arg* args,
                          std::size_t count) override;
 
@@ -146,6 +156,10 @@ namespace scripting
                     WorldObject* target, ObjectGuid owner, ObjectGuid item);
 
         static MaiEngine* s_instance;
+
+        /// Starts at 1 so that 0 is never a loading anything happened in, and
+        /// is therefore free to mean "not from this table" on a Frame.
+        static uint32 s_stamp;
 
         /// Whether this world database carries MAI's five tables. False means
         /// the migration has not been applied, which is reported once instead

@@ -867,13 +867,28 @@ namespace
     {
         std::map<uint32, uint32> states;
 
+        /// The creature's phase, which is not a state slot and is why
+        /// GuardPhase exists -- see the guard tests below.
+        uint32 phase = 0;
+
         /// Nothing can be asked at all -- what a sequence the world started
         /// has to say about a creature's memory.
         bool blind = false;
 
         bool Ask(mai::Guard const& guard, uint32& held) const override
         {
-            if (blind || guard.of != mai::GuardState)
+            if (blind)
+            {
+                return false;
+            }
+
+            if (guard.of == mai::GuardPhase)
+            {
+                held = phase;
+                return true;
+            }
+
+            if (guard.of != mai::GuardState)
             {
                 return false;
             }
@@ -1091,7 +1106,7 @@ TEST(MaiRunner_AnIfRunsOneArmAndOnlyOne)
     CHECK(sequence.program);
 
     FakeSight sight;
-    sight.states[uint32(owner.Intern("phase"))] = 2;
+    sight.phase = 2;
 
     mai::Frame frame;
     frame.sequence = &sequence;
@@ -1102,7 +1117,7 @@ TEST(MaiRunner_AnIfRunsOneArmAndOnlyOne)
     CHECK(frame.Finished());
 
     // And the other way.
-    sight.states[uint32(owner.Intern("phase"))] = 1;
+    sight.phase = 1;
     mai::Frame other;
     other.sequence = &sequence;
 
@@ -1370,7 +1385,7 @@ TEST(MaiRunner_NoControlVerbIsEverHandedToWhateverRunsSteps)
                     { 0, "end",      "", "" } }, error));
 
     FakeSight sight;
-    sight.states[uint32(owner.Intern("phase"))] = 1;
+    sight.phase = 1;
 
     mai::Frame frame;
     frame.sequence = &sequence;
@@ -1384,4 +1399,84 @@ TEST(MaiRunner_NoControlVerbIsEverHandedToWhateverRunsSteps)
     }
 
     CHECK_EQ(int(handed), 2);
+}
+
+TEST(MaiRunner_AContinueInAWhileStillTakesTheWholeTurn)
+{
+    // `continue` goes to the `end` in BOTH kinds of loop, and in a `while` the
+    // reason is the clock rather than a counter: the back edge is what rewinds
+    // it by the turn's period, so a `continue` sent to the condition instead
+    // rewound by its own position. A `continue` 200ms into a one-second loop
+    // made it a 200ms loop; at zero it was a spin that only the fuel stopped.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0,    "while",    "", "spin=1" },
+                    { 0,    "talk",     "text0=-1", "" },
+                    { 0,    "continue", "", "skip=1" },
+                    { 0,    "talk",     "text0=-2", "" },
+                    { 1000, "end",      "", "" } }, error));
+
+    FakeSight sight;
+    sight.states[uint32(owner.Intern("spin"))] = 1;
+    sight.states[uint32(owner.Intern("skip"))] = 1;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    // One turn, and the `continue` skips the second line rather than the wait.
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 1);
+
+    // Still inside the turn at 999ms: the loop has not come round.
+    ran = Ran(sequence, frame, 999, &sight);
+    CHECK(ran.empty());
+
+    // And at 1000 it does, exactly once.
+    ran = Ran(sequence, frame, 1, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 1);
+    CHECK_EQ(int(frame.elapsedMs), 0);
+}
+
+TEST(MaiGuard_PhaseIsThePhaseAndNotAStateThatHappensToBeCalledOne)
+{
+    // `phase` looks exactly like a bare state name, and it is not one: it is
+    // what `set_phase` writes. Interned as a state it was a guard on a slot
+    // nothing ever wrote -- zero for ever -- and it was the guard both the
+    // schema and the manual used as their worked example.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "talk", "text0=-1", "phase=2" } }, error));
+
+    REQUIRE(sequence.guards.size() == 1);
+    CHECK(sequence.guards[0].of == mai::GuardPhase);
+
+    // Nothing was interned, so the name did not quietly take a slot as well.
+    CHECK(owner.stateNames.empty());
+
+    FakeSight sight;
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    sight.phase = 1;
+    CHECK(Ran(sequence, frame, 0, &sight).empty());
+
+    mai::Frame again;
+    again.sequence = &sequence;
+    sight.phase = 2;
+    CHECK(Ran(sequence, again, 0, &sight).size() == 1);
+
+    // And the other direction: a step may not create a second thing with that
+    // name, or the guard above and the memory below would be two answers.
+    mai::RuleSet other;
+    mai::Sequence refused;
+    CHECK(!Build(refused, other,
+                 { { 0, "set_state", "name=phase value=2", "" } }, error));
 }

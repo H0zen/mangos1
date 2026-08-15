@@ -281,7 +281,25 @@ namespace mai
             return false;
         }
 
-        if (run.fromRule)
+        // THE BUDDY AND THE SELECTOR NAME THE SAME THING, and only one of them
+        // can. Both produce the third object the four flags rearrange -- one
+        // by entry and a radius, the other by a question about the threat list
+        // -- so a step that found a buddy must not then be handed somebody
+        // else's answer.
+        //
+        // It used to be. `found` was overwritten unconditionally on a rule
+        // step, and a rule step's `select` defaults to SelectSelf, so
+        // "detonate one of the adds" -- a buddy search with `random` set,
+        // which is the example both schema.sql and the manual give -- found an
+        // add and then detonated the boss. Every converted EventAI step has no
+        // buddy at all, which is why it went unnoticed: the bug is only
+        // reachable from a rule somebody wrote by hand.
+        //
+        // Naming a buddy is the more specific statement, so it wins. The
+        // loader refuses a row that says both.
+        bool const named = step.buddy.entry != 0;
+
+        if (run.fromRule && !named)
         {
             // A rule names its third object by a question rather than by an
             // entry, and the answer is ordinary enough to be absent: a boss
@@ -337,31 +355,36 @@ namespace mai
             }
 
             found = picked;
+        }
 
-            // And whom it acts AS, when the step says. Answered with the same
-            // selectors and against the same creature -- "a random player" is
-            // the same question whether it names the actor or the acted-upon.
-            //
-            // Not finding anybody here is not a reason to skip: a step whose
-            // source selector is empty falls back to the creature whose rule
-            // it is, which is what the step meant before the column existed.
-            if (step.selectSource != SelectNone)
+        // And whom it acts AS, when the step says. Answered with the same
+        // selectors and against the same creature -- "a random player" is the
+        // same question whether it names the actor or the acted-upon.
+        //
+        // OUTSIDE the block above, because it is the other end of the step and
+        // not the same choice: a row may name a buddy to act ON and still say
+        // who acts. Nested in there, "the add I found casts this at me" lost
+        // its first half the moment the buddy won the second.
+        //
+        // Not finding anybody here is not a reason to skip: a step whose
+        // source selector is empty falls back to the creature whose rule it
+        // is, which is what the step meant before the column existed.
+        if (run.fromRule && step.selectSource != SelectNone)
+        {
+            bool missingSource = false;
+            Unit* actor =
+                step.selectSource == SelectRemembered
+                    ? ((run.actor && run.map)
+                           ? run.map->GetUnit(run.actor->remembered)
+                           : nullptr)
+                    : Select(source ? source->ToCreature() : nullptr,
+                             Selector(step.selectSource), run.from,
+                             missingSource,
+                             SpellUnder(step), step.selectFlags);
+
+            if (actor)
             {
-                bool missingSource = false;
-                Unit* actor =
-                    step.selectSource == SelectRemembered
-                        ? ((run.actor && run.map)
-                               ? run.map->GetUnit(run.actor->remembered)
-                               : nullptr)
-                        : Select(source ? source->ToCreature() : nullptr,
-                                 Selector(step.selectSource), run.from,
-                                 missingSource,
-                                 SpellUnder(step), step.selectFlags);
-
-                if (actor)
-                {
-                    source = actor;
-                }
+                source = actor;
             }
         }
 
@@ -403,26 +426,47 @@ namespace mai
         // still has the one it came from; a step lowered from a RULE never had
         // one and gets it written out here. Both are scaffolding and both go
         // when the last borrowed body does.
-        ScriptInfo const* row = static_cast<ScriptInfo const*>(step.origin);
+        ScriptInfo const* origin = static_cast<ScriptInfo const*>(step.origin);
 
-        ScriptInfo raised;
-        if (!row)
+        ScriptInfo row;
+        if (origin)
+        {
+            row = *origin;
+        }
+        else
         {
             std::string error;
-            if (!Raise(step, raised, error))
+            if (!Raise(step, row, error))
             {
                 sLog.outErrorDb("MAI: %s", error.c_str());
                 return false;
             }
-            row = &raised;
         }
+
+        // ALWAYS A COPY NOW, and the reason is the three lines below it.
+        //
+        // `HandleScriptStep` calls `GetScriptProcessTargets`, which finds the
+        // buddy from the row and applies the four flags -- which is exactly
+        // what FindBuddy and Redirect above have just finished doing. Handing
+        // it the row unchanged did all of it twice: a ReverseDirection applied
+        // a second time is a no-op, so the swap the step asked for was undone,
+        // and a buddy search run again from the ALREADY REDIRECTED source
+        // could land on a different creature of the same entry.
+        //
+        // So the row that reaches the borrowed body is one with the targeting
+        // spent: no buddy, no radius, and only CommandAdditional left of the
+        // flags -- which is the one bit that is not targeting at all and that
+        // several verb bodies read as an argument.
+        row.buddyEntry = 0;
+        row.searchRadiusOrGuid = 0;
+        row.data_flags &= uint8(CommandAdditional);
 
         ScriptAction action(DBScriptType(run.origin), run.map,
                             finalSource ? finalSource->GetObjectGuid()
                                         : ObjectGuid(),
                             finalTarget ? finalTarget->GetObjectGuid()
                                         : ObjectGuid(),
-                            run.owner, row);
+                            run.owner, &row);
         return action.HandleScriptStep();
     }
 }

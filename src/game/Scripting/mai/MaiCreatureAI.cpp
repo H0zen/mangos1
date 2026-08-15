@@ -244,6 +244,14 @@ namespace mai
             return true;
         }
 
+        if (guard.of == GuardPhase)
+        {
+            // The number `set_phase` writes, which is not a state slot and
+            // could not be read until it had a GuardOf of its own.
+            held = m_actor.phases.current;
+            return true;
+        }
+
         // The creature's own memory. A slot out of range is a load that went
         // wrong rather than a state of zero, so it is unanswerable too.
         if (guard.subject >= MaxStates)
@@ -819,7 +827,42 @@ namespace mai
         // would sit there until a Reset threw it away. It is the SAME path,
         // walked at once with no time passed: everything at zero runs, in
         // order, and anything later stays queued for whoever ticks next.
-        RunFrame(m_frames.size() - 1, 0);
+        std::size_t const mine = m_frames.size() - 1;
+        RunFrame(mine, 0);
+
+        // AND WHOEVER TICKS NEXT IS NOT THIS CREATURE.
+        //
+        // "Anything later stays queued" was the half of that sentence which
+        // was not true. The steps at time zero ran; the ones with a time on
+        // them were queued on an AI object that Creature::Update had already
+        // stopped calling, and the Reset that follows a death threw them away
+        // a moment later. A death rule could say things but could not wait,
+        // and neither could an evade rule -- which is frozen for the whole
+        // walk home and then dropped by JustReachedHome.
+        //
+        // So the rest of the sequence changes OWNER. The map's own schedule
+        // ticks whatever happens to the creature, which is exactly what
+        // `dbscripts_on_creature_death` has always been and why that one kind
+        // of death script did work. The steps point into `mai_rule`, which is
+        // loaded once and never rebuilt, so the pointer outlives the corpse by
+        // construction -- and the creature's state travels with them, so a
+        // guard on a death step still means what it meant when it died.
+        //
+        // The test is Creature::Update's own, written out rather than guessed
+        // at: not alive, or walking home. A `reached_home` rule -- the third
+        // one that fires with `now` -- is neither, and keeps its frame, which
+        // is right: that creature is standing in its spawn point being ticked.
+        if (mine < m_frames.size() && !m_frames[mine].Finished() &&
+            (!m_creature->IsAlive() || m_creature->IsInEvadeMode()))
+        {
+            Frame handed = m_frames[mine];
+            handed.actor = m_actor;
+            handed.hasActor = true;
+
+            AdoptFrame(m_creature->GetMap(), handed);
+            m_frames[mine] = Frame();
+        }
+
         Sweep();
     }
 
@@ -884,7 +927,28 @@ namespace mai
      */
     void MaiCreatureAI::RunFrame(std::size_t index, uint32 diff)
     {
-        if (index >= m_frames.size() || m_frames[index].Finished())
+        if (index >= m_frames.size())
+        {
+            return;
+        }
+
+        // BEFORE ANYTHING FOLLOWS THE POINTER, and `Finished()` follows it. A
+        // branch points into the SHARED table, and `.reload mai_script` frees
+        // every sequence in it -- the engine drops its own frames and has no
+        // way to reach this one. The stamp answers "is that pointer still
+        // good" without dereferencing what it is asking about, which is the
+        // only question left once the answer might be no.
+        if (m_frames[index].stamp != 0 &&
+            m_frames[index].stamp != SequenceStamp())
+        {
+            sLog.outErrorDb("MAI: creature %u was running a branch that a "
+                            "reload of `mai_script` replaced; dropped.",
+                            m_creature->GetEntry());
+            m_frames[index] = Frame();
+            return;
+        }
+
+        if (m_frames[index].Finished())
         {
             return;
         }
@@ -1005,8 +1069,18 @@ namespace mai
             return;
         }
 
+        // The stale test comes FIRST, and short-circuits, because Finished()
+        // follows the pointer a stale frame is holding. RunFrame clears them
+        // on the way past, so by the time a sweep normally runs there are none
+        // left -- but a sweep can also happen without a walk in front of it,
+        // and one dangling read is all it takes.
         m_frames.erase(std::remove_if(m_frames.begin(), m_frames.end(),
-                           [](Frame const& frame) { return frame.Finished(); }),
+                           [](Frame const& frame)
+                           {
+                               return (frame.stamp != 0 &&
+                                       frame.stamp != SequenceStamp()) ||
+                                      frame.Finished();
+                           }),
                        m_frames.end());
     }
 
@@ -1357,9 +1431,11 @@ namespace mai
         //     is the fight's state, and this is the last moment it is true.
         Fire(RuleId::Died, killer, nullptr, true);
 
-        // Which also puts the phase back to zero, and throws away whatever the
-        // death rules queued for later: a corpse is never ticked, so a step
-        // with a time on it is a step that cannot happen.
+        // Which also puts the phase back to zero. What it no longer throws
+        // away is whatever the death rules queued for LATER: Start hands that
+        // to the map on its way out, with this creature's state copied into
+        // it, because a corpse is never ticked and the map always is. "Say
+        // this three seconds after I die" is a creature rule now.
         Reset();
     }
 
@@ -1854,6 +1930,11 @@ namespace mai
         frame.sequence = sequence;
         frame.source = source.IsEmpty() ? m_creature->GetObjectGuid() : source;
         frame.target = target;
+
+        // This one points into the SHARED table, unlike every other frame this
+        // creature owns, so it is the one that a reload can pull out from
+        // under. Stamped, and checked before it is walked -- see RunFrame.
+        frame.stamp = SequenceStamp();
 
         // Queued, not run: a sequence starting now has had no time pass in it
         // yet, which is the same answer the engine's own frames get.

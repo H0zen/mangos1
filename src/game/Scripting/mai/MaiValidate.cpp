@@ -37,11 +37,15 @@
 
 #include "MaiValidate.h"
 
+#include "MaiCompile.h"
+
 #include "DBCStores.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 
 #include <cstdio>
+#include <utility>
+#include <vector>
 
 namespace mai
 {
@@ -131,9 +135,36 @@ namespace mai
                 continue;
             }
 
-            // A text id of -1 is the schema's own "none".
+            // A text is the one parameter held as a SIGNED value, and ZERO --
+            // only zero -- is its "nothing". NOT -1, however much it looks
+            // like a sentinel: text ids in this core are NEGATIVE, the
+            // creature-AI range is -2005..-1, and -1 is a line somebody wrote.
+            // The lowering learnt that the hard way and sets `given` on any
+            // non-zero id for the same reason.
+            //
+            // Skipped entirely until now, which left the commonest wrong id in
+            // the whole system unchecked: a `talk` whose text was never merged
+            // loads, validates, and says nothing at all in front of a player --
+            // the failure the semantic types were introduced to end, surviving
+            // in the one type that names a row rather than a spell.
             if (param.type == ParamType::Text)
             {
+                int32 const text = step.operands[slot].i;
+                if (text == 0)
+                {
+                    continue;
+                }
+
+                if (!sObjectMgr.GetMangosStringLocale(text))
+                {
+                    char buffer[192];
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "%s.%s is %d, which is not a text this world "
+                                  "has", spec->name, param.name, text);
+                    error = buffer;
+                    return false;
+                }
+
                 continue;
             }
 
@@ -157,9 +188,10 @@ namespace mai
         return true;
     }
 
-    std::size_t Validate(Sequence const& sequence)
+    std::size_t Validate(Sequence& sequence)
     {
         std::size_t refused = 0;
+        std::vector<bool> keep(sequence.steps.size(), true);
 
         for (std::size_t i = 0; i < sequence.steps.size(); ++i)
         {
@@ -170,6 +202,7 @@ namespace mai
             }
 
             ++refused;
+            keep[i] = false;
 
             // Reported and skipped, not fatal. A world's tables are edited by
             // people, and refusing to start a server over one bad row would
@@ -202,6 +235,50 @@ namespace mai
             }
         }
 
+        if (refused == 0)
+        {
+            return 0;
+        }
+
+        // Reported and REMOVED, not fatal. A world's tables are edited by
+        // people, and refusing to start a server over one bad row would teach
+        // an administrator to turn the check off -- which costs more than the
+        // row does. What must not happen is silence, and what must not happen
+        // either is the row surviving the report.
+        if (Branches(sequence.steps))
+        {
+            // A program loses all of it. Dropping a row out of one does not
+            // leave a shorter program, it leaves a different one: the `end`
+            // closes something else, and an `if` whose body has gone still
+            // branches -- around nothing, to somewhere that moved.
+            sLog.outErrorDb("MAI: %s %u branches and %u of its steps are "
+                            "wrong; the whole script is refused, because "
+                            "removing a row from a program changes what the "
+                            "rest of it means.",
+                            sequence.kind, sequence.id, uint32(refused));
+
+            refused = sequence.steps.size();
+            sequence.steps.clear();
+            sequence.guards.clear();
+            return refused;
+        }
+
+        std::vector<Step> kept;
+        kept.reserve(sequence.steps.size() - refused);
+        for (std::size_t i = 0; i < sequence.steps.size(); ++i)
+        {
+            if (keep[i])
+            {
+                kept.push_back(sequence.steps[i]);
+            }
+        }
+
+        // The guards are NOT compacted with them. A step names a window into
+        // that table by absolute position, so leaving the removed steps' guards
+        // where they are keeps every surviving window pointing at what it
+        // pointed at -- for the price of a few unread entries in a vector that
+        // is empty on every converted script in the world.
+        sequence.steps = std::move(kept);
         return refused;
     }
 }

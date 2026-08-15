@@ -44,9 +44,29 @@ namespace mai
     /// @return false with @a error naming the parameter and what it should be.
     bool Validate(Step const& step, std::string& error);
 
-    /// Every step, each reported through the DB error log. @return how many
-    /// were refused, which is a number worth printing at the end of a load.
-    std::size_t Validate(Sequence const& sequence);
+    /**
+     * Every step, each reported through the DB error log, and every bad one
+     * actually REMOVED.
+     *
+     * It used to count and log and keep, so "reported and skipped" meant the
+     * log line was the skip: a `cast_spell` naming a spell this build does not
+     * have was refused at load, printed, loaded anyway, and failed again every
+     * time it ran. Removing it is what the sentence always claimed.
+     *
+     * A SCRIPT THAT BRANCHES LOSES ALL OF IT INSTEAD. Removing one row from a
+     * timeline leaves a shorter timeline, which is what was meant minus a line;
+     * removing one from a program leaves a DIFFERENT program -- an `if` whose
+     * body is gone still branches, and a step dropped from between two others
+     * changes what the `end` closes. Same rule the compiler already applies to
+     * a block that does not balance.
+     *
+     * Must run BEFORE Compile, since it changes the indices every jump is
+     * resolved against.
+     *
+     * @return how many steps were wrong, which is a number worth printing at
+     *         the end of a load.
+     */
+    std::size_t Validate(Sequence& sequence);
 }
 
 #endif //MANGOS_MAI_VALIDATE_H

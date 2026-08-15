@@ -328,15 +328,22 @@ namespace mai
                         steps[leaving].jump = uint16(after);
                     }
 
-                    // A `continue` in a `while` goes back to the condition; in
-                    // a `repeat` it goes to the `end`, because that is where
-                    // the counter comes down. Sent to the top instead, a
-                    // `continue` would make a bounded loop unbounded.
+                    // A `continue` goes to the `end`, whichever kind of loop it
+                    // is in, because the `end` is where a turn ENDS -- and a
+                    // turn ending is two things, both of which live there.
+                    //
+                    // In a `repeat` it is the counter coming down; sent to the
+                    // top instead, a `continue` would make a bounded loop
+                    // unbounded. In a `while` it is the CLOCK: the back edge is
+                    // what rewinds it by the turn's period, so a `continue`
+                    // sent to the condition rewound by its own position
+                    // instead, and a `continue` two hundred milliseconds into
+                    // a one-second loop turned it into a two-hundred
+                    // millisecond one. At zero it was a spin that only the fuel
+                    // stopped.
                     for (std::size_t again : block.continues)
                     {
-                        steps[again].jump =
-                            uint16(block.kind == ActionId::While
-                                       ? block.head : at);
+                        steps[again].jump = uint16(at);
                     }
                     break;
                 }

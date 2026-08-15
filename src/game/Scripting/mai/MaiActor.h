@@ -37,106 +37,21 @@ class Unit;
 class WorldObject;
 
 /**
- * What one creature running MAI remembers between ticks.
+ * What one action is given, and what only the AI can carry out.
  *
- * A sequence needs none of this -- it is a list of things to do and a clock.
- * A creature does: it is in a phase, it may be refusing to die below a health
- * it was told, it has timers that re-arm. EventAI kept all of it as fields on
- * its AI object, which is the right place; what was wrong was that the AI
- * object was also the interpreter, the action set and the trigger table.
+ * `Doing` is a verb's whole world: passed by reference to every one of them,
+ * so a verb's signature says exactly what a verb may touch. `Driver` is the
+ * short list of things a free function cannot do at all, because only the AI
+ * object can.
  *
- * WHY IT EXISTS BEFORE THE RULE ENGINE DOES. The actions come first -- a rule
- * with nothing to run is not testable -- and several of them write here:
- * set_phase, set_invincibility, set_throw_mask. Building the state with the
- * actions that use it, rather than with the engine that will read it, keeps
- * each piece checkable on its own.
+ * PHASES AND ACTOR ARE IN MaiScript.h. They were here, beside the verbs that
+ * write them, until a FRAME had to be able to carry one: a creature that dies
+ * hands the rest of its sequence to the map with its state copied into it (see
+ * Frame::actor), and the model header is where the things a frame is made of
+ * have to live. Nothing about who writes them changed.
  */
 namespace mai
 {
-    /**
-     * Phases, still a bitmask.
-     *
-     * EventAI's whole notion of state, and it deserves to become named states
-     * -- `state combat`, `state frenzy` -- which is what the design says and
-     * what a conversion cannot deliver in the same change that moves twenty
-     * thousand rows. A rule carries the mask of phases it does NOT fire in,
-     * inverted, exactly as the tables have it, so a converted row means what
-     * it meant.
-     */
-    struct Phases
-    {
-        uint32 current = 0;     ///< the phase NUMBER, 0..31; ZERO is where a
-                                ///< creature starts, as EventAI had it -- and
-                                ///< a creature that has died is put back to it
-
-        bool Allows(uint32 inversePhaseMask) const
-        {
-            return inversePhaseMask == 0 ||
-                   (inversePhaseMask & (1u << current)) == 0;
-        }
-    };
-
-    /**
-     * One creature's MAI state.
-     *
-     * Deliberately POD-ish and free of pointers to the world: it is owned by
-     * the AI object, which is owned by the creature, so anything it held would
-     * have the creature's lifetime anyway -- and a guid is what survives the
-     * creature dying mid-sequence.
-     */
-    struct Actor
-    {
-        Phases phases;
-
-        /// What this creature remembers. Named in the tables and numbered
-        /// here: the names are interned per creature ENTRY when its rules load,
-        /// so a guard costs an array index at run time and still reads as
-        /// `enraged=0` where a person looks at it.
-        ///
-        /// Cleared by Reset, which is what makes "already enraged" mean
-        /// already enraged IN THIS FIGHT.
-        uint32 states[MaxStates] = {};
-
-        /// Whoever this creature was told to remember, for the steps that come
-        /// after the one that chose. A guid rather than a pointer for the
-        /// reason everything here is: the fight outlives the choosing, and
-        /// whoever was picked can die between two beats of it.
-        ///
-        /// Cleared by Reset, so a focus does not survive a wipe.
-        ObjectGuid remembered;
-
-        /// Health this creature refuses to drop below, and whether the number
-        /// is a percentage. Zero means it dies like anything else.
-        uint32 invincibilityHp = 0;
-        bool   invincibilityIsPercent = false;
-
-        /// Which AI events this creature will pass on. EventAI wrote it as a
-        /// mask and so does this.
-        uint32 throwMask = 0;
-
-        /// Whether the AI drives movement and melee at all. A scripted
-        /// encounter turns these off while it choreographs something and back
-        /// on afterwards, and forgetting the second half is the commonest way
-        /// a boss ends up standing still for ever.
-        bool combatMovement = true;
-        bool meleeAllowed = true;
-
-        void Reset()
-        {
-            phases = Phases();
-            remembered.Clear();
-            for (uint32& state : states)
-            {
-                state = 0;
-            }
-            invincibilityHp = 0;
-            invincibilityIsPercent = false;
-            throwMask = 0;
-            combatMovement = true;
-            meleeAllowed = true;
-        }
-    };
-
     struct Driver;
 
     /**
@@ -315,11 +230,45 @@ namespace mai
      * what keeps the actor, the phase and the selectors the rule had -- and to
      * do that it needs the steps, not a request to somebody else to run them.
      *
-     * The result is owned by the engine and outlives every frame pointing at
-     * it: the sequences are rebuilt only by a reload, which clears the frames
-     * first.
+     * The result is owned by the engine, and it does NOT outlive a reload.
+     * `.reload mai_script` frees every sequence in the table; the engine drops
+     * its own frames, and it has no way to reach a creature that started a
+     * branch and is holding one of these. Anything that keeps the pointer past
+     * the call must keep SequenceStamp() beside it -- see Frame::stamp.
      */
     Sequence const* FindSequence(uint32 kind, uint32 id);
+
+    /**
+     * Which loading of the shared sequence table is current.
+     *
+     * Bumped every time the table is rebuilt, and never zero, so zero is free
+     * to mean "this frame does not point into the table at all". Declared here
+     * and defined by the engine, like the two above, so that nothing which
+     * merely RUNS a frame has to include the engine to ask.
+     */
+    uint32 SequenceStamp();
+
+    /**
+     * Hand a half-run frame to the map, which ticks whatever happens to the
+     * creature that started it.
+     *
+     * What a death rule needs, and the reason a death rule could not wait. The
+     * AI object stops being ticked the moment its creature is not alive --
+     * `Creature::Update` reaches `UpdateAI` only on an ALIVE creature that is
+     * not walking home -- so a step with a time on it had nobody to run it and
+     * the Reset that follows death threw it away.
+     *
+     * The frame carries the creature's state with it (Frame::actor), because
+     * the map has no creature to ask. What it cannot carry is the AI object
+     * itself, so the verbs that reach one -- `set_timer`, and the two that
+     * drive movement -- have nothing to reach: they are no-ops on an adopted
+     * frame, which is what they mean anyway once the creature is a corpse.
+     *
+     * Safe to call from the creature's own map thread, which is the only
+     * caller: it appends to that map's frames, and the map's own walk is
+     * indexed and copies, so an append during it is ordinary.
+     */
+    void AdoptFrame(Map* map, Frame const& frame);
 }
 
 #endif //MANGOS_MAI_ACTOR_H

@@ -173,6 +173,18 @@ namespace mai
                         return false;
                     }
 
+                    if (RuleSet::Reserved(text))
+                    {
+                        std::snprintf(buffer, sizeof(buffer),
+                                      "%s.%s is '%s', which is not one of this "
+                                      "creature's remembered numbers -- use "
+                                      "set_phase, and guard on it by name",
+                                      spec.name, spec.params[slot].name,
+                                      text.c_str());
+                        error = buffer;
+                        return false;
+                    }
+
                     std::size_t const at = owner->Intern(text);
                     if (at >= MaxStates)
                     {
@@ -421,6 +433,20 @@ namespace mai
 
                 prefixed = true;
                 break;
+            }
+
+            // A reserved word: it looks like a bare state name and is not one.
+            // `phase` is what `set_phase` writes, and interned as a state it
+            // was a guard on a slot nothing ever wrote -- always zero, for
+            // ever, in the one example the schema and the manual both used.
+            //
+            // Answerable with no owner, unlike a state, because it is the
+            // creature's own and a sequence the world started still has none.
+            if (!prefixed && RuleSet::Reserved(held))
+            {
+                guard.of = GuardPhase;
+                guard.subject = 0;
+                prefixed = true;
             }
 
             if (!prefixed)

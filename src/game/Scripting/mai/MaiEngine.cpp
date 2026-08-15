@@ -262,7 +262,7 @@ namespace scripting
          *
          * @return true when the sequence should stop here.
          */
-        bool Perform(Map* map, mai::Frame const& frame, mai::Step const& step)
+        bool Perform(Map* map, mai::Frame& frame, mai::Step const& step)
         {
             mai::Run run;
             run.map = map;
@@ -272,10 +272,19 @@ namespace scripting
             run.item = frame.item;
             run.origin = frame.sequence ? frame.sequence->origin : 0;
 
-            // No creature behind it, so no Actor and no selector: a queued
-            // command list was told its target when it was queued.
-            run.actor = nullptr;
-            run.fromRule = false;
+            // Usually no creature behind it, so no Actor and no selector: a
+            // queued command list was told its target when it was queued.
+            //
+            // UNLESS THE FRAME WAS HANDED ON BY ONE. A creature that dies
+            // gives the map the rest of its death sequence, and its state
+            // comes with it -- so a guard on a death step still reads the
+            // fight it belongs to, `remember_target` still names whom it
+            // named, and the step keeps the rule semantics it was written
+            // with. What is gone is the AI object, so `driver` stays null and
+            // the three verbs that need one do nothing, which is what they
+            // mean on a corpse.
+            run.actor = frame.hasActor ? &frame.actor : nullptr;
+            run.fromRule = frame.hasActor;
 
             return mai::Execute(run, step);
         }
@@ -299,11 +308,38 @@ namespace scripting
             ObjectGuid source;
             ObjectGuid target;
 
+            /// The state a dying creature handed on with its frame, when one
+            /// did. Null on every other frame, which is what makes a bare name
+            /// unanswerable there rather than zero.
+            mai::Actor const* actor = nullptr;
+
             bool Ask(mai::Guard const& guard, uint32& held) const override
             {
                 if (!map)
                 {
                     return false;
+                }
+
+                if (guard.of == mai::GuardState || guard.of == mai::GuardPhase)
+                {
+                    if (!actor)
+                    {
+                        return false;
+                    }
+
+                    if (guard.of == mai::GuardPhase)
+                    {
+                        held = actor->phases.current;
+                        return true;
+                    }
+
+                    if (guard.subject >= mai::MaxStates)
+                    {
+                        return false;
+                    }
+
+                    held = actor->states[guard.subject];
+                    return true;
                 }
 
                 if (guard.of == mai::GuardInstance)
@@ -347,6 +383,7 @@ namespace scripting
     }
 
     MaiEngine* MaiEngine::s_instance = nullptr;
+    uint32 MaiEngine::s_stamp = 1;
 
     MaiEngine::MaiEngine()
     {
@@ -409,6 +446,22 @@ namespace scripting
     {
         std::lock_guard<std::mutex> guard(m_framesLock);
         return m_frames[map];
+    }
+
+    void MaiEngine::Adopt(Map* map, mai::Frame const& frame)
+    {
+        if (!s_instance || !map || frame.Finished())
+        {
+            return;
+        }
+
+        // The steps point into `mai_rule`, which is loaded once and never
+        // rebuilt -- a reload of it is refused precisely because live AI
+        // objects hold pointers into it -- so this pointer outlives the corpse
+        // that handed it over by construction. Frame::stamp stays zero, which
+        // is what says "not from the shared table" and keeps a
+        // `.reload mai_script` from dropping it.
+        s_instance->FramesOf(map).push_back(frame);
     }
 
     /**
@@ -718,6 +771,12 @@ namespace scripting
                 // at whatever landed at that index -- so a script with control
                 // in it keeps the order it was written in, and MaiCompile
                 // checks the times instead of rearranging them.
+                // AGAINST THE WORLD FIRST, because it can remove a step and
+                // the compiler resolves every jump to an index. Held the other
+                // way round, a validated-away row would leave a program whose
+                // branches point one past where they were aimed.
+                refusedSteps += mai::Validate(sequence);
+
                 if (mai::Branches(sequence.steps))
                 {
                     std::string error;
@@ -744,8 +803,6 @@ namespace scripting
                 }
             }
 
-            refusedSteps += mai::Validate(sequence);
-
             steps += sequence.steps.size();
             ++sequences;
             loaded.emplace(Key{ type, id }, std::move(sequence));
@@ -753,6 +810,23 @@ namespace scripting
         while (result->NextRow());
 
         m_sequences = std::move(loaded);
+
+        // Every Sequence the old table held is freed on the line above, so
+        // every pointer to one taken before it is now dangling. The engine's
+        // own frames were dropped by the reload; a creature that started a
+        // branch is holding one and cannot be reached from here. Bumping this
+        // is what lets it find out for itself, without dereferencing what it
+        // is asking about.
+        ++s_stamp;
+        if (s_stamp == 0)
+        {
+            // Wrapping to zero would make every live branch frame claim to be
+            // a rule's own steps -- which is the one value that is never
+            // checked. Forty-nine days is not the timescale here (this is
+            // bumped by an administrator typing a command), but the failure is
+            // silent, so it costs a line to make it impossible.
+            s_stamp = 1;
+        }
 
         sLog.outString("MAI: %u sequence(s), %u step(s); %u refused, %u step(s) "
                        "refused or naming something this world does not have.",
@@ -880,6 +954,23 @@ namespace scripting
                     continue;
                 }
 
+                // Two ways of naming the SAME thing -- the third object the
+                // four flags rearrange -- and a row that uses both is a row
+                // whose author expected something. Execute lets the buddy win,
+                // which is the more specific of the two; saying so here means
+                // nobody finds out by watching the wrong add explode.
+                if (step.buddy.entry != 0 &&
+                    (step.select != mai::SelectSelf ||
+                     step.selectElse != mai::SelectNone))
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: names a "
+                                    "buddy and a target selector, which are "
+                                    "two answers to one question", creature,
+                                    rule, field[13].GetUInt32());
+                    ++refusedSteps;
+                    continue;
+                }
+
                 Draft& draft = steps[std::make_pair(creature, rule)];
 
                 // The step's own guard, interned into the SAME creature the
@@ -954,6 +1045,18 @@ namespace scripting
             {
                 rule.steps.steps = std::move(found->second.steps);
                 rule.steps.guards = std::move(found->second.guards);
+                // Named before it can be reported, not after. Validate leads
+                // its message with the kind and the id, and a rule's sequence
+                // carried the default "script" and an id of zero until three
+                // lines below here -- so every bad row in every rule in the
+                // world reported itself as "script 0".
+                rule.steps.kind = "rule";
+                rule.steps.id = id;
+
+                // Held up against the world before the jumps are resolved, for
+                // the reason LoadSequences gives: validation can remove a step,
+                // and the compiler resolves every jump to an index.
+                refusedSteps += mai::Validate(rule.steps);
 
                 // A timeline is sorted and a program is not -- the same
                 // decision LoadSequences makes, for the same reason, and made
@@ -997,11 +1100,6 @@ namespace scripting
             }
 
             rule.steps.id = id;
-
-            // Held up against the world exactly as a sequence is: a rule
-            // naming a spell this build does not have is refused now rather
-            // than logged every time the creature is pulled.
-            refusedSteps += mai::Validate(rule.steps);
 
             set.rules.push_back(std::move(rule));
             ++rules;
@@ -1117,6 +1215,11 @@ namespace scripting
             return true;
         }
 
+        // The engine's own frames, which is all this can reach. A creature
+        // that started a branch holds one of these pointers on its AI object
+        // and there is no list of live AI objects to walk -- LoadSequences
+        // bumps the stamp instead, and each of those frames finds out for
+        // itself the next time it is looked at. See Frame::stamp.
         {
             std::lock_guard<std::mutex> guard(m_framesLock);
             m_frames.clear();
@@ -1189,6 +1292,13 @@ namespace scripting
         frame.target = targetGuid;
         frame.item = item;
 
+        // Which loading of the table that pointer is into. The engine's own
+        // frames are dropped by a reload before the table is replaced, so this
+        // is never the one that catches a stale pointer -- but the field means
+        // "where this points", and leaving it at zero would say it points at a
+        // rule's own steps, which it does not.
+        frame.stamp = s_stamp;
+
         // An item source is the one thing not findable from its guid, so the
         // player holding it rides along -- the same reason the seam's guid box
         // carries an owner.
@@ -1223,53 +1333,94 @@ namespace scripting
 
         mai::Sequence const& sequence = found->second;
 
+        // A step here can start another sequence, and because this path
+        // answers inline its children answer inline too -- StartFrom passes
+        // `cancel` down, which lands back in this function. Two scripts that
+        // start each other would recurse until the stack ended, on the world
+        // thread, with no tick in between to break it up. The creature AI has
+        // had a cap since its own sequences began running in place; this is the
+        // same cap for the same reason.
+        //
+        // Thread-local rather than static: maps update in parallel, and two of
+        // them running an item use at the same instant are two depths.
+        static thread_local uint32 s_inline = 0;
+
+        enum : uint32 { MaxInline = 8 };
+        if (s_inline >= MaxInline)
+        {
+            sLog.outErrorDb("MAI: %s %u nested inline sequences %u deep; one "
+                            "of them starts something that starts it again.",
+                            sequence.kind, id, uint32(MaxInline));
+            return false;
+        }
+
         bool cancelled = false;
-        std::size_t at = 0;
 
         mai::Run run;
         run.map = map;
         run.source = source ? source->GetObjectGuid() : ObjectGuid();
         run.target = target ? target->GetObjectGuid() : ObjectGuid();
         run.owner = owner;
-        run.item = item;
-        run.origin = sequence.origin;
-        run.cancel = &cancelled;
-
-        // The steps at time zero, in order, stopping where one says to. The
-        // rest -- if the sequence has any -- is an ordinary queued frame that
-        // starts from where this left off.
-        for (; at < sequence.steps.size(); ++at)
-        {
-            if (sequence.steps[at].atMs != 0)
-            {
-                break;
-            }
-
-            if (mai::Execute(run, sequence.steps[at]))
-            {
-                // Stopped. Whether it stopped because it refused or because a
-                // guard failed, nothing after it runs.
-                return cancelled;
-            }
-        }
-
-        if (at >= sequence.steps.size())
-        {
-            return cancelled;
-        }
-
-        mai::Frame frame;
-        frame.sequence = &sequence;
-        frame.next = at;
-        frame.source = run.source;
-        frame.target = run.target;
-        frame.owner = owner;
 
         // Which item this was about. The inline half had it in the Run and the
         // queued half did not, so "refuse the use, and two seconds later say
         // why" lost the item between its two sentences -- and every verb that
         // asks the owner's bags for it got an empty guid.
+        run.item = item;
+        run.origin = sequence.origin;
+        run.cancel = &cancelled;
+
+        mai::Frame frame;
+        frame.sequence = &sequence;
+        frame.source = run.source;
+        frame.target = run.target;
+        frame.owner = owner;
         frame.item = item;
+        frame.stamp = s_stamp;
+
+        WorldSight sight;
+        sight.map = map;
+        sight.source = frame.source;
+        sight.target = frame.target;
+
+        // THROUGH THE RUNNER, with no time passed, which is what makes the
+        // steps at time zero come due and nothing else.
+        //
+        // It used to be a raw `for` over the leading zero-delay steps, and
+        // three things followed that were true of no other path in MAI: a
+        // control verb reached Execute, which refuses it and does not stop, so
+        // BOTH arms of an `if`/`else` ran; a step's guard was never asked,
+        // because asking is something the runner does; and there was no fuel,
+        // so a loop written here spun on the world thread. One walk, one set of
+        // rules -- the two kinds that must answer the caller in the same call
+        // are not two kinds of script.
+        ++s_inline;
+
+        mai::Runner walk(frame, 0, &sight);
+        while (mai::Step const* step = walk.Next())
+        {
+            if (mai::Execute(run, *step))
+            {
+                walk.Stop();
+            }
+        }
+
+        --s_inline;
+
+        if (walk.Exhausted())
+        {
+            sLog.outErrorDb("MAI: %s %u ran %u steps in one call without "
+                            "finishing; a loop in it is not advancing.",
+                            sequence.kind, id, uint32(mai::MaxStepsPerTick));
+        }
+
+        // Whatever is left has a time on it, and becomes an ordinary queued
+        // frame carrying on from where this stopped. A run that ended -- by
+        // finishing, by refusing, or by a `terminate_*` -- leaves nothing.
+        if (frame.Finished())
+        {
+            return cancelled;
+        }
 
         FramesOf(map).push_back(frame);
         return cancelled;
@@ -1306,20 +1457,32 @@ namespace scripting
             return;
         }
 
-        // Indexed rather than iterated: a step can start another sequence on
-        // this same map, which appends here. An iterator would be invalidated
-        // by that; an index simply does not visit the new frame until the next
-        // tick, which is also the right answer -- a sequence starting now has
-        // had no time pass in it yet.
+        // Indexed rather than iterated, AND ON A COPY -- and the index alone
+        // was not enough.
+        //
+        // A step can start another sequence on this same map, which appends
+        // here. An index survives that where an iterator would not, which is
+        // what the loop was written for; what it does not survive is the
+        // `Frame&` the runner was holding. `push_back` past capacity frees the
+        // buffer, and the runner's reference -- and this one -- point into it.
+        // `start_script` is an ordinary converted verb and a map's vector grows
+        // one frame at a time, so the reallocation is reached by ordinary play
+        // rather than by a stress case.
+        //
+        // MaiCreatureAI::RunFrame has always copied for exactly this reason.
+        // This is the same walk, and it copies now too: run against the copy,
+        // then write it back at the index, which is still this frame's because
+        // nothing during a tick erases from here -- only appends.
         std::size_t const wasSize = frames.size();
         for (std::size_t i = 0; i < wasSize && i < frames.size(); ++i)
         {
-            mai::Frame& frame = frames[i];
+            mai::Frame frame = frames[i];
 
             WorldSight sight;
             sight.map = ctx.map;
             sight.source = frame.source;
             sight.target = frame.target;
+            sight.actor = frame.hasActor ? &frame.actor : nullptr;
 
             mai::Runner run(frame, diff, &sight);
 
@@ -1330,6 +1493,8 @@ namespace scripting
                     run.Stop();
                 }
             }
+
+            frames[i] = frame;
 
             if (run.Exhausted())
             {
@@ -1723,5 +1888,15 @@ namespace mai
     Sequence const* FindSequence(uint32 kind, uint32 id)
     {
         return scripting::MaiEngine::Find(kind, id);
+    }
+
+    uint32 SequenceStamp()
+    {
+        return scripting::MaiEngine::Stamp();
+    }
+
+    void AdoptFrame(Map* map, Frame const& frame)
+    {
+        scripting::MaiEngine::Adopt(map, frame);
     }
 }

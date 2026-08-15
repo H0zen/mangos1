@@ -148,11 +148,35 @@ namespace mai
         /// across a world would not be.
         std::vector<std::string> stateNames;
 
+        /**
+         * Names that are not a creature's own memory, whatever they look like.
+         *
+         * Exactly one so far, and it earned the mechanism: `phase` is what
+         * `set_phase` writes, which is `Actor::phases.current` and not a state
+         * slot at all. Allowed as a state name, it read as a slot nothing ever
+         * wrote -- so `phase=2` was a guard that could not become true, and it
+         * was the guard both the schema and the manual used as their example.
+         *
+         * Refused in both directions: a guard saying `phase` means the phase
+         * (GuardPhase), and a `set_state name=phase` is a load error rather
+         * than a second thing with the same name.
+         */
+        static bool Reserved(std::string const& name)
+        {
+            return name == "phase";
+        }
+
         /// The slot @a name has, interning it if this is the first time.
-        /// @return MaxStates when the creature has run out, which is refused
-        ///         at load rather than silently aliasing two names onto one.
+        /// @return MaxStates when the creature has run out, or when the name
+        ///         is reserved -- both refused at load rather than silently
+        ///         aliasing two things onto one word.
         std::size_t Intern(std::string const& name)
         {
+            if (Reserved(name))
+            {
+                return MaxStates;
+            }
+
             for (std::size_t slot = 0; slot < stateNames.size(); ++slot)
             {
                 if (stateNames[slot] == name)

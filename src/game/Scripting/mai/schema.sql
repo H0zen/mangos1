@@ -1,7 +1,13 @@
 -- MAI storage.
 --
--- Two tables where the DB scripts had ten, and seventeen columns become five
--- that mean something. What follows is the reasoning; the DDL is at the bottom.
+-- FIVE tables where the two old systems had thirteen, and seventeen columns
+-- become five that mean something. What follows is the reasoning; the DDL is at
+-- the bottom.
+--
+-- It said "two tables" until the rules and the texts arrived here as well, and
+-- then went on saying it: `mai_script` and `mai_step` for what the world
+-- starts, `mai_rule` and `mai_rule_step` for what a creature starts, `mai_text`
+-- for everything anything says.
 --
 --
 -- WHAT WAS WRONG WITH THE OLD SHAPE
@@ -243,6 +249,12 @@ CREATE TABLE `mai_rule`
     -- The names are the creature's own and are interned to eight slots when
     -- its rules load. Six comparisons, no `or`, no nesting -- a script that
     -- needs more is a program and belongs in C++.
+    --
+    -- `phase` is RESERVED and is not one of those eight: it is the number
+    -- `set_phase` writes. Allowed as an ordinary state name it was a guard on
+    -- a slot nothing ever wrote -- always zero, for ever -- and it was the
+    -- example this file used. `set_state name=phase` is a load error for the
+    -- same reason: one word, one meaning.
     `guard`      VARCHAR(255) NOT NULL DEFAULT '',
 
     -- How soon to come round again when a step's cast was REFUSED: already
