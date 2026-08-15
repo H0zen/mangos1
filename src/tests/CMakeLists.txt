@@ -53,11 +53,21 @@ set(SRC_GRP_TESTS
     GeometryMathTest.cpp
     DataIntegrityTest.cpp
     CombatCoreTest.cpp
+    CombatReactionTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These three know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/GameObjectModel.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Server/SessionMailbox.cpp
+    # Same bargain for the reaction queue: it names an ObjectGuid on each end
+    # and nothing else from the server, so it comes in directly rather than
+    # dragging game.lib behind it.
+    #
+    # ObjectGuid.cpp is deliberately NOT here. Everything the queue and these
+    # tests use -- the constructors and the comparisons -- is inline in the
+    # header, and the translation unit reaches Object.h and from there the
+    # whole world. Compiling it in for two operators would undo the point.
+    ${CMAKE_SOURCE_DIR}/src/game/combat/ReactionQueue.cpp
     ByteBufferStressTest.cpp
     CryptoStressTest.cpp
     # AuthCryptTest is deliberately absent. 2.4.3's packet crypt is a
@@ -82,7 +92,8 @@ add_executable(mangos_tests ${SRC_GRP_TESTS})
 target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
-        ${CMAKE_SOURCE_DIR}/src/game/Server)
+        ${CMAKE_SOURCE_DIR}/src/game/Server
+        ${CMAKE_SOURCE_DIR}/src/game/Object)
 
 target_link_libraries(mangos_tests
     PRIVATE

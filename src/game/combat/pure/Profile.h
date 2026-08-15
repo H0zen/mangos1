@@ -104,12 +104,16 @@ namespace Combat
         std::uint32_t blockValue = 0;
         std::uint32_t armor      = 0;
 
-        /// What this unit does to an incoming attacker's numbers: hit taken
+        /// What this unit does to an incoming attacker's numbers: hit-taken
         /// rating and the attacker-hit-chance auras, and the same for crit.
         /// Signs are as the attacker experiences them -- a positive
         /// @ref attackerMissMod makes the attacker miss more.
-        Hundredths attackerMissMod = 0;
-        Hundredths attackerCritMod = 0;
+        ///
+        /// Per hand because 2.4.3 keeps melee and ranged apart all the way
+        /// down: CR_HIT_TAKEN_MELEE against CR_HIT_TAKEN_RANGED, and one
+        /// attacker-hit-chance aura for each.
+        std::array<Hundredths, HAND_COUNT> attackerMissMod{};
+        std::array<Hundredths, HAND_COUNT> attackerCritMod{};
 
         /// Resilience, as the fraction of crit damage removed. Carried as a
         /// number so the pure core never has to ask what a Player is.

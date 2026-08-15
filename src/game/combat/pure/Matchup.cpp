@@ -143,13 +143,13 @@ namespace Combat
 
         Hundredths miss = BaseMiss(attacker, victim, hand, special);
         miss -= attacker.hitChance[h];
-        miss += victim.attackerMissMod;
+        miss += victim.attackerMissMod[h];
         m.miss = std::min(std::max(miss, MISS_MIN), MISS_MAX);
 
         // -- crit ----------------------------------------------------------
 
         Hundredths crit = attacker.critChance[h];
-        crit += victim.attackerCritMod;
+        crit += victim.attackerCritMod[h];
         crit += RoundToHundredths(
             static_cast<float>(attacker.maxSkillForLevel - victim.defenseSkill) *
             CRIT_PER_DEFENCE_POINT);

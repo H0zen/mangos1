@@ -1673,6 +1673,18 @@ class Unit : public WorldObject
          */
         uint32 GetArmor() const { return GetResistance(SPELL_SCHOOL_NORMAL) ; }
         /**
+         * Gets the school this Unit's melee lands as.
+         *
+         * Physical for almost everything; a few creatures swing as fire or
+         * nature, and those must be resisted rather than armoured. Public
+         * because the combat profile builder reads it from outside the
+         * hierarchy -- the virtual it forwards to stays protected.
+         *
+         * @return the melee damage school mask
+         * \see SpellSchoolMask
+         */
+        SpellSchoolMask GetMeleeSchoolMask() const { return GetMeleeDamageSchoolMask(); }
+        /**
          * Sets the armor for this Unit
          * @param val the value to set the armor to
          * \see SpellSchools

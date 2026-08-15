@@ -31,6 +31,13 @@ file(GLOB SRC_GRP_CHAT_COMMANDS ChatCommands/*.cpp ChatCommands/*.h)
 source_group("Chat Commands" FILES ${SRC_GRP_CHAT_COMMANDS})
 
 #Map Threading group
+#Combat group -- the bridge only. The rules themselves are in combat/pure,
+#which is its own library and must stay out of this glob: it links into the
+#unit tests without the game library, and a file that reaches back into the
+#server would end that.
+file(GLOB SRC_GRP_COMBAT combat/*.cpp combat/*.h)
+source_group("Combat" FILES ${SRC_GRP_COMBAT})
+
 file(GLOB SRC_GRP_MAP_THREAD Maps/*.cpp Maps/*.h)
 source_group("Map Threading" FILES ${SRC_GRP_MAP_THREAD})
 
@@ -197,6 +204,7 @@ add_library(game STATIC
     ${SRC_GRP_AHBOT}
     ${SRC_GRP_BATTLEGROUND}
     ${SRC_GRP_CHAT_COMMANDS}
+    ${SRC_GRP_COMBAT}
     ${SRC_GRP_MAP_THREAD}
     ${SRC_GRP_MOTION_GEN}
     ${SRC_GRP_MOVEMENT}
@@ -265,6 +273,9 @@ target_link_libraries(game
         # The terrain engine: geometry and baked tiles, and no knowledge of the
         # world, the database or any DBC.
         terrain
+        # The combat rules, on the same terms: numbers in, numbers out, and no
+        # knowledge of anything above them.
+        combat_pure
         proto
         shared
         RecastNavigation::Detour
