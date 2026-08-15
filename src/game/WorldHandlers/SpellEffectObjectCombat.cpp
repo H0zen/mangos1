@@ -919,12 +919,15 @@ void Spell::EffectAddExtraAttacks(SpellEffectIndex /*eff_idx*/)
         return;
     }
 
-    if (unitTarget->m_extraAttacks)
-    {
-        return;
-    }
-
-    unitTarget->m_extraAttacks = damage;
+    // Grants add up. Refusing a second one -- which is what this did, by
+    // returning when the counter was already set -- meant Sword
+    // Specialization and Windfury on the same swing kept whichever landed
+    // first and dropped the other.
+    //
+    // The counter is drained by Combat::WorldReactionSink immediately after
+    // the proc that set it, so it never survives a swing and cannot pile up
+    // unbounded; the reaction queue's depth limit is what stops a chain.
+    unitTarget->m_extraAttacks += uint32(damage > 0 ? damage : 0);
 }
 
 /**

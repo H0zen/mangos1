@@ -128,7 +128,9 @@ namespace Combat
         m.critDamageReduction = victim.critDamageReduction;
 
         m.evading = situation.victimEvading;
-        if (m.evading)
+        m.immune  = situation.victimImmune;
+
+        if (m.evading || m.immune)
         {
             return m;
         }

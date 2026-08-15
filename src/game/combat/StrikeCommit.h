@@ -41,8 +41,13 @@ namespace Combat
     /// the layer that has to survive the target being deleted mid-swing.
     struct StrikeOrder
     {
-        ObjectGuid victim;
-        Strike     strike;
+        ObjectGuid   victim;
+        Strike       strike;
+
+        /// How deep in a reaction chain the swing was. Everything the commit
+        /// enqueues is stamped with it, so a chain terminates by arithmetic
+        /// rather than by a special case for the one proc that recursed.
+        std::uint8_t depth = 0;
     };
 
     /// What the commit did. Enough for the caller to decide whether to keep

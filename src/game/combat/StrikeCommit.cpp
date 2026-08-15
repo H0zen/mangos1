@@ -41,7 +41,8 @@ namespace Combat
         {
             switch (outcome)
             {
-                case Outcome::Evade:    return MELEE_HIT_EVADE;
+                case Outcome::Evade:
+                case Outcome::Immune:   return MELEE_HIT_EVADE;
                 case Outcome::Miss:     return MELEE_HIT_MISS;
                 case Outcome::Dodge:    return MELEE_HIT_DODGE;
                 case Outcome::Parry:    return MELEE_HIT_PARRY;
@@ -92,6 +93,12 @@ namespace Combat
                     info.HitInfo    |= HITINFO_MISS | HITINFO_SWINGNOHITSOUND;
                     info.TargetState = VICTIMSTATE_EVADES;
                     info.procEx     |= PROC_EX_EVADE;
+                    break;
+
+                case Outcome::Immune:
+                    info.HitInfo    |= HITINFO_NORMALSWING;
+                    info.TargetState = VICTIMSTATE_IS_IMMUNE;
+                    info.procEx     |= PROC_EX_IMMUNE;
                     break;
 
                 case Outcome::Miss:
@@ -207,7 +214,7 @@ namespace Combat
         /// raw Aura pointers that the same damage could free. Reading the
         /// amounts once, here, is what makes that unwritable.
         void QueueDamageShields(Unit& attacker, Unit& victim,
-                                ReactionQueue& queue)
+                                ReactionQueue& queue, std::uint8_t depth)
         {
             Unit::AuraList const& shields =
                 victim.GetAurasByType(SPELL_AURA_DAMAGE_SHIELD);
@@ -230,6 +237,7 @@ namespace Combat
                 Reaction reaction;
                 reaction.source = victim.GetObjectGuid();
                 reaction.target = attacker.GetObjectGuid();
+                reaction.depth  = depth;
                 reaction.what   = DamageShield{
                     proto->ID,
                     uint32(aura->GetModifier()->m_amount),
@@ -366,6 +374,7 @@ namespace Combat
         Reaction procs;
         procs.source = attackerGuid;
         procs.target = victimGuid;
+        procs.depth  = order.depth;
         procs.what   = ProcTrigger{info.procAttacker, info.procVictim,
                                    info.procEx, strike.applied, strike.hand};
         queue.Push(procs);
@@ -377,11 +386,12 @@ namespace Combat
                 Reaction weapon;
                 weapon.source = attackerGuid;
                 weapon.target = victimGuid;
+                weapon.depth  = order.depth;
                 weapon.what   = ItemCombat{strike.hand};
                 queue.Push(weapon);
             }
 
-            QueueDamageShields(attacker, *victim, queue);
+            QueueDamageShields(attacker, *victim, queue, order.depth);
         }
 
         if (result.applied && DazeApplies(attacker, *victim, strike))
@@ -389,6 +399,7 @@ namespace Combat
             Reaction daze;
             daze.source = attackerGuid;
             daze.target = victimGuid;
+            daze.depth  = order.depth;
             daze.what   = Daze{};
             queue.Push(daze);
         }

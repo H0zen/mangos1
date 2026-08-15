@@ -147,9 +147,10 @@ namespace Combat
         s.schoolMask = m.schoolMask;
         s.outcome    = table.Resolve(rng.Roll10000());
 
-        // An evading victim is not swung at, so nothing is rolled: no damage,
-        // no rage basis, no skill-up.
-        if (s.outcome == Outcome::Evade)
+        // An evading or immune victim is not swung at in any sense that the
+        // rules recognise: nothing is rolled, so there is no damage, no rage
+        // basis and no skill-up.
+        if (IsVoid(s.outcome))
         {
             s.finalised = true;
             return s;

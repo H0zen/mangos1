@@ -2115,19 +2115,21 @@ class Unit : public WorldObject
          */
         void HandleEmoteState(uint32 emote_id);
         /**
-         * Seems to do some damage to pVictim and also does extra attacks if the Unit
-         * has any by recursively calling itself up to Unit::m_extraAttacks times with
-         * the extra parameter set to true instead of the default false.
+         * Performs one white swing against pVictim.
          *
-         * Also calculates melee damage using Unit::CalculateMeleeDamage, deals damage and
-         * such using Unit::DealDamageMods and also procs any spell that might be interesting
-         * (TODO: Is that actually what ProcDamageAndSpell does?) using Unit::ProcDamageAndSpell
+         * The rules live in Combat::PerformSwing -- profile, hit table,
+         * resolver, one commit. This is the part that belongs to the Unit:
+         * the guards, the melee-interrupt auras and the magnet redirect.
+         *
+         * It no longer recurses. Extra attacks used to be a count this
+         * function called itself against, reading a snapshot taken before the
+         * proc that granted them had run -- so Windfury arrived a swing late
+         * and a second grant was swallowed. They are queued reactions now.
          *
          * @param pVictim the victim to hit
          * @param attType what hand (main/off) we were using
-         * @param extra whether this was called recursively as an extra attack (true) or not (false)
          */
-        void AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType = BASE_ATTACK, bool extra = false);
+        void AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType = BASE_ATTACK);
 
         /**
          * Calculates the chance that a melee attack will miss the given victim.

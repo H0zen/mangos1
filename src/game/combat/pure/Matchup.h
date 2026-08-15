@@ -64,6 +64,11 @@ namespace Combat
         /// The victim is evading. Short-circuits the whole table.
         bool evading = false;
 
+        /// The victim is immune to this attacker's melee school. Also a
+        /// short-circuit, and checked after evade because an evading creature
+        /// is not being fought at all.
+        bool immune = false;
+
         /// A sitting player is hit critically by anything that can crit at
         /// all. Everything between miss and crit is skipped, which is why it
         /// is a flag here rather than a branch inside the roll.

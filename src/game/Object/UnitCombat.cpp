@@ -59,6 +59,8 @@
 #include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
+#include "combat/MeleeSwing.h"
+#include "combat/ReactionQueue.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -73,18 +75,28 @@
 /**
  * @brief Performs one melee attack update against a victim.
  *
+ * The swing itself now lives in Combat::PerformSwing: profiles, hit table,
+ * resolver, and a single commit. What is left here is the part that is about
+ * this Unit rather than about the strike -- the guards, the interrupt auras
+ * and the magnet redirect.
+ *
+ * The queue is a local. Everything a swing sets off -- procs, damage shields,
+ * weapon spells, daze, extra attacks -- goes into it and is drained here,
+ * after the swing is finished, instead of running from inside it. That is
+ * what stops a proc from killing the target halfway through the function that
+ * is still reading it, and it is why nothing recurses any more.
+ *
  * @param pVictim The attack victim.
  * @param attType The attack type to use.
- * @param extra True when this is an extra attack proc.
  */
-void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType, bool extra)
+void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType)
 {
     if (hasUnitState(UNIT_STAT_CAN_NOT_REACT) || HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PACIFIED))
     {
         return;
     }
 
-    if (!pVictim->IsAlive())
+    if (!pVictim || !pVictim->IsAlive())
     {
         return;
     }
@@ -99,25 +111,10 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType, bool ext
         return;                                              // ignore ranged case
     }
 
-    uint32 extraAttacks = m_extraAttacks;
-
     // melee attack spell casted at main hand attack only
     if (attType == BASE_ATTACK && m_currentSpells[CURRENT_MELEE_SPELL])
     {
         m_currentSpells[CURRENT_MELEE_SPELL]->cast();
-
-        // not recent extra attack only at any non extra attack (melee spell case)
-        if (!extra && extraAttacks)
-        {
-            while (m_extraAttacks)
-            {
-                AttackerStateUpdate(pVictim, BASE_ATTACK, true);
-                if (m_extraAttacks > 0)
-                {
-                    --m_extraAttacks;
-                }
-            }
-        }
         return;
     }
 
@@ -129,36 +126,15 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType, bool ext
         pVictim = magnetTarget;
     }
 
-    CalcDamageInfo damageInfo;
-    CalculateMeleeDamage(pVictim, &damageInfo, attType);
-    // Send log damage message to client
-    DealDamageMods(pVictim, damageInfo.damage, &damageInfo.absorb);
-    SendAttackStateUpdate(&damageInfo);
-    ProcDamageAndSpell(damageInfo.target, damageInfo.procAttacker, damageInfo.procVictim, damageInfo.procEx, damageInfo.damage, damageInfo.attackType);
-    DealMeleeDamage(&damageInfo, true);
+    const Combat::Hand hand = attType == OFF_ATTACK
+        ? Combat::Hand::Off
+        : Combat::Hand::Main;
 
-    if (GetTypeId() == TYPEID_PLAYER)
-        DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "AttackerStateUpdate: (Player) %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
-                         GetGUIDLow(), pVictim->GetGUIDLow(), pVictim->GetTypeId(), damageInfo.damage, damageInfo.absorb, damageInfo.blocked_amount, damageInfo.resist);
-    else
-        DEBUG_FILTER_LOG(LOG_FILTER_COMBAT, "AttackerStateUpdate: (NPC)    %u attacked %u (TypeId: %u) for %u dmg, absorbed %u, blocked %u, resisted %u.",
-                         GetGUIDLow(), pVictim->GetGUIDLow(), pVictim->GetTypeId(), damageInfo.damage, damageInfo.absorb, damageInfo.blocked_amount, damageInfo.resist);
+    Combat::ReactionQueue queue;
+    Combat::PerformSwing(*this, *pVictim, hand, queue);
 
-    // if damage pVictim call AI reaction
-    pVictim->AttackedBy(this);
-
-    // extra attack only at any non extra attack (normal case)
-    if (!extra && extraAttacks)
-    {
-        while (m_extraAttacks)
-        {
-            AttackerStateUpdate(pVictim, BASE_ATTACK, true);
-            if (m_extraAttacks > 0)
-            {
-                --m_extraAttacks;
-            }
-        }
-    }
+    Combat::WorldReactionSink sink(*this);
+    queue.Drain(sink);
 }
 
 /**

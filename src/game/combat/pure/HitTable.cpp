@@ -31,10 +31,18 @@ namespace Combat
 {
     namespace
     {
-        /// Accumulates bands left to right, saturating at a full probability.
-        /// A table can be over-subscribed -- enough avoidance and there is no
-        /// room left for a normal hit -- and saturating is what keeps the
-        /// later bands empty instead of letting a bound wrap past the roll.
+        /**
+         * @brief Accumulates bands left to right, saturating at a full
+         *        probability.
+         *
+         * A table can be over-subscribed -- enough avoidance and there is no
+         * room left for a normal hit -- and saturating is what keeps the later
+         * bands empty instead of letting a bound wrap past the roll.
+         *
+         * Every outcome must be given a bound, in order, so that Resolve can
+         * be a straight scan. Seal() fills whatever is left, which is how a
+         * short-circuit like evade is expressed without a second code path.
+         */
         class Accumulator
         {
             public:
@@ -43,6 +51,7 @@ namespace Combat
                 {
                 }
 
+                /// Give this outcome a band of the given width.
                 void Add(Outcome outcome, Hundredths width)
                 {
                     if (width > 0)
@@ -50,24 +59,74 @@ namespace Combat
                         m_running = std::min(m_running + width,
                                              HUNDRED_PERCENT);
                     }
-                    m_out[Index(outcome)] = m_running;
+                    Stamp(outcome);
                 }
 
-                void Fill(Outcome outcome)
+                /// Give this outcome everything that is left.
+                void Take(Outcome outcome)
                 {
                     m_running = HUNDRED_PERCENT;
-                    m_out[Index(outcome)] = m_running;
+                    Stamp(outcome);
                 }
 
-                void Carry(Outcome outcome)
+                /// Give this outcome an empty band.
+                void Skip(Outcome outcome)
                 {
-                    m_out[Index(outcome)] = m_running;
+                    Stamp(outcome);
+                }
+
+                /// Close the table: every outcome from here on is empty, and
+                /// the last one carries the full probability so a roll always
+                /// lands.
+                void Seal()
+                {
+                    while (m_next < OUTCOME_COUNT)
+                    {
+                        m_out[m_next] = m_running;
+                        ++m_next;
+                    }
+                    m_out[OUTCOME_COUNT - 1] = HUNDRED_PERCENT;
                 }
 
             private:
+                void Stamp(Outcome outcome)
+                {
+                    const std::size_t i = Index(outcome);
+                    while (m_next <= i)
+                    {
+                        m_out[m_next] = m_running;
+                        ++m_next;
+                    }
+                }
+
                 std::array<Hundredths, OUTCOME_COUNT>& m_out;
-                Hundredths m_running = 0;
+                Hundredths  m_running = 0;
+                std::size_t m_next    = 0;
         };
+
+        /// Evade and immunity are whole-table answers. Neither is a special
+        /// case in Resolve: they are simply a band that covers everything.
+        bool ShortCircuit(Matchup const& m, Accumulator& sum)
+        {
+            if (m.evading)
+            {
+                sum.Take(Outcome::Evade);
+                sum.Seal();
+                return true;
+            }
+
+            if (m.immune)
+            {
+                sum.Skip(Outcome::Evade);
+                sum.Take(Outcome::Immune);
+                sum.Seal();
+                return true;
+            }
+
+            sum.Skip(Outcome::Evade);
+            sum.Skip(Outcome::Immune);
+            return false;
+        }
     }
 
     HitTable HitTable::OneRoll(Matchup const& m)
@@ -75,22 +134,11 @@ namespace Combat
         HitTable table;
         Accumulator sum(table.m_bound);
 
-        if (m.evading)
+        if (ShortCircuit(m, sum))
         {
-            // Nothing else can happen, and nothing else is asked.
-            sum.Fill(Outcome::Evade);
-            sum.Carry(Outcome::Miss);
-            sum.Carry(Outcome::Dodge);
-            sum.Carry(Outcome::Parry);
-            sum.Carry(Outcome::Glancing);
-            sum.Carry(Outcome::Block);
-            sum.Carry(Outcome::Crit);
-            sum.Carry(Outcome::Crushing);
-            sum.Carry(Outcome::Normal);
             return table;
         }
 
-        sum.Carry(Outcome::Evade);
         sum.Add(Outcome::Miss, m.miss);
 
         if (m.sittingCrit)
@@ -98,13 +146,12 @@ namespace Combat
             // Miss still applies -- a sitting target can be missed -- but
             // everything between it and crit is skipped, and crit takes the
             // rest of the table.
-            sum.Carry(Outcome::Dodge);
-            sum.Carry(Outcome::Parry);
-            sum.Carry(Outcome::Glancing);
-            sum.Carry(Outcome::Block);
-            sum.Fill(Outcome::Crit);
-            sum.Carry(Outcome::Crushing);
-            sum.Carry(Outcome::Normal);
+            sum.Skip(Outcome::Dodge);
+            sum.Skip(Outcome::Parry);
+            sum.Skip(Outcome::Glancing);
+            sum.Skip(Outcome::Block);
+            sum.Take(Outcome::Crit);
+            sum.Seal();
             return table;
         }
 
@@ -114,7 +161,7 @@ namespace Combat
         sum.Add(Outcome::Block, m.block);
         sum.Add(Outcome::Crit, m.crit);
         sum.Add(Outcome::Crushing, m.crush);
-        sum.Fill(Outcome::Normal);
+        sum.Take(Outcome::Normal);
 
         return table;
     }
@@ -124,32 +171,22 @@ namespace Combat
         HitTable table;
         Accumulator sum(table.m_bound);
 
-        if (m.evading)
+        if (ShortCircuit(m, sum))
         {
-            sum.Fill(Outcome::Evade);
-            sum.Carry(Outcome::Miss);
-            sum.Carry(Outcome::Dodge);
-            sum.Carry(Outcome::Parry);
-            sum.Carry(Outcome::Glancing);
-            sum.Carry(Outcome::Block);
-            sum.Carry(Outcome::Crit);
-            sum.Carry(Outcome::Crushing);
-            sum.Carry(Outcome::Normal);
             return table;
         }
 
-        sum.Carry(Outcome::Evade);
         sum.Add(Outcome::Miss, m.miss);
         sum.Add(Outcome::Dodge, m.dodge);
         sum.Add(Outcome::Parry, m.parry);
 
         // Empty on purpose. A special does not glance, does not crush, and
         // rolls its block and its crit separately -- the caller does that.
-        sum.Carry(Outcome::Glancing);
-        sum.Carry(Outcome::Block);
-        sum.Carry(Outcome::Crit);
-        sum.Carry(Outcome::Crushing);
-        sum.Fill(Outcome::Normal);
+        sum.Skip(Outcome::Glancing);
+        sum.Skip(Outcome::Block);
+        sum.Skip(Outcome::Crit);
+        sum.Skip(Outcome::Crushing);
+        sum.Take(Outcome::Normal);
 
         return table;
     }
@@ -164,7 +201,7 @@ namespace Combat
             }
         }
 
-        // Unreachable for a roll in range: Normal's bound is a full
+        // Unreachable for a roll in range: the last bound is a full
         // probability. A roll handed in out of range lands here.
         return Outcome::Normal;
     }

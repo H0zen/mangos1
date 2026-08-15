@@ -93,15 +93,16 @@ namespace Combat
     enum class Outcome : std::uint8_t
     {
         Evade    = 0,
-        Miss     = 1,
-        Dodge    = 2,
-        Parry    = 3,
-        Glancing = 4,
-        Block    = 5,
-        Crit     = 6,
-        Crushing = 7,
-        Normal   = 8,
-        Count    = 9
+        Immune   = 1,
+        Miss     = 2,
+        Dodge    = 3,
+        Parry    = 4,
+        Glancing = 5,
+        Block    = 6,
+        Crit     = 7,
+        Crushing = 8,
+        Normal   = 9,
+        Count    = 10
     };
 
     constexpr std::size_t OUTCOME_COUNT = static_cast<std::size_t>(Outcome::Count);
@@ -124,7 +125,15 @@ namespace Combat
     constexpr bool IsAvoidance(Outcome outcome)
     {
         return outcome == Outcome::Miss || outcome == Outcome::Dodge ||
-               outcome == Outcome::Parry || outcome == Outcome::Evade;
+               outcome == Outcome::Parry || outcome == Outcome::Evade ||
+               outcome == Outcome::Immune;
+    }
+
+    /// The swing never happened as far as the rules are concerned: nothing is
+    /// rolled, nothing is owed, no rage and no skill-up.
+    constexpr bool IsVoid(Outcome outcome)
+    {
+        return outcome == Outcome::Evade || outcome == Outcome::Immune;
     }
 
     /// Weapon damage, already resolved to integers. Rolling in floats and
@@ -167,6 +176,11 @@ namespace Combat
         bool fromBehind    = false;
         bool victimSitting = false;
         bool victimEvading = false;
+
+        /// Immune to the school this attacker's melee lands as. An outcome
+        /// rather than a pre-check, so it goes through the same table, the
+        /// same commit and the same log as everything else.
+        bool victimImmune = false;
     };
 
     /// Physical. The pure core needs exactly one school constant: whether
