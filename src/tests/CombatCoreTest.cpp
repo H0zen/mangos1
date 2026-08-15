@@ -382,6 +382,86 @@ TEST(CombatTwoRollTableCarriesNoBlockOrCrit)
     CHECK(table.Band(Outcome::Parry) > 0);
 }
 
+TEST(CombatMagicTableLandsOrResistsAndNothingElse)
+{
+    Situation clear;
+    const Matchup m = Matchup::Magic(1700, clear, 0x04);
+
+    const HitTable table = HitTable::Magic(m);
+
+    // A magic school is not missed, dodged, parried, blocked or glanced. Two
+    // outcomes and the two short circuits -- the degenerate case of the same
+    // structure, not a second code path.
+    CHECK_EQ(table.Band(Outcome::Resist), 1700);
+    CHECK_EQ(table.Band(Outcome::Normal), HUNDRED_PERCENT - 1700);
+    CHECK_EQ(table.Band(Outcome::Miss), 0);
+    CHECK_EQ(table.Band(Outcome::Dodge), 0);
+    CHECK_EQ(table.Band(Outcome::Parry), 0);
+    CHECK_EQ(table.Band(Outcome::Block), 0);
+    CHECK_EQ(table.Band(Outcome::Crit), 0);
+
+    CHECK(table.Resolve(0) == Outcome::Resist);
+    CHECK(table.Resolve(1699) == Outcome::Resist);
+    CHECK(table.Resolve(1700) == Outcome::Normal);
+}
+
+TEST(CombatMagicTableStillHonoursTheShortCircuits)
+{
+    Situation evading;
+    evading.victimEvading = true;
+    CHECK_EQ(HitTable::Magic(Matchup::Magic(5000, evading, 0x04))
+                 .Band(Outcome::Evade), HUNDRED_PERCENT);
+
+    Situation immune;
+    immune.victimImmune = true;
+    CHECK_EQ(HitTable::Magic(Matchup::Magic(5000, immune, 0x04))
+                 .Band(Outcome::Immune), HUNDRED_PERCENT);
+}
+
+TEST(CombatMechanicResistSitsBetweenMissAndDodge)
+{
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Main, Situation(), true);
+
+    // Build leaves it alone: which mechanic an effect carries is a property of
+    // the spell, and a Matchup describes two units.
+    CHECK_EQ(m.resist, 0);
+
+    m.resist = 900;
+    const HitTable table = HitTable::TwoRoll(m);
+
+    // Miss first, then the mechanic: a resisted mechanic stops the special
+    // before it can be dodged.
+    CHECK_EQ(table.Bound(Outcome::Miss), m.miss);
+    CHECK_EQ(table.Bound(Outcome::Resist), m.miss + 900);
+    CHECK(table.Resolve(m.miss) == Outcome::Resist);
+    CHECK(table.Resolve(m.miss + 899) == Outcome::Resist);
+    CHECK(table.Resolve(m.miss + 900) == Outcome::Dodge);
+}
+
+TEST(CombatWhiteSwingHasNoResistBand)
+{
+    // A white swing carries no mechanic, so the band is structurally absent
+    // rather than merely zero today.
+    CHECK_EQ(HitTable::OneRoll(PlayerVersusBoss()).Band(Outcome::Resist), 0);
+}
+
+TEST(CombatResistRollsNoDamage)
+{
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Main, Situation(), true);
+    m.resist = HUNDRED_PERCENT;
+
+    const HitTable table = HitTable::TwoRoll(m);
+
+    ScriptedRng rng(HUNDRED_PERCENT - 1, 400, 0.5f);
+    const Strike s =
+        StrikeResolver::Resolve(m, table, DamageRange{400, 400}, rng);
+
+    REQUIRE(s.outcome == Outcome::Resist);
+    CHECK_EQ(s.applied, 0u);
+    CHECK_EQ(s.clean, 0u);
+    CHECK(s.finalised);
+}
+
 // ---------------------------------------------------------------------------
 // Short circuits
 // ---------------------------------------------------------------------------

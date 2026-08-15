@@ -85,6 +85,11 @@ namespace Combat
      * bounds are indexed by this enum, so moving a member reorders the table.
      * Normal is last because it is the fallback, not a band.
      *
+     * Resist sits between Miss and Dodge because that is where the special
+     * attack path rolls it: a mechanic the victim resists stops the spell
+     * before it can be dodged. For a magic school it is the whole table --
+     * a spell either lands or is resisted, and nothing else applies.
+     *
      * There is no BlockCrit. In 2.4.3 a special that is blocked rolls block
      * and crit separately (HitTable::TwoRoll), so a one-roll table has no
      * band it could occupy -- which is why the old MELEE_HIT_BLOCK_CRIT was
@@ -95,14 +100,15 @@ namespace Combat
         Evade    = 0,
         Immune   = 1,
         Miss     = 2,
-        Dodge    = 3,
-        Parry    = 4,
-        Glancing = 5,
-        Block    = 6,
-        Crit     = 7,
-        Crushing = 8,
-        Normal   = 9,
-        Count    = 10
+        Resist   = 3,
+        Dodge    = 4,
+        Parry    = 5,
+        Glancing = 6,
+        Block    = 7,
+        Crit     = 8,
+        Crushing = 9,
+        Normal   = 10,
+        Count    = 11
     };
 
     constexpr std::size_t OUTCOME_COUNT = static_cast<std::size_t>(Outcome::Count);
@@ -126,7 +132,7 @@ namespace Combat
     {
         return outcome == Outcome::Miss || outcome == Outcome::Dodge ||
                outcome == Outcome::Parry || outcome == Outcome::Evade ||
-               outcome == Outcome::Immune;
+               outcome == Outcome::Immune || outcome == Outcome::Resist;
     }
 
     /// The swing never happened as far as the rules are concerned: nothing is

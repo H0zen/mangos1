@@ -141,6 +141,9 @@ namespace Combat
 
         sum.Add(Outcome::Miss, m.miss);
 
+        // A white swing carries no mechanic, so there is nothing to resist.
+        sum.Skip(Outcome::Resist);
+
         if (m.sittingCrit)
         {
             // Miss still applies -- a sitting target can be missed -- but
@@ -177,6 +180,11 @@ namespace Combat
         }
 
         sum.Add(Outcome::Miss, m.miss);
+
+        // A mechanic the victim resists stops the special before it can be
+        // dodged, which is the order the old special path rolled in.
+        sum.Add(Outcome::Resist, m.resist);
+
         sum.Add(Outcome::Dodge, m.dodge);
         sum.Add(Outcome::Parry, m.parry);
 
@@ -216,5 +224,33 @@ namespace Combat
         const std::size_t i = Index(outcome);
         const Hundredths below = i == 0 ? 0 : m_bound[i - 1];
         return m_bound[i] - below;
+    }
+
+    HitTable HitTable::Magic(Matchup const& m)
+    {
+        HitTable table;
+        Accumulator sum(table.m_bound);
+
+        if (ShortCircuit(m, sum))
+        {
+            return table;
+        }
+
+        // No miss band: a magic school is resisted, not missed. The old path
+        // spelled this as a single comparison against a hit chance and
+        // returned one of two enumerators; here it is a table with one band,
+        // resolved by the same scan as everything else.
+        sum.Skip(Outcome::Miss);
+        sum.Add(Outcome::Resist, m.resist);
+
+        sum.Skip(Outcome::Dodge);
+        sum.Skip(Outcome::Parry);
+        sum.Skip(Outcome::Glancing);
+        sum.Skip(Outcome::Block);
+        sum.Skip(Outcome::Crit);
+        sum.Skip(Outcome::Crushing);
+        sum.Take(Outcome::Normal);
+
+        return table;
     }
 }

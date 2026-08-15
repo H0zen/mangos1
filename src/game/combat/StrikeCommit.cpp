@@ -43,7 +43,8 @@ namespace Combat
             {
                 case Outcome::Evade:
                 case Outcome::Immune:   return MELEE_HIT_EVADE;
-                case Outcome::Miss:     return MELEE_HIT_MISS;
+                case Outcome::Miss:
+                case Outcome::Resist:   return MELEE_HIT_MISS;
                 case Outcome::Dodge:    return MELEE_HIT_DODGE;
                 case Outcome::Parry:    return MELEE_HIT_PARRY;
                 case Outcome::Glancing: return MELEE_HIT_GLANCING;
@@ -105,6 +106,12 @@ namespace Combat
                     info.HitInfo    |= HITINFO_MISS;
                     info.TargetState = VICTIMSTATE_UNAFFECTED;
                     info.procEx     |= PROC_EX_MISS;
+                    break;
+
+                case Outcome::Resist:
+                    info.HitInfo    |= HITINFO_RESIST;
+                    info.TargetState = VICTIMSTATE_UNAFFECTED;
+                    info.procEx     |= PROC_EX_RESIST;
                     break;
 
                 case Outcome::Dodge:

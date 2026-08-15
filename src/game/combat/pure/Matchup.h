@@ -54,6 +54,20 @@ namespace Combat
         std::uint32_t schoolMask    = SCHOOL_MASK_PHYSICAL;
 
         Hundredths miss   = 0;
+
+        /// Resist, and the only band the caller fills in rather than Build.
+        ///
+        /// It depends on the SPELL, not on the two combatants: which mechanic
+        /// each effect carries, which school it lands as, whether the victim
+        /// happens to hold an aura against that mechanic. None of that is in a
+        /// Profile and none of it belongs there -- a Profile describes a unit,
+        /// and this describes a unit meeting one particular spell.
+        ///
+        /// Build leaves it at zero. HitTable::TwoRoll and HitTable::Magic read
+        /// it; HitTable::OneRoll never does, because a white swing has no
+        /// mechanic to resist.
+        Hundredths resist = 0;
+
         Hundredths dodge  = 0;
         Hundredths parry  = 0;
         Hundredths glance = 0;
@@ -96,6 +110,24 @@ namespace Combat
         static Matchup Build(Profile const& attacker, Profile const& victim,
                              Hand hand, Situation const& situation,
                              bool special = false);
+
+        /**
+         * @brief A matchup for a spell that is resisted rather than avoided.
+         *
+         * A magic school knows nothing about weapon skill, dodge or parry: the
+         * spell either lands or it does not. So this takes the resist chance
+         * the caller has already worked out -- from the level gap, the hit
+         * auras, the mechanic resistances and the caster's spell hit -- and
+         * packages it with the two short circuits every table shares.
+         *
+         * It is a factory rather than a full Build because there is genuinely
+         * nothing to derive: everything that varies is in that one number, and
+         * pretending otherwise would mean dragging spell knowledge into a
+         * library that must not have any.
+         */
+        static Matchup Magic(Hundredths resistChance,
+                             Situation const& situation,
+                             std::uint32_t schoolMask);
     };
 }
 

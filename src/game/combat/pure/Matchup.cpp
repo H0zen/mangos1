@@ -257,4 +257,23 @@ namespace Combat
 
         return m;
     }
+
+    Matchup Matchup::Magic(Hundredths resistChance, Situation const& situation,
+                           std::uint32_t schoolMask)
+    {
+        Matchup m;
+        m.schoolMask = schoolMask;
+        m.evading    = situation.victimEvading;
+        m.immune     = situation.victimImmune;
+
+        if (m.evading || m.immune)
+        {
+            return m;
+        }
+
+        m.resist = std::min(std::max(resistChance, Hundredths(0)),
+                            HUNDRED_PERCENT);
+
+        return m;
+    }
 }

@@ -160,9 +160,9 @@ namespace Combat
             ? 0u
             : rng.RollRange(weapon.low, std::max(weapon.low, weapon.high));
 
-        // A miss rolls nothing further. The victim did not take the swing and
-        // did not answer it either, so there is no clean damage.
-        if (s.outcome == Outcome::Miss)
+        // A miss or a resist rolls nothing further. The victim did not take
+        // the swing and did not answer it either, so there is no clean damage.
+        if (s.outcome == Outcome::Miss || s.outcome == Outcome::Resist)
         {
             s.afterRoll  = 0;
             s.afterArmor = 0;

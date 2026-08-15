@@ -58,14 +58,25 @@ namespace Combat
             /**
              * @brief The special-attack table: avoidance only.
              *
-             * A yellow attack rolls miss, dodge and parry from a table, then
-             * rolls crit and block separately. That is why this table's crit
-             * and block bands are deliberately empty and the caller must roll
-             * them: a two-roll model has no single band where "blocked and
-             * critical" could live, which is exactly why the old one-roll
-             * MELEE_HIT_BLOCK_CRIT was unreachable.
+             * A yellow attack rolls miss, mechanic resist, dodge and parry
+             * from a table, then rolls crit and block separately. That is why
+             * this table's crit and block bands are deliberately empty and the
+             * caller must roll them: a two-roll model has no single band where
+             * "blocked and critical" could live, which is exactly why the old
+             * one-roll MELEE_HIT_BLOCK_CRIT was unreachable.
              */
             static HitTable TwoRoll(Matchup const& matchup);
+
+            /**
+             * @brief The magic table: land or be resisted.
+             *
+             * A spell with a magic school is not dodged, not parried, not
+             * blocked and not glanced. It has exactly two outcomes plus the
+             * two short circuits every table shares, which makes it the
+             * degenerate case of the same structure rather than a separate
+             * code path -- and that is the point of putting it here.
+             */
+            static HitTable Magic(Matchup const& matchup);
 
             /**
              * @brief Decide the outcome for a roll.
