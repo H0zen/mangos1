@@ -38,6 +38,7 @@ add_library(combat_pure STATIC
     CombatTypes.h
     CombatConstants.h
     Profile.h
+    Profile.cpp
     Rng.h
     Strike.h
     Matchup.h
