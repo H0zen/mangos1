@@ -23,8 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
+#include "ScriptHost.h"
 #include <random>
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -61,16 +60,13 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "Geometry/Vector3.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Sends a resurrection request to a dead player target.
@@ -450,11 +446,17 @@ void Spell::EffectTriggerSpellWithValue(SpellEffectIndex eff_idx)
     if (!spellInfo)
     {
         // No previous Effect might have started a script
-        bool startDBScript = unitTarget && ScriptMgr::CanSpellEffectStartDBScript(m_spellInfo, eff_idx);
+        bool startDBScript = unitTarget && SpellEffectStartsScript(m_spellInfo, eff_idx);
         if (startDBScript)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerSpell", m_spellInfo->ID);
-            startDBScript = m_caster->GetMap()->ScriptsStart(DBS_ON_SPELL, m_spellInfo->ID, m_caster, unitTarget);
+            // Offer, not Notify: the error below fires when NOTHING took
+            // the trigger, and "did an engine deal with this" is exactly
+            // what a claim answers.
+            startDBScript = scripting::Offer(m_caster->GetMap(),
+                scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                           scripting::RefOf(unitTarget),
+                                           m_spellInfo->ID });
         }
 
         if (!startDBScript)
@@ -492,7 +494,10 @@ void Spell::EffectForceCast(SpellEffectIndex /*eff_idx*/)
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectDummy", m_spellInfo->ID);
-    m_caster->GetMap()->ScriptsStart(DBS_ON_SPELL, m_spellInfo->ID, m_caster, unitTarget);
+    scripting::Notify(m_caster->GetMap(),
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(unitTarget),
+                                   m_spellInfo->ID });
 }
 
 /**
@@ -700,7 +705,10 @@ void Spell::EffectTriggerMissileSpell(SpellEffectIndex effect_idx)
         if (unitTarget)
         {
             DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectTriggerMissileSpell", m_spellInfo->ID);
-            m_caster->GetMap()->ScriptsStart(DBS_ON_SPELL, m_spellInfo->ID, m_caster, unitTarget);
+    scripting::Notify(m_caster->GetMap(),
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(unitTarget),
+                                   m_spellInfo->ID });
         }
         else
             sLog.outError("EffectTriggerMissileSpell of spell %u (eff: %u): triggering unknown spell id %u",

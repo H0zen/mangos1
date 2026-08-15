@@ -46,6 +46,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Spell.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
@@ -76,10 +77,6 @@
 #include "TemporarySummon.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Cancels the spell and sends the appropriate interruption notifications.
@@ -323,15 +320,6 @@ void Spell::cast(bool skipCheck)
     // set to real guid to be sent later to the client
     m_targets.updateTradeSlotItem();
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = m_caster->GetEluna())
-    {
-        if (m_caster->GetTypeId() == TYPEID_PLAYER)
-        {
-            e->OnSpellCast(m_caster->ToPlayer(), this, skipCheck);
-        }
-    }
-#endif /* ENABLE_ELUNA */
 
     FillTargetMap();
 

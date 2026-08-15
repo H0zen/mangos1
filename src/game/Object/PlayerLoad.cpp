@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Player.h"
 #include "Language.h"
@@ -69,7 +70,6 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
@@ -77,15 +77,6 @@
 #include "SQLStorages.h"
 #include "DisableMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <list>
-#include <map>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 // corpse reclaim times
 #define DEATH_EXPIRE_STEP (5*MINUTE)
@@ -1988,13 +1979,12 @@ InstancePlayerBind* Player::BindToInstance(DungeonPersistentState* state, bool p
         if (!load)
             DEBUG_LOG("Player::BindToInstance: %s(%d) is now bound to map %d, instance %d, difficulty %d",
                       GetName(), GetGUIDLow(), state->GetMapId(), state->GetInstanceId(), state->GetDifficulty());
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
-        {
-            e->OnBindToInstance(this, (Difficulty)0, state->GetMapId(), permanent);
-        }
-#endif /* ENABLE_ELUNA */
+        // Difficulty is always 0 here: 2.4.3 has no per-instance difficulty
+        // selector, so the engine's difficulty argument is a later-expansion
+        // parameter this core can only ever answer with zero.
+        scripting::Notify(this,
+            scripting::PlayerBindToInstance{ scripting::RefOf(this), 0,
+                                             state->GetMapId(), permanent });
 
         return &bind;
     }

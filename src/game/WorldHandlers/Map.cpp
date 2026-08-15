@@ -42,6 +42,9 @@
  * including loading terrain data, spawning objects, and cleanup.
  */
 
+#include "ScriptHost.h"
+#include "Time/SimulationTime.h"
+#include "sd3/ScriptBindings.h"
 #include "Utilities/Errors.h"
 #include <vector>
 #include "Utilities/MathDefines.h"
@@ -74,19 +77,11 @@
 #include <cmath>
 #include "Corpse.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include "ElunaConfig.h"
-#include "ElunaLoader.h"
-#include <ctime>
-#include <set>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Map destructor
  *
  * Cleans up all resources associated with the map:
- * - Triggers Eluna OnDestroy callback if enabled
  * - Unloads all grids and objects
  * - Cleans up scheduled scripts
  * - Releases persistent state reference
@@ -100,30 +95,19 @@
  */
 Map::~Map()
 {
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnDestroy(this);
-    }
+    // Global scope, not this map's, and the same for ServerMapCreate below.
+    // A map appearing or going away is a fact about the world rather than
+    // something that happened on the map -- and routing it to the map's own
+    // state made an engine BUILD that state from inside the destructor, only
+    // to have RetireState close it again on the next line. The payload carries
+    // the map either way.
+    scripting::Notify(scripting::GlobalContext(), scripting::ServerMapDestroy{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()) });
+    scripting::RetireState(scripting::ContextOf(this));
 
-    if (Eluna* e = GetEluna())
-    {
-        if (Instanceable())
-        {
-            e->FreeInstanceId(GetInstanceId());
-        }
-    }
-
-    delete eluna;
-    eluna = nullptr;
-#endif /* ENABLE_ELUNA */
 
     UnloadAll(true);
-
-    if (!m_scriptSchedule.empty())
-    {
-        sScriptMgr.DecreaseScheduledScriptCount(m_scriptSchedule.size());
-    }
 
     if (m_persistentState)
     {
@@ -182,7 +166,6 @@ void Map::LoadMapAndVMap(int gx, int gy)
  * - Terrain data loading
  * - Grid state initialization
  * - GUID generators for temporary objects
- * - Eluna Lua state (if enabled)
  *
  * @note This constructor is used for both continents and instanced maps
  */
@@ -195,15 +178,6 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
       i_data(NULL)
 {
-#ifdef ENABLE_ELUNA
-    // lua state begins uninitialized
-    eluna = nullptr;
-
-    if (sElunaConfig->IsElunaEnabled() && !sElunaConfig->IsElunaCompatibilityMode() && sElunaConfig->ShouldMapLoadEluna(id))
-    {
-        eluna = new Eluna(this);
-    }
-#endif
 
     m_CreatureGuids.Set(sObjectMgr.GetFirstTemporaryCreatureLowGuid());
     m_GameObjectGuids.Set(sObjectMgr.GetFirstTemporaryGameObjectLowGuid());
@@ -229,12 +203,13 @@ Map::Map(uint32 id, time_t expiry, uint32 InstanceId, uint8 SpawnMode)
 
     m_weatherSystem = new WeatherSystem(this);
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnCreate(this);
-    }
-#endif /* ENABLE_ELUNA */
+    // Global scope: see the note in ~Map. Raised from a CONSTRUCTOR, so the
+    // reason is sharper here -- an engine given this map's scope would open a
+    // per-map script state and run script code against a `this` whose derived
+    // half (DungeonMap, BattleGroundMap) has not been constructed yet.
+    scripting::Notify(scripting::GlobalContext(), scripting::ServerMapCreate{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()) });
 }
 
 /**
@@ -732,13 +707,12 @@ bool Map::Add(Player* player)
     player->GetViewPoint().Event_AddedToWorld(&(*grid)(cell.CellX(), cell.CellY()));
     UpdateObjectVisibility(player, cell, p);
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnMapChanged(player);
-        e->OnPlayerEnter(this, player);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerMapChange{ scripting::RefOf(player) });
+    scripting::Notify(this, scripting::ServerMapPlayerEnter{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                scripting::RefOf(player) });
 
     if (i_data)
     {
@@ -1079,17 +1053,13 @@ void Map::Update(const uint32& t_diff)
         ScriptsProcess();
     }
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        if (!sElunaConfig->IsElunaCompatibilityMode())
-        {
-            e->UpdateEluna(t_diff);
-        }
-
-        e->OnMapUpdate(this, t_diff);
-    }
-#endif /* ENABLE_ELUNA */
+    // Pumping the engine timers is housekeeping, not an event, so it goes
+    // through Tick and not through the dispatch table.
+    scripting::Tick(scripting::ContextOf(this), t_diff);
+    scripting::Notify(this, scripting::ServerMapUpdate{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                t_diff });
 
     if (i_data)
     {
@@ -1130,12 +1100,10 @@ void Map::Update(const uint32& t_diff)
  */
 void Map::Remove(Player* player, bool remove)
 {
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnPlayerLeave(this, player);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this, scripting::ServerMapPlayerLeave{
+                                scripting::HandleOf(scripting::Domain::Map,
+                                                    GetId()),
+                                scripting::RefOf(player) });
 
     if (i_data)
     {
@@ -2051,19 +2019,16 @@ void Map::AddObjectToRemoveList(WorldObject* obj)
 {
     MANGOS_ASSERT(obj->GetMapId() == GetId() && obj->GetInstanceId() == GetInstanceId());
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
+    if (Creature* creature = obj->ToCreature())
     {
-        if (Creature* creature = obj->ToCreature())
-        {
-            e->OnRemove(creature);
-        }
-        else if (GameObject* gameobject = obj->ToGameObject())
-        {
-            e->OnRemove(gameobject);
-        }
+        scripting::Notify(this,
+            scripting::ServerWorldDeleteCreature{ scripting::RefOf(creature) });
     }
-#endif /* ENABLE_ELUNA */
+    else if (GameObject* gameobject = obj->ToGameObject())
+    {
+        scripting::Notify(this,
+            scripting::ServerWorldDeleteGameobject{ scripting::RefOf(gameobject) });
+    }
 
     obj->CleanupsBeforeDelete();                            // remove or simplify at least cross referenced links
 
@@ -2325,25 +2290,26 @@ void Map::CreateInstanceData(bool load)
         return;
     }
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        i_data = e->GetInstanceData(this);
-    }
-#endif /* ENABLE_ELUNA */
-
-    uint32 i_script_id = GetScriptId();
-
-    if (!i_script_id)
-    {
-        return;
-    }
-
-    i_data = sScriptMgr.CreateInstanceData(this);
+    // One path, and the auction runs inside it.
+    //
+    // The old code asked the scripting engine here and then, if the map ALSO
+    // had a script id, overwrote i_data with SD3's WITHOUT DELETING THE FIRST
+    // -- leaking the engine's instance script and discarding it silently. Do
+    // not reintroduce a second assignment to i_data in this function. The
+    // script-id gate went with it: that gate belongs to the SD3 lookup, which
+    // checks it itself, and applying it up here meant an engine that binds
+    // instances by map id could never own a map with no row in the
+    // script-name table.
+    i_data = scripting::ClaimInstanceData(this);
     if (!i_data)
     {
         return;
     }
+
+    // Kept only for the debug lines below. It no longer gates anything: an
+    // engine can own an instance that has no script name at all, and the
+    // lookup will simply report an empty one.
+    uint32 const i_script_id = GetScriptId();
 
     if (load)
     {
@@ -2365,7 +2331,7 @@ void Map::CreateInstanceData(bool load)
             const char* data = fields[0].GetString();
             if (data)
             {
-                DEBUG_LOG("Loading instance data for `%s` (Map: %u Instance: %u)", sScriptMgr.GetScriptName(i_script_id), GetId(), i_InstanceId);
+                DEBUG_LOG("Loading instance data for `%s` (Map: %u Instance: %u)", sScriptBindings.GetScriptName(i_script_id), GetId(), i_InstanceId);
                 i_data->Load(data);
             }
             delete result;
@@ -2381,7 +2347,7 @@ void Map::CreateInstanceData(bool load)
     }
     else
     {
-        DEBUG_LOG("New instance data, \"%s\" ,initialized!", sScriptMgr.GetScriptName(i_script_id));
+        DEBUG_LOG("New instance data, \"%s\" ,initialized!", sScriptBindings.GetScriptName(i_script_id));
         i_data->Initialize();
     }
 }
@@ -2913,76 +2879,22 @@ bool Map::CanEnter(Player* player)
 }
 
 /// Put scripts in the execution queue
-
-/**
- * @brief Queues all steps of a database script chain for later execution.
- *
- * @param type The script table type.
- * @param id The script chain identifier.
- * @param source The source object used by the script.
- * @param target The optional target object used by the script.
- * @param execParams Flags controlling uniqueness checks for queued scripts.
- * @return true if the script chain exists and was queued or intentionally skipped as duplicate.
- */
-bool Map::ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams /*=SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET*/)
-{
-    MANGOS_ASSERT(source);
-
-    ///- Find the script chain map
-    ScriptChainMap const *scm = sScriptMgr.GetScriptChainMap(type);
-    if (!scm)
-    {
-        return false;
-    }
-
-    ScriptChainMap::const_iterator s = scm->find(id);
-    if (s == scm->end())
-    {
-        return false;
-    }
-
-    // prepare static data
-    ObjectGuid sourceGuid = source->GetObjectGuid();
-    ObjectGuid targetGuid = target ? target->GetObjectGuid() : ObjectGuid();
-    ObjectGuid ownerGuid  = source->isType(TYPEMASK_ITEM) ? ((Item*)source)->GetOwnerGuid() : ObjectGuid();
-
-    if (execParams)                                         // Check if the execution should be uniquely
-    {
-        for (ScriptScheduleMap::const_iterator searchItr = m_scriptSchedule.begin(); searchItr != m_scriptSchedule.end(); ++searchItr)
-        {
-            if (searchItr->second.IsSameScript(type, id,
-                                               (execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE) ? sourceGuid : ObjectGuid(),
-                                               (execParams & SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET) ? targetGuid : ObjectGuid(), ownerGuid))
-            {
-                DEBUG_FILTER_LOG(LOG_FILTER_DB_SCRIPTS, "DB-SCRIPTS: Process table `dbscripts [type=%d]` id %u. Skip script as script already started for source %s, target %s - ScriptsStartParams %u", type, id, sourceGuid.GetString().c_str(), targetGuid.GetString().c_str(), execParams);
-                return true;
-            }
-        }
-    }
-
-    ///- Schedule script execution for all scripts in the script map
-    ScriptChain const* s2 = &(s->second);
-    for (ScriptChain::const_iterator iter = s2->begin(); iter != s2->end(); ++iter)
-    {
-        ScriptAction sa(type, this, sourceGuid, targetGuid, ownerGuid, &(*iter));
-
-        m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + iter->delay), sa));
-
-        sScriptMgr.IncreaseScheduledScriptsCount();
-    }
-
-    return true;
-}
+///
+/// ScriptsStart -- start a whole `dbscripts_on_*` chain by (type, id) -- was
+/// here and is gone. MAI owns the chains: it reads them from its own tables,
+/// keeps its own frames, and never touched this schedule. What is left below
+/// is the one thing MAI does not start, a single command with a delay, plus
+/// the schedule that runs it.
 
 /**
  * @brief Queues an internally generated script command for delayed execution.
  *
  * @param script The script command data to execute.
- * @param delay The execution delay in seconds.
+ * @param delayMs The execution delay in milliseconds.
  * @param source The source object associated with the command.
  * @param target The optional target object associated with the command.
  */
-void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* source, Object* target)
+void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delayMs, Object* source, Object* target)
 {
     // NOTE: script record _must_ exist until command executed
 
@@ -2993,9 +2905,8 @@ void Map::ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* sou
 
     ScriptAction sa(DBS_INTERNAL, this, sourceGuid, targetGuid, ownerGuid, &script);
 
-    m_scriptSchedule.insert(ScriptScheduleMap::value_type(time_t(sWorld.GetGameTime() + delay), sa));
-
-    sScriptMgr.IncreaseScheduledScriptsCount();
+    m_scriptSchedule.insert(ScriptScheduleMap::value_type(
+        Simulation::Now() + delayMs, sa));
 }
 
 /// Process queued scripts
@@ -3013,7 +2924,7 @@ void Map::ScriptsProcess()
     ///- Process overdue queued scripts
     ScriptScheduleMap::iterator iter = m_scriptSchedule.begin();
     // ok as multimap is a *sorted* associative container
-    while (!m_scriptSchedule.empty() && (iter->first <= sWorld.GetGameTime()))
+    while (!m_scriptSchedule.empty() && (iter->first <= Simulation::Now()))
     {
         if (iter->second.HandleScriptStep())
         {
@@ -3029,7 +2940,6 @@ void Map::ScriptsProcess()
                 if (rmItr->second.IsSameScript(type, id, sourceGuid, targetGuid, ownerGuid))
                 {
                     m_scriptSchedule.erase(rmItr++);
-                    sScriptMgr.DecreaseScheduledScriptCount();
                 }
                 else
                 {
@@ -3040,8 +2950,6 @@ void Map::ScriptsProcess()
         else
         {
             m_scriptSchedule.erase(iter);
-
-            sScriptMgr.DecreaseScheduledScriptCount();
         }
         iter = m_scriptSchedule.begin();
     }
@@ -3122,6 +3030,46 @@ GameObject* Map::GetGameObject(ObjectGuid guid)
 }
 
 /**
+ * Function return the vessel that sails at CURRENT map
+ *
+ * @param guid must be a transport guid (HIGHGUID_MO_TRANSPORT or HIGHGUID_TRANSPORT)
+ *
+ * A vessel is a GameObject that is deliberately NOT in m_objectsStore: it is
+ * owned by MapManager, which is what lets it cross between maps at all. So the
+ * generic guid lookups had no answer for one, and anything that reached a
+ * vessel through its guid instead of through a pointer got nothing back --
+ * which is how transport arrival and departure event scripts stopped running
+ * when the event sites started carrying identities rather than pointers.
+ *
+ * The set is per map id and holds a handful of vessels, so a scan is cheaper
+ * than a second index kept in step with two owners.
+ */
+Transport* Map::GetTransport(ObjectGuid guid)
+{
+    if (!guid.IsMOTransport() && !guid.IsTransport())
+    {
+        return NULL;
+    }
+
+    MapManager::TransportsByMapType::const_iterator onMap =
+        sMapMgr.m_TransportsByMap.find(GetId());
+    if (onMap == sMapMgr.m_TransportsByMap.end())
+    {
+        return NULL;
+    }
+
+    for (Transport* transport : onMap->second)
+    {
+        if (transport->GetObjectGuid() == guid)
+        {
+            return transport;
+        }
+    }
+
+    return NULL;
+}
+
+/**
  * Function return dynamic object that in world at CURRENT map
  *
  * @param guid must be dynamic object guid (HIGHGUID_DYNAMICOBJECT)
@@ -3168,7 +3116,7 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
             return corpse && corpse->IsInWorld() ? corpse : NULL;
         }
         case HIGHGUID_MO_TRANSPORT:
-        case HIGHGUID_TRANSPORT:
+        case HIGHGUID_TRANSPORT:    return GetTransport(guid);
         default:                    break;
     }
 
@@ -3693,20 +3641,3 @@ bool Map::GetReachableRandomPosition(Unit* unit, float& x, float& y, float& z, f
     return false;
 }
 
-#ifdef ENABLE_ELUNA
-
-/**
- * @brief Returns the Eluna engine associated with this map.
- *
- * @return Eluna* The active Eluna instance.
- */
-Eluna* Map::GetEluna() const
-{
-    if (sElunaConfig->IsElunaCompatibilityMode())
-    {
-        return sWorld.GetEluna();
-    }
-
-    return eluna;
-}
-#endif /* ENABLE_ELUNA */

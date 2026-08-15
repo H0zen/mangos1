@@ -64,16 +64,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Sends an instance reset warning message to the client.

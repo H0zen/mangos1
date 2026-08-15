@@ -46,6 +46,7 @@
 
 
 #include "SpellAuras.h"
+#include "WorldHooks.h"
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
 #include "Database/DatabaseEnv.h"
@@ -70,7 +71,6 @@
 #include "BattleGround/BattleGround.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "CreatureAI.h"
-#include "ScriptMgr.h"
 #include "Util.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
@@ -930,6 +930,6 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
     // script has to "handle with care", only use where data are not ok to use in the above code.
     if (target->GetTypeId() == TYPEID_UNIT)
     {
-        sScriptMgr.OnAuraDummy(this, apply);
+        scripting::DummyAura(this, apply);
     }
 }

@@ -23,8 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
+#include "ScriptHost.h"
 #include <random>
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -61,17 +60,13 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
 #include "Geometry/Vector3.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Adds flat threat from the caster to the unit target.
@@ -366,13 +361,6 @@ void Spell::EffectDuel(SpellEffectIndex eff_idx)
     caster->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
     target->SetGuidValue(PLAYER_DUEL_ARBITER, pGameObj->GetObjectGuid());
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = caster->GetEluna())
-    {
-        e->OnDuelRequest(target, caster);
-    }
-#endif /* ENABLE_ELUNA */
 }
 
 /**
@@ -491,7 +479,8 @@ void Spell::EffectActivateObject(SpellEffectIndex eff_idx)
 
             int32 delay_secs = m_spellInfo->CalculateSimpleValue(eff_idx);
 
-            gameObjTarget->GetMap()->ScriptCommandStart(activateCommand, delay_secs, m_caster, gameObjTarget);
+            gameObjTarget->GetMap()->ScriptCommandStart(activateCommand, delay_secs * 1000u, m_caster,
+                                               gameObjTarget);
             break;
         }
         case 3:                     // GO custom anim - found mostly in Lunar Fireworks spells

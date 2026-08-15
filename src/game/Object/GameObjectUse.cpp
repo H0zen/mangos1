@@ -23,8 +23,8 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
+#include "ScriptHost.h"
+#include "WorldHooks.h"
 #include "Utilities/Errors.h"
 #include <sstream>
 #include "Utilities/MathDefines.h"
@@ -50,18 +50,13 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
 #include "GameObjectAI.h"
 #include "Geometry/Quat.h"
 #include "PlayerRegistry.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Handles use interaction for this game object.
@@ -89,11 +84,18 @@ void GameObject::Use(Unit* user)
         m_cooldownTime = sWorld.GetGameTime() + cooldown;
     }
 
-    bool scriptReturnValue = user->GetTypeId() == TYPEID_PLAYER && sScriptMgr.OnGameObjectUse((Player*)user, this);
-    if (!scriptReturnValue)
-    {
-        GetMap()->ScriptsStart(DBS_ON_GOT_USE, GetEntry(), spellCaster, this);
-    }
+    // One event for the object being used, and one answer. This used to be
+    // two emissions of the same event -- a claimable one raised only for a
+    // player, and a broadcast one raised for everybody when the first was not
+    // claimed -- which is how the same moment got told twice and how a
+    // template-keyed DB script could suppress the guid-keyed one below.
+    //
+    // A claim here means a script produced the behaviour, so the object's own
+    // activation script is skipped. spellCaster is still the user at this
+    // point; it only changes further down inside the switch.
+    bool const scriptReturnValue = scripting::Offer(GetMap(),
+        scripting::GameobjectUse{ scripting::RefOf(spellCaster),
+                                  scripting::RefOf(this) });
 
     switch (GetGoType())
     {
@@ -105,7 +107,9 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
             return;
         }
@@ -119,7 +123,9 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
 
             return;
@@ -133,7 +139,7 @@ void GameObject::Use(Unit* user)
 
             Player* player = (Player*)user;
 
-            if (!sScriptMgr.OnGossipHello(player, this))
+            if (!scripting::GossipHello(player, this))
             {
                 player->PrepareGossipMenu(this, GetGOInfo()->questgiver.gossipID);
                 player->SendPreparedGossip(this);
@@ -216,9 +222,15 @@ void GameObject::Use(Unit* user)
                 SendGameObjectCustomAnim();
             }
 
-            if (!scriptReturnValue && user->GetTypeId() == TYPEID_UNIT)
+            // The trap has gone off by now: it has cast its spell, spent a
+            // charge and played its animation. That is a later and narrower
+            // moment than the use above, and merging the two would run a
+            // script that despawns the trap before the trap fires.
+            if (user->GetTypeId() == TYPEID_UNIT)
             {
-                sScriptMgr.OnGameObjectUse(user, this);
+                scripting::Notify(GetMap(),
+                    scripting::GameobjectTrapSprung{ scripting::RefOf(user),
+                                                     scripting::RefOf(this) });
             }
 
             // TODO: Despawning of traps? (Also related to code in ::Update)
@@ -339,7 +351,7 @@ void GameObject::Use(Unit* user)
                 }
                 else if (info->goober.gossipID)             // ...or gossip, if page does not exist
                 {
-                    if (!sScriptMgr.OnGossipHello(player, this))
+                    if (!scripting::GossipHello(player, this))
                     {
                         player->PrepareGossipMenu(this, info->goober.gossipID);
                         player->SendPreparedGossip(this);
@@ -378,7 +390,9 @@ void GameObject::Use(Unit* user)
             // activate script
             if (!scriptReturnValue)
             {
-                GetMap()->ScriptsStart(DBS_ON_GO_USE, GetGUIDLow(), spellCaster, this);
+                scripting::Notify(GetMap(),
+                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
+                                                   scripting::RefOf(this) });
             }
             else
             {

@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include <random>
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
@@ -61,7 +62,6 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -69,9 +69,6 @@
 #include "CellImpl.h"
 #include "Geometry/Vector3.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Opens or sends loot for the specified object guid.
@@ -498,16 +495,16 @@ void Spell::DoSummonWild(SpellEffectIndex eff_idx, uint32 forceFaction)
             {
                 ((Creature*)m_originalCaster)->AI()->JustSummoned(summon);
             }
-#ifdef ENABLE_ELUNA
             if (m_originalCaster)
+            {
                 if (Unit* summoner = m_originalCaster->ToUnit())
                 {
-                    if (Eluna* e = summoner->GetEluna())
-                    {
-                        e->OnSummoned(summon, summoner);
-                    }
+                    scripting::Notify(summoner,
+                        scripting::CreatureSummoned{
+                            scripting::RefOf(summon),
+                            scripting::RefOf(summoner) });
                 }
-#endif /* ENABLE_ELUNA */
+            }
         }
     }
 }
@@ -627,23 +624,22 @@ void Spell::DoSummonGuardian(SpellEffectIndex eff_idx, uint32 forceFaction)
         {
             ((Creature*)m_originalCaster)->AI()->JustSummoned(spawnCreature);
         }
-#ifdef ENABLE_ELUNA
         if (Unit* summoner = m_caster->ToUnit())
         {
-            if (Eluna* e = summoner->GetEluna())
-            {
-                e->OnSummoned(spawnCreature, summoner);
-            }
+            scripting::Notify(summoner,
+                scripting::CreatureSummoned{ scripting::RefOf(spawnCreature),
+                                             scripting::RefOf(summoner) });
         }
         if (m_originalCaster)
+        {
             if (Unit* summoner = m_originalCaster->ToUnit())
             {
-                if (Eluna* e = summoner->GetEluna())
-                {
-                    e->OnSummoned(spawnCreature, summoner);
-                }
+                scripting::Notify(summoner,
+                    scripting::CreatureSummoned{
+                        scripting::RefOf(spawnCreature),
+                        scripting::RefOf(summoner) });
             }
-#endif /* ENABLE_ELUNA */
+        }
     }
 }
 
@@ -795,15 +791,12 @@ bool Spell::DoSummonPossessed(SpellEffectIndex eff_idx, uint32 forceFaction)
     {
         ((Creature*)m_originalCaster)->AI()->JustSummoned(spawnCreature);
     }
-#ifdef ENABLE_ELUNA
     if (Unit* summoner = m_originalCaster->ToUnit())
     {
-        if (Eluna* e = summoner->GetEluna())
-        {
-            e->OnSummoned(spawnCreature, summoner);
-        }
+        scripting::Notify(summoner,
+            scripting::CreatureSummoned{ scripting::RefOf(spawnCreature),
+                                         scripting::RefOf(summoner) });
     }
-#endif /* ENABLE_ELUNA */
     return true;
 }
 
@@ -899,21 +892,19 @@ void Spell::DoSummonCritter(SpellEffectIndex eff_idx, uint32 forceFaction)
     {
         ((Creature*)m_originalCaster)->AI()->JustSummoned(critter);
     }
-#ifdef ENABLE_ELUNA
     if (Unit* summoner = m_caster->ToUnit())
     {
-        if (Eluna* e = summoner->GetEluna())
-        {
-            e->OnSummoned(critter, summoner);
-        }
+        scripting::Notify(summoner,
+            scripting::CreatureSummoned{ scripting::RefOf(critter),
+                                         scripting::RefOf(summoner) });
     }
     if (m_originalCaster)
+    {
         if (Unit* summoner = m_originalCaster->ToUnit())
         {
-            if (Eluna* e = summoner->GetEluna())
-            {
-                e->OnSummoned(critter, summoner);
-            }
+            scripting::Notify(summoner,
+                scripting::CreatureSummoned{ scripting::RefOf(critter),
+                                             scripting::RefOf(summoner) });
         }
-#endif /* ENABLE_ELUNA */
+    }
 }

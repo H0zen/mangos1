@@ -35,7 +35,6 @@
 #include "Policies/Singleton.h"
 #include "MapManager.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "Group.h"

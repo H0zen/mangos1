@@ -32,7 +32,6 @@
 #include "LivingWorldAnchorPolicy.h"
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "SpellMgr.h"
@@ -59,9 +58,6 @@
 #include "CreatureLinkingMgr.h"
 #include "DisableMgr.h"
 #include "Policies/Singleton.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Selects the creature level and recalculates level-dependent stats.

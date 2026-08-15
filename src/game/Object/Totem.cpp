@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Totem.h"
 #include "Log.h"
 #include "Group.h"
@@ -33,10 +34,6 @@
 #include "CreatureAI.h"
 #include "InstanceData.h"
 #include "ObjectLookup.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Initializes a totem creature instance.
@@ -157,12 +154,9 @@ void Totem::Summon(Unit* owner)
     {
         ((Creature*)owner)->AI()->JustSummoned((Creature*)this);
     }
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = this->GetEluna())
-    {
-        e->OnSummoned(this, owner);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::CreatureSummoned{ scripting::RefOf(this),
+                             scripting::RefOf(owner) });
 
     // there are some totems, which exist just for their visual appeareance
     if (!GetSpell())

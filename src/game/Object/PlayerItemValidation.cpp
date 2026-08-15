@@ -25,15 +25,12 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Log.h"
 #include "ObjectMgr.h"
 #include "WorldSession.h"
 #include "DBCStores.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cstring>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Checks whether the player can carry more copies of a limited item.
@@ -1752,16 +1749,15 @@ InventoryResult Player::CanUseItem(ItemPrototype const* pProto) const
             return EQUIP_ERR_CANT_EQUIP_LEVEL_I;
         }
 
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
+        // The answer here is a value, not a veto: the scripts hand back an
+        // InventoryResult, and anything other than OK is the reason to refuse.
+        scripting::PlayerCanUseItem useEvent{ scripting::RefOf(this),
+                                              pProto->ItemId, EQUIP_ERR_OK };
+        scripting::Notify(this, useEvent);
+        if (useEvent.result != EQUIP_ERR_OK)
         {
-            InventoryResult eres = e->OnCanUseItem(this, pProto->ItemId);
-            if (eres != EQUIP_ERR_OK)
-            {
-                return eres;
-            }
+            return InventoryResult(useEvent.result);
         }
-#endif
 
         return EQUIP_ERR_OK;
     }

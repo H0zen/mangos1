@@ -24,6 +24,7 @@
  */
 
 #include "Utilities/Errors.h"
+#include "ScriptHost.h"
 #include <vector>
 #include "CreatureAISelector.h"
 #include "Creature.h"
@@ -31,7 +32,6 @@
 #include "NullCreatureAI.h"
 #include "Policies/Singleton.h"
 #include "MovementGenerator.h"
-#include "ScriptMgr.h"
 #include "Pet.h"
 #include "Log.h"
 #include <string>
@@ -47,9 +47,26 @@ namespace FactorySelector
      */
     CreatureAI* selectAI(Creature* creature)
     {
-        // Allow scripting AI for normal creatures and not controlled pets (guardians and mini-pets)
-        if ((!creature->IsPet() || !((Pet*)creature)->isControlled()) && !creature->IsCharmed())
-            if (CreatureAI* scriptedAI = sScriptMgr.GetCreatureAI(creature))
+        // Scripting gets the creature first, unless the core owns its control.
+        //
+        // A player's controlled pet obeys its player and a charmed creature
+        // obeys its charmer; both are driven by PetAI and no script may take
+        // that over. The test used to be "not a controlled pet" with no regard
+        // for whose pet it was, which also kept a pet summoned BY A CREATURE
+        // away from the scripts -- Spell::DoSummon makes one of those whenever
+        // a non-player casts a summon-pet effect. That was never the intent:
+        // the registry test below spells out that guardians, mini-pets and
+        // pets controlled by NPCs are meant to be scriptable, and EventAI
+        // reached them only because the registry ran after this line. Now that
+        // every engine is reached through this one call, the owner has to be
+        // checked here too or those pets would lose their scripts.
+        Unit const* petOwner = creature->GetOwner();
+        bool const ownedByPlayer = petOwner
+            && petOwner->GetTypeId() == TYPEID_PLAYER;
+
+        if (!(creature->IsPet() && ((Pet*)creature)->isControlled() && ownedByPlayer)
+            && !creature->IsCharmed())
+            if (CreatureAI* scriptedAI = scripting::ClaimCreatureAI(creature))
             {
                 return scriptedAI;
             }
@@ -60,11 +77,17 @@ namespace FactorySelector
 
         std::string ainame = creature->GetAIName();
 
-        // select by NPC flags _first_ - otherwise EventAI might be choosen for pets/totems
-        // excplicit check for isControlled() and owner type to allow guardian, mini-pets and pets controlled by NPCs to be scripted by EventAI
-        Unit* owner = NULL;
-        if ((creature->IsPet() && ((Pet*)creature)->isControlled() &&
-             ((owner = creature->GetOwner()) && owner->GetTypeId() == TYPEID_PLAYER)) || creature->IsCharmed())
+        // Select by NPC flags _first_ - otherwise the AI named by the template
+        // might be chosen for pets/totems.
+        // Explicit check for isControlled() and owner type to allow guardian,
+        // mini-pets and pets controlled by NPCs to be scripted.
+        //
+        // These two are unreachable for a creature the auction above already
+        // claimed, which is why EventAI refuses to bid for a totem: it used to
+        // be reached only through the AI-name lookup below, so TotemAI got
+        // there first, and that has to keep being true now that it bids.
+        if ((creature->IsPet() && ((Pet*)creature)->isControlled() && ownedByPlayer)
+            || creature->IsCharmed())
         {
             ai_factory = ai_registry.GetRegistryItem("PetAI");
         }

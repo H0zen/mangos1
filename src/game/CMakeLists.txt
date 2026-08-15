@@ -61,6 +61,58 @@ source_group("Outdoor PvP" FILES ${SRC_GRP_OUTDOOR_PVP})
 file(GLOB SRC_GRP_REFERENCES References/*.cpp References/*.h)
 source_group("References" FILES ${SRC_GRP_REFERENCES})
 
+#Scripting seam group
+# Always built, with or without an engine: the seam is what the world talks to,
+# and with no engine compiled in every emit site folds to a single test.
+file(GLOB SRC_GRP_SCRIPTING Scripting/*.cpp Scripting/*.h)
+source_group("Scripting" FILES ${SRC_GRP_SCRIPTING})
+
+# One directory per engine under Scripting/. Adding an engine is a new
+# directory plus one line in ScriptHost.cpp's MakeHostState -- nothing here
+# needs editing, and nothing outside Scripting/ ever names an engine.
+#
+# GLOB_RECURSE, because an engine's directory is its whole nest: the adapter
+# that implements IEngine sits at the top and whatever it drives lives under
+# it, at whatever depth suits it. SD3 keeps 480 scripts sorted by continent and
+# instance under sd3/engine/, and the build follows the layout instead of
+# listing it -- the file that used to do the listing was 32 KB of one glob per
+# dungeon, and every new script directory was a build edit waiting to be
+# forgotten.
+file(GLOB_RECURSE SRC_GRP_SCRIPT_ENGINES Scripting/*/*.cpp Scripting/*/*.h)
+
+# An engine that can be configured out is dropped whole. The adapter beside it
+# still compiles -- it guards its own body -- so the seam stays the same shape
+# with the back end absent, which is the point of a seam.
+if(NOT SCRIPT_LIB_SD3)
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/sd3/engine/")
+endif()
+
+# Luau is dropped whole too, and "whole" has to mean the API layer as well as
+# the VM. Excluding only engine/ left Scripting/luau/api/*.cpp in the build
+# while the Luau include roots below were NOT added, so five of those files
+# failed on `#include "lua.h"` and configuring the engine off broke the build
+# outright. LuauEngine.cpp is the one file that stays: it guards its own body
+# with ENABLE_LUAU and compiles to nothing, which is what keeps the seam the
+# same shape with the back end absent.
+if(NOT SCRIPT_LIB_LUAU)
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/luau/engine/")
+    list(FILTER SRC_GRP_SCRIPT_ENGINES EXCLUDE REGEX "/Scripting/luau/api/")
+endif()
+
+# The vendored Luau VM is third-party C++ that knows nothing about this core,
+# so it must not be handed the core's precompiled header: /Yu forces pchdef.h
+# into every source of the target, and these sources have their own idea of
+# what a uint32 is. They are excluded by name rather than moved out of `game`,
+# because being in `game` is what removes the library cycle SD3 used to have.
+file(GLOB_RECURSE SRC_GRP_LUAU_VENDORED Scripting/luau/engine/*.cpp)
+set_source_files_properties(${SRC_GRP_LUAU_VENDORED} PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON)
+
+list(APPEND SRC_GRP_SCRIPTING ${SRC_GRP_SCRIPT_ENGINES})
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Scripting" PREFIX "Scripting"
+    FILES ${SRC_GRP_SCRIPT_ENGINES})
+
 #Server group
 file(GLOB SRC_GRP_SERVER Server/*.cpp Server/*.h)
 source_group("Server" FILES ${SRC_GRP_SERVER})
@@ -86,28 +138,6 @@ source_group("Warden\\Modules" FILES ${SRC_GRP_WARDEN_MODULES})
 #World and Handlers group
 file(GLOB SRC_GRP_WORLD_HANDLERS WorldHandlers/*.cpp WorldHandlers/*.h)
 source_group("World\\Handlers" FILES ${SRC_GRP_WORLD_HANDLERS})
-
-# Build the Eluna library if enabled
-if(SCRIPT_LIB_ELUNA)
-    file(GLOB SRC_GRP_ELUNA
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/*.h
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/hooks/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/hooks/*.h
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/methods/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/methods/*.h
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/methods/Mangos/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/modules/Eluna/methods/Mangos/*.h
-    )
-    source_group("Eluna" FILES ${SRC_GRP_ELUNA})
-
-    # Eluna is an untouched submodule; see cmake/SubmoduleCompat.cmake. The forced
-    # include goes to Eluna's own sources only; the include DIRECTORY has to be
-    # visible to all of `game`, because core files include Eluna headers and those
-    # open with #include "Common.h".
-    mangos_submodule_compat_sources("${SRC_GRP_ELUNA}"
-        "${CMAKE_SOURCE_DIR}/src/shared/Compat/eluna")
-endif()
 
 if(PLAYERBOTS)
 
@@ -211,22 +241,15 @@ add_library(game STATIC
     ${SRC_GRP_OBJECT}
     ${SRC_GRP_OUTDOOR_PVP}
     ${SRC_GRP_REFERENCES}
+    ${SRC_GRP_SCRIPTING}
     ${SRC_GRP_SERVER}
     ${SRC_GRP_TIME}
     ${SRC_GRP_TOOL}
     ${SRC_GRP_WARDEN}
     ${SRC_GRP_WARDEN_MODULES}
     ${SRC_GRP_WORLD_HANDLERS}
-    $<$<BOOL:${SCRIPT_LIB_ELUNA}>:${SRC_GRP_ELUNA}>
     $<$<BOOL:${PLAYERBOTS}>:${SRC_GRP_BOTS}>
 )
-
-# Eluna headers are included by core files and open with #include "Common.h";
-# see the note above. Passive -- nothing in the core names that header.
-if(SCRIPT_LIB_ELUNA)
-    target_include_directories(game
-        PRIVATE "${CMAKE_SOURCE_DIR}/src/shared/Compat/eluna")
-endif()
 
 target_include_directories(game
     PUBLIC
@@ -239,16 +262,30 @@ target_include_directories(game
         Object
         OutdoorPvP
         References
+        Scripting
         Server
         Time
         Tools
         Warden
         Warden/Modules
         WorldHandlers
-        $<$<BOOL:${SCRIPT_LIB_ELUNA}>:
-            ${CMAKE_SOURCE_DIR}/src/modules/Eluna
-            ${CMAKE_SOURCE_DIR}/src/modules/Eluna/hooks
-            ${CMAKE_SOURCE_DIR}/src/modules/Eluna/methods/Mangos
+        # SD3's own three roots. The scripts include "precompiled.h",
+        # "sc_creature.h" and "system/ScriptDevMgr.h" by those names and always
+        # have; these are what makes those spellings resolve now that the
+        # engine lives in the tree instead of behind a library of its own.
+        $<$<BOOL:${SCRIPT_LIB_SD3}>:
+            Scripting/sd3/engine
+            Scripting/sd3/engine/base
+            Scripting/sd3/engine/include
+        >
+        # Luau ships one include root per component and every header is
+        # reached as "Luau/<name>.h" from inside them.
+        $<$<BOOL:${SCRIPT_LIB_LUAU}>:
+            Scripting/luau/engine/Common/include
+            Scripting/luau/engine/Ast/include
+            Scripting/luau/engine/Bytecode/include
+            Scripting/luau/engine/Compiler/include
+            Scripting/luau/engine/VM/include
         >
         $<$<BOOL:${PLAYERBOTS}>:
             ${CMAKE_SOURCE_DIR}/src/modules/Bots
@@ -261,11 +298,12 @@ target_compile_definitions(game
     PUBLIC
         $<$<BOOL:${SOAP}>:ENABLE_SOAP>
         # The old coordinate-owning spatial API. SD3 no longer needs it -- it calls
-        # Where()/Place() -- so this is Eluna's alone. See Object/ScriptApiCompat.inl.
-        $<$<OR:$<BOOL:${SCRIPT_LIB_ELUNA}>,$<BOOL:${PLAYERBOTS}>>:MANGOS_SCRIPT_COMPAT>
+        # Where()/Place() -- so this is the playerbots module's alone now that
+        # Eluna is gone. See Object/ScriptApiCompat.inl.
+        $<$<BOOL:${PLAYERBOTS}>:MANGOS_SCRIPT_COMPAT>
         $<$<BOOL:${SCRIPT_LIB_SD3}>:ENABLE_SD3>
+        $<$<BOOL:${SCRIPT_LIB_LUAU}>:ENABLE_LUAU>
         $<$<BOOL:${PLAYERBOTS}>:ENABLE_PLAYERBOTS>
-        $<$<BOOL:${SCRIPT_LIB_ELUNA}>:ENABLE_ELUNA ELUNA_EXPANSION=1 ELUNA_MANGOS>
 )
 
 target_link_libraries(game
@@ -280,8 +318,6 @@ target_link_libraries(game
         shared
         RecastNavigation::Detour
         ZLIB::ZLIB
-        $<$<BOOL:${SCRIPT_LIB_SD3}>:mangosscript>
-        $<$<BOOL:${SCRIPT_LIB_ELUNA}>:lualib>
     PRIVATE
         mangos_openssl_strict
 )
@@ -296,12 +332,6 @@ install(
     DESTINATION ${CONF_INSTALL_DIR}
 )
 
-if(SCRIPT_LIB_ELUNA)
-install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/src/modules/Eluna/extensions
-    DESTINATION ${BIN_DIR}/lua_scripts
-)
-endif()
 
 if(PLAYERBOTS)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/aiplayerbot.conf.dist

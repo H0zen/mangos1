@@ -69,15 +69,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
+#include "ScriptHost.h"
 
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot.h"
@@ -1298,13 +1295,8 @@ void Player::Update(uint32 update_diff, uint32 p_time)
         if (update_diff >= m_nextSave)
         {
             // m_nextSave reset in SaveToDB call
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = GetEluna())
-            {
-                e->OnSave(this);
-            }
-#endif /* ENABLE_ELUNA */
+            scripting::Notify(this,
+                scripting::PlayerSave{ scripting::RefOf(this) });
             SaveToDB();
             DETAIL_LOG("Player '%s' (GUID: %u) saved", GetName(), GetGUIDLow());
         }
@@ -2418,13 +2410,12 @@ void Player::GiveXP(uint32 xp, Unit* victim)
 
     uint32 level = getLevel();
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnGiveXP(this, xp, victim);
-    }
-#endif /* ENABLE_ELUNA */
+    // A hook may raise, lower or zero the award; whatever comes back is what
+    // the world goes on to grant.
+    scripting::PlayerGiveXp xpEvent{ scripting::RefOf(this), xp,
+                                     scripting::RefOf(victim) };
+    scripting::Notify(this, xpEvent);
+    xp = xpEvent.amount;
 
     // XP to money conversion processed in Player::RewardQuest
     if (level >= sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL))
@@ -2547,13 +2538,8 @@ void Player::GiveLevel(uint32 level)
         pet->SynchronizeLevelWithOwner();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnLevelChanged(this, oldLevel);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerLevelChange{ scripting::RefOf(this), oldLevel });
 
     if (MailLevelReward const* mailReward = sObjectMgr.GetMailLevelReward(level, getRaceMask()))
     {
@@ -2568,13 +2554,8 @@ void Player::GiveLevel(uint32 level)
  */
 void Player::SetFreeTalentPoints(uint32 points)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnFreeTalentPointsChanged(this, points);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(this,
+        scripting::PlayerTalentsChange{ scripting::RefOf(this), points });
 
     SetUInt32Value(PLAYER_CHARACTER_POINTS1, points);
 }
@@ -6183,13 +6164,10 @@ void Player::HandleFall(MovementInfo const& movementInfo)
  */
 void Player::ModifyMoney(int32 d)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnMoneyChanged(this, d);
-    }
-#endif /* ENABLE_ELUNA */
+    // A hook may change the delta before it is applied.
+    scripting::PlayerMoneyChange moneyEvent{ scripting::RefOf(this), d };
+    scripting::Notify(this, moneyEvent);
+    d = moneyEvent.amount;
 
     if (d < 0)
     {

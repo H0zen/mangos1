@@ -78,6 +78,17 @@ set(SRC_GRP_TESTS
     # wire format. CryptoStressTest holds what every expansion shares.
     CodecStressTest.cpp
     PacketCodecTest.cpp
+    # MAI's lowering, run over a real world's db_scripts export. Compiled in
+    # rather than linked from `game` for the same reason the three above are:
+    # game.lib pulls the whole server down to globals only mangosd defines,
+    # and this file needs none of it.
+    MaiLoweringTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiLowering.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiParse.cpp
+    # The block compiler. Here for the same reason and with the same
+    # property: it turns `if`/`repeat`/`while` rows into jumps knowing
+    # nothing about a world, so what it decides can be asserted without one.
+    ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiCompile.cpp
 )
 
 # The socket tests. Off unless asked for -- see the note above.
@@ -94,7 +105,8 @@ target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
         ${CMAKE_SOURCE_DIR}/src/game/Server
-        ${CMAKE_SOURCE_DIR}/src/game/Object)
+        ${CMAKE_SOURCE_DIR}/src/game/Object
+        ${CMAKE_SOURCE_DIR}/src/game/Scripting)
 
 target_link_libraries(mangos_tests
     PRIVATE
@@ -109,6 +121,13 @@ target_link_libraries(mangos_tests
 )
 
 add_test(NAME mangos_tests COMMAND mangos_tests)
+
+# The fixtures a test reads are found by this rather than by guessing at the
+# working directory ctest happens to use.
+# APPEND, not PROPERTIES: the Windows block below sets ENVIRONMENT too, and a
+# plain set would have silently thrown one of the two away.
+set_property(TEST mangos_tests APPEND PROPERTY
+    ENVIRONMENT "MANGOS_TEST_DATA=${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 add_test(NAME proto_boundary
     COMMAND ${CMAKE_COMMAND}
@@ -134,6 +153,11 @@ add_test(NAME combat_boundary
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCombatBoundary.cmake)
+
+add_test(NAME script_events
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckScriptEvents.cmake)
 
 # Put the runtime DLLs beside the test binary so it can be run from the build tree.
 # A convenience, never a gate: the search is derived from the library that was actually
@@ -168,7 +192,7 @@ if(WIN32)
                 "${MANGOS_TEST_MYSQL_DLL_DIR}/${MANGOS_TEST_MYSQL_DLL_NAME}"
                 "$<TARGET_FILE_DIR:mangos_tests>")
     endif()
-    set_tests_properties(mangos_tests PROPERTIES
+    set_property(TEST mangos_tests APPEND PROPERTY
         ENVIRONMENT "OPENSSL_MODULES=")
 
     # Match the release layout and leave OPENSSL_MODULES empty: provider discovery

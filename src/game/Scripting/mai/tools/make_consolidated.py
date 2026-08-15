@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+"""Assemble everything in dbmai into ONE file, in the order it must run.
+
+    python src/game/Scripting/mai/tools/make_consolidated.py \\
+        dbmai dbmai/mai_all.sql
+
+WHY THIS EXISTS ALONGSIDE make_migration.py
+
+make_migration.py assembles the CONVERSION -- the schema, the 687 sequence
+files and the 5,822 rule files the two converters wrote out of `db_scripts`
+and `creature_ai_scripts`. It runs once, against a world that has never seen
+MAI, and its output is `mai_migration.sql`.
+
+Everything since has arrived by hand, in pieces, each written against whatever
+the schema happened to be that day:
+
+    mai_alter_guard.sql          seven guarded ALTERs
+    mai_spell_scripts_port.sql   two raw ALTERs, then world/spell_scripts.cpp
+    mai_sd3/world/000_schema_additions.sql    five more raw ALTERs
+    mai_sd3/**.sql               75 hand ports, one file per entity
+    mai_sd3.sql                  the first four of them, before the tree existed
+
+Handed to somebody with an original database, that is a pile with an order
+nobody wrote down and three files that will refuse to run. This puts them in
+order, once, into something a person can run start to finish.
+
+WHAT ORDER, AND WHY IT IS NOT THE OBVIOUS ONE
+
+  1. `schema.sql` -- the CURRENT one, out of the source tree, not the copy
+     baked into mai_migration.sql. That copy is from before `item_use`,
+     `areatrigger`, `select_source`, `mai_rule_step`.`comment` and the rest
+     existed, which is what the three ALTER files were for. Building the
+     schema from the source of truth makes all fourteen of those ALTERs
+     unnecessary in one step, and it is the only version that has everything:
+     the three files were each written for the day they landed, so none of
+     them alone brings a schema up to what the ports below write into.
+
+     The 13,016 INSERTs below all name their columns, so a wider schema costs
+     them nothing. That was checked, not assumed -- a single positional
+     INSERT would have made this substitution silently wrong.
+
+  2. The sequences and rules out of mai_migration.sql, verbatim, minus the
+     stale schema at its head and its footer at its tail.
+
+  3. `mai_spell_scripts_port.sql` -- minus its two leading ALTER TABLEs. They
+     are the reason a naive `cat` of this directory fails: they are raw
+     `MODIFY`/`ADD COLUMN`, not guarded like mai_alter_guard.sql's, so against
+     a schema that already has the column they are an error rather than a
+     no-op.
+
+  4. The SD3 ports, recursively, in path order, MINUS anything named `000_`.
+     That prefix means the same thing here as it does to make_migration.py --
+     schema, emitted separately rather than inline -- and
+     mai_sd3/world/000_schema_additions.sql is the file that added
+     `select_source`, `mai_rule_step`.`comment`, `item_use` and `areatrigger`.
+     Step 1 has all four already.
+
+     AFTER the converted rules, and that is load-bearing: a port begins by
+     DELETEing the creature's rules, and several of these creatures already
+     have rules converted out of EventAI. The Spirit Shade (15261) is the case
+     that proves it -- run the port first and the EventAI rules land on top of
+     it afterwards, giving a different encounter with nothing to show that
+     anything happened.
+
+  5. The footer: `AIName` for the 5,822 EventAI creatures, and the commented
+     DROPs. Last, for the reason make_migration.py gives -- the moment a
+     creature says MAI the server expects its rules to be there. Each SD3 port
+     sets its own `AIName`, after its own rows, so the same invariant holds
+     inside the pieces.
+
+WHAT IS LEFT OUT, AND WHY
+
+  mai_alter_guard.sql   Seven guarded ALTERs that bring an ALREADY MIGRATED
+                        schema forward. Step 1 builds the schema with those
+                        columns in it, so there is nothing for them to add.
+                        Keep the file: it is what an operator who ran the old
+                        migration on a live world needs, and this consolidation
+                        is for the other case.
+
+  mai_sd3.sql           The first four creatures -- Lucifron, Magmadar,
+                        Golemagg, Core Rager -- written before mai_sd3/ was a
+                        tree. All four have per-entity files now, and they are
+                        the same four; verified by entry, not by date.
+
+IDEMPOTENT, in the same way the migration is: schema.sql drops and recreates
+every MAI table, and each hand port deletes what it is about to insert. Run it
+twice and land in the same place. NEEDS THE `mysql` CLIENT -- the text merge
+in schema.sql uses DELIMITER, which is a client directive rather than SQL.
+"""
+import io
+import os
+import sys
+
+EOL = chr(10)
+
+SEQUENCES_MARK = '-- THE SEQUENCES, from db_scripts.'
+FOOTER_MARK = '-- LAST: the creatures start using it.'
+
+HEADER = """-- MAI: the conversion and everything ported by hand since, as one file.
+--
+-- Generated by tools/make_consolidated.py. Do not edit here; edit the piece
+-- it came from and assemble again. What is in it, in the order it runs:
+--
+--   1. the schema, from src/game/Scripting/mai/schema.sql, and the text merge
+--      inside it
+--   2. the sequences and rules converted from `db_scripts` and
+--      `creature_ai_scripts`
+--   3. world/spell_scripts.cpp, ported by hand
+--   4. the SD3 ports, one file per entity, after the converted rules because
+--      each one deletes the rules of the creature it is about to describe
+--   5. the `command` row for `.reload all_eventai`, which no longer exists
+--   6. `creature_template`.`AIName`, last
+--
+-- Run it with the `mysql` client, against a world database with no MAI tables:
+--
+--     mysql --defaults-file=... --database=<core>_world < <this file>
+--
+-- The tool's own docstring says what was left out and why -- mai_alter_guard
+-- .sql, which brings an already-migrated schema forward instead, and
+-- mai_sd3.sql, which four per-entity files replaced.
+"""
+
+BANNER = '-- ' + '-' * 73
+
+COMMANDS = """-- 5. The one `command` row EventAI took with it.
+--
+--    `command` holds help text keyed by command name, and the world checks
+--    every row against the command table it actually has:
+--
+--        Table `command` have unexpected subcommand 'all_eventai' in
+--        command 'reload all_eventai', skip.
+--
+--    `.reload all_eventai` reloaded the three EventAI tables. There is no
+--    EventAI, so there is no command, so the row is a line of noise at every
+--    start-up. Deleted here because this is the change that removed it.
+--
+--    THREE OTHER ROWS COMPLAIN THE SAME WAY and are deliberately left alone:
+--    'honor add', 'honor addkill', 'honor update' (the `honor` command table
+--    is commented out in Chat.cpp), and 'modify arena' / 'modify fly' (both
+--    verbs exist, under `debug` and `gm`, never under `modify`). None of
+--    those has anything to do with MAI, and a migration that quietly deletes
+--    rows outside its own subject is one nobody can review.
+
+DELETE FROM `command` WHERE `command_text` = 'reload all_eventai';
+"""
+
+
+def read(path):
+    return io.open(path, encoding='utf-8').read()
+
+
+def migration_parts(path):
+    """The migration split into (body, footer), dropping its stale schema.
+
+    Located by the banners make_migration.py writes rather than by line
+    number, so a regenerated migration of a different size still splits.
+    """
+    text = read(path)
+
+    start = text.find(SEQUENCES_MARK)
+    footer = text.find(FOOTER_MARK)
+    if start < 0 or footer < 0 or footer < start:
+        sys.stderr.write('error: %s is not a make_migration.py output '
+                         '(its section banners are missing)\n' % path)
+        return None, None
+
+    # Back up over the banner line each mark sits under, so the section keeps
+    # its own frame.
+    start = text.rfind(BANNER, 0, start)
+    footer = text.rfind(BANNER, 0, footer)
+
+    return text[start:footer].rstrip(), text[footer:].rstrip()
+
+
+def without_leading_alters(path):
+    """The file with any ALTER TABLE ahead of its first row statement removed.
+
+    Only the prefix: an ALTER after the rows have started would be somebody
+    changing the schema mid-file, which is not something to strip silently.
+    """
+    lines = read(path).split(EOL)
+    out = []
+    started = False
+    skipping = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not started and stripped.upper().startswith(
+                ('DELETE ', 'INSERT ', 'UPDATE ', 'REPLACE ')):
+            started = True
+
+        if skipping:
+            if stripped.endswith(';'):
+                skipping = False
+            continue
+
+        if not started and stripped.upper().startswith('ALTER TABLE'):
+            # Multi-statement ALTERs span lines; skip to the semicolon.
+            if not stripped.endswith(';'):
+                skipping = True
+            continue
+
+        out.append(line)
+
+    return EOL.join(out).strip()
+
+
+def sd3_files(root):
+    """Every port under @a root, recursively, in path order.
+
+    `000_` is schema, by the same convention make_migration.py uses, and the
+    schema is emitted once at the top from the source tree rather than as
+    fourteen raw ALTERs part-way down a file that has already declared the
+    columns they add.
+    """
+    found = []
+    for where, dirs, names in os.walk(root):
+        dirs.sort()
+        for name in sorted(names):
+            if name.endswith('.sql') and not name.startswith('000_'):
+                found.append(os.path.join(where, name))
+    return found
+
+
+def main():
+    if len(sys.argv) != 3:
+        sys.stderr.write(__doc__)
+        return 1
+
+    dbmai, target = sys.argv[1], sys.argv[2]
+
+    # The output may sit beside its inputs -- the three files at the top of
+    # dbmai are read BY NAME, so a fourth one is not picked up. What it must
+    # not do is land inside mai_sd3/, which is walked: there the next run would
+    # read its own previous output back in and double 13 MiB of INSERTs,
+    # quietly, because a duplicated key fails a thousand lines in rather than
+    # at the top.
+    where = os.path.abspath(os.path.dirname(os.path.abspath(target)))
+    walked = os.path.abspath(os.path.join(dbmai, 'mai_sd3'))
+    if where == walked or where.startswith(walked + os.sep):
+        sys.stderr.write('error: %s is inside the directory this walks and '
+                         'would be read back in on the next run\n' % target)
+        return 1
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    schema = os.path.join(os.path.dirname(here), 'schema.sql')
+
+    migration = os.path.join(dbmai, 'mai_migration.sql')
+    spells = os.path.join(dbmai, 'mai_spell_scripts_port.sql')
+    sd3 = os.path.join(dbmai, 'mai_sd3')
+
+    for path in (schema, migration, spells):
+        if not os.path.isfile(path):
+            sys.stderr.write('error: %s is missing\n' % path)
+            return 1
+    if not os.path.isdir(sd3):
+        sys.stderr.write('error: %s is missing\n' % sd3)
+        return 1
+
+    body, footer = migration_parts(migration)
+    if body is None:
+        return 1
+
+    parts = [HEADER]
+
+    parts.append(BANNER)
+    parts.append('-- 1. THE SCHEMA, and the text merge inside it.')
+    parts.append('--')
+    parts.append('--    The CURRENT schema.sql, not the copy inside')
+    parts.append('--    mai_migration.sql -- that one predates five of the')
+    parts.append('--    fifteen `kind`s and four of the columns the ports')
+    parts.append('--    below write into.')
+    parts.append('')
+    parts.append(read(schema).rstrip())
+    parts.append('')
+
+    parts.append(BANNER)
+    parts.append('-- 2. THE CONVERSION: sequences from `db_scripts`, rules')
+    parts.append('--    from `creature_ai_scripts`.')
+    parts.append('')
+    parts.append(body)
+    parts.append('')
+
+    parts.append(BANNER)
+    parts.append('-- 3. world/spell_scripts.cpp, ported by hand.')
+    parts.append('--')
+    parts.append('--    Its two ALTER TABLEs are dropped: unguarded, and the')
+    parts.append('--    schema above already declares what they added.')
+    parts.append('')
+    parts.append(without_leading_alters(spells))
+    parts.append('')
+
+    ports = sd3_files(sd3)
+    parts.append(BANNER)
+    parts.append('-- 4. THE SD3 PORTS -- %d file(s), one per entity, in path'
+                 % len(ports))
+    parts.append('--    order, and AFTER the converted rules above: each one')
+    parts.append('--    deletes the rules of the creature it describes, and')
+    parts.append('--    some of those creatures were converted from EventAI.')
+    parts.append('')
+    for path in ports:
+        parts.append('-- ' + os.path.relpath(path, dbmai).replace(os.sep, '/'))
+        parts.append(read(path).rstrip())
+        parts.append('')
+
+    parts.append(BANNER)
+    parts.append(COMMANDS)
+
+    parts.append(BANNER)
+    parts.append('-- 6. LAST, for the reason the migration gives.')
+    parts.append('')
+    parts.append(footer)
+    parts.append('')
+
+    io.open(target, 'w', encoding='utf-8', newline=EOL).write(EOL.join(parts))
+
+    size = os.path.getsize(target)
+    print('%s: %d SD3 port file(s), %.1f MiB'
+          % (target, len(ports), size / (1024.0 * 1024.0)))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

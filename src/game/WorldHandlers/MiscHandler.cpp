@@ -48,6 +48,8 @@
  * - CMSG_SET_PLAYER_DECLARED_NAME: Set player name
  */
 
+#include "ScriptHost.h"
+#include "WorldHooks.h"
 #include <zlib.h>
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
@@ -66,7 +68,6 @@
 #include "UpdateData.h"
 #include "LootMgr.h"
 #include "Chat.h"
-#include "ScriptMgr.h"
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
 #include "Object.h"
@@ -75,11 +76,6 @@
 #include "Pet.h"
 #include "SocialMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
 {
@@ -103,13 +99,8 @@ void WorldSession::HandleRepopRequestOpcode(WorldPacket& recv_data)
         GetPlayer()->KillPlayer();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetPlayer()->GetEluna())
-    {
-        e->OnRepop(GetPlayer());
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(GetPlayer(),
+    scripting::PlayerRepop{ scripting::RefOf(GetPlayer()) });
 
     // this is spirit release confirm?
     GetPlayer()->RemovePet(PET_SAVE_REAGENTS);
@@ -753,7 +744,7 @@ void WorldSession::HandleAreaTriggerOpcode(WorldPacket& recv_data)
         return;
     }
 
-    if (sScriptMgr.OnAreaTrigger(player, atEntry))
+    if (scripting::AreaTriggered(player, atEntry))
     {
         return;
     }

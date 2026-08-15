@@ -39,6 +39,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "BattleGround.h"
 #include "Object.h"
 #include "Player.h"
@@ -58,11 +59,6 @@
 #include "Formulas.h"
 #include "GridNotifiersImpl.h"
 #include "Chat.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cstdio>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Rewards the honor to a specific team in the battleground.
@@ -178,12 +174,6 @@ void BattleGround::UpdateWorldStateForPlayer(uint32 Field, uint32 Value, Player*
  */
 void BattleGround::EndBattleGround(Team winner)
 {
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetBgMap()->GetEluna())
-    {
-        e->OnBGEnd(this, GetTypeID(), GetInstanceID(), winner);
-    }
-#endif /* ENABLE_ELUNA */
     this->RemoveFromBGFreeSlotQueue();
 
     ArenaTeam* winner_arena_team = NULL;

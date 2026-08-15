@@ -39,10 +39,6 @@
 #include "Util.h"
 #include "Language.h"
 #include "World.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Creates and persists a new guild rank.

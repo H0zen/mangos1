@@ -36,6 +36,7 @@
  */
 
 #include "Platform/Define.h"
+#include "WorldHooks.h"
 #include "SharedDefines.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
@@ -51,7 +52,6 @@
 #include "BattleGround.h"
 #include "ArenaTeam.h"
 #include "Language.h"
-#include "ScriptMgr.h"
 #include "World.h"
 #include "DisableMgr.h"
 #include "GameTime.h"
@@ -780,7 +780,7 @@ void WorldSession::HandleAreaSpiritHealerQueueOpcode(WorldPacket& recv_data)
         return;
     }
 
-    sScriptMgr.OnGossipHello(GetPlayer(), unit);
+    scripting::GossipHello(GetPlayer(), unit);
 }
 
 void WorldSession::HandleBattlemasterJoinArena(WorldPacket& recv_data)

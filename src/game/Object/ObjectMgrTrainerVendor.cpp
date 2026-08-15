@@ -37,7 +37,6 @@
 #include "MotionGenerators/MotionMaster.h"
 #include "MapManager.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
 #include "World.h"
 #include "Group.h"
 #include "ArenaTeam.h"

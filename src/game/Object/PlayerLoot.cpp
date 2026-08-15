@@ -65,7 +65,6 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
@@ -73,10 +72,6 @@
 #include "SQLStorages.h"
 #include "DisableMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#endif /* ENABLE_ELUNA */
 
 /*  If in a battleground a player dies, and an enemy removes the insignia, the player's bones is lootable
     Called by remove insignia spell effect    */

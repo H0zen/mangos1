@@ -24,6 +24,7 @@
  */
 
 #include "Utilities/Errors.h"
+#include "sd3/ScriptBindings.h"
 #include "Item.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -31,11 +32,6 @@
 #include "Database/DatabaseEnv.h"
 #include "ItemEnchantmentMgr.h"
 #include "SQLStorages.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cassert>
-#include <cstring>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Applies item set bonuses when an item is equipped.
@@ -1146,5 +1142,5 @@ void Item::SetLootState(ItemLootUpdateState state)
  */
 uint32 Item::GetScriptId() const
 {
-    return sScriptMgr.GetBoundScriptId(SCRIPTED_ITEM, GetEntry());
+    return sScriptBindings.GetBoundScriptId(SCRIPTED_ITEM, GetEntry());
 }

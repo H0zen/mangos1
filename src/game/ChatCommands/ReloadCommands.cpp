@@ -35,13 +35,14 @@
  */
 
 #include "Chat.h"
+#include "sd3/ScriptBindings.h"
 #include "Language.h"
 #include "SpellMgr.h"
 #include "DisableMgr.h"
 #include "World.h"
 #include "MapManager.h"
 #include "GridMap.h"                                        // sTerrainMgr
-#include "CreatureEventAIMgr.h"
+#include "ScriptHost.h"
 #include "BattleGroundMgr.h"
 #include "SkillExtraItems.h"
 #include "SkillDiscovery.h"
@@ -101,7 +102,7 @@ bool ChatHandler::HandleReloadAllCommand(char* /*args*/)
 
     HandleReloadAllAreaCommand((char*)"");
     HandleReloadAutoBroadcastCommand((char*)"");
-    HandleReloadAllEventAICommand((char*)"");
+    HandleReloadMaiTextsCommand((char*)"");
     HandleReloadAllLootCommand((char*)"");
     HandleReloadAllNpcCommand((char*)"");
     HandleReloadAllQuestCommand((char*)"");
@@ -187,38 +188,31 @@ bool ChatHandler::HandleReloadAllQuestCommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadAllScriptsCommand(char* /*args*/)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    // This used to be nine calls, one per `dbscripts_on_*` table, each with a
+    // "DB scripts used currently, please attempt reload later" guard over a
+    // counter of scheduled steps. There is one table now and one engine owns
+    // it, and the engine drops its own running frames before it rebuilds --
+    // which is why the guard is gone rather than moved: refusing the reload
+    // while something is mid-sequence was the alternative to doing that, and
+    // only one of the two can be true.
+    sLog.outString("Re-Loading MAI sequences and texts...");
+
+    if (!scripting::ReloadData("mai_script"))
     {
-        PSendSysMessage("DB scripts used currently, please attempt reload later.");
+        SendSysMessage("No script engine owns `mai_script`.");
         SetSentErrorMessage(true);
         return false;
     }
 
-    sLog.outString("Re-Loading Scripts...");
-    HandleReloadDBScriptsOnCreatureDeathCommand((char*)"a");
-    HandleReloadDBScriptsOnGoUseCommand((char*)"a");
-    HandleReloadDBScriptsOnGossipCommand((char*)"a");
-    HandleReloadDBScriptsOnEventCommand((char*)"a");
-    HandleReloadDBScriptsOnQuestEndCommand((char*)"a");
-    HandleReloadDBScriptsOnQuestStartCommand((char*)"a");
-    HandleReloadDBScriptsOnSpellCommand((char*)"a");
-    //HandleReloadDBScriptsOnCreatureSpellCommand((char*)"a");
-    SendGlobalSysMessage("DB tables `*_scripts` reloaded.", SEC_MODERATOR);
-    HandleReloadDbScriptStringCommand((char*)"a");
-    return true;
-}
+    if (!scripting::ReloadData("mai_text"))
+    {
+        SendSysMessage("No script engine owns `mai_text`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
 
-/**
- * @brief Handler for HandleReloadAllEventAICommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadAllEventAICommand(char* /*args*/)
-{
-    HandleReloadEventAITextsCommand((char*)"a");
-    HandleReloadEventAISummonsCommand((char*)"a");
-    HandleReloadEventAIScriptsCommand((char*)"a");
+    SendGlobalSysMessage("DB tables `mai_script`, `mai_step` and `mai_text` "
+                         "reloaded.", SEC_MODERATOR);
     return true;
 }
 
@@ -230,10 +224,11 @@ bool ChatHandler::HandleReloadAllEventAICommand(char* /*args*/)
  */
 bool ChatHandler::HandleReloadAllGossipsCommand(char* args)
 {
-    if (*args != 'a')                                       // already reload from all_scripts
-    {
-        HandleReloadDBScriptsOnGossipCommand((char*)"a");
-    }
+    // The gossip SEQUENCES are not reloaded here any more. They are not a
+    // gossip table -- they are rows of `mai_step` that a menu happens to name,
+    // and reloading them means rebuilding every sequence in the world. That is
+    // what `.reload all_scripts` is for.
+    (void)args;
     HandleReloadGossipMenuCommand((char*)"a");
     HandleReloadPointsOfInterestCommand((char*)"a");
     return true;
@@ -792,7 +787,7 @@ bool ChatHandler::HandleReloadSkillExtraItemTemplateCommand(char* /*args*/)
 bool ChatHandler::HandleReloadScriptBindingCommand(char* /*args*/)
 {
     sLog.outString("Trying to re-load `script_binding` Table!");
-    if (sScriptMgr.ReloadScriptBinding())
+    if (sScriptBindings.ReloadScriptBinding())
     {
         SendGlobalSysMessage("DB table `script_binding` reloaded.", SEC_MODERATOR);
     }
@@ -1042,299 +1037,69 @@ bool ChatHandler::HandleReloadBattleEventCommand(char* /*args*/)
 }
 
 /**
- * @brief Handler for HandleReloadEventAITextsCommand command.
+ * @brief Handler for HandleReloadMaiTextsCommand command.
  *
  * @param args Command arguments.
  * @returns True if the command executed successfully, false otherwise.
  */
-bool ChatHandler::HandleReloadEventAITextsCommand(char* /*args*/)
+bool ChatHandler::HandleReloadMaiTextsCommand(char* /*args*/)
 {
-    sLog.outString("Re-Loading Texts from `creature_ai_texts`...");
-    sEventAIMgr.LoadCreatureEventAI_Texts(true);
-    SendGlobalSysMessage("DB table `creature_ai_texts` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadEventAISummonsCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadEventAISummonsCommand(char* /*args*/)
-{
-    sLog.outString("Re-Loading Summons from `creature_ai_summons`...");
-    sEventAIMgr.LoadCreatureEventAI_Summons(true);
-    SendGlobalSysMessage("DB table `creature_ai_summons` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadEventAIScriptsCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadEventAIScriptsCommand(char* /*args*/)
-{
-    sLog.outString("Re-Loading Scripts from `creature_ai_scripts`...");
-    sEventAIMgr.LoadCreatureEventAI_Scripts();
-    SendGlobalSysMessage("DB table `creature_ai_scripts` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDbScriptStringCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDbScriptStringCommand(char* /*args*/)
-{
-    sLog.outString("Re-Loading Script strings from `db_script_string`...");
-    sScriptMgr.LoadDbScriptStrings();
-    SendGlobalSysMessage("DB table `db_script_string` reloaded.", SEC_MODERATOR);
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnGossipCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnGossipCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
+    sLog.outString("Re-Loading `mai_text`...");
+    if (!scripting::ReloadData("mai_text"))
     {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
+        SendSysMessage("No script engine owns `mai_text`.");
+        SetSentErrorMessage(true);
+        return false;
+    }
+    SendGlobalSysMessage("DB table `mai_text` reloaded.", SEC_MODERATOR);
+    return true;
+}
+
+/**
+ * @brief Handler for HandleReloadLuauCommand command.
+ *
+ * @param args Command arguments.
+ * @returns True if the command executed successfully, false otherwise.
+ */
+bool ChatHandler::HandleReloadLuauCommand(char* /*args*/)
+{
+    sLog.outString("Re-Loading Luau scripts...");
+    if (!scripting::ReloadData("luau"))
+    {
+        SendSysMessage("No script engine owns `luau`.");
         SetSentErrorMessage(true);
         return false;
     }
 
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_GOSSIP]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_GOSSIP]` reloaded.", SEC_MODERATOR);
-    }
-
+    SendGlobalSysMessage("Luau scripts reloaded.", SEC_MODERATOR);
     return true;
 }
 
 /**
- * @brief Handler for HandleReloadDBScriptsOnSpellCommand command.
+ * @brief Handler for HandleReloadMaiScriptsCommand command.
+ *
+ * One command where there were nine. `dbscripts_on_gossip`, `_spell`,
+ * `_quest_start`, `_quest_end`, `_event`, `_go_use`, `_go_template_use`,
+ * `_creature_death`, `_creature_movement` and `db_script_string` each had a
+ * handler that reloaded one table into a store nothing reads any more --
+ * MAI reads `mai_script` and `mai_step`, and reloading a sequence means
+ * rebuilding all of them, because a sequence can start another by id.
  *
  * @param args Command arguments.
  * @returns True if the command executed successfully, false otherwise.
  */
-bool ChatHandler::HandleReloadDBScriptsOnSpellCommand(char* args)
+bool ChatHandler::HandleReloadMaiScriptsCommand(char* /*args*/)
 {
-    if (sScriptMgr.IsScriptScheduled())
+    sLog.outString("Re-Loading `mai_script` and `mai_step`...");
+    if (!scripting::ReloadData("mai_script"))
     {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
+        SendSysMessage("No script engine owns `mai_script`.");
         SetSentErrorMessage(true);
         return false;
     }
 
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_SPELL]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_SPELL);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_SPELL]` reloaded.", SEC_MODERATOR);
-    }
-
-    return true;
-}
-
-///**
-// * @brief Handler for HandleReloadDBScriptsOnCreatureSpellCommand command.
-// *
-// * @param args Command arguments.
-// * @returns True if the command executed successfully, false otherwise.
-// */
-//bool ChatHandler::HandleReloadDBScriptsOnCreatureSpellCommand(char* args)
-//{
-//    if (sScriptMgr.IsScriptScheduled())
-//    {
-//        SendSysMessage("DB scripts used currently, please attempt reload later.");
-//        SetSentErrorMessage(true);
-//        return false;
-//    }
-//
-//    if (*args != 'a')
-//    {
-//        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_CREATURE_SPELL]`...");
-//    }
-//
-//    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_SPELL);
-//
-//    if (*args != 'a')
-//    {
-//        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_CREATURE_SPELL]` reloaded.", SEC_MODERATOR);
-//    }
-//
-//    return true;
-//}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnQuestStartCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnQuestStartCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
-    {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_QUEST_START]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_QUEST_START]` reloaded.", SEC_MODERATOR);
-    }
-
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnQuestEndCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnQuestEndCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
-    {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_QUEST_END]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_QUEST_END]` reloaded.", SEC_MODERATOR);
-    }
-
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnEventCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnEventCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
-    {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_EVENT]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_EVENT);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_EVENT]` reloaded.", SEC_MODERATOR);
-    }
-
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnGoUseCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnGoUseCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
-    {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_GO[_TEMPLATE]_USE]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);
-    sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_GO[_TEMPLATE]_USE]` reloaded.", SEC_MODERATOR);
-    }
-
-    return true;
-}
-
-/**
- * @brief Handler for HandleReloadDBScriptsOnCreatureDeathCommand command.
- *
- * @param args Command arguments.
- * @returns True if the command executed successfully, false otherwise.
- */
-bool ChatHandler::HandleReloadDBScriptsOnCreatureDeathCommand(char* args)
-{
-    if (sScriptMgr.IsScriptScheduled())
-    {
-        SendSysMessage("DB scripts used currently, please attempt reload later.");
-        SetSentErrorMessage(true);
-        return false;
-    }
-
-    if (*args != 'a')
-    {
-        sLog.outString("Re-Loading Scripts from `db_scripts [type = DBS_ON_CREATURE_DEATH]`...");
-    }
-
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);
-
-    if (*args != 'a')
-    {
-        SendGlobalSysMessage("DB table `db_scripts [type = DBS_ON_CREATURE_DEATH]` reloaded.", SEC_MODERATOR);
-    }
-
+    SendGlobalSysMessage("DB tables `mai_script` and `mai_step` reloaded.",
+                         SEC_MODERATOR);
     return true;
 }
 

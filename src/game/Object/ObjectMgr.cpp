@@ -38,7 +38,7 @@
 #include "Log.h"
 #include "MapManager.h"
 #include "ObjectGuid.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "SpellMgr.h"
 #include "World.h"
 #include "Group.h"
@@ -380,18 +380,6 @@ void ObjectMgr::AddLocaleString(std::string const& s, LocaleConstant locale, Str
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 // name must be checked to correctness (if received) before call this function
 ObjectGuid ObjectMgr::GetPlayerGuidByName(std::string name) const
 {
@@ -524,12 +512,6 @@ uint32 ObjectMgr::GetPlayerAccountIdByPlayerName(const std::string& name) const
 
 
 
-
-
-
-
-
-
 /* ********************************************************************************************* */
 /* *                                Static Wrappers                                              */
 /* ********************************************************************************************* */
@@ -614,8 +596,6 @@ CreatureDataAddon const* ObjectMgr::GetCreatureTemplateAddon(uint32 entry) { ret
  * @return The item prototype, or null if missing.
  */
 ItemPrototype const* ObjectMgr::GetItemPrototype(uint32 id) { return sItemStorage.LookupEntry<ItemPrototype>(id); }
-
-
 
 
 
@@ -777,14 +757,12 @@ void ObjectMgr::LoadPetCreateSpells()
     sLog.outString(">> Loaded %u pet create spells from table and %u from DBC", count, dcount);
 }
 
-
-
 struct SQLInstanceLoader : public SQLStorageLoaderBase<SQLInstanceLoader, SQLStorage>
 {
     template<class D>
     void convert_from_str(uint32 /*field_pos*/, char const* src, D& dst)
     {
-        dst = D(sScriptMgr.GetScriptId(src));
+        dst = D(sScriptBindings.GetScriptId(src));
     }
 };
 
@@ -869,7 +847,7 @@ struct SQLWorldLoader : public SQLStorageLoaderBase<SQLWorldLoader, SQLStorage>
     template<class D>
     void convert_from_str(uint32 /*field_pos*/, char const* src, D& dst)
     {
-        dst = D(sScriptMgr.GetScriptId(src));
+        dst = D(sScriptBindings.GetScriptId(src));
     }
 };
 
@@ -916,8 +894,6 @@ GossipText const* ObjectMgr::GetGossipText(uint32 Text_ID) const
     }
     return NULL;
 }
-
-
 
 // not very fast function but it is called only once a day, or on starting-up
 /// @param serverUp true if the server is already running, false when the server is started
@@ -1158,12 +1134,6 @@ void ObjectMgr::LoadTavernAreaTriggers()
 
 
 
-
-
-
-
-
-
 /**
  * @brief Renumbers group ids into a compact sequential range.
  */
@@ -1315,12 +1285,6 @@ void ObjectMgr::SetHighestGuids()
     m_StaticGameObjectGuids.Set(m_FirstTemporaryGameObjectGuid);
     m_FirstTemporaryGameObjectGuid += sWorld.getConfig(CONFIG_UINT32_GUID_RESERVE_SIZE_GAMEOBJECT);
 }
-
-
-
-
-
-
 
 
 
@@ -1530,8 +1494,6 @@ void ObjectMgr::LoadCorpses()
 }
 
 
-
-
 /**
  * @brief Loads point-of-interest definitions used by NPC map markers.
  */
@@ -1720,12 +1682,6 @@ void ObjectMgr::DeleteCorpseCellData(uint32 mapid, uint32 cellid, uint32 player_
 
 
 
-
-
-
-
-
-
 /**
  * @brief Gets the internal locale index for a locale constant.
  *
@@ -1831,17 +1787,38 @@ inline void _DoStringError(int32 entry, char const* text, ...)
  *
  * @param db The database to query.
  * @param table The source table name.
- * @param min_value The inclusive lower id bound.
- * @param max_value The exclusive upper id bound.
+ * @param min_value The inclusive lower id bound, or ANY_TEXT_STRING_ID.
+ * @param max_value The exclusive upper id bound, or ANY_TEXT_STRING_ID.
  * @param extra_content true to also load sound/chat metadata.
  * @return true if the load succeeded; otherwise, false.
  */
 bool ObjectMgr::LoadMangosStrings(DatabaseType& db, char const* table, int32 min_value, int32 max_value, bool extra_content)
 {
+    // A table that owns every id it holds says so with an empty range, and
+    // there is exactly one: `mai_text`. It is the three text tables merged
+    // with not one id changed -- which was the point, so that every existing
+    // reference still points at what it pointed at -- so it spans EventAI's
+    // range, ScriptDev's range below that, and the DB scripts' positive range,
+    // three disjoint spans that no single (min, max) pair can describe.
+    //
+    // The range check was never about the ids anyway. It was about three
+    // tables sharing one map and having to be told apart; with one table
+    // there is nothing to tell apart, and the already-loaded test below still
+    // catches a genuine collision with `mangos_string`.
+    bool const wholeTable = (min_value == ANY_TEXT_STRING_ID &&
+                             max_value == ANY_TEXT_STRING_ID);
+
     int32 start_value = min_value;
     int32 end_value   = max_value;
     // some string can have negative indexes range
-    if (start_value < 0)
+    if (wholeTable)
+    {
+        // Everything that is not a `mangos_string` id. Used only for the
+        // reload cleanup below; no row is refused for its id.
+        start_value = std::numeric_limits<int32>::min();
+        end_value   = std::numeric_limits<int32>::max();
+    }
+    else if (start_value < 0)
     {
         if (end_value >= start_value)
         {
@@ -1866,7 +1843,16 @@ bool ObjectMgr::LoadMangosStrings(DatabaseType& db, char const* table, int32 min
     // cleanup affected map part for reloading case
     for (MangosStringLocaleMap::iterator itr = mMangosStringLocaleMap.begin(); itr != mMangosStringLocaleMap.end();)
     {
-        if (itr->first >= start_value && itr->first < end_value)
+        // A whole-table reload drops everything except `mangos_string`'s own
+        // ids, which are the one range it does not own and must not clear:
+        // those are the core's messages, loaded before any world table and
+        // never reloaded from here.
+        bool const mine = wholeTable
+            ? (itr->first < MIN_MANGOS_STRING_ID ||
+               itr->first >= MAX_MANGOS_STRING_ID)
+            : (itr->first >= start_value && itr->first < end_value);
+
+        if (mine)
         {
             mMangosStringLocaleMap.erase(itr++);
         }
@@ -1915,7 +1901,7 @@ bool ObjectMgr::LoadMangosStrings(DatabaseType& db, char const* table, int32 min
             _DoStringError(start_value, "Table `%s` contain reserved entry 0, ignored.", table);
             continue;
         }
-        else if (entry < start_value || entry >= end_value)
+        else if (!wholeTable && (entry < start_value || entry >= end_value))
         {
             _DoStringError(start_value, "Table `%s` contain entry %i out of allowed range (%d - %d), ignored.", table, entry, min_value, max_value);
             continue;
@@ -2945,8 +2931,6 @@ SkillRangeType GetSkillRangeType(SkillLineEntry const* pSkill, bool racial)
 
 
 
-
-
 void ObjectMgr::LoadMailLevelRewards()
 {
     m_mailLevelRewardMap.clear();                           // for reload case
@@ -3012,8 +2996,6 @@ void ObjectMgr::LoadMailLevelRewards()
     sLog.outString();
     sLog.outString(">> Loaded %u level dependent mail rewards,", count);
 }
-
-
 
 
 
@@ -3164,8 +3146,6 @@ ObjectMgr::LivingWorldStartupStats ObjectMgr::LoadActiveEntities(Map* _map)
 
     return ObjectMgr::LivingWorldStartupStats();
 }
-
-
 
 
 void ObjectMgr::AddVendorItem(uint32 entry, uint32 item, uint32 maxcount, uint32 incrtime, uint32 extendedcost)
@@ -3400,8 +3380,6 @@ void ObjectMgr::RemoveArenaTeam(uint32 Id)
 {
     mArenaTeamMap.erase(Id);
 }
-
-
 
 
 

@@ -48,6 +48,8 @@
  * - CMSG_BUY_STABLE_SLOT: Buy stable slot
  */
 
+#include "ScriptHost.h"
+#include "WorldHooks.h"
 #include "Platform/Define.h"
 #include <algorithm>
 #include "Language.h"
@@ -60,7 +62,6 @@
 #include "SpellMgr.h"
 #include "Player.h"
 #include "GossipDef.h"
-#include "ScriptMgr.h"
 #include "Creature.h"
 #include "Pet.h"
 #include "Guild.h"
@@ -70,11 +71,6 @@
 #include "World.h"
 #include "Item.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 enum StableResultCode
 {
@@ -456,7 +452,7 @@ void WorldSession::HandleGossipHelloOpcode(WorldPacket& recv_data)
         pCreature->SendAreaSpiritHealerQueryOpcode(_player);
     }
 
-    if (!sScriptMgr.OnGossipHello(_player, pCreature))
+    if (!scripting::GossipHello(_player, pCreature))
     {
         _player->PrepareGossipMenu(pCreature, pCreature->GetCreatureInfo()->GossipMenuId);
         _player->SendPreparedGossip(pCreature);
@@ -504,7 +500,7 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
             return;
         }
 
-        if (!sScriptMgr.OnGossipSelect(_player, pCreature, sender, action, code.empty() ? NULL : code.c_str()))
+        if (!scripting::GossipSelect(_player, pCreature, sender, action, code.empty() ? NULL : code.c_str()))
         {
             _player->OnGossipSelect(pCreature, gossipListId, menuId);
         }
@@ -519,7 +515,7 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
             return;
         }
 
-        if (!sScriptMgr.OnGossipSelect(_player, pGo, sender, action, code.empty() ? NULL : code.c_str()))
+        if (!scripting::GossipSelect(_player, pGo, sender, action, code.empty() ? NULL : code.c_str()))
         {
             _player->OnGossipSelect(pGo, gossipListId, menuId);
         }
@@ -533,20 +529,13 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
             return;
         }
 
-        if (!sScriptMgr.OnGossipSelect(_player, item, sender, action, code.empty() ? NULL : code.c_str()))
+        if (!scripting::GossipSelect(_player, item, sender, action, code.empty() ? NULL : code.c_str()))
         {
             DEBUG_LOG("WORLD: HandleGossipSelectOptionOpcode - item script for %s not found or you can't interact with it.", item->GetProto()->Name1);
             return;
         }
 
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = GetPlayer()->GetEluna())
-        {
-            e->HandleGossipSelectOption(GetPlayer(), item, GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId), GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId), code);
-        }
-#endif /* ENABLE_ELUNA */
     }
     else if (guid.IsPlayer())
     {
@@ -556,13 +545,6 @@ void WorldSession::HandleGossipSelectOptionOpcode(WorldPacket& recv_data)
             return;
         }
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = GetPlayer()->GetEluna())
-        {
-            e->HandleGossipSelectOption(GetPlayer(), GetPlayer()->PlayerTalkClass->GetGossipMenu().GetMenuId(), GetPlayer()->PlayerTalkClass->GossipOptionSender(gossipListId), GetPlayer()->PlayerTalkClass->GossipOptionAction(gossipListId), code);
-        }
-#endif /* ENABLE_ELUNA */
     }
 }
 

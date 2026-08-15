@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/PackedValues.h"
 #include "Player.h"
 #include "Language.h"
@@ -65,17 +66,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Builds the current gossip menu for a source object.
@@ -484,17 +480,13 @@ void Player::OnGossipSelect(WorldObject* pSource, uint32 gossipListId, uint32 me
         }
     }
 
-    if (pMenuData && menuData.m_gAction_script)
-    {
-        if (pSource->GetTypeId() == TYPEID_UNIT)
-        {
-            GetMap()->ScriptsStart(DBS_ON_GOSSIP, menuData.m_gAction_script, pSource, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
-        }
-        else if (pSource->GetTypeId() == TYPEID_GAMEOBJECT)
-        {
-            GetMap()->ScriptsStart(DBS_ON_GOSSIP, menuData.m_gAction_script, this, pSource, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET);
-        }
-    }
+    // The world says which line of which menu was chosen. Whether anything
+    // is bound to it, and which of the two ends the binding is keyed on, is
+    // the listening engine's business.
+    scripting::Notify(GetMap(),
+        scripting::GossipActionChosen{ scripting::RefOf(this),
+                                       scripting::RefOf(pSource),
+                                       menuId, gossipListId });
 }
 
 /**
@@ -552,11 +544,12 @@ uint32 Player::GetGossipTextId(uint32 menuId, WorldObject* pSource)
         }
     }
 
-    // Start related script
-    if (scriptId)
-    {
-        GetMap()->ScriptsStart(DBS_ON_GOSSIP, scriptId, this, pSource, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET);
-    }
+    // The menu, and which of its rows the conditions selected. What is bound
+    // to that row is not the world's question.
+    scripting::Notify(GetMap(),
+        scripting::GossipMenuShown{ scripting::RefOf(this),
+                                    scripting::RefOf(pSource),
+                                    menuId, textId });
 
     return textId;
 }

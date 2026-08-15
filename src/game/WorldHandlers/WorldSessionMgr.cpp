@@ -59,7 +59,6 @@
 #include "AccountMgr.h"
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
-#include "CreatureEventAIMgr.h"
 #include "GuildMgr.h"
 #include "SpellMgr.h"
 #include "Chat.h"
@@ -68,7 +67,6 @@
 #include "LootMgr.h"
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
-#include "ScriptMgr.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"
@@ -97,15 +95,6 @@
 #include "WardenCheckMgr.h"
 #include "SystemConfig.h"
 #include <iostream>
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaLoader.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "PlayerbotAIConfig.h"
 #endif /* ENABLE_PLAYERBOTS */

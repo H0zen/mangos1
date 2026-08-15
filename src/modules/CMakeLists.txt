@@ -18,15 +18,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# SD3 and Eluna link the `game` library, which only exists when BUILD_MANGOSD.
-# Guard on BOTH the script-lib option AND BUILD_MANGOSD so a server-less
-# configure does not try to build them.
-if(BUILD_MANGOSD AND SCRIPT_LIB_SD3)
-    add_subdirectory(SD3)
-    mangos_submodule_compat(mangosscript
-        "${CMAKE_SOURCE_DIR}/src/shared/Compat/sd3")
-endif()
-
-if(BUILD_MANGOSD AND SCRIPT_LIB_ELUNA)
-    add_subdirectory(Eluna)
-endif()
+# Nothing here builds a target of its own any more.
+#
+# SD3 used to: a `mangosscript` static library that linked `game` while `game`
+# linked it back, a cycle that only held together because static libraries
+# forgive one. It is a scripting engine now and lives where the other engines
+# live, in src/game/Scripting/sd3/, compiled straight into `game` -- so the
+# cycle is gone rather than tolerated.
+#
+# Bots is the one module left and it never had a target either: `game` globs
+# its sources directly. The directory stays for it.
+#
+# This file exists so `add_subdirectory(modules)` in src/CMakeLists.txt keeps
+# working and so the next module has an obvious place to land.

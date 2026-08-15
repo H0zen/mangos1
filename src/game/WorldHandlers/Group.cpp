@@ -44,6 +44,7 @@
  * @see GroupMgr for group management
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -59,11 +60,6 @@
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
 #include "LootMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 #define LOOT_ROLL_TIMEOUT  (1*MINUTE*IN_MILLISECONDS)
 
@@ -192,13 +188,6 @@ bool Group::Create(ObjectGuid guid, const char* name)
         CharacterDatabase.CommitTransaction();
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnCreate(this, m_leaderGuid, m_groupType);
-    }
-#endif /* ENABLE_ELUNA */
 
     return true;
 }
@@ -333,13 +322,6 @@ bool Group::AddInvite(Player* player)
 
     player->SetGroupInvite(this);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnInviteMember(this, player->GetObjectGuid());
-    }
-#endif /* ENABLE_ELUNA */
 
     return true;
 }
@@ -459,13 +441,6 @@ bool Group::AddMember(ObjectGuid guid, const char* name)
         player->SetGroupUpdateFlag(GROUP_UPDATE_FULL);
         UpdatePlayerOutOfRange(player);
 
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = sWorld.GetEluna())
-        {
-            e->OnAddMember(this, player->GetObjectGuid());
-        }
-#endif /* ENABLE_ELUNA */
 
         // quest related GO state dependent from raid membership
         if (isRaidGroup())
@@ -537,13 +512,6 @@ uint32 Group::RemoveMember(ObjectGuid guid, uint8 removeMethod)
         Disband(true);
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnRemoveMember(this, guid, removeMethod); // Kicker and Reason not a part of Mangos, implement?
-    }
-#endif /* ENABLE_ELUNA */
 
     return m_memberSlots.size();
 }
@@ -561,13 +529,6 @@ void Group::ChangeLeader(ObjectGuid guid)
         return;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnChangeLeader(this, guid, GetLeaderGuid());
-    }
-#endif /* ENABLE_ELUNA */
 
     _setLeader(guid);
 
@@ -659,13 +620,6 @@ void Group::Disband(bool hideDestroy)
         ResetInstances(INSTANCE_RESET_GROUP_DISBAND, NULL);
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnDisband(this);
-    }
-#endif /* ENABLE_ELUNA */
 
     m_leaderGuid.Clear();
     m_leaderName.clear();

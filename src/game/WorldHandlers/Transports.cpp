@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Platform/Define.h"
 #include <algorithm>
 #include <cmath>
@@ -47,7 +48,6 @@
 
 #include "DBCStores.h"
 #include "ProgressBar.h"
-#include "ScriptMgr.h"
 
 /**
  * @brief Loads and initializes all configured global transports.
@@ -932,9 +932,11 @@ void Transport::DoEventIfAny(WayPointMap::value_type const& node, bool departure
     {
         DEBUG_FILTER_LOG(LOG_FILTER_TRANSPORT_MOVES, "Taxi %s event %u of node %u of %s \"%s\") path", departure ? "departure" : "arrival", eventid, node.first, GetGuidStr().c_str(), GetName());
 
-        if (!sScriptMgr.OnProcessEvent(eventid, this, this, departure))
-        {
-            GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, this, this);
-        }
+        // departure is the isStart of this event: leaving a node starts
+        // something, arriving at one ends it.
+        scripting::Notify(GetMap(),
+            scripting::ServerEventRaised{ scripting::RefOf(this),
+                                          scripting::RefOf(this),
+                                          eventid, departure });
     }
 }

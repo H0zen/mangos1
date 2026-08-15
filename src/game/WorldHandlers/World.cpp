@@ -43,6 +43,7 @@
  * @ingroup world
  */
 
+#include "ScriptHost.h"
 #include "Common/Locales.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
@@ -61,7 +62,6 @@
 #include "AccountMgr.h"
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
-#include "CreatureEventAIMgr.h"
 #include "GuildMgr.h"
 #include "SpellMgr.h"
 #include "combat/SpellFactsStore.h"
@@ -72,7 +72,6 @@
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
 #include "DataIntegrity/DataManifest.h"
-#include "ScriptMgr.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"
@@ -102,11 +101,6 @@
 #include "UpdateTime.h"
 #include "GameTime.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include "ElunaConfig.h"
-#include "ElunaLoader.h"
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
 
@@ -129,8 +123,6 @@
 #include <vector>
 #include "PlayerRegistry.h"
 #include "CorpseManager.h"
-
-
 
 // 0 == running. A stop sets STOP_BIT and the exit code together, in one publish.
 std::atomic<uint32> World::m_shutdownState = 0;
@@ -250,11 +242,6 @@ World::World()
 /// World destructor
 World::~World()
 {
-#ifdef ENABLE_ELUNA
-    // Delete world Eluna state
-    delete eluna;
-    eluna = nullptr;
-#endif /* ENABLE_ELUNA */
 
     ///- Empty the kicked session set
     while (!m_sessions.empty())
@@ -300,8 +287,6 @@ void World::CleanupsBeforeStop()
     UpdateSessions(1);                               // real players unload required UpdateSessions call
     sBattleGroundMgr.DeleteAllBattleGrounds();       // unload battleground templates before different singletons destroyed
 }
-
-
 
 
 void
@@ -388,8 +373,6 @@ World::AddSession_(WorldSession* s)
         DETAIL_LOG("Server Population (%f).", popu);
     }
 }
-
-
 
 
 
@@ -556,9 +539,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading SpellTemplate...");
     sObjectMgr.LoadSpellTemplate();
 
-    sLog.outString("Loading Script Names...");
-    sScriptMgr.LoadScriptNames();
-
     sLog.outString("Loading InstanceTemplate...");
     sObjectMgr.LoadInstanceTemplate();
 
@@ -582,22 +562,6 @@ void World::SetInitialWorldSettings()
     sObjectMgr.SetHighestGuids();                           // must be after packing instances
     sLog.outString();
 
-#ifdef ENABLE_ELUNA
-    ///- Initialize Lua Engine
-
-    // lua state begins uninitialized
-    eluna = nullptr;
-
-    sLog.outString("Loading Eluna config...");
-    sElunaConfig->Initialize();
-
-    if (sElunaConfig->IsElunaEnabled())
-    {
-        ///- Initialize Lua Engine
-        sLog.outString("Loading Lua scripts...");
-        sElunaLoader->LoadScripts();
-    }
-#endif /* ENABLE_ELUNA */
 
     sLog.outString("World data");
 
@@ -779,10 +743,8 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Tavern Area Triggers...");
     sObjectMgr.LoadTavernAreaTriggers();
 
-#ifdef ENABLE_SD3
-    sLog.outString("Loading all script bindings...");
-    sScriptMgr.LoadScriptBinding();
-#endif /* ENABLE_SD3 */
+    ///- Nothing world-specific is needed yet; an engine may bind script names.
+    scripting::LoadData(scripting::LoadPhase::Bindings);
 
     sLog.outString("Loading Graveyard-zone links...");
     sObjectMgr.LoadGraveyardZones();
@@ -846,9 +808,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Skill Fishing base level requirements...");
     sObjectMgr.LoadFishingBaseSkillLevel();
 
-    sLog.outString("Loading Gossip scripts...");
-    sScriptMgr.LoadDbScripts(DBS_ON_GOSSIP);                 // must be before gossip menu options
-
     sObjectMgr.LoadGossipMenus();
 
     sLog.outString("Loading Vendors...");
@@ -858,9 +817,6 @@ void World::SetInitialWorldSettings()
     sLog.outString("Loading Trainers...");
     sObjectMgr.LoadTrainerTemplates();                      // must be after load CreatureTemplate
     sObjectMgr.LoadTrainers();                              // must be after load CreatureTemplate, TrainerTemplate
-
-    sLog.outString("Loading Waypoint scripts...");          // before loading from creature_movement
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_MOVEMENT);
 
     sLog.outString("Loading Waypoints...");
     sWaypointMgr.Load();
@@ -933,27 +889,11 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Scripts");
 
-#ifdef ENABLE_ELUNA
-    if (sElunaConfig->IsElunaEnabled())
-    {
-        ///- Run eluna scripts.
-        sLog.outString("Starting Eluna world state...");
-        // use map id -1 for the global Eluna state
-        eluna = new Eluna(nullptr);
-        sLog.outString();
-    }
-#endif /*ENABLE_ELUNA*/
 
-    ///- Load and initialize DBScripts Engine
-    sLog.outString("Loading DB-Scripts Engine...");
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_START);           // must be after load Creature/Gameobject(Template/Data) and QuestTemplate
-    sScriptMgr.LoadDbScripts(DBS_ON_QUEST_END);             // must be after load Creature/Gameobject(Template/Data) and QuestTemplate
-    sScriptMgr.LoadDbScripts(DBS_ON_SPELL);                 // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_GO_USE);                // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_GOT_USE);               // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_EVENT);                 // must be after load Creature/Gameobject(Template/Data)
-    sScriptMgr.LoadDbScripts(DBS_ON_CREATURE_DEATH);        // must be after load Creature/Gameobject(Template/Data)
-    sLog.outString(">>> DB Scripts loaded");
+    ///- The creature and gameobject templates, their spawn data and the
+    ///  quests are all in place now, which is what most scripted data has to
+    ///  be checked against.
+    scripting::LoadData(scripting::LoadPhase::AfterTemplates);
     sLog.outString();
 
     if (StartupAborted("script libraries"))
@@ -961,40 +901,15 @@ void World::SetInitialWorldSettings()
         return;
     }
 
-    sLog.outString("Loading Scripts text locales...");      // must be after Load*Scripts calls
-    sScriptMgr.LoadDbScriptStrings();
+    ///- Every world table is in place; the engines read their own.
+    ///
+    /// WHICH tables those are, and what each needs loaded before it can be
+    /// checked, is the engine's business. This used to name them one at a
+    /// time -- three EventAI tables here, with the note about why two of them
+    /// load unchecked -- which made the world the keeper of every engine's
+    /// load order.
+    scripting::LoadData(scripting::LoadPhase::Final);
 
-    ///- Load and initialize EventAI Scripts
-    sLog.outString("Loading CreatureEventAI Texts...");
-    sEventAIMgr.LoadCreatureEventAI_Texts(false);           // false, will checked in LoadCreatureEventAI_Scripts
-
-    sLog.outString("Loading CreatureEventAI Summons...");
-    sEventAIMgr.LoadCreatureEventAI_Summons(false);         // false, will checked in LoadCreatureEventAI_Scripts
-
-    sLog.outString("Loading CreatureEventAI Scripts...");
-    sEventAIMgr.LoadCreatureEventAI_Scripts();
-
-    sLog.outString("Initializing Scripts...");
-#ifdef ENABLE_SD3
-    switch (sScriptMgr.LoadScriptLibrary("mangosscript"))
-    {
-        case SCRIPT_LOAD_OK:
-            sLog.outString("Scripting library loaded.");
-            break;
-        case SCRIPT_LOAD_ERR_NOT_FOUND:
-            sLog.outError("Scripting library not found or not accessible.");
-            break;
-        case SCRIPT_LOAD_ERR_WRONG_API:
-            sLog.outError("Scripting library has wrong list functions (outdated?).");
-            break;
-        case SCRIPT_LOAD_ERR_OUTDATED:
-            sLog.outError("Scripting library build for old mangosd revision. You need rebuild it.");
-            break;
-    }
-#else /* ENABLE_SD3 */
-    sLog.outError("SD3 was not included in compilation, not using it.");
-#endif /* ENABLE_SD3 */
-    sLog.outString();
 
     sLog.outString("World systems");
 
@@ -1111,14 +1026,10 @@ void World::SetInitialWorldSettings()
     sAuctionBot.Initialize();
     sLog.outString();
 
-#ifdef ENABLE_ELUNA
-    ///- Run eluna scripts.
-    // in multithread foreach: run scripts
-    if (Eluna* e = GetEluna())
-    {
-        e->OnConfigLoad(false); // Must be done after Eluna is initialized and scripts have run.
-    }
-#endif
+    ///- Tell the scripts the configuration is up. Must come after the engines
+    /// are initialised and their scripts have run.
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerConfigLoad{ false });
 
 #ifdef ENABLE_PLAYERBOTS
     sPlayerbotAIConfig.Initialize();
@@ -1141,7 +1052,7 @@ void World::SetInitialWorldSettings()
 
 namespace
 {
-    /// "Eluna, ScriptDev3, Warden" -- or "none" for an empty list.
+    /// "ScriptDev3, Warden" -- or "none" for an empty list.
     std::string JoinList(const std::vector<std::string>& items)
     {
         std::string joined;
@@ -1170,10 +1081,7 @@ void World::showFooter(uint32 startupMs)
     std::vector<std::string> enabled;
     std::vector<std::string> disabled;
 
-    // Eluna and SD3 are either compiled in or not there at all.
-#ifdef ENABLE_ELUNA
-    enabled.push_back("Eluna");
-#endif
+    // SD3 is either compiled in or not there at all.
 
 #ifdef ENABLE_SD3
     enabled.push_back("ScriptDev3");
@@ -1239,8 +1147,6 @@ void World::showFooter(uint32 startupMs)
     // what survives a redirected stdout.
     sLog.outString("World initialization complete (%s)", ready);
     sLog.outString("    server   : %s", GitRevision::GetProductVersionStr());
-    sLog.outString("    eluna    : %s", GitRevision::GetDepElunaFullRevision());
-    sLog.outString("    sd3      : %s", GitRevision::GetDepSD3FullRevision());
     sLog.outString("    database : %s", database);
     sLog.outString("    clients  : %s", EXPECTED_MANGOSD_CLIENT_VERSION);
     sLog.outString("    builds   : %s", AcceptableClientBuildsListStr().c_str());
@@ -1400,14 +1306,9 @@ void World::Update(uint32 diff)
     sBattleGroundMgr.Update(diff);
     sOutdoorPvPMgr.Update(diff);
 
-    ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->UpdateEluna(diff);
-        e->OnWorldUpdate(diff);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Tick(scripting::GlobalContext(), diff);
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerWorldUpdate{ diff });
 
     ///- Delete all characters which have been deleted X days before
     if (m_timers[WUPDATE_DELETECHARS].Passed())
@@ -1816,13 +1717,8 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode)
     sRandomPlayerbotMgr.LogoutAllBots();
 #endif
 
-    ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnShutdownInitiate(ShutdownExitCode(exitcode), ShutdownMask(options));
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerShutdownInit{ exitcode, options });
 }
 
 void World::LoadScheduledExitConfig()
@@ -2090,13 +1986,8 @@ void World::ShutdownCancel()
 
     DEBUG_LOG("Server %s cancelled.", (m_ShutdownMask & SHUTDOWN_MASK_RESTART) ? "restart" : "shutdown");
 
-    ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnShutdownCancel();
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(scripting::GlobalContext(),
+        scripting::ServerShutdownCancel{ scripting::Ref{ 0 } });
 }
 
 /**
@@ -2309,14 +2200,6 @@ void World::UpdateMaxSessionCounters()
     m_maxActiveSessionCount = std::max(m_maxActiveSessionCount, uint32(m_sessions.size() - m_QueuedSessions.size()));
     m_maxQueuedSessionCount = std::max(m_maxQueuedSessionCount, uint32(m_QueuedSessions.size()));
 }
-
-
-
-
-
-
-
-
 
 
 

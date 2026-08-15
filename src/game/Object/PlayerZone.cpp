@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Transports.h"
 #include "TransportMap.h"
@@ -66,17 +67,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
 
@@ -271,13 +267,10 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
         }
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnUpdateZone(this, newZone, newArea);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerUpdateZone{ scripting::RefOf(this),
+                             newZone,
+                             newArea });
 
     m_zoneUpdateId    = newZone;
     m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;

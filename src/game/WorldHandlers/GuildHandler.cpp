@@ -61,10 +61,6 @@
 #include "GuildMgr.h"
 #include "SocialMgr.h"
 #include "PlayerRegistry.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 void WorldSession::HandleGuildQueryOpcode(WorldPacket& recvPacket)
 {

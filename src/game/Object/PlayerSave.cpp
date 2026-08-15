@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Utilities/PackedValues.h"
 #include "Player.h"
@@ -68,23 +69,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <cstdio>
-#include <ctime>
-#include <list>
-#include <sstream>
-#include <string>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 #define PLAYER_SKILL_INDEX(x)       (PLAYER_SKILL_INFO_1_1 + ((x)*3))
 
@@ -126,16 +116,14 @@ void Player::SaveToDB()
     CharacterDatabase.BeginTransaction();
 
 
-#ifdef ENABLE_ELUNA
-    // Hack to check that this is not on create save
-    if (Eluna* e = GetEluna())
+    // The AT_LOGIN_FIRST test is not incidental: SaveToDB also runs for the
+    // very first save of a freshly created character, and the scripts must
+    // not see that as an ordinary save.
+    if (!HasAtLoginFlag(AT_LOGIN_FIRST))
     {
-        if (!HasAtLoginFlag(AT_LOGIN_FIRST))
-        {
-            e->OnSave(this);
-        }
+        scripting::Notify(this,
+            scripting::PlayerSave{ scripting::RefOf(this) });
     }
-#endif /* ENABLE_ELUNA */
 
     static SqlStatementID delChar ;
     static SqlStatementID insChar ;
@@ -1294,13 +1282,9 @@ void Player::UpdateDuelFlag(time_t currTime)
         return;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnDuelStart(this, duel->opponent);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerDuelStart{ scripting::RefOf(this),
+                            scripting::RefOf(duel->opponent) });
 
     SetUInt32Value(PLAYER_DUEL_TEAM, 1);
     duel->opponent->SetUInt32Value(PLAYER_DUEL_TEAM, 2);

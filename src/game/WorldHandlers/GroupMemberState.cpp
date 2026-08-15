@@ -61,10 +61,6 @@
 #include "MapManager.h"
 #include "MapPersistentStateMgr.h"
 #include "LootMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Adds a member to the first available subgroup.

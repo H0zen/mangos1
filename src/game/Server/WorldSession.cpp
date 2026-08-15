@@ -46,6 +46,7 @@
  * @see OpcodeTable.cpp for opcode registration
  */
 
+#include "ScriptHost.h"
 #include <zlib.h>
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
@@ -67,9 +68,6 @@
 #include "World.h"
 #include "BattleGround/BattleGroundMgr.h"
 #include "SocialMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot.h"
 #endif
@@ -729,13 +727,6 @@ void WorldSession::LogoutPlayer(bool Save)
         uint32 guid = GetPlayer()->GetGUIDLow();
 #endif
 
-        ///- Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = sWorld.GetEluna())
-        {
-            e->OnLogout(_player);
-        }
-#endif /* ENABLE_ELUNA */
 
         ///- Remove the player from the world
         // the player may not be in the world when logging out
@@ -823,7 +814,7 @@ void WorldSession::HandlePingOpcode(WorldPacket& recv_data)
 /**
  * @brief Handles a client keep-alive.
  *
- * Runs here, on the world/map thread. ExecuteOpcode() invokes the Eluna packet hook
+ * Runs here, on the world/map thread. ExecuteOpcode() raises the packet event
  * before dispatch, so this handler must not invoke it a second time.
  */
 void WorldSession::HandleKeepAliveOpcode(WorldPacket& recv_data)
@@ -1103,15 +1094,6 @@ void WorldSession::ExecuteOpcode(OpcodeHandler const& opHandle, WorldPacket* pac
         return;
     }
 
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        if (!e->OnPacketReceive(this, *packet))
-        {
-            return;
-        }
-    }
-#endif /* ENABLE_ELUNA */
 
     // need prevent do internal far teleports in handlers because some handlers do lot steps
     // or call code that can do far teleports in some conditions unexpectedly for generic way work code

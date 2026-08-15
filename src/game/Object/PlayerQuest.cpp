@@ -25,6 +25,8 @@
 
 
 
+#include "ScriptHost.h"
+#include "WorldHooks.h"
 #include "Utilities/Errors.h"
 #include <algorithm>
 #include "Player.h"
@@ -68,18 +70,12 @@
 #include "Chat.h"
 #include "revision_data.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Builds the current quest menu for a creature or game object.
@@ -738,21 +734,24 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
         switch (questGiver->GetTypeId())
         {
             case TYPEID_UNIT:
-                sScriptMgr.OnQuestAccept(this, (Creature*)questGiver, pQuest);
+                scripting::QuestAccept(this, (Creature*)questGiver, pQuest);
                 break;
             case TYPEID_ITEM:
             case TYPEID_CONTAINER:
-                sScriptMgr.OnQuestAccept(this, (Item*)questGiver, pQuest);
+                scripting::QuestAccept(this, (Item*)questGiver, pQuest);
                 break;
             case TYPEID_GAMEOBJECT:
-                sScriptMgr.OnQuestAccept(this, (GameObject*)questGiver, pQuest);
+                scripting::QuestAccept(this, (GameObject*)questGiver, pQuest);
                 break;
         }
 
         // starting initial DB quest script
         if (pQuest->GetQuestStartScript() != 0)
         {
-            GetMap()->ScriptsStart(DBS_ON_QUEST_START, pQuest->GetQuestStartScript(), questGiver, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
+            scripting::Notify(GetMap(),
+                scripting::PlayerQuestStart{ scripting::RefOf(this),
+                                             scripting::RefOf(questGiver),
+                                             scripting::HandleOf(pQuest) });
         }
     }
 
@@ -1031,16 +1030,19 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     switch (questGiver->GetTypeId())
     {
         case TYPEID_UNIT:
-            handled = sScriptMgr.OnQuestRewarded(this, (Creature*)questGiver, pQuest, reward);
+            handled = scripting::QuestRewarded(this, (Creature*)questGiver, pQuest, reward);
             break;
         case TYPEID_GAMEOBJECT:
-            handled = sScriptMgr.OnQuestRewarded(this, (GameObject*)questGiver, pQuest, reward);
+            handled = scripting::QuestRewarded(this, (GameObject*)questGiver, pQuest, reward);
             break;
     }
 
     if (!handled && pQuest->GetQuestCompleteScript() != 0)
     {
-        GetMap()->ScriptsStart(DBS_ON_QUEST_END, pQuest->GetQuestCompleteScript(), questGiver, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
+        scripting::Notify(GetMap(),
+            scripting::PlayerQuestEnd{ scripting::RefOf(this),
+                                       scripting::RefOf(questGiver),
+                                       scripting::HandleOf(pQuest) });
     }
 
     // cast spells after mark quest complete (some spells have quest completed state reqyurements in spell_area data)

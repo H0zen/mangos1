@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "GameObject.h"
 #include "Geometry/Quat.h"
 #include "QuestDef.h"
@@ -45,7 +46,7 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+#include "sd3/ScriptBindings.h"
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
@@ -53,14 +54,6 @@
 #include <memory>
 #include "PlayerRegistry.h"
 #include "ObjectLookup.h"
-
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <cmath>
-#include <ctime>
-#include <sstream>
-#endif /* ENABLE_ELUNA */
-
 
 /**
  * @brief Creates a game object instance with default runtime state.
@@ -111,9 +104,6 @@ GameObject::~GameObject()
  */
 void GameObject::AddToWorld()
 {
-#ifdef ENABLE_ELUNA
-    bool inWorld = IsInWorld();
-#endif /* ENABLE_ELUNA */
 
     ///- Register the gameobject for guid lookup
     if (!IsInWorld())
@@ -131,15 +121,6 @@ void GameObject::AddToWorld()
     // After Object::AddToWorld so that for initial state the GO is added to the world (and hence handled correctly)
     UpdateCollisionState();
 
-#ifdef ENABLE_ELUNA
-    if (!inWorld)
-    {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnAddToWorld(this);
-        }
-    }
-#endif /* ENABLE_ELUNA */
 
 }
 
@@ -151,12 +132,6 @@ void GameObject::RemoveFromWorld()
     ///- Remove the gameobject from the accessor
     if (IsInWorld())
     {
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = GetEluna())
-        {
-            e->OnRemoveFromWorld(this);
-        }
-#endif /* ENABLE_ELUNA */
 
         // Notify the outdoor pvp script
         if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(GetTerrain()->GetZoneId(Where().X(), Where().Y(), Where().Z())))
@@ -291,13 +266,6 @@ bool GameObject::Create(uint32 guidlow, uint32 name_id, Map* map, float x, float
             break;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnSpawn(this);
-    }
-#endif /* ENABLE_ELUNA */
 
     // Notify the battleground or outdoor pvp script
     if (map->IsBattleGroundOrArena())
@@ -1362,12 +1330,6 @@ uint32 GameObject::RollMineralVein(uint32 entry)      //Maybe incedicite bloodst
 void GameObject::SetLootState(LootState state)
 {
     m_lootState = state;
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnLootStateChanged(this, state);
-    }
-#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 
@@ -1379,12 +1341,6 @@ void GameObject::SetLootState(LootState state)
 void GameObject::SetGoState(GOState state)
 {
     SetByteValue(GAMEOBJECT_STATE, 0, state);
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnGameObjectStateChanged(this, state);
-    }
-#endif /* ENABLE_ELUNA */
     UpdateCollisionState();
 }
 
@@ -1678,8 +1634,6 @@ bool GameObject::HasStaticDBSpawnData() const
     return sObjectMgr.GetGOData(GetGUIDLow()) != NULL;
 }
 
-
-
 /**
  * @brief Gets the bound script id for this game object.
  *
@@ -1687,7 +1641,7 @@ bool GameObject::HasStaticDBSpawnData() const
  */
 uint32 GameObject::GetScriptId()
 {
-    return sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) ? sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) : sScriptMgr.GetBoundScriptId(SCRIPTED_GAMEOBJECT, GetEntry());
+    return sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) ? sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, -int32(GetGUIDLow())) : sScriptBindings.GetBoundScriptId(SCRIPTED_GAMEOBJECT, GetEntry());
 }
 
 /**
@@ -1753,7 +1707,7 @@ bool  GameObject::AIM_Initialize()
         return false;
     }
 
-    m_AI.reset(sScriptMgr.GetGameObjectAI(this));
+    m_AI.reset(scripting::ClaimGameObjectAI(this));
 
     return true;
 }

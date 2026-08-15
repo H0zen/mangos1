@@ -9,26 +9,8 @@ if(WITHOUT_GIT)
   set(rev_hash                "unknown"                   )
   set(rev_branch              "Archived"                  )
 
-  if(SCRIPT_LIB_ELUNA)
-    set(dep_eluna_rev_date    "1970-01-01 00:00:00 +0000" )
-    set(dep_eluna_rev_hash    "unknown"                   )
-    set(dep_eluna_rev_branch  "Archived"                  )
-  endif()
-  if(SCRIPT_LIB_SD3)
-    set(dep_sd3_rev_date      "1970-01-01 00:00:00 +0000" )
-    set(dep_sd3_rev_hash      "unknown"                   )
-    set(dep_sd3_rev_branch    "Archived"                  )
-  endif()
-
   # No valid git commit date, use compiled date
   string(TIMESTAMP rev_date_fallback            "%Y-%m-%d %H:%M:%S" UTC)
-
-  if(SCRIPT_LIB_ELUNA)
-    string(TIMESTAMP dep_eluna_rev_date_fallback  "%Y-%m-%d %H:%M:%S" UTC)
-  endif()
-  if(SCRIPT_LIB_SD3)
-    string(TIMESTAMP dep_sd3_rev_date_fallback    "%Y-%m-%d %H:%M:%S" UTC)
-  endif()
 else()
   if(GIT_EXECUTABLE)
     # Create a revision-string that we can use
@@ -55,59 +37,6 @@ else()
       OUTPUT_STRIP_TRAILING_WHITESPACE
       ERROR_QUIET
     )
-
-    if(SCRIPT_LIB_ELUNA)
-      # Create a revision-string that we can use
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" describe --long --match init --dirty=+ --abbrev=12 --always
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/Eluna"
-        OUTPUT_VARIABLE dep_eluna_rev_info
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-      # And grab the commits timestamp
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" show -s --format=%ci
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/Eluna"
-        OUTPUT_VARIABLE dep_eluna_rev_date
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-      # Also retrieve branch name
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" rev-parse --abbrev-ref HEAD
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/Eluna"
-        OUTPUT_VARIABLE dep_eluna_rev_branch
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-    endif()
-    if(SCRIPT_LIB_SD3)
-      # Create a revision-string that we can use
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" describe --long --match init --dirty=+ --abbrev=12 --always
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/SD3"
-        OUTPUT_VARIABLE dep_sd3_rev_info
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-      # And grab the commits timestamp
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" show -s --format=%ci
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/SD3"
-        OUTPUT_VARIABLE dep_sd3_rev_date
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-      # Also retrieve branch name
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" rev-parse --abbrev-ref HEAD
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/src/modules/SD3"
-        OUTPUT_VARIABLE dep_sd3_rev_branch
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET
-      )
-    endif()
   endif()
 
   # Last minute check - ensure that we have a proper revision
@@ -121,63 +50,22 @@ else()
     set(rev_hash              "unknown"                   )
     set(rev_branch            "Archived"                  )
 
-    if(SCRIPT_LIB_ELUNA)
-      set(dep_eluna_rev_date    "1970-01-01 00:00:00 +0000" )
-      set(dep_eluna_rev_hash    "unknown"                   )
-      set(dep_eluna_rev_branch  "Archived"                  )
-    endif()
-    if(SCRIPT_LIB_SD3)
-      set(dep_sd3_rev_date      "1970-01-01 00:00:00 +0000" )
-      set(dep_sd3_rev_hash      "unknown"                   )
-      set(dep_sd3_rev_branch    "Archived"                  )
-    endif()
-
     # No valid git commit date, use compiled date
     string(TIMESTAMP rev_date_fallback            "%Y-%m-%d %H:%M:%S" UTC)
-    if(SCRIPT_LIB_ELUNA)
-      string(TIMESTAMP dep_eluna_rev_date_fallback  "%Y-%m-%d %H:%M:%S" UTC)
-    endif()
-    if(SCRIPT_LIB_SD3)
-      string(TIMESTAMP dep_sd3_rev_date_fallback    "%Y-%m-%d %H:%M:%S" UTC)
-    endif()
   else()
     # We have valid date from git commit, use it
     set(rev_date_fallback           ${rev_date}           )
-    if(SCRIPT_LIB_ELUNA)
-      set(dep_eluna_rev_date_fallback ${dep_eluna_rev_date} )
-    endif()
-    if(SCRIPT_LIB_SD3)
-      set(dep_sd3_rev_date_fallback   ${dep_sd3_rev_date}   )
-    endif()
 
     # Extract information required to build a proper versionstring
     string(REGEX REPLACE init-|[0-9]+-g "" rev_hash           ${rev_info}           )
-    if(SCRIPT_LIB_ELUNA)
-      string(REGEX REPLACE init-|[0-9]+-g "" dep_eluna_rev_hash ${dep_eluna_rev_info} )
-    endif()
-    if(SCRIPT_LIB_SD3)
-      string(REGEX REPLACE init-|[0-9]+-g "" dep_sd3_rev_hash   ${dep_sd3_rev_info}   )
-    endif()
   endif()
 endif()
 
-# revision_data.h.in unconditionally references @dep_eluna_rev_hash@ /
-# @dep_sd3_rev_hash@ (and _date@/_branch@), but the blocks above only ever
-# set those variables when SCRIPT_LIB_ELUNA/SCRIPT_LIB_SD3 is enabled. When a
-# module is skipped, give its revision variables clear placeholder values
-# instead of leaving them undefined: configure_file() silently substitutes
-# an unset @VAR@ with an empty string, which produced a garbled banner like
-# "Eluna submodule revision:   ( branch)" instead of saying it wasn't built.
-if(NOT SCRIPT_LIB_ELUNA)
-  set(dep_eluna_rev_hash   "not built")
-  set(dep_eluna_rev_date   "n/a")
-  set(dep_eluna_rev_branch "disabled")
-endif()
-if(NOT SCRIPT_LIB_SD3)
-  set(dep_sd3_rev_hash   "not built")
-  set(dep_sd3_rev_date   "n/a")
-  set(dep_sd3_rev_branch "disabled")
-endif()
+# There is no second revision to report any more. SD3 used to be a submodule
+# pinned to its own commit, so the banner named both hashes and the whole block
+# above was doubled to fetch the second one; the scripts are in this repository
+# now and share its history. Anything that asks what revision the scripts are
+# gets the same answer as the core, because it is the same answer.
 
 # For package / copyright information we always need proper date
 string(REGEX MATCH "([0-9]+)-([0-9]+)-([0-9]+)" rev_date_fallback_match ${rev_date_fallback})
@@ -189,14 +77,6 @@ set(rev_day   ${CMAKE_MATCH_3})
 # message("rev_hash                   : ${rev_hash}"                    )
 # message("rev_branch_cached          : ${rev_branch_cached}"           )
 # message("rev_branch                 : ${rev_branch}"                  )
-# message("dep_eluna_rev_hash_cached  : ${dep_eluna_rev_hash_cached}"   )
-# message("dep_eluna_rev_hash         : ${dep_eluna_rev_hash}"          )
-# message("dep_eluna_rev_branch_cached: ${dep_eluna_rev_branch_cached}" )
-# message("dep_eluna_rev_branch       : ${dep_eluna_rev_branch}"        )
-# message("dep_sd3_rev_hash_cached    : ${dep_sd3_rev_hash_cached}"     )
-# message("dep_sd3_rev_hash           : ${dep_sd3_rev_hash}"            )
-# message("dep_sd3_rev_branch_cached  : ${dep_sd3_rev_branch_cached}"   )
-# message("dep_sd3_rev_branch         : ${dep_sd3_rev_branch}"          )
 # message("CMAKE_CURRENT_BINARY_DIR   : ${CMAKE_CURRENT_BINARY_DIR}"    )
 # if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/src/shared/revision_data.h")
 #   message("revision_data.h exists.")
@@ -207,10 +87,6 @@ set(rev_day   ${CMAKE_MATCH_3})
 if(
      NOT "${rev_hash_cached}"             MATCHES "${rev_hash}"
   OR NOT "${rev_branch_cached}"           MATCHES "${rev_branch}"
-  OR NOT "${dep_eluna_rev_hash_cached}"   MATCHES "${dep_eluna_rev_hash}"
-  OR NOT "${dep_eluna_rev_branch_cached}" MATCHES "${dep_eluna_rev_branch}"
-  OR NOT "${dep_sd3_rev_hash_cached}"     MATCHES "${dep_sd3_rev_hash}"
-  OR NOT "${dep_sd3_rev_branch_cached}"   MATCHES "${dep_sd3_rev_branch}"
   OR NOT EXISTS "${BUILDDIR}/src/shared/revision_data.h"
 )
   configure_file(
@@ -220,12 +96,4 @@ if(
   )
   set(rev_hash_cached             "${rev_hash}"             CACHE INTERNAL "Cached commit-hash"       )
   set(rev_branch_cached           "${rev_branch}"           CACHE INTERNAL "Cached branch name"       )
-  # Cached unconditionally (not just when the module is enabled), so the
-  # "not built"/"disabled" placeholders set above are remembered too -
-  # otherwise every reconfigure with the module off would see a permanent
-  # cache mismatch and needlessly regenerate revision_data.h every time.
-  set(dep_eluna_rev_hash_cached   "${dep_eluna_rev_hash}"   CACHE INTERNAL "Cached Eluna commit-hash" )
-  set(dep_eluna_rev_branch_cached "${dep_eluna_rev_branch}" CACHE INTERNAL "Cached Eluna branch name" )
-  set(dep_sd3_rev_hash_cached     "${dep_sd3_rev_hash}"      CACHE INTERNAL "Cached SD3 commit-hash"   )
-  set(dep_sd3_rev_branch_cached   "${dep_sd3_rev_branch}"    CACHE INTERNAL "Cached SD3 branch name"   )
 endif()

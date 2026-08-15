@@ -1,3 +1,4 @@
+#include "ScriptHost.h"
 #include "Common/Locales.h"
 #include <mutex>
 #include "WorldGateway.h"
@@ -14,9 +15,6 @@
 #include "World.h"
 #include "WorldSession.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif
 
 #include <cstring>
 #include <memory>
@@ -53,11 +51,15 @@ proto::AuthLookup Rejected(proto::AuthStatus status)
 
 bool WorldGateway::FilterAuthPacket(WorldPacket& packet)
 {
-#ifdef ENABLE_ELUNA
-    if (Eluna* eluna = sWorld.GetEluna())
-        return eluna->OnPacketReceive(nullptr, packet);
-#endif
-    return true;
+    // No session yet: this runs on the auth path, before one exists. The
+    // borrow is deliberately empty rather than a fabricated session, so an
+    // engine that reads it gets nothing instead of something wrong.
+    scripting::ServerPacketReceive event{
+        scripting::Borrow{ nullptr, 0, scripting::Domain::Session },
+        scripting::Lend(scripting::Domain::Packet, &packet) };
+
+    return scripting::Ask(scripting::GlobalContext(), event)
+               != scripting::Verdict::Cancel;
 }
 
 void WorldGateway::TracePacket(proto::SessionId session, const WorldPacket& packet, bool incoming)

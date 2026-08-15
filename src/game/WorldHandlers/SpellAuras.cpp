@@ -44,6 +44,7 @@
  */
 
 #include "Geometry/Placement.h"
+#include "WorldHooks.h"
 #include <iterator>
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
@@ -71,7 +72,6 @@
 #include "BattleGround/BattleGround.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "CreatureAI.h"
-#include "ScriptMgr.h"
 #include "Util.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
@@ -2112,7 +2112,7 @@ void Aura::TriggerSpell()
     {
         if (Unit* caster = GetCaster())
         {
-            if (triggerTarget->GetTypeId() != TYPEID_UNIT || !sScriptMgr.OnEffectDummy(caster, GetId(), GetEffIndex(), (Creature*)triggerTarget, ObjectGuid()))
+            if (triggerTarget->GetTypeId() != TYPEID_UNIT || !scripting::DummyEffect(caster, GetId(), GetEffIndex(), triggerTarget, ObjectGuid()))
             {
                 sLog.outError("Aura::TriggerSpell: Spell %u have 0 in EffectTriggered[%d], not handled custom case?", GetId(), GetEffIndex());
             }
@@ -3333,7 +3333,7 @@ void Aura::PeriodicDummyTick()
     {
         if (target && target->GetTypeId() == TYPEID_UNIT)
         {
-            sScriptMgr.OnEffectDummy(caster, GetId(), GetEffIndex(), (Creature*)target, ObjectGuid());
+            scripting::DummyEffect(caster, GetId(), GetEffIndex(), target, ObjectGuid());
         }
     }
 }

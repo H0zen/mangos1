@@ -1,0 +1,152 @@
+# MAI rule manifest -- the moments a script can react to.
+#
+# A sequence says WHAT happens and WHEN, counted from its own start. A rule
+# says WHEN IT STARTS. That is the whole of the difference between the two
+# systems being folded together here: the DB scripts had sequences and no
+# rules, EventAI had rules and no sequences, and each spent enormous effort
+# faking the other.
+#
+#     EventAI faked sequences with timers. A creature that says one line, waits
+#     three seconds and says another is three rows, a phase field and two
+#     timers -- because there is nowhere to write "then".
+#
+#     The DB scripts faked rules by having ten tables. `dbscripts_on_quest_end`
+#     IS a rule: it is the rule "when a quest ends". Nine such rules, expressed
+#     as nine table names, none of them able to carry a condition.
+#
+# Written down once, a rule is: a trigger, an optional condition, a chance, and
+# the sequence to start.
+#
+# IDENTITY IS ABI, as everywhere else here: the numbers are EventAI's own event
+# types, unchanged, so a `creature_ai_scripts` row converts by number. The
+# DB-script kinds are at 0x40 and up because they were table names rather than
+# numbers and had none to keep.
+#
+# parameters
+#     Most triggers are parameterised -- "when health drops below X", "when hit
+#     by spell S of school M" -- and the names below are what a condition can
+#     be written against. The types are the action manifest's.
+#
+#     repeat:ms? repeat_max:ms?   a trigger that re-arms; EventAI wrote these
+#                                 as two more columns on every row, whether the
+#                                 event repeated or not
+
+category combat = 0x00
+    timer_in_combat          0   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+    timer_ooc                1   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+    health_below             2   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    mana_below               3   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    aggro                    4
+    killed_unit              5   repeat:ms? repeat_max:ms?
+    died                     6
+    evaded                   7
+    hit_by_spell             8   spell:spell? school:flags? repeat:ms? repeat_max:ms?
+
+    # MY spell landed on somebody. The mirror of `hit_by_spell`, and the one
+    # trigger EventAI never had -- it could hear a spell arrive and had no way
+    # to notice one leave.
+    #
+    # ScriptDev reaches for it whenever a spell has to do something per person
+    # hit and has no script effect to hang it on: Lethon's Draw Spirit summons
+    # a shade for EACH player it touches, and the C++ comment beside it says
+    # exactly that -- "Need this code here, as SPELL_DRAW_SPIRIT has no Script-
+    # or Dummyeffect".
+    #
+    # The invoker is whoever was hit, so a step reaches them with `select=6`
+    # and acts AS them with `select_source=6`.
+    spell_hit_target        35   spell:spell? repeat:ms? repeat_max:ms?
+    target_in_range          9   min:f32 max:f32 repeat:ms? repeat_max:ms?
+    energy_below            32   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+
+category sight = 0x01
+    # `creature` is APPENDED, after the four EventAI wrote, so a converted row
+    # still fills the first four by position and leaves this absent -- which
+    # means "anyone", the behaviour it always had. Naming an entry narrows it
+    # to that one, which is what every "banish the helper the moment you see
+    # it" script needs and none of them could say.
+    # `friendly` is EventAI's first column and says WHOM to watch for: 0 is an
+    # enemy, 1 is a friend. It was called `in_combat`, which is a different
+    # question with a different answer -- `while_fighting`, six slots along --
+    # and a rule written by hand as `saw_unit in_combat=1` watched for friends
+    # instead. Converted rows never noticed, because a conversion copies the
+    # column by position and never reads the name.
+    saw_unit                10   friendly:bool range:f32 repeat:ms? repeat_max:ms? creature:creature? any_hostility:bool? while_fighting:bool?
+    spawned                 11   condition:u32? value:u32?
+    reached_waypoint        31   waypoint:u32? path:u32?
+    reached_home            21
+    # Four columns, not three: a PlayerCondition takes two values, and the row
+    # has always carried both. Declared with three, the second was dropped and
+    # every condition that uses it silently became a different condition.
+    received_emote          22   emote:emote condition:u32? value:u32? value2:u32?
+    # `value` is the payload the sender chose, and a rule may insist on one:
+    # two rules on the same event, one per value, is how a creature that
+    # explodes differently depending on who asked says so. Absent means any,
+    # which is what all 20,732 converted rows get -- EventAI's own columns
+    # three and four were unused.
+    received_ai_event       30   event:u32 sender:creature? value:u32?
+
+    # Nobody of that entry is within range any more. The inverse of every
+    # other proximity question, and the shape of every "separation anxiety":
+    # an add that has been pulled away from the thing it belongs to.
+    away_from               33   creature:creature range:f32 repeat:ms? repeat_max:ms?
+
+category target = 0x02
+    target_health_below     12   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    target_casting          13   repeat:ms? repeat_max:ms?
+
+    # The victim is NOT within melee reach. `target_in_range` asks the positive
+    # question and a min above melee range only approximates this one: combat
+    # reach depends on both models' sizes, so a number chosen by hand is right
+    # for one pair of models and wrong for the next. This asks the same
+    # question the C++ asks, InMeleeReach, and gets the same answer.
+    victim_out_of_melee     34   repeat:ms? repeat_max:ms?
+    target_mana_below       18   percent_max:u32 percent_min:u32 repeat:ms? repeat_max:ms?
+    target_has_aura         24   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    target_missing_aura     28   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+
+category self = 0x03
+    has_aura                23   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    missing_aura            27   spell:spell stacks:u32? repeat:ms? repeat_max:ms?
+    timer                   29   initial:ms initial_max:ms? repeat:ms? repeat_max:ms?
+
+# The order here is the UNION'S, not the one that reads best, and the three
+# lines below were the only ones in this file that got that wrong. A trigger's
+# parameters are copied across by position -- that is what lets the lowering be
+# a loop instead of a table -- so declaring `radius` first when the row holds
+# the health deficit first does not rename a column, it swaps two values that
+# are both uint32 and both load. The symptom is a healer that watches a radius
+# of 3000 for a friend missing 30 health.
+category friendly = 0x04
+# `initial` and `random` are APPENDED, after the four the union has, so every
+# converted row still fills the first four by position and leaves these absent.
+#
+#   initial   the delay before the FIRST search. EventAI had none and started
+#             looking immediately; ScriptDev scripts routinely wait.
+#   random    pick any of the friends found rather than the first. EventAI took
+#             the first and 20,732 rules rest on that, so absent keeps it.
+    friendly_hurt           14   missing_hp:u32 radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
+    friendly_controlled     15   dispel:u32? radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
+    friendly_missing_buff   16   spell:spell radius:f32 repeat:ms? repeat_max:ms? initial:ms? random:bool?
+
+category summons = 0x05
+    summoned_unit           17   creature:creature? repeat:ms? repeat_max:ms?
+    summon_died             25   creature:creature? repeat:ms? repeat_max:ms?
+    summon_despawned        26   creature:creature? repeat:ms? repeat_max:ms?
+
+category quests = 0x06
+    quest_accepted          19   quest:quest
+    quest_completed         20   quest:quest
+
+# The DB-script tables, as what they always were: nine rules with no condition
+# and no chance, distinguished by which moment starts them. They keep no
+# numbers because they never had any -- they were table names.
+category world = 0x40
+    quest_started           64   quest:quest
+    quest_finished          65   quest:quest
+    spell_effect            66   spell:spell
+    gameobject_used         67   guid:u32
+    gameobject_template_used 68  entry:gameobject
+    creature_died           69   creature:creature
+    reached_movement_point  70   point:u32
+    gossip_option_chosen    71   menu:u32
+    event_raised            72   event:u32

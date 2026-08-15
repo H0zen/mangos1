@@ -68,7 +68,6 @@
 #include "UpdateData.h"
 #include "LootMgr.h"
 #include "Chat.h"
-#include "ScriptMgr.h"
 #include "PlayerRegistry.h"
 #include "Object.h"
 #include "BattleGround/BattleGround.h"
@@ -77,10 +76,6 @@
 #include "SocialMgr.h"
 #include "DBCEnums.h"
 #include <zlib.h>
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Sends the player's friend list.

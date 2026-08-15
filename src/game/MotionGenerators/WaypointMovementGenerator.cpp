@@ -23,6 +23,7 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "Utilities/Errors.h"
 #include "Utilities/MathDefines.h"
 #include "WaypointMovementGenerator.h"
@@ -34,7 +35,6 @@
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "Player.h"
-#include "ScriptMgr.h"
 #include "Timer.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -250,11 +250,14 @@ void WaypointMovementGenerator::OnArrived(Creature& creature)
     MANGOS_ASSERT(currPoint != m_path->end());
     WaypointNode const& node = currPoint->second;
 
-    if (node.script_id)
-    {
-        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS, "Creature movement start script %u at point %u for %s.", node.script_id, m_currentNode, creature.GetGuidStr().c_str());
-        creature.GetMap()->ScriptsStart(DBS_ON_CREATURE_MOVEMENT, node.script_id, &creature, &creature);
-    }
+    // Raised unconditionally. Testing node.script_id here would be the core
+    // asking whether a particular engine has a row for this node -- which is
+    // the engine's question, and the reason it now looks the node up itself.
+    scripting::Notify(creature.GetMap(),
+        scripting::CreatureReachWp{ scripting::RefOf(&creature),
+                                    m_pathId,
+                                    static_cast<uint32>(m_pathOrigin),
+                                    m_currentNode });
 
     if (WaypointBehavior* behavior = node.behavior)
     {
@@ -860,10 +863,10 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
         TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
         if (uint32 eventid = nlist[nlist.size() - 1].ArrivalEventID)
         {
-            if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, false))
-            {
-                player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
-            }
+            scripting::Notify(player.GetMap(),
+                scripting::ServerEventRaised{ scripting::RefOf(&player),
+                                              scripting::RefOf(&player),
+                                              eventid, false });
         }
     }
 

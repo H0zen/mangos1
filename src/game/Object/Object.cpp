@@ -65,12 +65,6 @@
 #include "Chat.h"
 #include "GameTime.h"
 
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include "ElunaConfig.h"
-#include "ElunaEventMgr.h"
-#include <cstring>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Construct a new Object
@@ -264,9 +258,6 @@ void Object::MarkFlagUpdateForClient(uint16 index)
  * Initializes a new WorldObject with default values.
  */
 WorldObject::WorldObject() :
-#ifdef ENABLE_ELUNA
-    elunaEvents(nullptr),
-#endif /* ENABLE_ELUNA */
     m_currMap(NULL),
     m_mapId(0), m_InstanceId(0),
     m_isActiveObject(false),
@@ -276,15 +267,9 @@ WorldObject::WorldObject() :
 
 /**
  * @brief WorldObject destructor
- *
- * Cleans up Eluna events if enabled.
  */
 WorldObject::~WorldObject()
 {
-#ifdef ENABLE_ELUNA
-    delete elunaEvents;
-    elunaEvents = nullptr;
-#endif /* ENABLE_ELUNA */
 }
 
 
@@ -356,5 +341,3 @@ WorldObject::~WorldObject()
 
 
 
-#ifdef ENABLE_ELUNA
-#endif /* ENABLE_ELUNA */

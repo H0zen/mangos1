@@ -57,9 +57,7 @@
 #include "Util.h"
 #include "GridNotifiersImpl.h"
 #include "CellImpl.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
+#include "ScriptHost.h"
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot.h"
 #include "RandomPlayerbotMgr.h"
@@ -247,44 +245,45 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 break;
             }
 
+            // The scripts see the line before the world does, and may rewrite
+            // `msg` in place or refuse it outright. The global state is used
+            // here, not the player's map, because that is the state the hand
+            // written call this replaces resolved to.
             if (type == CHAT_MSG_SAY)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, lang, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, lang, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->Say(msg, lang);
+
+                GetPlayer()->Say(msg, lang);
             }
             else if (type == CHAT_MSG_EMOTE)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, LANG_UNIVERSAL, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, LANG_UNIVERSAL, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->TextEmote(msg);
+
+                GetPlayer()->TextEmote(msg);
             }
             else if (type == CHAT_MSG_YELL)
             {
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat event{ scripting::RefOf(GetPlayer()),
+                                             type, lang, msg };
+                if (scripting::Ask(scripting::GlobalContext(), event)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, lang, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
-                 GetPlayer()->Yell(msg, lang);
+
+                GetPlayer()->Yell(msg, lang);
             }
          } break;
 
@@ -335,16 +334,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerWhisper chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::RefOf(player) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, player))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
             if (player->GetPlayerbotAI())
             {
@@ -393,16 +390,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
             for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
@@ -450,16 +445,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             if (GetPlayer()->GetGuildId())
                 if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
                 {
-                    // Used by Eluna
-#ifdef ENABLE_ELUNA
-                    if (Eluna* e = sWorld.GetEluna())
+                    scripting::PlayerGuildChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                              type, lang, msg,
+                                              scripting::HandleOf(guild) };
+                    if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                            == scripting::Verdict::Cancel)
                     {
-                        if (!e->OnChat(GetPlayer(), type, lang, msg, guild))
-                        {
-                            return;
-                        }
+                        return;
                     }
-#endif /* ENABLE_ELUNA */
 
                     guild->BroadcastToGuild(this, msg, lang == LANG_ADDON ? LANG_ADDON : LANG_UNIVERSAL);
                 }
@@ -508,16 +501,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             if (GetPlayer()->GetGuildId())
                 if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
                 {
-                    // Used by Eluna
-#ifdef ENABLE_ELUNA
-                    if (Eluna* e = sWorld.GetEluna())
+                    scripting::PlayerGuildChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                              type, lang, msg,
+                                              scripting::HandleOf(guild) };
+                    if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                            == scripting::Verdict::Cancel)
                     {
-                        if (!e->OnChat(GetPlayer(), type, lang, msg, guild))
-                        {
-                            return;
-                        }
+                        return;
                     }
-#endif /* ENABLE_ELUNA */
 
                     guild->BroadcastToOfficers(this, msg, lang == LANG_ADDON ? LANG_ADDON : LANG_UNIVERSAL);
                 }
@@ -560,16 +551,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
             for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
@@ -623,16 +612,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
             for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
@@ -673,16 +660,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                     return;
                 }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
 #ifdef ENABLE_PLAYERBOTS
             for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
@@ -725,16 +710,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 return;
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, CHAT_MSG_BATTLEGROUND, msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
@@ -763,16 +746,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 return;
             }
 
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerGroupChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg,
+                                      scripting::HandleOf(group) };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg, group))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, CHAT_MSG_BATTLEGROUND_LEADER, msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
@@ -799,16 +780,14 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             {
                 if (Channel* chn = cMgr->GetChannel(channel, _player))
                 {
-                    // Used by Eluna
-#ifdef ENABLE_ELUNA
-                    if (Eluna* e = sWorld.GetEluna())
+                    scripting::PlayerChannelChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                              type, lang, msg,
+                                              scripting::Lend(scripting::Domain::Channel, chn) };
+                    if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                            == scripting::Verdict::Cancel)
                     {
-                        if (!e->OnChat(GetPlayer(), type, lang, msg, chn))
-                        {
-                            return;
-                        }
+                        return;
                     }
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
                     if (_player->GetPlayerbotMgr() && chn->GetFlags() & 0x18)
                     {
@@ -850,16 +829,13 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
                     _player->ToggleAFK();
                 }
-                // Used by Eluna
-#ifdef ENABLE_ELUNA
-                if (Eluna* e = sWorld.GetEluna())
+                scripting::PlayerChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                          type, lang, msg };
+                if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                        == scripting::Verdict::Cancel)
                 {
-                    if (!e->OnChat(GetPlayer(), type, lang, msg))
-                    {
-                        return;
-                    }
+                    return;
                 }
-#endif /* ENABLE_ELUNA */
             }
             break;
         }
@@ -890,16 +866,13 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
                 _player->ToggleDND();
             }
-            // Used by Eluna
-#ifdef ENABLE_ELUNA
-            if (Eluna* e = sWorld.GetEluna())
+            scripting::PlayerChat chatEvent{ scripting::RefOf(GetPlayer()),
+                                      type, lang, msg };
+            if (scripting::Ask(scripting::GlobalContext(), chatEvent)
+                    == scripting::Verdict::Cancel)
             {
-                if (!e->OnChat(GetPlayer(), type, lang, msg))
-                {
-                    return;
-                }
+                return;
             }
-#endif /* ENABLE_ELUNA */
 
             break;
         }
@@ -925,13 +898,9 @@ void WorldSession::HandleEmoteOpcode(WorldPacket& recv_data)
     uint32 emote;
     recv_data >> emote;
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetPlayer()->GetEluna())
-    {
-        e->OnEmote(GetPlayer(), emote);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(GetPlayer(),
+            scripting::PlayerEmote{ scripting::RefOf(GetPlayer()),
+                                    emote });
     GetPlayer()->HandleEmoteCommand(emote);
 }
 
@@ -997,13 +966,10 @@ void WorldSession::HandleTextEmoteOpcode(WorldPacket& recv_data)
     recv_data >> emoteNum;
     recv_data >> guid;
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetPlayer()->GetEluna())
-    {
-        e->OnTextEmote(GetPlayer(), text_emote, emoteNum, guid);
-    }
-#endif /* ENABLE_ELUNA */
+    scripting::Notify(GetPlayer(),
+            scripting::PlayerTextEmote{ scripting::RefOf(GetPlayer()),
+                                        text_emote, emoteNum,
+                                        scripting::Ref{ guid.GetRawValue() } });
 
     EmotesTextEntry const* em = sEmotesTextStore.LookupEntry(text_emote);
     if (!em)

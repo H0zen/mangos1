@@ -62,16 +62,6 @@
 #include "combat/CombatRegistry.h"
 #include "combat/CombatShadow.h"
 #include "combat/MeleeSwing.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#include <utility>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Performs one melee attack update against a victim.

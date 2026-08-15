@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Player.h"
 #include "Language.h"
 #include "Database/DatabaseEnv.h"
@@ -65,17 +66,12 @@
 #include "ArenaTeam.h"
 #include "Chat.h"
 #include "Spell.h"
-#include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "Mail.h"
 #include "SpellAuras.h"
 #include "DBCStores.h"
 #include "SQLStorages.h"
 #include "DisableMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Adds or updates a spell entry in the player's spellbook.
@@ -843,13 +839,9 @@ uint32 Player::resetTalentsCost() const
  */
 bool Player::resetTalents(bool no_cost)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->OnTalentsReset(this, no_cost);
-    }
-#endif /* ENABLE_ELUNA */
+scripting::Notify(this,
+    scripting::PlayerTalentsReset{ scripting::RefOf(this),
+                               no_cost });
 
     // not need after this call
     if (HasAtLoginFlag(AT_LOGIN_RESET_TALENTS))

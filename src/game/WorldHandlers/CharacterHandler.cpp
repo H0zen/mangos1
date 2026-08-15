@@ -40,6 +40,7 @@
  * appearance customization, and starting location setup.
  */
 
+#include "ScriptHost.h"
 #include "Common/ServerDefines.h"
 #include "Platform/Define.h"
 #include "Common/Locales.h"
@@ -68,9 +69,6 @@
 #include "SpellMgr.h"
 #include "GameTime.h"
 #include "Timer.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot.h"
 #include "PlayerbotAIConfig.h"
@@ -582,13 +580,6 @@ void WorldSession::HandleCharCreateOpcode(WorldPacket& recv_data)
     BASIC_LOG("Account: %d (IP: %s) Create Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), pNewChar->GetGUIDLow());
     sLog.outChar("Account: %d (IP: %s) Create Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), pNewChar->GetGUIDLow());
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnCreate(pNewChar);
-    }
-#endif /* ENABLE_ELUNA */
 
     delete pNewChar;                                        // created only to call SaveToDB()
 }
@@ -651,13 +642,6 @@ void WorldSession::HandleCharDeleteOpcode(WorldPacket& recv_data)
     BASIC_LOG("Account: %d (IP: %s) Delete Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), lowguid);
     sLog.outChar("Account: %d (IP: %s) Delete Character:[%s] (guid: %u)", GetAccountId(), IP_str.c_str(), name.c_str(), lowguid);
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnDelete(lowguid);
-    }
-#endif /* ENABLE_ELUNA */
 
     if (sLog.IsOutCharDump())                               // optimize GetPlayerDump call
     {
@@ -1016,16 +1000,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         SendNotification(LANG_RESET_TALENTS);               // we can use SMSG_TALENTS_INVOLUNTARILY_RESET here
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = pCurrChar->GetEluna())
-    {
-        if (pCurrChar->HasAtLoginFlag(AT_LOGIN_FIRST))
-        {
-            e->OnFirstLogin(pCurrChar);
-        }
-    }
-#endif /* ENABLE_ELUNA */
 
 
     /* We've done what we need to, remove the flag */
@@ -1074,13 +1048,6 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
 
     m_playerLoading = false;
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = sWorld.GetEluna())
-    {
-        e->OnLogin(pCurrChar);
-    }
-#endif /* ENABLE_ELUNA */
 
     /* Used for movement */
     ResetClientTimeDelay();

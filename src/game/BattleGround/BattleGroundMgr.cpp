@@ -63,9 +63,6 @@
 #include "GameEventMgr.h"
 #include "DisableMgr.h"
 #include "GameTime.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 #include "Policies/Singleton.h"
 #include <ctime>

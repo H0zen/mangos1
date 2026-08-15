@@ -23,8 +23,8 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
+#include "ScriptHost.h"
+#include "WorldHooks.h"
 #include <iterator>
 #include "Platform/Define.h"
 #include "Common/TimeConstants.h"
@@ -64,7 +64,7 @@
 #include "SocialMgr.h"
 #include "Util.h"
 #include "TemporarySummon.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "SkillDiscovery.h"
 #include "Formulas.h"
 #include "GridNotifiers.h"
@@ -73,11 +73,6 @@
 #include "Geometry/Vector3.h"
 #include <random>
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#include <vector>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Executes spell-specific dummy effect behavior.
@@ -2207,28 +2202,41 @@ void Spell::EffectDummy(SpellEffectIndex eff_idx)
     bool libraryResult = false;
     if (gameObjTarget)
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, gameObjTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, gameObjTarget, m_originalCasterGUID);
     }
     else if (unitTarget && (unitTarget->GetTypeId() == TYPEID_UNIT || unitTarget->GetTypeId() == TYPEID_PLAYER))
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, unitTarget, m_originalCasterGUID);
     }
     else if (itemTarget)
     {
-        libraryResult = sScriptMgr.OnEffectDummy(m_caster, m_spellInfo->ID, eff_idx, itemTarget, m_originalCasterGUID);
+        libraryResult = scripting::DummyEffect(m_caster, m_spellInfo->ID, eff_idx, itemTarget, m_originalCasterGUID);
     }
 
-    if (libraryResult || !unitTarget)
+    // A gameobject is a target like any other here, and used not to be: this
+    // fired for a unit alone, so a dummy effect aimed at a fishing node or a
+    // dirt mound could only ever be answered in C++. Nothing else changes --
+    // an engine that wants units still gets units, and one that does not
+    // recognise the subject does what it always did with a subject it does
+    // not recognise.
+    WorldObject* const subject = unitTarget
+                                     ? static_cast<WorldObject*>(unitTarget)
+                                     : static_cast<WorldObject*>(gameObjTarget);
+
+    if (libraryResult || !subject)
     {
         return;
     }
 
     // Previous effect might have started script
-    if (!ScriptMgr::CanSpellEffectStartDBScript(m_spellInfo, eff_idx))
+    if (!SpellEffectStartsScript(m_spellInfo, eff_idx))
     {
         return;
     }
 
     DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST, "Spell ScriptStart spellid %u in EffectDummy", m_spellInfo->ID);
-    m_caster->GetMap()->ScriptsStart(DBS_ON_SPELL, m_spellInfo->ID, m_caster, unitTarget);
+    scripting::Notify(m_caster->GetMap(),
+        scripting::SpellEffectHit{ scripting::RefOf(m_caster),
+                                   scripting::RefOf(subject),
+                                   m_spellInfo->ID });
 }

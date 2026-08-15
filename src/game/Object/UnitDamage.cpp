@@ -59,16 +59,6 @@
 #include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaEventMgr.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Reduces physical damage by the victim's effective armor.

@@ -33,7 +33,6 @@
 #include "WorldPacket.h"
 #include "World.h"
 #include "ObjectMgr.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "GossipDef.h"
@@ -59,10 +58,6 @@
 #include "CreatureLinkingMgr.h"
 #include "DisableMgr.h"
 #include "Policies/Singleton.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Stores an absolute cooldown end time for a creature spell.

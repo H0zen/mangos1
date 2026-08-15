@@ -25,6 +25,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "Item.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -32,11 +33,6 @@
 #include "Database/DatabaseEnv.h"
 #include "ItemEnchantmentMgr.h"
 #include "SQLStorages.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <sstream>
-#include <string>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Initializes a new item with prototype and owner data.
@@ -107,13 +103,6 @@ void Item::UpdateDuration(Player* owner, uint32 diff)
 
     if (GetUInt32Value(ITEM_FIELD_DURATION) <= diff)
     {
-        // Used by Eluna
-#ifdef ENABLE_ELUNA
-        if (Eluna* e = owner->GetEluna())
-        {
-            e->OnExpire(owner, GetProto());
-        }
-#endif /* ENABLE_ELUNA */
         owner->DestroyItem(GetBagSlot(), GetSlot(), true);
         return;
     }

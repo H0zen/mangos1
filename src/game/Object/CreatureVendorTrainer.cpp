@@ -31,7 +31,6 @@
 #include "Database/DatabaseEnv.h"
 #include "WorldPacket.h"
 #include "World.h"
-#include "ScriptMgr.h"
 #include "ObjectGuid.h"
 #include "SQLStorages.h"
 #include "SpellMgr.h"
@@ -58,10 +57,6 @@
 #include "CreatureLinkingMgr.h"
 #include "DisableMgr.h"
 #include "Policies/Singleton.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 /**
  * @brief Gets vendor items directly assigned to this creature entry.

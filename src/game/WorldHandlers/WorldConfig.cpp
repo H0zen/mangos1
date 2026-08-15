@@ -45,6 +45,7 @@
 
 
 
+#include "ScriptHost.h"
 #include "World.h"
 #include "Database/DatabaseEnv.h"
 #include "Config/Config.h"
@@ -59,7 +60,6 @@
 #include "AccountMgr.h"
 #include "AuctionHouseMgr.h"
 #include "ObjectMgr.h"
-#include "CreatureEventAIMgr.h"
 #include "GuildMgr.h"
 #include "SpellMgr.h"
 #include "Chat.h"
@@ -68,7 +68,6 @@
 #include "LootMgr.h"
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
-#include "ScriptMgr.h"
 #include "CreatureAIRegistry.h"
 #include "ProgressBar.h"
 #include "Policies/Singleton.h"
@@ -100,15 +99,6 @@
 #include <iostream>
 #include <sstream>
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaConfig.h"
-#endif /* ENABLE_ELUNA */
-#ifdef ENABLE_ELUNA
-#include "ElunaLoader.h"
-#endif /* ENABLE_ELUNA */
 #ifdef ENABLE_PLAYERBOTS
 #include "PlayerbotAIConfig.h"
 #endif /* ENABLE_PLAYERBOTS */
@@ -745,15 +735,13 @@ void World::LoadConfigSettings(bool reload)
     MMAP::MMapFactory::preventPathfindingOnMaps(ignoreMapIds.c_str());
     sLog.outString("WORLD: MMap pathfinding %sabled", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
 
-#ifdef ENABLE_ELUNA
+    // Only on reload: the first load is announced by World.cpp once the
+    // engines exist, which they do not yet at this point in start-up.
     if (reload)
     {
-        if (Eluna* e = GetEluna())
-        {
-            e->OnConfigLoad(reload);
-        }
+        scripting::Notify(scripting::GlobalContext(),
+            scripting::ServerConfigLoad{ reload });
     }
-#endif /* ENABLE_ELUNA */
     sLog.outString();
 }
 

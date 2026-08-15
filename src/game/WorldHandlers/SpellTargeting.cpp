@@ -80,12 +80,6 @@
 #include "SQLStorages.h"
 #include "DisableMgr.h"
 #include "Corpse.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <algorithm>
-#include <cmath>
-#include <list>
-#endif /* ENABLE_ELUNA */
 
 template<typename T>
 /**

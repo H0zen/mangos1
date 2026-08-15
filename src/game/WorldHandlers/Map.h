@@ -67,13 +67,11 @@
 #include "GridMap.h"
 #include "GameSystem/GridRefManager.h"
 #include "MapRefManager.h"
-#include "ScriptMgr.h"
+#include "dbscripts/DbScripts.h"
+#include "sd3/ScriptBindings.h"
 #include "CreatureLinkingMgr.h"
 #include "DynamicCollision.h"
 #include "combat/CombatRegistry.h"
-#ifdef ENABLE_ELUNA
-#include "LuaValue.h"
-#endif /* ENABLE_ELUNA */
 
 #include <bitset>
 #include <optional>
@@ -84,9 +82,7 @@
 
 struct CreatureInfo;
 class Creature;
-#ifdef ENABLE_ELUNA
-class Eluna;
-#endif /* ENABLE_ELUNA */
+class Transport;
 class TransportMap;
 class Unit;
 class WorldPacket;
@@ -327,8 +323,9 @@ class Map : public GridRefManager<NGridType>
             SCRIPT_EXEC_PARAM_UNIQUE_BY_TARGET        = 0x02,   // Start Script only if not yet started (uniqueness identified by id and target)
             SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE_TARGET = 0x03,   // Start Script only if not yet started (uniqueness identified by id, source and target)
         };
-        bool ScriptsStart(DBScriptType type, uint32 id, Object* source, Object* target, ScriptExecutionParam execParams = SCRIPT_EXEC_PARAM_NONE);
-        void ScriptCommandStart(ScriptInfo const& script, uint32 delay, Object* source, Object* target);
+        /// @a delayMs is milliseconds, like every other duration a map
+        /// deals in. It was seconds, alone among them.
+        void ScriptCommandStart(ScriptInfo const& script, uint32 delayMs, Object* source, Object* target);
 
         // must called with AddToWorld
         void AddToActive(WorldObject* obj);
@@ -340,6 +337,7 @@ class Map : public GridRefManager<NGridType>
         Pet* GetPet(ObjectGuid guid);
         Creature* GetAnyTypeCreature(ObjectGuid guid);      // normal creature or pet or vehicle
         GameObject* GetGameObject(ObjectGuid guid);
+        Transport* GetTransport(ObjectGuid guid);           // vessels are not in the object store; see the definition
         DynamicObject* GetDynamicObject(ObjectGuid guid);
         Corpse* GetCorpse(ObjectGuid guid);                 // !!! find corpse can be not in world
         Unit* GetUnit(ObjectGuid guid);                     // only use if sure that need objects at current map, specially for player case
@@ -381,7 +379,7 @@ class Map : public GridRefManager<NGridType>
 
         void CreateInstanceData(bool load);
         InstanceData* GetInstanceData() const { return i_data; }
-        virtual uint32 GetScriptId() const { return sScriptMgr.GetBoundScriptId(SCRIPTED_MAP, GetId()); }
+        virtual uint32 GetScriptId() const { return sScriptBindings.GetBoundScriptId(SCRIPTED_MAP, GetId()); }
 
         void MonsterYellToMap(ObjectGuid guid, int32 textId, Language language, Unit const* target) const;
         void MonsterYellToMap(CreatureInfo const* cinfo, int32 textId, Language language, Unit const* target, uint32 senderLowGuid = 0) const;
@@ -476,11 +474,6 @@ class Map : public GridRefManager<NGridType>
         bool IsCellLoaded(float x, float y) const;
         void DowngradeGridToEnvelope(NGridType* grid, uint32 gridX, uint32 gridY);
 
-#ifdef ENABLE_ELUNA
-        Eluna* GetEluna() const;
-
-        LuaVal lua_data = LuaVal({});
-#endif /* ENABLE_ELUNA */
 
     private:
         void LoadMapAndVMap(int gx, int gy);
@@ -573,7 +566,28 @@ class Map : public GridRefManager<NGridType>
 
         std::set<WorldObject*> i_objectsToRemove;
 
-        typedef std::multimap<time_t, ScriptAction> ScriptScheduleMap;
+        /**
+         * Queued DB-script steps, keyed by the SIMULATED MILLISECOND they are
+         * due at.
+         *
+         * It was a time_t of whole seconds, and that was the resolution the
+         * whole DB-script system ran at: a row's `delay` column is in seconds
+         * because it was added straight to sWorld.GetGameTime(), a fact
+         * visible here and nowhere near the column. Two consequences followed
+         * from it. A script could not express a pause shorter than a second --
+         * so a line of dialogue and the emote that belongs with it were either
+         * simultaneous or a second apart, with nothing in between. And every
+         * step fired on the first tick of its second, so a chain's timing
+         * drifted by up to a tick against everything else in the world.
+         *
+         * Simulation::Now() is the clock the rest of the map already runs on:
+         * simulated milliseconds, monotonic, advanced once per tick by
+         * MapManager before any map updates. Keying on it costs nothing, makes
+         * the existing tables mean exactly what they meant (their seconds are
+         * multiplied on the way in), and lets a script written from here on
+         * ask for 250ms.
+         */
+        typedef std::multimap<uint64, ScriptAction> ScriptScheduleMap;
         ScriptScheduleMap m_scriptSchedule;
 
         InstanceData* i_data;
@@ -599,9 +613,6 @@ class Map : public GridRefManager<NGridType>
         // WeatherSystem
         WeatherSystem* m_weatherSystem;
 
-#ifdef ENABLE_ELUNA
-        Eluna* eluna;
-#endif /* ENABLE_ELUNA */
 };
 
 class WorldMap : public Map
@@ -632,7 +643,7 @@ class DungeonMap : public Map
         void SendResetWarnings(uint32 timeLeft) const;
         void SetResetSchedule(bool on);
 
-        uint32 GetScriptId() const override { return sScriptMgr.GetBoundScriptId(SCRIPTED_INSTANCE, GetId()); }
+        uint32 GetScriptId() const override { return sScriptBindings.GetBoundScriptId(SCRIPTED_INSTANCE, GetId()); }
 
         // can't be nullptr for loaded map
         DungeonPersistentState* GetPersistanceState() const;
@@ -662,7 +673,7 @@ class BattleGroundMap : public Map
         BattleGround* GetBG() { return m_bg; }
         void SetBG(BattleGround* bg) { m_bg = bg; }
 
-        uint32 GetScriptId() const override { return sScriptMgr.GetBoundScriptId(SCRIPTED_BATTLEGROUND, GetId()); } //TODO bind BG scripts through script_binding, now these are broken!
+        uint32 GetScriptId() const override { return sScriptBindings.GetBoundScriptId(SCRIPTED_BATTLEGROUND, GetId()); } //TODO bind BG scripts through script_binding, now these are broken!
 
         // can't be nullptr for loaded map
         BattleGroundPersistentState* GetPersistanceState() const;

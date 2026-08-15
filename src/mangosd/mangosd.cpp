@@ -69,7 +69,6 @@
 #include "Util.h"
 #include "DBCStores.h"
 #include "MassMailMgr.h"
-#include "ScriptMgr.h"
 
 
 #ifdef _WIN32
@@ -298,8 +297,6 @@ int main(int argc, char** argv)
 
     sLog.outString("%s [world-daemon]", GitRevision::GetProjectRevision());
     sLog.outString("%s", GitRevision::GetFullRevision());
-    sLog.outString("%s", GitRevision::GetDepElunaFullRevisionStr());
-    sLog.outString("%s", GitRevision::GetDepSD3FullRevisionStr());
     print_banner();
     sLog.outString("Using configuration file %s.", cfg_file);
 
@@ -390,11 +387,12 @@ int main(int argc, char** argv)
     // online flags and halted the database delay threads. What is left here is
     // process-level teardown only.
 
-    // Unload the script library explicitly: ~ScriptMgr() runs too late, at static
-    // destruction, to unload the shared object safely.
-    sLog.outString("[shutdown] unloading script library...");
-    sScriptMgr.UnloadScriptLibrary();
-    sLog.outString("[shutdown] script library unloaded");
+    // There is no script library to unload any more. It used to be a shared
+    // object -- `mangosscript` -- loaded at start-up and unloaded here,
+    // explicitly and early, because ~ScriptMgr() ran at static destruction and
+    // that was too late to close a .so safely. Every engine is in-tree and
+    // linked now, so the object, the manager and the ordering problem are all
+    // gone together.
 
 #ifdef _WIN32
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);

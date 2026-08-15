@@ -23,8 +23,6 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
-
-
 #include "GameObject.h"
 #include "QuestDef.h"
 #include "ObjectMgr.h"
@@ -47,16 +45,12 @@
 #include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Util.h"
-#include "ScriptMgr.h"
+
 #include "GameObjectModel.h"
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
 #include "GameObjectAI.h"
 #include "Geometry/Quat.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#include <ctime>
-#endif /* ENABLE_ELUNA */
 
 enum
 {
@@ -78,13 +72,11 @@ void GameObject::Update(uint32 update_diff, uint32 p_time)
         return;
     }
 
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = GetEluna())
-    {
-        e->UpdateAI(this, update_diff);
-    }
-#endif /* ENABLE_ELUNA */
+    // Do not add a scripting event here. Driving a game object is a ROLE,
+    // won at auction and delivered through the GameObjectAI the engine
+    // builds -- see scripting::ClaimGameObjectAI. A per-object per-tick call
+    // through the global dispatch table would be slower and, worse, would
+    // show every loaded engine a decision that belongs to one of them.
 
     switch (m_lootState)
     {

@@ -1,0 +1,146 @@
+# EventAI's action_type -> the MAI verb it means, and where each of its three
+# columns goes.
+#
+# WHY THIS FILE EXISTS AT ALL. Lowering a `dbscripts_on_*` row is forty generic
+# lines: actions.manifest was extracted from `ScriptInfo`'s union, so a row's
+# datalongs ARE the verb's parameters, in order, and a loop copies them. An
+# EventAI action is a DIFFERENT union describing the same verbs, and the two
+# disagree constantly:
+#
+#     cast          is (spell, TARGET, flags) here and (spell, flags) there
+#     remove_aura   is (TARGET, spell) here and (spell) there -- reversed
+#     morph         takes an entry AND a model id here, one field plus a flag
+#                   there
+#
+# A positional loop gets all three wrong, and wrong SILENTLY: every column is a
+# uint32, every value loads, and the only symptom is a creature casting with the
+# wrong flags in a dungeon nobody has run this month. It is not a hypothetical.
+# The first conversion of this table was positional, and on a live world's own
+# data it put a target selector into the cast flags of 6,556 rows, dropped the
+# real cast flags of 3,873, gave 793 summons a despawn delay of 1 millisecond,
+# and turned all 71 `remove_aura` rows into "remove aura 0".
+#
+# WHY IT IS A MANIFEST AND NOT A TABLE IN THE CODE. Two things need this
+# mapping and they are written in different languages: the SQL conversion
+# (tools/convert_eventai.py), which writes `mai_rule` once, and the C++
+# lowering (MaiRuleLowering.cpp), which converts at load while the old tables
+# are still what gets read. Two copies of a fifty-row table WILL drift, and the
+# drift is invisible for the same reason the original bug was. So it is
+# declared once, here; the generator emits the C++ half; and the ctest that
+# checks the other manifests checks this one.
+#
+# THE SELECTOR IS NOT A PARAMETER. It is the same concept in a different column
+# per verb, which is why it comes out of the operands entirely and onto the
+# Step, next to the buddy. See MaiScript.h.
+#
+# ---------------------------------------------------------------------------
+# SYNTAX
+#
+#     action <type> <verb>  <p1> <p2> <p3>  [extra...]
+#
+# where each of p1..p3 is one of:
+#
+#     <name>      a parameter of that verb, BY NAME. Checked against
+#                 actions.manifest, so renaming or reordering a parameter there
+#                 fails the build instead of silently transposing two columns.
+#     select      this column is the target selector
+#     -           EventAI does not use this column
+#
+# and each extra is one of:
+#
+#     buddy_as_target   the creature acts ON the selected unit (`cast`), rather
+#                       than the selected unit BEING the actor (`set_unit_field`)
+#     <name>=<value>    pin a parameter the row does not carry
+#     form=<name>       a shape no column mapping can express; see below
+#
+#     form=entry_or_model   two columns, one slot: an entry in the first or a
+#                           model id in the second, and the DB-script verb says
+#                           which it holds with a flag
+#     form=summon_spawn     the third column is a spawn id naming a row in
+#                           `creature_ai_summons`, which holds the position and
+#                           the despawn time
+#
+#     refuse <type> <reason>
+#
+# A refused type is one no MAI verb can express faithfully. Every one below is
+# a question for actions.manifest rather than a broken row -- and all four have
+# ZERO rows on the world this was measured against, which is why they are
+# refused rather than answered.
+# ---------------------------------------------------------------------------
+
+# -- say --------------------------------------------------------------------
+action  1  talk                    text0 text1 text2
+action  4  play_sound              sound - -
+action  5  emote                   emote - -
+action  9  random_sound            a b c
+action 10  random_emote            a b c
+
+# -- appearance -------------------------------------------------------------
+action  2  set_faction             faction flags -
+action  3  morph_to_entry_or_model - - -                form=entry_or_model
+action 43  mount_to_entry_or_model - - -                form=entry_or_model
+action 36  update_template         entry faction -
+action 47  stand_state             state - -
+
+# -- combat -----------------------------------------------------------------
+# The creature acts ON the selected unit: the buddy becomes the target and the
+# creature keeps acting.
+action 11  cast_spell              spell select flags   buddy_as_target
+action 12  temp_summon_creature    entry select despawn_delay  buddy_as_target
+action 32  temp_summon_creature    entry select -       buddy_as_target form=summon_spawn
+action 49  temp_summon_creature    entry select -       buddy_as_target form=summon_spawn
+
+# The one verb whose columns are reversed, and the selected unit is the one
+# losing the aura rather than something the creature acts through -- so no
+# buddy_as_target: the buddy replaces the source.
+action 28  remove_aura             select spell -
+
+action 13  threat_change           percent select -     buddy_as_target all=0
+action 14  threat_change           percent - -          all=1
+
+action 20  auto_attack             enable - -
+action 21  combat_movement         enable melee -
+action 29  ranged_movement         distance angle -
+action 48  change_movement         type wander_distance -
+action 24  evade                   - - -
+action 25  flee_for_assist         - - -
+action 37  die                     - - -
+action 38  zone_combat_pulse       - - -
+action 39  call_for_help           radius - -
+action 41  despawn_self            delay - -
+action 42  set_invincibility       hp percent -
+action 40  set_sheath              state - -
+
+# -- phases -----------------------------------------------------------------
+action 22  set_phase               phase - -
+action 23  inc_phase               by - -
+action 30  random_phase            a b c
+action 31  random_phase_range      min max -
+
+# -- the unit itself --------------------------------------------------------
+# These act ON the selected unit, so no buddy_as_target: the buddy replaces the
+# source, and the body's source is the unit that changes.
+action 17  set_unit_field          field value select
+action 18  set_unit_flag           value select -
+action 19  remove_unit_flag        value select -
+
+# -- quest credit -----------------------------------------------------------
+# All of these hand the credit to a PLAYER, which is the target.
+action 15  quest_event             quest select -       buddy_as_target all=0
+action 26  quest_event             quest all -
+action 16  cast_event              creature spell select buddy_as_target all=0
+action 27  cast_event              creature spell -     all=1
+action 33  killed_monster          creature select -    buddy_as_target
+
+# -- instances and AI events ------------------------------------------------
+action 34  set_instance_data       field value -
+action 35  set_instance_data_guid  field select -       buddy_as_target
+action 45  throw_ai_event          event radius -
+action 46  set_throw_mask          mask - -
+
+# -- what nothing here can say ----------------------------------------------
+refuse  6  unused in this schema -- EventAI's own header says so
+refuse  7  unused in this schema -- EventAI's own header says so
+refuse  8  unused in this schema -- EventAI's own header says so
+refuse 44  carries a chance of its own, and chance in MAI belongs to the rule rather than to one of its steps
+refuse 50  names a creature by bare guid with no entry, and the buddy-by-guid search needs the entry to build one

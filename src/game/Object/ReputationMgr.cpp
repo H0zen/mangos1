@@ -23,14 +23,12 @@
  * and lore are copyrighted by Blizzard Entertainment, Inc.
  */
 
+#include "ScriptHost.h"
 #include "ReputationMgr.h"
 #include "DBCStores.h"
 #include "Player.h"
 #include "WorldPacket.h"
 #include "ObjectMgr.h"
-#ifdef ENABLE_ELUNA
-#include "LuaEngine.h"
-#endif /* ENABLE_ELUNA */
 
 const int32 ReputationMgr::PointsInRank[MAX_REPUTATION_RANK] = {36000, 3000, 3000, 3000, 6000, 12000, 21000, 1000};
 
@@ -327,13 +325,6 @@ void ReputationMgr::Initialize()
  */
 bool ReputationMgr::SetReputation(FactionEntry const* factionEntry, int32 standing, bool incremental)
 {
-    // Used by Eluna
-#ifdef ENABLE_ELUNA
-    if (Eluna* e = m_player->GetEluna())
-    {
-        e->OnReputationChange(m_player, factionEntry->ID, standing, incremental);
-    }
-#endif /* ENABLE_ELUNA */
 
     bool res = false;
     // if spillover definition exists in DB, override DBC
