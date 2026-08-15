@@ -61,33 +61,10 @@
 
 bool Unit::HandleStatModifier(UnitMods unitMod, UnitModifierType modifierType, float amount, bool apply)
 {
-    if (unitMod >= UNIT_MOD_END || modifierType >= MODIFIER_TYPE_END)
+    if (!m_stats.Apply(unitMod, modifierType, amount, apply))
     {
         sLog.outError("ERROR in HandleStatModifier(): nonexistent UnitMods or wrong UnitModifierType!");
         return false;
-    }
-
-    float val = 1.0f;
-
-    switch (modifierType)
-    {
-        case BASE_VALUE:
-        case TOTAL_VALUE:
-            m_auraModifiersGroup[unitMod][modifierType] += apply ? amount : -amount;
-            break;
-        case BASE_PCT:
-        case TOTAL_PCT:
-            if (amount <= -100.0f)                          // small hack-fix for -100% modifiers
-            {
-                amount = -200.0f;
-            }
-
-            val = (100.0f + amount) / 100.0f;
-            m_auraModifiersGroup[unitMod][modifierType] *= apply ? val : (1.0f / val);
-            break;
-
-        default:
-            break;
     }
 
     if (!CanModifyStats())
@@ -142,18 +119,13 @@ bool Unit::HandleStatModifier(UnitMods unitMod, UnitModifierType modifierType, f
  */
 float Unit::GetModifierValue(UnitMods unitMod, UnitModifierType modifierType) const
 {
-    if (unitMod >= UNIT_MOD_END || modifierType >= MODIFIER_TYPE_END)
+    if (!StatBlock::InRange(unitMod, modifierType))
     {
         sLog.outError("attempt to access nonexistent modifier value from UnitMods!");
         return 0.0f;
     }
 
-    if (modifierType == TOTAL_PCT && m_auraModifiersGroup[unitMod][modifierType] <= 0.0f)
-    {
-        return 0.0f;
-    }
-
-    return m_auraModifiersGroup[unitMod][modifierType];
+    return m_stats.Value(unitMod, modifierType);
 }
 
 /**
@@ -166,18 +138,7 @@ float Unit::GetTotalStatValue(Stats stat) const
 {
     UnitMods unitMod = UnitMods(UNIT_MOD_STAT_START + stat);
 
-    if (m_auraModifiersGroup[unitMod][TOTAL_PCT] <= 0.0f)
-    {
-        return 0.0f;
-    }
-
-    // value = ((base_value * base_pct) + total_value) * total_pct
-    float value  = m_auraModifiersGroup[unitMod][BASE_VALUE] + GetCreateStat(stat);
-    value *= m_auraModifiersGroup[unitMod][BASE_PCT];
-    value += m_auraModifiersGroup[unitMod][TOTAL_VALUE];
-    value *= m_auraModifiersGroup[unitMod][TOTAL_PCT];
-
-    return value;
+    return m_stats.Combine(unitMod, GetCreateStat(stat));
 }
 
 /**
@@ -194,17 +155,9 @@ float Unit::GetTotalAuraModValue(UnitMods unitMod) const
         return 0.0f;
     }
 
-    if (m_auraModifiersGroup[unitMod][TOTAL_PCT] <= 0.0f)
-    {
-        return 0.0f;
-    }
-
-    float value  = m_auraModifiersGroup[unitMod][BASE_VALUE];
-    value *= m_auraModifiersGroup[unitMod][BASE_PCT];
-    value += m_auraModifiersGroup[unitMod][TOTAL_VALUE];
-    value *= m_auraModifiersGroup[unitMod][TOTAL_PCT];
-
-    return value;
+    // The same assembly as a stat's, with nothing the unit was created with
+    // underneath it: this group is entirely what auras put there.
+    return m_stats.Combine(unitMod, 0.0f);
 }
 
 /**

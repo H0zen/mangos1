@@ -55,6 +55,11 @@ set(SRC_GRP_TESTS
     CombatCoreTest.cpp
     CombatReactionTest.cpp
     ProcPointsTest.cpp
+    # A unit's stats, assembled without a unit. StatBlock depends on nothing,
+    # which is what lets the formula every stat in the game goes through be
+    # asserted with written-down numbers.
+    StatBlockTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/Object/StatBlock.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These three know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp

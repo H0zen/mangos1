@@ -253,16 +253,10 @@ Unit::Unit() :
     {
         m_spellImmune[i].clear();
     }
-    for (int i = 0; i < UNIT_MOD_END; ++i)
-    {
-        m_auraModifiersGroup[i][BASE_VALUE] = 0.0f;
-        m_auraModifiersGroup[i][BASE_PCT] = 1.0f;
-        m_auraModifiersGroup[i][TOTAL_VALUE] = 0.0f;
-        m_auraModifiersGroup[i][TOTAL_PCT] = 1.0f;
-    }
+    m_stats.Reset();
 
     // implement 50% base damage from offhand
-    m_auraModifiersGroup[UNIT_MOD_DAMAGE_OFFHAND][TOTAL_PCT] = 0.5f;
+    m_stats.Set(UNIT_MOD_DAMAGE_OFFHAND, TOTAL_PCT, 0.5f);
 
     for (int i = 0; i < MAX_ATTACK; ++i)
     {
