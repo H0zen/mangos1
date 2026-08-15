@@ -525,7 +525,8 @@ class World
         World();
         ~World();
 
-        void CleanupsBeforeStop();
+        void CleanupsBeforeMapUnload();
+        void CleanupsAfterStop();
 
         WorldSession* FindSession(uint32 id) const;
         void AddSession(WorldSession* s);

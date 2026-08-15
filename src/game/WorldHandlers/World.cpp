@@ -252,29 +252,19 @@ World::World()
 /// World destructor
 World::~World()
 {
-#ifdef ENABLE_ELUNA
-    // Delete world Eluna state
-    delete eluna;
-    eluna = nullptr;
-#endif /* ENABLE_ELUNA */
-
     ///- Empty the kicked session set
+    // The real drain is Master::ShutdownWorld -> DeleteAllSessions, which runs
+    // while everything a session touches is still alive. By the time this
+    // destructor runs -- at exit-time static destruction -- the map is
+    // expected to be empty. Do not wrap the delete in a try/catch:
+    // ~WorldSession is implicitly noexcept, so the compiler emits a plain
+    // nounwind call and the handler is dead code.
     while (!m_sessions.empty())
     {
         // not remove from queue, prevent loading new sessions
         WorldSession* session = m_sessions.begin()->second;
         m_sessions.erase(m_sessions.begin());
-        // After UnloadAll the maps and nav tiles are gone. A leftover
-        // session whose destructor still walks them throws, and a throw
-        // out of this destructor is terminate.
-        try
-        {
-            delete session;
-        }
-        catch (...)
-        {
-            sLog.outError("World::~World: session destructor threw");
-        }
+        delete session;
     }
 
     CliCommandHolder* command = NULL;
@@ -288,7 +278,40 @@ World::~World()
     {
         delete session;
     }
+}
 
+/// Tear down what still needs a live world, before the maps go away.
+///
+/// The Eluna state used to be deleted from ~World, which is the same trap the
+/// nav stores fell into: by exit-time static destruction the Lua state's own
+/// singletons are gone and the objects it holds handles to have been freed
+/// with their maps. Close it here instead -- after the sessions are drained,
+/// so logout hooks have already run, and before the maps are unloaded.
+void World::CleanupsBeforeMapUnload()
+{
+#ifdef ENABLE_ELUNA
+    delete eluna;
+    eluna = nullptr;
+#endif /* ENABLE_ELUNA */
+
+    // ~BattleGroundMgr does this too, but only at exit-time static
+    // destruction, by which point the singletons a battleground unwinds
+    // through may already be gone. Doing it here makes the order ours.
+    sBattleGroundMgr.DeleteAllBattleGrounds();
+}
+
+/// Release the process-wide caches the world pulls in at run time.
+///
+/// This MUST NOT be done from ~World. World is a global, so its destructor is
+/// registered with __cxa_atexit before main; the stores below are Meyers
+/// singletons registered on first use, long after. atexit unwinds in reverse,
+/// so by the time ~World runs they have already been destroyed -- and
+/// NavStores::Clear locks a std::mutex, which on a destroyed mutex throws
+/// std::system_error out of a noexcept destructor and terminates the process.
+/// Call this from the shutdown path instead, after the maps are unloaded and
+/// while the singletons are still alive.
+void World::CleanupsAfterStop()
+{
     LineOfSightExemptions::Clear();
     Nav::NavStores::Instance().Clear();
     Nav::Policy::Clear();
@@ -306,14 +329,6 @@ bool World::StartupAborted(const char* phase)
     sLog.outString("Startup interrupted before '%s' - aborting load.", phase);
 
     return true;
-}
-
-void World::CleanupsBeforeStop()
-{
-    KickAll();                                       // save and kick all players
-    UpdateSessions(1);                               // real players unload required UpdateSessions call
-    DeleteAllSessions();                             // KickAll only closes the socket
-    sBattleGroundMgr.DeleteAllBattleGrounds();       // unload battleground templates before different singletons destroyed
 }
 
 void World::DeleteAllSessions()

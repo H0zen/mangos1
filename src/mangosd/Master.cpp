@@ -556,22 +556,34 @@ void Master::ShutdownWorld()
     // Strict order, and it matters: players must be saved before their sessions
     // are drained, sessions must be drained before the listener goes away, and
     // the listener must be gone before the maps they live on are unloaded.
+    // Everything here belongs on this path rather than in ~World: the
+    // destructor of a pre-main global runs after exit-time static destruction
+    // has already taken down the singletons all of this reaches through.
     sLog.outString("[shutdown] saving and kicking all players");
     sWorld.KickAll();
 
     sLog.outString("[shutdown] draining remaining sessions");
     sWorld.UpdateSessions(1);
     // KickAll only closes the socket. One UpdateSessions pass can leave the
-    // session in the map if Close() is not visible yet. UnloadAll then
-    // deletes every Map and NavStores::Drop's its tiles; World::~World
-    // delete's the leftover session and LogoutPlayer throws.
+    // session in the map if Close() is not visible yet. UnloadAll then deletes
+    // every Map and NavStores::Drop's its tiles, so a session left for
+    // ~World to delete would walk freed maps out of LogoutPlayer.
     sWorld.DeleteAllSessions();
 
     sLog.outString("[shutdown] stopping the world listener");
     sWorldNetwork.Stop();
 
+    sLog.outString("[shutdown] closing the Eluna state and battlegrounds");
+    sWorld.CleanupsBeforeMapUnload();
+
     sLog.outString("[shutdown] unloading maps");
     sMapMgr.UnloadAll();
+
+    // After the maps, because the nav stores hand out tiles the maps hold, and
+    // before exit, because these caches live in singletons that exit-time
+    // static destruction tears down ahead of the World global.
+    sLog.outString("[shutdown] releasing nav stores and world caches");
+    sWorld.CleanupsAfterStop();
 }
 
 int Master::Run()
