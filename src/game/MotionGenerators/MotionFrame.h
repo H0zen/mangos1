@@ -59,8 +59,11 @@ class WorldObject;
  */
 namespace Motion
 {
-    using Movement::PointsArray;
-    using Movement::Vector3;
+    // `PointsArray` and `Vector3` are declared by MovementIntent.h, which this includes.
+    // They used to be pulled in from `movement/MoveSplineInitArgs.h` -- the header that
+    // knows how a spline is packed into a packet -- and that dependency is precisely what
+    // the move into this namespace removed. Two `using Movement::` lines survived the
+    // move and named a namespace nothing here includes any more.
 
     /// Which coordinate system a frame speaks.
     enum class FrameKind : uint8

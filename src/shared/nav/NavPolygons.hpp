@@ -133,9 +133,22 @@ namespace Nav
          * varies smoothly. Mixing the two costs fifteen times the geometry.
          */
 
-        /// The NARROWEST clearance over the covered cells, in the packed byte the cells
-        /// carry. Conservative on purpose: a mover that fits this fits everywhere in the
-        /// rectangle, which is what makes a per-rectangle test sound.
+        /**
+         * @brief The WIDEST clearance over the covered cells, not the narrowest.
+         *
+         * The narrowest is the intuitive choice and it is unusable, which took a
+         * measurement to see. `Clearance()` marks every node with a missing neighbour as
+         * a border and gives it half a cell -- 0.52 yards -- so a maximal rectangle,
+         * which by construction runs right up to the edge of the walkable set, always
+         * contains such a cell. Open ground came back with a clearance of half a yard,
+         * and every mover wider than that was refused Elwynn on the grounds that it is
+         * too narrow.
+         *
+         * So this is the room the rectangle offers at its most generous, which is what a
+         * rectangle-level test can honestly claim: it says a mover MIGHT fit, and the
+         * per-point clearance decides whether it does. Using it as the width filter
+         * outright is what cancelled the whole reason clearance is stored per cell.
+         */
         uint8_t clearance = 0;
 
         uint32_t Cells() const

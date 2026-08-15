@@ -111,6 +111,19 @@ namespace Nav
      * A gateway is maximal: consecutive border cells of the same region, each connected
      * to the next, are one gateway. A doorway is one; a hundred-yard open border is also
      * one, and the fine search is what picks the point along it.
+     *
+     * == MARKED FOR DELETION, except for one case ==
+     *
+     * A BORDER gateway is a run of border cells with a height at each end and a width --
+     * which is exactly a rim `Portal`, arrived at by a second bake pass with its own
+     * rules. Nothing queries these any more: the router walks areas, and what it asks
+     * about a tile border is `NavStore::MeshCrossingsOf`. They survive because the tile
+     * FORMAT carries them; they go at the next version bump, with `GatewayCostMatrix`,
+     * `NavBuilder::FindGateways` and `NavBuilder::GatewayCosts`.
+     *
+     * The `SIDE_LINK` mouth is NOT going. A hand-authored jump is authored as a pair of
+     * mouths, and `BuildTileMesh` reads them into `MeshLink` -- that is now the only
+     * thing in this struct a query depends on.
      */
     struct Gateway
     {
@@ -375,7 +388,12 @@ namespace Nav
 
             /**
              * @brief What it really costs to walk from one gateway of this tile to
-             *        another, in yards, without leaving the tile.
+             *        another, in yards, without leaving the tile. MARKED FOR DELETION.
+             *
+             * No caller. The coarse search this was measured for is gone, and the one
+             * that replaced it measures between AREAS, whose geometry it has in hand --
+             * so the matrix is a bake pass and a file section that answer a question
+             * nobody asks. It goes at the next tile-format bump; see `Gateway`.
              *
              * A measured distance, not an estimate: the baker runs the search for
              * every pair. That is the difference between a coarse search that is

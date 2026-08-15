@@ -264,7 +264,7 @@ namespace Nav
                 rect.region = region;
                 rect.minZ = std::numeric_limits<float>::max();
                 rect.maxZ = -std::numeric_limits<float>::max();
-                rect.clearance = 0xFF;
+                rect.clearance = 0;
                 rect.area = PackArea(area, steep);
                 rect.layer = plan.layerIndex;
 
@@ -290,7 +290,7 @@ namespace Nav
 
                         rect.minZ = std::min(rect.minZ, s.z);
                         rect.maxZ = std::max(rect.maxZ, s.z);
-                        rect.clearance = std::min(rect.clearance, s.clearance);
+                        rect.clearance = std::max(rect.clearance, s.clearance);
                     }
                 }
 

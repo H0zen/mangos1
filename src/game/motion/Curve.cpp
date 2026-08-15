@@ -39,12 +39,34 @@ namespace Helm
                                      a.z + (b.z - a.z) * t);
         }
 
-        /// The control point for a Catmull-Rom segment, with the ends clamped by
-        /// duplication so the curve begins and ends on the path's own points.
+        /**
+         * @brief The control point for a Catmull-Rom segment.
+         *
+         * The head is REFLECTED through the first point, `P(-1) = 2*P0 - P1`; the tail
+         * is duplicated. That is what the client does, what `Course::Controls` does and
+         * what `MoveSpline::InitCatmullRom` does -- and this was the odd one out,
+         * clamping both ends by duplication.
+         *
+         * Both conventions put the curve exactly ON the points at t = 0 and t = 1, so
+         * every "the leg starts where it says it starts" test passes under either. What
+         * differs is the SHAPE and the tangent of the first segment, which is precisely
+         * where a landing looks wrong -- and precisely what no endpoint assertion can
+         * catch. Three implementations of one curve, and the one nothing on the wire
+         * used was the one that disagreed.
+         */
         Geometry::Vector3 Control(const Path& path, long index)
         {
             const long last = static_cast<long>(path.PointCount()) - 1;
-            const long clamped = std::max<long>(0, std::min(index, last));
+
+            if (index < 0)
+            {
+                const Geometry::Vector3& p0 = path.Points()[0];
+                const Geometry::Vector3& p1 = path.Points()[1];
+                return Geometry::Vector3(p0.x * 2.0f - p1.x, p0.y * 2.0f - p1.y,
+                                         p0.z * 2.0f - p1.z);
+            }
+
+            const long clamped = std::min(index, last);
             return path.Points()[static_cast<size_t>(clamped)];
         }
 
@@ -89,7 +111,7 @@ namespace Helm
         const Geometry::Vector3& a = path.Points()[segment];
         const Geometry::Vector3& b = path.Points()[segment + 1];
 
-        if (curve == Curve::Linear)
+        if (curve == Curve::Segmented)
         {
             return Lerp(a, b, fraction);
         }
@@ -110,7 +132,7 @@ namespace Helm
 
         Geometry::Vector3 direction;
 
-        if (curve == Curve::Linear)
+        if (curve == Curve::Segmented)
         {
             const Geometry::Vector3& a = path.Points()[segment];
             const Geometry::Vector3& b = path.Points()[segment + 1];
@@ -152,7 +174,7 @@ namespace Helm
             return 0.0f;
         }
 
-        if (curve == Curve::Linear)
+        if (curve == Curve::Segmented)
         {
             return path.SegmentLength(segment);
         }

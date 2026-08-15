@@ -30,8 +30,6 @@
 #include "MotionFrame.h"
 #include "TemporarySummon.h"
 #include "World.h"
-#include "movement/MoveSpline.h"
-
 void PointMovementGenerator::Initialize(Unit& owner)
 {
     if (owner.hasUnitState(UNIT_STAT_CAN_NOT_REACT | UNIT_STAT_NOT_MOVE))

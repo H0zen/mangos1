@@ -260,6 +260,17 @@ namespace Helm
         inline uint32 FlagsOf(Course const& course)
         {
             uint32 flags = 0;
+
+            // A FALL, and nothing else about the leg matters once this bit is set: the
+            // client stops interpolating the geometry's height and integrates gravity
+            // itself. That is why a fall may be sent as two points with no shape -- the
+            // shape is the client's to compute, and it computes the same one the server
+            // does because both use the same constants (Helm::Fall).
+            if (course.IsFalling())
+            {
+                return FLAG_FALLING;
+            }
+
             if (course.GetGait() != Gait::Walk)
             {
                 flags |= FLAG_RUNNING;
@@ -321,6 +332,20 @@ namespace Helm
          * @param out    Packet to fill; the opcode is set here too.
          */
         void WriteLaunch(Course const& course, ActorId mover, WorldPacket& out);
+
+        /**
+         * @brief The running leg, inside an object's create block.
+         *
+         * SMSG_UPDATE_OBJECT rather than SMSG_MONSTER_MOVE: what it answers is "this
+         * unit you are only now seeing is part way through a movement", so it carries
+         * how much of the leg has already elapsed and the WHOLE path including the point
+         * it started from -- where a monster-move omits that point, having sent it in
+         * the header.
+         *
+         * Appended to a ByteBuffer, not a WorldPacket: the caller is in the middle of
+         * building an update block and owns the opcode.
+         */
+        void WriteCreate(Course const& course, Instant now, ByteBuffer& out);
 
         /**
          * @brief Write the eleven-byte progress correction.

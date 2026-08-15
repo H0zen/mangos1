@@ -168,7 +168,14 @@ Motion::MoveIntent FleeingMovementGenerator::Intent(Unit& owner,
 
     if (status.traveling && m_haveFleePoint)
     {
-        return Motion::MoveIntent::Move(m_fleePoint, Motion::MOVE_REQUIRE_PATH);
+        // THE SAME CAP AS THE FIRST TIME. This restatement is not a different request --
+        // it is the same bolt, re-issued because the driver needs it again (a speed
+        // change mid-flight is enough) -- and dropping the length from it handed the
+        // router an uncapped route to the same point. The thirty yards is the rule that
+        // makes a flee a flee; a restatement that forgets it lets a panicking creature
+        // cross a zone.
+        return Motion::MoveIntent::Move(m_fleePoint, Motion::MOVE_REQUIRE_PATH)
+            .WithinLength(FLEE_PATH_LENGTH_LIMIT);
     }
 
     // Standing: catch a breath before the next bolt.

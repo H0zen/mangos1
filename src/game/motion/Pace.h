@@ -65,6 +65,7 @@
  * what made it untestable and therefore unverified for fifteen years.
  */
 
+#include "motion/Curve.h"
 #include "motion/Path.h"
 
 #include <cstdint>
@@ -92,7 +93,20 @@ namespace Helm
              *         length, never from a speed of zero, and inventing one from a bad
              *         speed would hide a caller that has lost track of its mover.
              */
-            bool Time(const Path& path, float speed);
+            /**
+             * @param curve How the path bends BETWEEN its points. It changes the
+             *              timing and is not decoration: a Catmull-Rom segment is
+             *              longer than its chord, and `Course::Plan` and
+             *              `MoveSpline::SegLengthCatmullRom` both time the ARC, in
+             *              three chordal steps.
+             *
+             *              Timing chords while the wire times arcs made every curved
+             *              leg finish early on the server -- and the taxi is the one
+             *              caller that is always curved. Node events, the dismount and
+             *              `Finalize` all fired while the client was still flying, and
+             *              on a route with many bends the error accumulates.
+             */
+            bool Time(const Path& path, float speed, Curve curve = Curve::Segmented);
 
             bool Valid() const { return !m_marks.empty(); }
 
@@ -126,7 +140,8 @@ namespace Helm
      * Asked when deciding whether a leg is worth sending at all, or sizing a timer
      * against one. Same accumulator, so the two can never drift apart.
      */
-    uint32_t ClientDuration(const Path& path, float speed);
+    uint32_t ClientDuration(const Path& path, float speed,
+                            Curve curve = Curve::Segmented);
 }
 
 #endif

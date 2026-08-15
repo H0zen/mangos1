@@ -33,7 +33,6 @@
 #include "TargetedMovementGenerator.h"
 #include "WaypointMovementGenerator.h"
 #include "RandomMovementGenerator.h"
-#include "movement/MoveSpline.h"
 #include "movement/MoveSplineInit.h"
 #include "Map.h"
 #include "CreatureAISelector.h"
@@ -296,10 +295,28 @@ void MotionMaster::MovementExpired(bool reset)
  */
 void MotionMaster::MoveIdle()
 {
-    if (empty() || !isStatic(top()))
+    // === "STOP AND DO NOTHING", which is what every caller means by it.
+    //
+    // Adding idle at Routine and hoping is not that. Ranks decide what drives, and
+    // Routine is the bottom of them -- so a chase (Combat) or a flee (Panic) went
+    // straight on running while the pet was told to Stay, the guard was told to hold,
+    // the script was told to stop. Under the old stack idle became the top and the
+    // contract was "stop"; the move to ranks changed it silently, and the callers --
+    // PetAI, GuardAI, CreatureEventAI, TransportMap, aura control, scripts -- were not
+    // changed with it.
+    //
+    // So it clears, like the death path already does by hand, and stops the mover.
+    // Leaving the spline running was the other half: even where idle DID take over, the
+    // generator underneath was never interrupted and the unit kept walking out the rest
+    // of its leg, arriving nowhere anyone had asked for and firing no MovementInform.
+    if (m_roster.Size() == 1 && isStatic(top()))
     {
-        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
+        return;   // already idle, and nothing to interrupt
     }
+
+    m_owner->StopMoving();
+    Clear(false, true);
+    m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
 }
 
 /**
@@ -632,8 +649,34 @@ void MotionMaster::Mutate(MovementGenerator* m)
     // this function's to assume any more.
     MovementGenerator* previous = empty() ? nullptr : top();
 
-    m->Initialize(*m_owner);
+    // === INITIALISE ONLY WHAT ACTUALLY TAKES THE WHEEL.
+    //
+    // `Initialize` is not a constructor. PointMovementGenerator's calls StopMoving() and
+    // sets UNIT_STAT_ROAMING; Random's sets it too. Running that for a generator that
+    // then joins BELOW the driver killed the driver's spline and cleared its
+    // UNIT_STAT_CHASE_MOVE -- so a script's MovePoint during a chase stopped the chase
+    // dead, never drove, and the next chase tick had to lay the leg again. A visible
+    // hitch, caused by a generator that never got to do anything.
+    //
+    // Two generators still need their init BEFORE they are ranked, and for one reason:
+    // they capture where the unit is now. Home reads its anchor from the generator it is
+    // displacing (GetResetPosition), and an effect reads the leg it was launched with.
+    // Both are captures, neither steers, so both are safe here.
+    const MovementGeneratorType kind = m->GetMovementGeneratorType();
+    const bool capturesOnInit =
+        kind == HOME_MOTION_TYPE || kind == EFFECT_MOTION_TYPE;
+
+    if (capturesOnInit)
+    {
+        m->Initialize(*m_owner);
+    }
+
     m_roster.Add(m, rankOf(m));
+
+    if (!capturesOnInit && top() == m)
+    {
+        m->Initialize(*m_owner);
+    }
 
     // Interrupt the outgoing driver ONLY if it really is outgoing.
     //
@@ -747,12 +790,12 @@ void MotionMaster::GetWaypointPathInformation(std::ostringstream& oss) const
  */
 bool MotionMaster::GetDestination(float& x, float& y, float& z)
 {
-    if (m_owner->movespline->Finalized())
+    if (!m_owner->IsTravelling())
     {
         return false;
     }
 
-    const Geometry::Vector3& dest = m_owner->movespline->FinalDestination();
+    const Geometry::Vector3& dest = m_owner->CurrentCourse().Points().back();
     x = dest.x;
     y = dest.y;
     z = dest.z;

@@ -32,8 +32,15 @@ namespace Nav
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            if (m_tiles.find(key) != m_tiles.end())
+            const auto it = m_tiles.find(key);
+            if (it != m_tiles.end())
             {
+                // Already here -- but PROMOTE it if a grid is what is asking now. The
+                // pump loads tiles unpinned; a player then walks onto that grid and
+                // this returned early without claiming it, so the cap could evict a
+                // tile the grid was still holding. Routing on the player's own ground
+                // then answered "no ground here".
+                it->second.pinned = it->second.pinned || pinned;
                 return true;
             }
         }
@@ -55,9 +62,13 @@ namespace Nav
         // Re-checked: another worker may have loaded the same grid while this one was
         // reading it. Two instances of the same map load the same tiles, on their own
         // threads, and both call this.
-        if (m_tiles.find(key) != m_tiles.end())
         {
-            return true;
+            const auto it = m_tiles.find(key);
+            if (it != m_tiles.end())
+            {
+                it->second.pinned = it->second.pinned || pinned;
+                return true;
+            }
         }
 
         Resident resident;
@@ -104,6 +115,11 @@ namespace Nav
         m_tiles.clear();
         m_crossings.clear();
         m_meshCrossings.clear();
+
+        // The want list too. It is a list of tiles some search asked for BEFORE this
+        // reset, and leaving it behind meant PumpWanted spent the next few ticks reading
+        // files back in for routes that no longer exist -- a clear that does not clear.
+        m_wanted.clear();
     }
 
     bool NavStore::IsResident(int tileX, int tileY) const

@@ -56,9 +56,31 @@
  * The root only moves when the path must BEND, which happens at a corner of the mesh --
  * so the roots along a finished path are exactly its turning points, and the path comes
  * out of the search already taut. There is nothing to straighten.
+ *
+ * == What a MoveProfile can and cannot ask of it ==
+ *
+ * PERMISSION is exact here. An area the profile does not admit -- lava for anything
+ * alive, the surface of a bay for a creature that walks the bottom of it -- is not part
+ * of the mesh this search sees, so the path it returns is the shortest one over the
+ * ground that mover is actually allowed to stand on.
+ *
+ * PREFERENCE is not, and cannot be, without this ceasing to be Polyanya. `areaCost`
+ * makes the problem a weighted-region shortest path, where the optimal route REFRACTS at
+ * the boundary between two costs by Snell's law instead of running straight -- and the
+ * straight line inside a convex area is the single property every interval projection
+ * here rests on. Pricing areas inside this loop would not make it slower or approximate;
+ * it would make its answer wrong while it went on claiming to be optimal.
+ *
+ * So cost is applied where the search really is over discrete areas: the coarse stage in
+ * `Router`, which is what decides WHICH areas the corridor passes through. Within one
+ * area-to-area hop the route is straight and the cost is a constant, so the two agree.
+ * What is left is a shorter path through admitted-but-dearer ground being preferred to a
+ * longer one beside it, inside a single tile. That is a real limitation, it is written
+ * down in `NAV.md`, and it is the honest price of an exact geometric answer.
  */
 
 #include "Geometry/Vector3.h"
+#include "nav/NavArea.hpp"
 #include "nav/NavMesh.hpp"
 #include "nav/NavTile.hpp"
 
@@ -89,9 +111,20 @@ namespace Nav
         /// how two points sixty yards apart in Blackrock Depths came back unroutable.
         float endZ = 0.0f;
 
-        /// A mover narrower than a rectangle's recorded clearance may cross it. Zero
-        /// admits every area, which is what a query that does not care about width wants.
-        float radius = 0.0f;
+        /**
+         * @brief WHAT THE MOVER IS, not merely how wide.
+         *
+         * This was a bare radius, and a bare radius is half a permission. A rectangle
+         * carries the area it is made of exactly so a swimmer and a walker can be told
+         * apart, and a search that read only the width sent walkers through lava and
+         * across the surface of bays -- while the cell engine, asked the same question
+         * about the same ground, refused. One question with two answers, and this is the
+         * field that had gone missing from one of them.
+         *
+         * A default profile admits ground and shallow water at zero radius, which is
+         * what a query that does not care wants.
+         */
+        MoveProfile profile;
 
         /// Refuse to expand more than this many nodes. A budget, not a correctness
         /// device: the answer is optimal or there is no answer.

@@ -303,6 +303,63 @@ namespace Nav
         }
 
         mesh.first[mesh.rects.size()] = static_cast<uint32_t>(mesh.portals.size());
+
+        // === The hand-authored crossings, moved onto the areas.
+        //
+        // The baker still authors a link as an edge between two GATEWAYS, because that is
+        // what `offmesh.txt` describes and what the tile file carries. What the mesh
+        // needs is which AREA each mouth stands in, and that is a lookup rather than a second
+        // authored fact: the mouth is a world position, and the rectangle covering it at
+        // that height is the area a mover jumping from there is leaving.
+        //
+        // By HEIGHT and not in plan. A dock is over water and a ledge is over a floor, so
+        // taking the first rectangle covering the square would resolve half the links in
+        // the game onto the ground underneath the thing they are authored on.
+        for (const Link& link : tile.Links())
+        {
+            if (link.fromGate >= tile.Gateways().size() ||
+                link.toGate >= tile.Gateways().size())
+            {
+                continue;
+            }
+
+            const Gateway& fromGate = tile.Gateways()[link.fromGate];
+            const Gateway& toGate = tile.Gateways()[link.toGate];
+
+            // A link joins two MOUTHS. An edge between border gateways would be a claim
+            // about ground in another file, which no tile is allowed to make.
+            if (!fromGate.IsLink() || !toGate.IsLink())
+            {
+                continue;
+            }
+
+            const int32_t fromRect =
+                RectAtHeight(tile, mesh, fromGate.x, fromGate.y, fromGate.z);
+            const int32_t toRect =
+                RectAtHeight(tile, mesh, toGate.x, toGate.y, toGate.z);
+            if (fromRect < 0 || toRect < 0 || fromRect == toRect)
+            {
+                // Nothing under a mouth, or both mouths in one area -- in which case the
+                // ground already joins them and the jump is not needed.
+                continue;
+            }
+
+            MeshLink out;
+            out.fromRect = static_cast<uint32_t>(fromRect);
+            out.toRect = static_cast<uint32_t>(toRect);
+            out.fromX = fromGate.x;
+            out.fromY = fromGate.y;
+            out.fromZ = fromGate.z;
+            out.toX = toGate.x;
+            out.toY = toGate.y;
+            out.toZ = toGate.z;
+            out.cost = link.cost;
+            out.clearance = QuantiseClearance(std::min(fromGate.width, toGate.width));
+            out.bidirectional = link.bidirectional ? 1 : 0;
+
+            mesh.links.push_back(out);
+        }
+
         return mesh;
     }
 
@@ -479,8 +536,13 @@ namespace Nav
             out.z = here;
             out.region = rect.region;
             out.area = rect.area;
-            out.clearance = rect.clearance;
             out.layer = rect.layer;
+
+            // The rectangle's own figure, and the caller must treat it as an upper
+            // bound rather than as this point's room. A maximal rectangle spans open
+            // ground and its own rim, so no single number describes both -- which is
+            // why the width test belongs at the point and not here.
+            out.clearance = rect.clearance;
         }
 
         return found;
@@ -559,7 +621,7 @@ namespace Nav
                 }
 
                 // Heights are linear along a run by construction -- a rectangle's ground
-                // is a plane -- so the overlap's ends are enough to test the step.
+                // is a plane -- so the height at any index of it is a lerp of its ends.
                 const auto heightAt = [](const Portal& portal, uint16_t at)
                 {
                     if (portal.hi == portal.lo)
@@ -571,42 +633,94 @@ namespace Nav
                     return portal.loZ + (portal.hiZ - portal.loZ) * t;
                 };
 
-                const float stepLo =
-                    std::fabs(heightAt(here, lo) - heightAt(there, lo));
-                const float stepHi =
-                    std::fabs(heightAt(here, hi) - heightAt(there, hi));
-
-                if (stepLo > window && stepHi > window)
-                {
-                    continue;   // a ledge running beside a drop, not a way across
-                }
-
-                MeshCrossing crossing;
-                crossing.nearTileX = nearTile.TileX();
-                crossing.nearTileY = nearTile.TileY();
-                crossing.nearRect = here.rect;
-                crossing.farTileX = farTile.TileX();
-                crossing.farTileY = farTile.TileY();
-                crossing.farRect = there.rect;
-                crossing.clearance = std::min(here.clearance, there.clearance);
-
-                const uint16_t middle = static_cast<uint16_t>((lo + hi) / 2);
+                // === WHERE the step is a step, not merely WHETHER it is somewhere.
+                //
+                // Testing only the two ends and keeping the whole overlap was wrong in
+                // the case that matters: a run whose one end is a doorstep and whose
+                // other is a cliff passed, and the entire overlap became a crossing.
+                // The search then interpolates along all of it and can step off the
+                // cliff -- the exact failure the per-cell step test exists to prevent,
+                // reintroduced at the one place two tiles meet.
+                //
+                // So walk the overlap and keep the contiguous runs that ARE steps. A
+                // scan rather than algebra: the difference is |linear| and therefore has
+                // one admissible interval, but a run is at most 512 cells and this is
+                // paid once when two tiles are stitched, so the version that cannot be
+                // got wrong is the one to write.
                 const bool alongY =
                     nearSide == SIDE_MINUS_X || nearSide == SIDE_PLUS_X;
 
-                const NavRect& rect = nearMesh.rects[here.rect];
-                const int fixed = nearSide == SIDE_MINUS_X   ? rect.x0
-                                  : nearSide == SIDE_PLUS_X  ? rect.x1
-                                  : nearSide == SIDE_MINUS_Y ? rect.y0
-                                                             : rect.y1;
+                const NavRect& nearRect = nearMesh.rects[here.rect];
+                const NavRect& farRect = farMesh.rects[there.rect];
 
-                crossing.x = CellCentre(GlobalCell(nearTile.TileX(),
-                                                   alongY ? fixed : middle));
-                crossing.y = CellCentre(GlobalCell(nearTile.TileY(),
-                                                   alongY ? middle : fixed));
-                crossing.z = heightAt(here, middle);
+                const int nearFixed = nearSide == SIDE_MINUS_X   ? nearRect.x0
+                                      : nearSide == SIDE_PLUS_X  ? nearRect.x1
+                                      : nearSide == SIDE_MINUS_Y ? nearRect.y0
+                                                                 : nearRect.y1;
+                const int farFixed = farSide == SIDE_MINUS_X   ? farRect.x0
+                                     : farSide == SIDE_PLUS_X  ? farRect.x1
+                                     : farSide == SIDE_MINUS_Y ? farRect.y0
+                                                               : farRect.y1;
 
-                out.push_back(crossing);
+                const auto emit = [&](uint16_t from, uint16_t to)
+                {
+                    MeshCrossing crossing;
+                    crossing.nearTileX = nearTile.TileX();
+                    crossing.nearTileY = nearTile.TileY();
+                    crossing.nearRect = here.rect;
+                    crossing.farTileX = farTile.TileX();
+                    crossing.farTileY = farTile.TileY();
+                    crossing.farRect = there.rect;
+                    crossing.clearance = std::min(here.clearance, there.clearance);
+
+                    const uint16_t middle = static_cast<uint16_t>((from + to) / 2);
+
+                    // TWO POINTS, ONE ON EACH SIDE. A crossing used to carry only the
+                    // near tile's cell centre, which lies strictly inside the near tile
+                    // -- so a router that used it as the place the next tile's search
+                    // BEGINS handed that search a point the far tile does not contain,
+                    // and every route between two tiles failed at its first border.
+                    // Where you leave from and where you arrive are two facts, and a
+                    // border is precisely the place they differ.
+                    crossing.x = CellCentre(GlobalCell(nearTile.TileX(),
+                                                       alongY ? nearFixed : middle));
+                    crossing.y = CellCentre(GlobalCell(nearTile.TileY(),
+                                                       alongY ? middle : nearFixed));
+                    crossing.z = heightAt(here, middle);
+
+                    crossing.farX = CellCentre(GlobalCell(farTile.TileX(),
+                                                          alongY ? farFixed : middle));
+                    crossing.farY = CellCentre(GlobalCell(farTile.TileY(),
+                                                          alongY ? middle : farFixed));
+                    crossing.farZ = heightAt(there, middle);
+
+                    out.push_back(crossing);
+                };
+
+                int runFrom = -1;
+                for (int at = lo; at <= int(hi); ++at)
+                {
+                    const uint16_t index = static_cast<uint16_t>(at);
+                    const bool step =
+                        std::fabs(heightAt(here, index) - heightAt(there, index)) <=
+                        window;
+
+                    if (step && runFrom < 0)
+                    {
+                        runFrom = at;
+                    }
+                    else if (!step && runFrom >= 0)
+                    {
+                        emit(static_cast<uint16_t>(runFrom),
+                             static_cast<uint16_t>(at - 1));
+                        runFrom = -1;
+                    }
+                }
+
+                if (runFrom >= 0)
+                {
+                    emit(static_cast<uint16_t>(runFrom), hi);
+                }
             }
         }
     }

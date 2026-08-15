@@ -187,10 +187,17 @@ namespace Nav
             return result;
         }
 
-        const uint8_t needed = QuantiseClearance(query.radius);
+        const uint8_t needed = QuantiseClearance(query.profile.radius);
+
+        // Width AND permission, in the one place every step of the search asks. The width
+        // figure is the rectangle's own, which is an upper bound and can only ever say
+        // "maybe" -- the portal's narrowest is the real filter and is tested beside it.
+        // The area is not a bound at all: a rectangle covers cells of exactly one area,
+        // so a mover this refuses could not stand anywhere in it.
         const auto passable = [&](uint32_t rect)
         {
-            return mesh.rects[rect].clearance >= needed;
+            return mesh.rects[rect].clearance >= needed &&
+                   query.profile.AdmitsGround(mesh.rects[rect].area);
         };
 
         if (!passable(static_cast<uint32_t>(startRect)) ||
@@ -239,7 +246,13 @@ namespace Nav
             // it is not a limitation of the search -- what lies beyond belongs to another
             // file, and crossing is the store's business. Reading it as a neighbour index
             // would be reading 0xFFFFFFFF as a rectangle.
+            // The PORTAL's width, not just the rectangle's. A rectangle reports the
+            // widest room it offers anywhere -- it has to, since a maximal one always
+            // touches the rim -- so it can only ever say "maybe". The opening is where
+            // a mover actually has to fit, and its figure is the narrowest along the
+            // run, which is exactly what a doorway is.
             if (mesh.portals[i].LeavesTheTile() ||
+                mesh.portals[i].clearance < needed ||
                 !passable(mesh.portals[i].neighbour))
             {
                 continue;
@@ -338,9 +351,9 @@ namespace Nav
             {
                 const Portal& next = mesh.portals[i];
                 if (next.LeavesTheTile() || next.neighbour == portal.rect ||
-                    !passable(next.neighbour))
+                    next.clearance < needed || !passable(next.neighbour))
                 {
-                    continue;   // never out of the tile, never straight back
+                    continue;   // never out of the tile, never back, never too narrow
                 }
 
                 Vec2 c, d;

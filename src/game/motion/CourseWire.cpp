@@ -30,7 +30,10 @@
 
 namespace
 {
-    void WriteVector(WorldPacket& out, Helm::Vector3 const& v)
+    /// A ByteBuffer and not a WorldPacket: the create block is appended to an update
+    /// block the caller owns, and a WorldPacket IS a ByteBuffer, so one function serves
+    /// both rather than two spellings of three floats drifting apart.
+    void WriteVector(ByteBuffer& out, Helm::Vector3 const& v)
     {
         out << v.x << v.y << v.z;
     }
@@ -123,6 +126,53 @@ namespace Helm
                     out << packed;
                 }
             }
+        }
+
+        void WriteCreate(Course const& course, Instant now, ByteBuffer& out)
+        {
+            std::vector<Vector3> const& pts = course.Points();
+
+            out << uint32(FlagsOf(course));
+
+            Facing const& facing = course.GetFacing();
+            switch (facing.mode)
+            {
+                case Facing::Mode::Spot:
+                    WriteVector(out, facing.spot);
+                    break;
+                case Facing::Mode::Target:
+                    out << uint64(facing.target);
+                    break;
+                case Facing::Mode::Angle:
+                    out << float(facing.angle);
+                    break;
+                case Facing::Mode::Travel:
+                default:
+                    break;   // nothing follows; the flag word said so
+            }
+
+            out << int32(course.Elapsed(now));
+            out << int32(course.Duration());
+            out << uint32(course.Id());
+
+            // THE POINTS AS PLANNED, and that is the whole of what was wrong before.
+            //
+            // This block used to be written by walking the old spline's internal control
+            // array -- which is the path PLUS the two phantom controls a Catmull-Rom
+            // evaluator needs at its ends (a reflected one in front, a duplicated one
+            // behind). The client builds its own, so it padded an already-padded path:
+            // the first segment began behind the unit and the last was a tail of zero
+            // length. Meanwhile SMSG_MONSTER_MOVE, describing the same leg, carried the
+            // real points -- so whoever saw only the create block (a player logging in,
+            // or walking into range of something already moving) drew a different curve
+            // from everyone else watching the same creature.
+            out << uint32(pts.size());
+            for (Vector3 const& p : pts)
+            {
+                WriteVector(out, p);
+            }
+
+            WriteVector(out, pts.empty() ? Vector3() : pts.back());
         }
 
         void WriteSync(Leg const& leg, Instant /*now*/, ActorId mover, WorldPacket& out)

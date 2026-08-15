@@ -42,7 +42,7 @@ namespace Helm
     {
         Clear();
 
-        if (!path.Valid() || !m_pace.Time(path, speed))
+        if (!path.Valid() || !m_pace.Time(path, speed, curve))
         {
             return false;
         }
@@ -59,7 +59,7 @@ namespace Helm
     {
         m_path = Path();
         m_pace = Pace();
-        m_curve = Curve::Linear;
+        m_curve = Curve::Segmented;
         m_at = 0;
         m_id = 0;
         m_lastHeading = 0.0f;
@@ -67,11 +67,21 @@ namespace Helm
 
     uint32_t Motion::Elapsed(Instant now) const
     {
-        // Unsigned subtraction, so a clock that has wrapped past the leg's start still
-        // yields the elapsed time rather than four billion milliseconds.
-        const uint32_t since = now - m_at;
+        // SIGNED, and that is the whole of it. Unsigned subtraction reads one
+        // millisecond BEFORE the start as forty-nine days after it -- so a leg planned
+        // for a moment that has not arrived yet reported itself finished, `At()` handed
+        // back the destination, and the mover teleported to the end of a movement it had
+        // not begun. `Since` is the convention `CourseTime.h` exists to hold: a modular
+        // difference read as a signed one, which wraps correctly in both directions.
+        const Millis since = Since(now, m_at);
+        if (since <= 0)
+        {
+            return 0;
+        }
+
         const uint32_t total = Duration();
-        return since > total ? total : since;
+        return static_cast<uint32_t>(since) > total ? total
+                                                    : static_cast<uint32_t>(since);
     }
 
     Geometry::Vector3 Motion::At(Instant now) const
@@ -135,7 +145,7 @@ namespace Helm
         // the ends of the leg are not packed at all, which is why this is zero there.
         slack.geometry = kPackQuantum * 0.5f * std::sqrt(3.0f);
 
-        if (m_curve == Curve::CatmullRom)
+        if (m_curve == Curve::Smooth)
         {
             // A curved leg is parameterised by index rather than by arc length, or may
             // be; the difference is bounded by how far one segment's arc departs from

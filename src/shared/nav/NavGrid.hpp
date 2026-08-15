@@ -80,7 +80,16 @@ namespace Nav
      */
     inline float ClimbWindow(float maxClimb, float maxSlopeDeg, float length)
     {
-        const float rise = length * std::tan(maxSlopeDeg * 3.14159265f / 180.0f);
+        // Clamped BELOW ninety degrees, because tangent does not merely grow there -- it
+        // is infinite at ninety and NEGATIVE past it. A parameter of 90 links every cell
+        // to every other regardless of the drop between them; a parameter of 91 links
+        // none at all, and both come back from a corrupt or hand-edited bake file
+        // looking like an ordinary number. The bakes ship 55.
+        const float degrees = maxSlopeDeg > 89.0f    ? 89.0f
+                              : maxSlopeDeg < 0.0f   ? 0.0f
+                                                     : maxSlopeDeg;
+
+        const float rise = length * std::tan(degrees * 3.14159265f / 180.0f);
         return maxClimb > rise ? maxClimb : rise;
     }
 
@@ -131,8 +140,19 @@ namespace Nav
      */
     inline int CellIndex(float c)
     {
-        const int g = static_cast<int>(std::floor(CellCoord(c)));
-        return g == CELLS_PER_MAP ? CELLS_PER_MAP - 1 : g;
+        // NaN FIRST, and not as a nicety. `static_cast<int>` of a NaN or of a value
+        // past int's range is undefined behaviour in C++17 ([conv.fpint]) -- not a
+        // large number, not a clamp: on x86 it yields INT_MIN, and INT_MIN indexes a
+        // tile table. A corrupt position then crashes somewhere far away instead of
+        // being answered "off the map", which is what it is.
+        const float coord = CellCoord(c);
+        if (!(coord >= 0.0f) || coord > float(CELLS_PER_MAP))
+        {
+            return -1;
+        }
+
+        const int g = static_cast<int>(std::floor(coord));
+        return g >= CELLS_PER_MAP ? CELLS_PER_MAP - 1 : g;
     }
 
     /// The tile a global cell index belongs to.
@@ -221,7 +241,12 @@ namespace Nav
     inline uint16_t QuantiseZ(float z, float tileBaseZ)
     {
         const float steps = (z - tileBaseZ) / Z_QUANTUM;
-        if (steps <= 0.0f)
+
+        // `!(steps > 0)` and not `steps <= 0`, so that a NaN takes this branch. The two
+        // read the same and differ on exactly the value that would otherwise reach the
+        // cast below, where converting a NaN to uint16_t is undefined behaviour rather
+        // than a large number.
+        if (!(steps > 0.0f))
         {
             return 0;
         }

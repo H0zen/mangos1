@@ -216,7 +216,7 @@ TEST(Motion_ClientDurationAgreesWithPace)
 TEST(Motion_LinearIsStraight)
 {
     const Helm::Path path = Chain(2, 10.0f);
-    const Vector3 middle = Helm::PointOn(path, Helm::Curve::Linear, 0, 0.5f);
+    const Vector3 middle = Helm::PointOn(path, Helm::Curve::Segmented, 0, 0.5f);
 
     CHECK(std::fabs(middle.x - 5.0f) < 0.001f);
     CHECK(std::fabs(middle.y) < 0.001f);
@@ -237,8 +237,8 @@ TEST(Motion_CatmullRomPassesThroughItsPoints)
 
     for (size_t segment = 0; segment < path.SegmentCount(); ++segment)
     {
-        const Vector3 begin = Helm::PointOn(path, Helm::Curve::CatmullRom, segment, 0.0f);
-        const Vector3 end = Helm::PointOn(path, Helm::Curve::CatmullRom, segment, 1.0f);
+        const Vector3 begin = Helm::PointOn(path, Helm::Curve::Smooth, segment, 0.0f);
+        const Vector3 end = Helm::PointOn(path, Helm::Curve::Smooth, segment, 1.0f);
 
         CHECK(std::fabs(begin.x - points[segment].x) < 0.001f);
         CHECK(std::fabs(begin.y - points[segment].y) < 0.001f);
@@ -248,7 +248,7 @@ TEST(Motion_CatmullRomPassesThroughItsPoints)
 
     // And it bends: the arc of a curved segment is longer than its chord, which is the
     // quantity the uncertainty of a smooth leg is bounded by.
-    CHECK(Helm::SegmentArc(path, Helm::Curve::CatmullRom, 1) >= path.SegmentLength(1));
+    CHECK(Helm::SegmentArc(path, Helm::Curve::Smooth, 1) >= path.SegmentLength(1));
 }
 
 // A path that stands still has no direction, and the tangent says so rather than
@@ -261,7 +261,7 @@ TEST(Motion_AStandingStillPathHasNoTangent)
     points.push_back(Vector3(5.0f, 5.0f, 0.0f));
     REQUIRE(path.Build(points, Helm::Frame{0}));
 
-    const Vector3 tangent = Helm::TangentOn(path, Helm::Curve::Linear, 0, 0.5f);
+    const Vector3 tangent = Helm::TangentOn(path, Helm::Curve::Segmented, 0, 0.5f);
     CHECK(std::fabs(tangent.x) < 0.001f);
     CHECK(std::fabs(tangent.y) < 0.001f);
     CHECK(std::fabs(tangent.z) < 0.001f);
@@ -277,7 +277,7 @@ TEST(Motion_BothEndsOfALegAreExact)
     const Helm::Path path = Chain(4, 12.5f);
 
     Helm::Motion motion;
-    REQUIRE(motion.Begin(path, 7.0f, 1000, Helm::Curve::Linear, 42));
+    REQUIRE(motion.Begin(path, 7.0f, 1000, Helm::Curve::Segmented, 42));
 
     const Vector3 begin = motion.At(1000);
     CHECK(std::fabs(begin.x - path.Points().front().x) < 0.001f);

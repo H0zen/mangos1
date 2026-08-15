@@ -37,15 +37,21 @@ namespace Helm
         /// count and the running total is truncated before the next one is added, which
         /// is why the loss compounds per point rather than once at the end.
         template <typename Emit>
-        uint32_t Accumulate(const Path& path, float speed, Emit emit)
+        uint32_t Accumulate(const Path& path, float speed, Curve curve, Emit emit)
         {
             double mark = 1.0;
             emit(static_cast<uint32_t>(mark));
 
             for (size_t i = 0; i < path.SegmentCount(); ++i)
             {
-                mark = std::floor(mark + static_cast<double>(path.SegmentLength(i)) * 1000.0 /
-                                             static_cast<double>(speed));
+                // The ARC, not the chord, and through the same three-step measure the
+                // wire uses. For a straight leg the two are identical, so this costs
+                // nothing on the case that is 99.9% of legs -- and on the curved ones it
+                // is the difference between the server and the client agreeing about
+                // when the leg ends.
+                const double length = static_cast<double>(SegmentArc(path, curve, i));
+
+                mark = std::floor(mark + length * 1000.0 / static_cast<double>(speed));
                 emit(static_cast<uint32_t>(mark));
             }
 
@@ -53,7 +59,7 @@ namespace Helm
         }
     }
 
-    bool Pace::Time(const Path& path, float speed)
+    bool Pace::Time(const Path& path, float speed, Curve curve)
     {
         m_marks.clear();
         m_speed = 0.0f;
@@ -65,7 +71,8 @@ namespace Helm
 
         m_speed = speed;
         m_marks.reserve(path.PointCount());
-        Accumulate(path, speed, [this](uint32_t mark) { m_marks.push_back(mark); });
+        Accumulate(path, speed, curve,
+                   [this](uint32_t mark) { m_marks.push_back(mark); });
 
         return true;
     }
@@ -112,13 +119,13 @@ namespace Helm
         fraction = to > from ? static_cast<float>(elapsed - from) / span : 1.0f;
     }
 
-    uint32_t ClientDuration(const Path& path, float speed)
+    uint32_t ClientDuration(const Path& path, float speed, Curve curve)
     {
         if (!path.Valid() || !(speed > 0.0f) || !std::isfinite(speed))
         {
             return 0;
         }
 
-        return Accumulate(path, speed, [](uint32_t) {});
+        return Accumulate(path, speed, curve, [](uint32_t) {});
     }
 }

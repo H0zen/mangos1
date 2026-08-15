@@ -24,8 +24,6 @@
  */
 
 #include "MoveSplineInit.h"
-#include "MoveSpline.h"
-#include "packet_builder.h"
 #include "Unit.h"
 #include "Transports.h"
 #include "TransportMap.h"
@@ -38,7 +36,7 @@
 namespace
 {
     /// The vessel whose deck this unit is standing on, or an empty guid. Derived from the
-    /// map, so a spline goes out as SMSG_MONSTER_MOVE_TRANSPORT for anything on a deck --
+    /// map, so a leg goes out as SMSG_MONSTER_MOVE_TRANSPORT for anything on a deck --
     /// crew, pet or totem alike -- without anyone having registered it as anything.
     ObjectGuid DeckVesselGuidOf(Unit const& unit)
     {
@@ -56,33 +54,22 @@ namespace
     }
 
     /**
-     * @brief The next spline identity.
+     * @brief The next leg identity.
      *
-     * `MoveSplineInitArgs::splineId` was initialised to zero and then assigned by
-     * nothing, anywhere, so every leg this server has ever sent carried the id 0 --
-     * confirmed on a live capture: 31 monster-moves, all `id=0`. Retail's is a counter
-     * shared by the whole world, visibly climbing across unrelated creatures in the
-     * sniffs (20,097,790 then 820, 848, 849, 945 for the units one client could see).
+     * It used to be initialised to zero and assigned by nothing, anywhere, so every leg
+     * this server ever sent carried the id 0 -- confirmed on a live capture: 31
+     * monster-moves, all `id=0`. Retail's is a counter shared by the whole world, visibly
+     * climbing across unrelated creatures in the sniffs.
      *
-     * It is not decoration. The repair scheduler recognises a REPLACEMENT leg by its
-     * id, and a leg that is replaced 53% to 85% of the time is the common case; with a
-     * constant zero it never noticed, so it kept the schedule of a leg that no longer
-     * existed and anchored the cadence to the wrong start.
+     * It is not decoration. The repair scheduler recognises a REPLACEMENT leg by its id,
+     * and a replaced leg is the common case; with a constant zero it never noticed, so it
+     * kept the schedule of a leg that no longer existed.
      *
-     * Atomic because maps update in parallel and each drives its own movement. The
-     * value is an identity, not a count -- nothing reads it back except for equality,
-     * so wrapping after four billion legs costs nothing.
+     * Atomic because maps update in parallel and each drives its own movement. The value
+     * is an identity, not a count -- nothing reads it back except for equality, so
+     * wrapping after four billion legs costs nothing.
      */
-    /**
-     * @brief How far the course and the spline may differ before it means something.
-     *
-     * Four milliseconds -- about three centimetres at a run. The two computations round
-     * independently and can land a millisecond apart; a formula that has actually
-     * diverged is never off by one.
-     */
-    constexpr int32 DURATION_DRIFT_TOLERANCE_MS = 4;
-
-    uint32 NextSplineId()
+    uint32 NextLegId()
     {
         static std::atomic<uint32> counter(1);
         return counter.fetch_add(1, std::memory_order_relaxed);
@@ -103,26 +90,6 @@ namespace
         }
         return (moveFlags & MOVEFLAG_WALK_MODE) ? Helm::Gait::Walk : Helm::Gait::Run;
     }
-
-    /// The spline arguments' facing, in the course's vocabulary. The wire has carried
-    /// this in a type byte all along, separately from the flags, so nothing is lost.
-    Helm::Facing FacingOf(Movement::MoveSplineInitArgs const& args)
-    {
-        if (args.flags.final_angle)
-        {
-            return Helm::Facing::ToAngle(args.facing.angle);
-        }
-        if (args.flags.final_target)
-        {
-            return Helm::Facing::ToTarget(args.facing.target);
-        }
-        if (args.flags.final_point)
-        {
-            return Helm::Facing::ToSpot(
-                Helm::Vector3(args.facing.f.x, args.facing.f.y, args.facing.f.z));
-        }
-        return Helm::Facing();
-    }
 }
 
 namespace Movement
@@ -136,32 +103,28 @@ namespace Movement
     {
         if (moveFlags & MOVEFLAG_FLYING)
         {
-            if (moveFlags & MOVEFLAG_BACKWARD /*&& speed_obj.flight >= speed_obj.flight_back*/)
+            if (moveFlags & MOVEFLAG_BACKWARD)
             {
                 return MOVE_FLIGHT_BACK;
             }
-            else
-            {
-                return MOVE_FLIGHT;
-            }
+            return MOVE_FLIGHT;
         }
-        else if (moveFlags & MOVEFLAG_SWIMMING)
+
+        if (moveFlags & MOVEFLAG_SWIMMING)
         {
-            if (moveFlags & MOVEFLAG_BACKWARD /*&& speed_obj.swim >= speed_obj.swim_back*/)
+            if (moveFlags & MOVEFLAG_BACKWARD)
             {
                 return MOVE_SWIM_BACK;
             }
-            else
-            {
-                return MOVE_SWIM;
-            }
+            return MOVE_SWIM;
         }
-        else if (moveFlags & MOVEFLAG_WALK_MODE)
+
+        if (moveFlags & MOVEFLAG_WALK_MODE)
         {
-            // if ( speed_obj.run > speed_obj.walk )
             return MOVE_WALK;
         }
-        else if (moveFlags & MOVEFLAG_BACKWARD /*&& speed_obj.run >= speed_obj.run_back*/)
+
+        if (moveFlags & MOVEFLAG_BACKWARD)
         {
             return MOVE_RUN_BACK;
         }
@@ -169,181 +132,164 @@ namespace Movement
         return MOVE_RUN;
     }
 
-    /**
-     * @brief Final pass of initialization that launches spline movement.
-     * @return int32 duration - estimated travel time
-     */
+    MoveSplineInit::MoveSplineInit(Unit& m) : unit(m)
+    {
+        // Mix the unit's existing state into the new leg.
+        m_walking = unit.m_movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE);
+
+        // NOT from CAN_FLY or LEVITATING. Those say the unit COULD fly, not that this leg
+        // does, and `flying` here selects Catmull-Rom interpolation and the flight
+        // animation -- so a levitating walker on three or more points was animated and
+        // timed as a flight while travelling at walk speed. Only actually flying counts;
+        // a caller that means a curve says so with SetFly().
+        m_flying = unit.m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING);
+    }
+
+    void MoveSplineInit::SetFacing(const Unit* target)
+    {
+        // Several callers hand this whatever a guid lookup returned. Dereferencing it
+        // unchecked put a crash one failed lookup away from every chase that ends facing
+        // its victim.
+        if (!target)
+        {
+            return;
+        }
+        m_facing = Helm::Facing::ToTarget(target->GetObjectGuid().GetRawValue());
+    }
+
+    void MoveSplineInit::SetFacing(float angle)
+    {
+        m_facing = Helm::Facing::ToAngle(angle);
+    }
+
     int32 MoveSplineInit::Launch()
     {
-        MoveSpline& move_spline = *unit.movespline;
-
         // A DECK IS NOT A SEAT. The unit's map is the vessel and its position is already
         // deck-local, so Where() is the answer and nothing is composed or looked up.
         const ObjectGuid vesselGuid = DeckVesselGuidOf(unit);
 
-        Location real_position(unit.Where().X(), unit.Where().Y(), unit.Where().Z(), unit.Where().Facing());
+        Helm::Domain domain;
+        domain.map = unit.GetMapId();
+        domain.vessel =
+            vesselGuid.IsEmpty() ? Helm::kNoActor : vesselGuid.GetRawValue();
 
-        // there is a big chance that current position is unknown if current state is not finalized, need compute it
-        // this also allows calculate spline position and update map position in much greater intervals
-        if (!move_spline.Finalized())
+        // WHERE THE UNIT ACTUALLY IS. Mid-leg the pose is refreshed from the running
+        // course every tick, so Where() is already the answer -- there is no second
+        // clock left to ask, and that is the point of the engine being gone.
+        const Vector3 here(unit.Where().X(), unit.Where().Y(), unit.Where().Z());
+
+        if (m_path.empty())
         {
-            real_position = move_spline.ComputePosition();
+            MoveTo(here);
         }
 
-        if (args.path.empty())
-        {
-            // should i do the things that user should do?
-            MoveTo(real_position);
-        }
+        m_path[0] = here;
 
-        // correct first vertex
-        args.path[0] = real_position;
         uint32 moveFlags = unit.m_movementInfo.GetMovementFlags();
-        if (args.flags.runmode)
-        {
-            moveFlags &= ~MOVEFLAG_WALK_MODE;
-        }
-        else
+        if (m_walking)
         {
             moveFlags |= MOVEFLAG_WALK_MODE;
         }
-
+        else
+        {
+            moveFlags &= ~MOVEFLAG_WALK_MODE;
+        }
         moveFlags |= (MOVEFLAG_SPLINE_ENABLED | MOVEFLAG_FORWARD);
 
-        if (args.velocity == 0.f)
+        if (m_velocity <= 0.0f)
         {
-            args.velocity = unit.GetSpeed(SelectSpeedType(moveFlags));
+            m_velocity = unit.GetSpeed(SelectSpeedType(moveFlags));
         }
 
-        if (!args.Validate(&unit))
+        const uint32 legId = NextLegId();
+
+        // A FALL IS NOT A TRAVEL. Timed by gravity, sent with FLAG_FALLING, and the
+        // client integrates the height itself from the same constants the server uses.
+        if (m_falling)
+        {
+            const Helm::Course fall = Helm::Course::Falling(
+                domain, m_path.front(), m_path.back(), m_facing, getMSTime(), legId);
+
+            if (fall.Empty())
+            {
+                return 0;   // level, or upward: not a fall at all
+            }
+
+            unit.m_movementInfo.SetMovementFlags(MovementFlags(moveFlags));
+
+            WorldPacket data;
+            Helm::Wire::WriteLaunch(fall, unit.GetObjectGuid().GetRawValue(), data);
+            unit.SendMessageToSet(&data, true);
+
+            unit.SetCourse(fall);
+            return int32(fall.Duration());
+        }
+
+        const bool smooth = m_flying;
+
+        Helm::Course course = Helm::Course::Plan(
+            domain, m_path, GaitOf(moveFlags, smooth), m_velocity, m_facing,
+            smooth ? Helm::Curve::Smooth : Helm::Curve::Segmented, getMSTime(), legId);
+
+        // A leg with nothing to travel -- every point at one coordinate, or a speed that
+        // is not a speed. The captures show retail sending thousands of the first, so it
+        // is an idiom rather than an error, but a plan to go nowhere is not a plan: say
+        // nothing was launched and let the caller act on its own tick.
+        if (course.Empty())
         {
             return 0;
         }
 
-        unit.m_movementInfo.SetMovementFlags((MovementFlags)moveFlags);
-        args.splineId = NextSplineId();
-        move_spline.Initialize(args);
-
-        // A FALL IS NOT A TRAVEL, and must not be sent as one.
+        // === CUT THE LEG SHORT; DO NOT CHANGE ITS SHAPE.
         //
-        // MoveSpline times a falling leg with FallInitializer -- gravity -- while a
-        // Course is a polyline walked at args.velocity. The two answers are not close:
-        // a ten-yard drop takes about 1.0 s under gravity and 4.0 s at a walk. Worse,
-        // Wire::FlagsOf has no way to raise FLAG_FALLING, because a Course has no
-        // notion of falling, so what went out was an ordinary travel with a fabricated
-        // duration. The server then arrived on its own (correct) schedule while the
-        // client was still drawing a slow diagonal chord, and the unit snapped.
-        //
-        // The captures do have the bit -- FLAG_FALLING is 0x02, on five legs, and with
-        // it the client computes the elevation itself -- so the eventual answer is for
-        // a fall to become a property of Course, timed by the same gravity. That is a
-        // model change, not a line, and inventing the timing here would be guessing.
-        //
-        // Until then the legacy builder keeps it, exactly as the stand-here case below
-        // does: it walks the spline that was ALREADY initialised with FallInitializer,
-        // so the duration on the wire is the one the server itself is using.
-        if (args.flags.falling)
-        {
-            WorldPacket legacy(SMSG_MONSTER_MOVE, 64);
-            legacy << unit.GetPackGUID();
-            if (!vesselGuid.IsEmpty())
-            {
-                legacy.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-                legacy << vesselGuid.WriteAsPacked();
-            }
-            PacketBuilder::WriteMonsterMove(move_spline, legacy);
-            unit.SendMessageToSet(&legacy, true);
-            return move_spline.Duration();
-        }
-
-        // === The leg as a PLAN, and the plan is what goes on the wire. ===
-        //
-        // The spline above still drives the server's own idea of where the unit is and
-        // when it arrives; what changes here is that the packet is no longer built by
-        // walking that spline's internals. It is written from a value that computes the
-        // client's timing explicitly, and three things follow immediately, on every
-        // movement in the game rather than on a chosen few:
-        //
-        //   * the pace goes out truthfully. The old builder OR-ed the run bit into
-        //     every packet it ever sent, so a creature walking at 2.5 yd/s animated as
-        //     a runner. Retail leaves that bit clear on 10,540 of the legs captured.
-        //   * an interior point that cannot survive the wire's quarter-yard packing is
-        //     caught instead of silently wrapping (see below).
-        //   * the offsets round to nearest rather than toward zero, halving an error
-        //     the client cannot tell we ever had.
-        Helm::Domain domain;
-        domain.map = unit.GetMapId();
-        domain.vessel = vesselGuid.GetRawValue();
-
-        const bool smooth = args.flags.isSmooth();
-        Helm::Course course = Helm::Course::Plan(
-            domain, args.path, GaitOf(moveFlags, smooth), args.velocity,
-            FacingOf(args), smooth ? Helm::Curve::Smooth : Helm::Curve::Segmented,
-            getMSTime(), args.splineId);
-
-        // A leg with nothing to travel -- every point at one coordinate. The captures
-        // show retail sending thousands of them, so it is an idiom and not an error,
-        // but a Course refuses to be one: a plan to go nowhere is not a plan. Until the
-        // model has a form that says "stand here" honestly, that single case keeps the
-        // old builder rather than being translated into something it does not mean.
-        if (course.Empty())
-        {
-            WorldPacket legacy(SMSG_MONSTER_MOVE, 64);
-            legacy << unit.GetPackGUID();
-            if (!vesselGuid.IsEmpty())
-            {
-                legacy.SetOpcode(SMSG_MONSTER_MOVE_TRANSPORT);
-                legacy << vesselGuid.WriteAsPacked();
-
-                // No seat byte. It is a 3.x field; see Wire::kSeat3xStanding.
-            }
-            PacketBuilder::WriteMonsterMove(move_spline, legacy);
-            unit.SendMessageToSet(&legacy, true);
-            return move_spline.Duration();
-        }
-
-        // The two must agree, or the server believes an arrival the client has not
-        // reached. They share a formula -- the same accumulator, the same seed, the
-        // same truncation -- but NOT a compilation of it, and that turns out to be a
-        // real distinction: `mark + length * rate` is an expression a compiler may
-        // contract into a fused multiply-add, rounding once where the other rounds
-        // twice, and the spline's copy cannot be contracted because its segment length
-        // arrives through a member-function pointer that nothing inlines.
-        //
-        // So a millisecond of disagreement is arithmetic, not error. It is eight
-        // millimetres at a run, and the live server produced exactly that: a few legs
-        // in a session, off by one, in both directions.
-        //
-        // The tolerance is what makes this canary worth having. A formula that has
-        // genuinely diverged -- a changed seed, a dropped truncation, a different
-        // length -- is wrong by tens or hundreds of milliseconds, never by one. Below
-        // the threshold there is nothing to say; above it, something structural moved
-        // and only one of the two was told.
-        const int32 drift = int32(course.Duration()) - move_spline.Duration();
-        if (drift > DURATION_DRIFT_TOLERANCE_MS || drift < -DURATION_DRIFT_TOLERANCE_MS)
-        {
-            sLog.outError("Course and spline disagree for %s: %u vs %d ms",
-                          unit.GetGuidStr().c_str(), course.Duration(),
-                          move_spline.Duration());
-        }
-
         // The packed form spends eleven signed bits on X and Y and only ten on Z, in
-        // quarter-yard units, so an interior point more than 256 (or 128 vertical)
-        // yards from the middle of the leg wraps and the client walks somewhere else
-        // entirely. The check this restores existed but was commented out, and had the
-        // limit wrong by a factor of four besides. Losing the shape of the path is a
-        // poor outcome; walking a corrupted one is a worse one.
+        // quarter-yard units, so an interior point more than 256 (or 128 vertical) yards
+        // from the middle of the leg wraps and the client walks somewhere else entirely.
+        //
+        // What used to happen was a collapse to the two endpoints, and that is the one
+        // answer that cannot be right: the interior points are the corners the router
+        // bent around, so the chord between the ends runs through whatever they were
+        // bending around. A leg is allowed to be SHORTER than what was asked for; it is
+        // not allowed to be a different path. So take the longest prefix that survives
+        // packing and let the generator plan the rest on arrival, which every generator
+        // here already does.
+        //
+        // The envelope is measured from the MIDDLE of the leg, so dropping the tail moves
+        // the middle too and a prefix can fit where the whole did not -- which is why
+        // this is a search rather than an arithmetic.
         if (!Helm::Wire::Fits(course))
         {
-            sLog.outError("%s: path will not survive packing; sending its endpoints",
-                          unit.GetGuidStr().c_str());
-            Movement::PointsArray ends;
-            ends.push_back(args.path.front());
-            ends.push_back(args.path.back());
-            course = Helm::Course::Plan(
-                domain, ends, GaitOf(moveFlags, smooth), args.velocity,
-                FacingOf(args), Helm::Curve::Segmented, getMSTime(), args.splineId);
+            size_t keep = m_path.size() - 1;
+            Helm::Course cut;
+
+            while (keep >= 2)
+            {
+                PointsArray prefix(m_path.begin(), m_path.begin() + keep);
+                cut = Helm::Course::Plan(
+                    domain, prefix, GaitOf(moveFlags, smooth), m_velocity, m_facing,
+                    smooth ? Helm::Curve::Smooth : Helm::Curve::Segmented, getMSTime(),
+                    legId);
+
+                if (!cut.Empty() && Helm::Wire::Fits(cut))
+                {
+                    break;
+                }
+                --keep;
+            }
+
+            if (keep < 2 || cut.Empty())
+            {
+                sLog.outError("%s: leg cannot be packed even as two points",
+                              unit.GetGuidStr().c_str());
+                return 0;
+            }
+
+            sLog.outError("%s: path will not survive packing; walking %zu of %zu points",
+                          unit.GetGuidStr().c_str(), keep, m_path.size());
+            course = cut;
         }
+
+        unit.m_movementInfo.SetMovementFlags(MovementFlags(moveFlags));
 
         WorldPacket data;
         Helm::Wire::WriteLaunch(course, unit.GetObjectGuid().GetRawValue(), data);
@@ -353,102 +299,40 @@ namespace Movement
         return int32(course.Duration());
     }
 
-    /**
-     * @brief Stops any creature movement.
-     */
     void MoveSplineInit::Stop(bool forceSend /*= false*/)
     {
-        MoveSpline& move_spline = *unit.movespline;
-
-        // No need to stop if we are not moving -- UNLESS the caller finalized the spline
-        // itself and is relying on us to tell the client. Unit::InterruptMoving does exactly
-        // that: it calls movespline->_Interrupt(), which sets splineflags.done, and then asks
-        // StopMoving to force a stop. Without this flag that request died right here and the
-        // client was never told, so it flew the rest of the old spline on its own -- the
-        // corpse that keeps sliding, the runner that coasts past where it really stopped,
-        // and the snap back when the next packet finally names the true position.
-        if (move_spline.Finalized() && !forceSend)
+        // Nothing running and nobody insisting: there is nothing to say. The insistence
+        // matters -- Unit::InterruptMoving abandons the course itself and then asks for
+        // the stop packet, and without the flag that request died right here. The client
+        // was never told, so it flew the rest of the old leg on its own: the corpse that
+        // keeps sliding, the runner that coasts past where it really stopped, and the
+        // snap back when the next packet finally names the true position.
+        if (!unit.IsTravelling() && !forceSend)
         {
             return;
         }
 
         const ObjectGuid vesselGuid = DeckVesselGuidOf(unit);
 
-        Location real_position(unit.Where().X(), unit.Where().Y(), unit.Where().Z(), unit.Where().Facing());
-
-        // there is a big chance that current position is unknown if current state is not finalized, need compute it
-        // this also allows calculate spline position and update map position in much greater intervals
-        if (!move_spline.Finalized())
-        {
-            real_position = move_spline.ComputePosition();
-        }
-        if (args.path.empty())
-        {
-            // should i do the things that user should do?
-            MoveTo(real_position);
-        }
-
-        // current first vertex
-        args.path[0] = real_position;
-
-        args.flags = MoveSplineFlag::Done;
-        args.splineId = NextSplineId();
-        unit.m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_FORWARD | MOVEFLAG_SPLINE_ENABLED));
-        move_spline.Initialize(args);
-
-        // Written by Helm::Wire::WriteHalt rather than by hand here. The bytes are
-        // identical -- FORM_HALT and MonsterMoveStop are both 1 -- so this changes
-        // nothing on the wire today. It is worth doing because the two copies had
-        // ALREADY drifted once: WriteHalt grew a seat byte from the 3.0 captures that
-        // this copy never had, and for a while the server sent two different layouts
-        // for the same event depending on which function ran. (The seat byte was the
-        // wrong one -- it is a 3.x field; see Wire::kSeat3xStanding.)
-        //
-        // One writer cannot disagree with itself.
         Helm::Domain domain;
         domain.map = unit.GetMapId();
-        domain.vessel = vesselGuid.IsEmpty() ? Helm::kNoActor
-                                             : vesselGuid.GetRawValue();
+        domain.vessel =
+            vesselGuid.IsEmpty() ? Helm::kNoActor : vesselGuid.GetRawValue();
+
+        const Geometry::Vector3 here(unit.Where().X(), unit.Where().Y(),
+                                     unit.Where().Z());
+
+        unit.m_movementInfo.RemoveMovementFlag(
+            MovementFlags(MOVEFLAG_FORWARD | MOVEFLAG_SPLINE_ENABLED));
+
+        // The plan stops claiming the unit is elsewhere. Everything that asks whether a
+        // leg is running reads the course, so this IS the stop as far as the server is
+        // concerned; the packet below is how the client finds out.
+        unit.AbandonCourse();
 
         WorldPacket data;
-        Helm::Wire::WriteHalt(domain, Geometry::Vector3(real_position.x,
-                                                        real_position.y,
-                                                        real_position.z),
-                              move_spline.GetId(), unit.GetObjectGuid().GetRawValue(),
-                              data);
+        Helm::Wire::WriteHalt(domain, here, NextLegId(),
+                              unit.GetObjectGuid().GetRawValue(), data);
         unit.SendMessageToSet(&data, true);
-    }
-
-    /**
-     * @brief Constructor that initializes the MoveSplineInit with a reference to a Unit.
-     * @param m Reference to the Unit to be moved.
-     */
-    MoveSplineInit::MoveSplineInit(Unit& m) : unit(m)
-    {
-        // mix existing state into new
-        args.flags.runmode = !unit.m_movementInfo.HasMovementFlag(MOVEFLAG_WALK_MODE);
-        args.flags.flying = unit.m_movementInfo.HasMovementFlag((MovementFlags)(MOVEFLAG_CAN_FLY | MOVEFLAG_FLYING | MOVEFLAG_LEVITATING));
-    }
-
-    /**
-     * @brief Sets unit's facing to a specified target after all path done.
-     * @param target The target to face.
-     */
-    void MoveSplineInit::SetFacing(const Unit* target)
-    {
-        args.flags.EnableFacingTarget();
-        args.facing.target = target->GetObjectGuid().GetRawValue();
-    }
-
-    /**
-     * @brief Adds final facing animation.
-     * Sets unit's facing to specified point/angle after all path done.
-     * You can have only one final facing: previous will be overridden.
-     * @param angle The angle to face.
-     */
-    void MoveSplineInit::SetFacing(float angle)
-    {
-        args.facing.angle = Geometry::wrap(angle, 0.f, (float)Geometry::twoPi());
-        args.flags.EnableFacingAngle();
     }
 }

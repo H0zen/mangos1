@@ -45,6 +45,16 @@ namespace Nav
         Wall,         ///< The world stopped it short.
         NodeBudget,   ///< The fine search exhausted the cells it was allowed to expand.
         PointBudget,  ///< The route filled the points it was allowed to emit.
+
+        /**
+         * @brief The route ran past the yards the CALLER allowed it, and was cut there.
+         *
+         * Distinct from every other stop because nothing was wrong with the geometry: a
+         * fleeing creature is held to thirty yards by a rule of the game, and reporting
+         * that as `Wall` would tell the caller the world stopped it -- which invites a
+         * re-plan that will be cut at exactly the same place, for ever.
+         */
+        LengthBudget,
         NoMesh,       ///< No navigation here, or the mover is exempt from using it.
         OffMesh,      ///< The start or the goal does not sit on walkable ground.
         TooNarrow,    ///< Ground exists all the way, and the mover is too wide for it.

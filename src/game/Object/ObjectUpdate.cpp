@@ -48,6 +48,7 @@
 #include "SharedDefines.h"
 #include "WorldPacket.h"
 #include "Opcodes.h"
+#include "motion/CourseWire.h"
 #include "Log.h"
 #include "World.h"
 #include "Creature.h"
@@ -67,7 +68,6 @@
 #include "GridNotifiersImpl.h"
 #include "ObjectPosSelector.h"
 #include "TemporarySummon.h"
-#include "movement/packet_builder.h"
 #include "CreatureLinkingMgr.h"
 #include "Chat.h"
 #include "GameTime.h"
@@ -320,7 +320,12 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint8 updateFlags) const
         // 0x08000000
         if (unit->m_movementInfo.GetMovementFlags() & MOVEFLAG_SPLINE_ENABLED)
         {
-            Movement::PacketBuilder::WriteCreate(*unit->movespline, *data);
+            // From the PLAN. The old builder walked the spline's internal control
+            // array -- the path plus the two phantom controls a Catmull-Rom
+            // evaluator needs at its ends -- so the client, which pads its own,
+            // padded an already-padded path and drew a first segment that began
+            // behind the unit.
+            Helm::Wire::WriteCreate(unit->CurrentCourse(), getMSTime(), *data);
         }
     }
     // 0x40

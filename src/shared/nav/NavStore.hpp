@@ -43,7 +43,31 @@ namespace Nav
         bool operator==(const TileKey& o) const { return x == o.x && y == o.y; }
     };
 
-    /// One gateway of one tile: a node of the coarse graph.
+    // ==== MARKED FOR DELETION: the gateway graph =============================
+    //
+    // `GateRef`, `Crossing`, `PackGate`, `UnpackGate`, `NavStore::CrossingsOf`,
+    // `StitchLocked`, `UnstitchLocked` and the `m_crossings` table they fill, together
+    // with `NavTile`'s baked gateway list and its cost matrix.
+    //
+    // NOTHING QUERIES ANY OF IT. The router walks areas and the openings between them,
+    // and what it asks the store for across a tile border is `MeshCrossingsOf`, matched
+    // from two rim runs. These are the same idea one layer coarser: a gateway is a run of
+    // border cells with a height at each end and a width, which is precisely a rim
+    // portal, except that it was a second structure with its own rules, its own file
+    // section and its own bake pass.
+    //
+    // Kept compiling for exactly one reason: the tile FORMAT still carries the gateway
+    // section, and dropping it is a version bump and a re-bake of every map. When that
+    // bump happens for its own reasons, all of this goes with it, and so do
+    // `NavBuilder`'s `FindGateways` and `GatewayCosts` -- a Dijkstra per gateway per
+    // tile, paid on every bake, for a matrix no query reads.
+    //
+    // What must NOT go with it is the SIDE_LINK gateway. A link mouth is authored as a
+    // gateway because that was the graph it had to join; the mesh now reads those mouths
+    // in `BuildTileMesh` and turns them into `MeshLink`. See NavMesh.hpp.
+    // =========================================================================
+
+    /// One gateway of one tile: a node of the coarse graph. MARKED FOR DELETION.
     struct GateRef
     {
         int16_t tileX = 0;
@@ -57,6 +81,7 @@ namespace Nav
     };
 
     /// A way from one tile's gateway into the neighbouring tile's.
+    /// MARKED FOR DELETION -- see above; `MeshCrossing` is what a search reads.
     struct Crossing
     {
         GateRef to;
@@ -193,6 +218,8 @@ namespace Nav
             ///
             /// By value: a reference into the table would outlive the lock that made it
             /// safe to read, and a gateway has a handful of crossings, not thousands.
+            ///
+            /// MARKED FOR DELETION: no caller. `MeshCrossingsOf` is what the router asks.
             std::vector<Crossing> CrossingsOf(const GateRef& from) const;
 
             /**
@@ -263,7 +290,8 @@ namespace Nav
             }
 
             /// Match one tile's border against the neighbour's, both ways.
-            /// The caller already holds m_mutex.
+            /// The caller already holds m_mutex. MARKED FOR DELETION -- it fills a table
+            /// no query reads; `StitchMeshLocked` is the one that matters.
             void StitchLocked(int tileX, int tileY, int neighbourX, int neighbourY);
 
             /// Forget every crossing that starts or ends inside one tile.
@@ -358,7 +386,16 @@ namespace Nav
             void Drop(uint32_t mapId);
             void Clear();
 
-            size_t MapCount() const { return m_maps.size(); }
+            /// Under the lock, like everything else that reads the table. An unguarded
+            /// `size()` on an unordered_map another thread may be inserting into is
+            /// undefined behaviour, not a stale number -- and this is called from GM
+            /// commands, which run on the world thread while map workers load tiles.
+            size_t MapCount() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_maps.size();
+            }
+
             size_t TileCount() const;
 
         private:

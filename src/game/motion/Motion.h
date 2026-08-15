@@ -64,6 +64,7 @@
  * every field of it is const once begun.
  */
 
+#include "motion/CourseTime.h"
 #include "motion/Curve.h"
 #include "motion/Pace.h"
 #include "motion/Path.h"
@@ -72,10 +73,11 @@
 
 namespace Helm
 {
-    /// Milliseconds on the server's own movement clock. A plain integer and not a
-    /// duration type, because it is compared against `WorldTimer::getMSTime()` and a
-    /// conversion at that boundary is one more place to get a wrap wrong.
-    using Instant = uint32_t;
+    // `Instant` and `Millis` come from CourseTime.h. They were declared a second time
+    // here, and a clock declared twice is a clock reasoned about twice: this file went
+    // on to compare two instants with unsigned subtraction, which reads one millisecond
+    // before a leg's start as forty-nine days after it. CourseTime.h exists precisely so
+    // that comparison is unwritable -- every question is a signed `Since`.
 
     /**
      * @brief How far an answer may be from what the client is drawing, in yards.
@@ -121,7 +123,7 @@ namespace Helm
              *               two of them apart.
              */
             bool Begin(const Path& path, float speed, Instant at,
-                       Curve curve = Curve::Linear, uint32_t id = 0);
+                       Curve curve = Curve::Segmented, uint32_t id = 0);
 
             bool Valid() const { return m_path.Valid() && m_pace.Valid(); }
 
@@ -164,7 +166,7 @@ namespace Helm
         private:
             Path m_path;
             Pace m_pace;
-            Curve m_curve = Curve::Linear;
+            Curve m_curve = Curve::Segmented;
             Instant m_at = 0;
             uint32_t m_id = 0;
             mutable float m_lastHeading = 0.0f;

@@ -40,7 +40,6 @@
 #include "WorldSession.h"
 #include "WaypointManager.h"
 #include "WaypointSmoothing.h"
-#include "movement/MoveSpline.h"
 #include "movement/MoveSplineInit.h"
 
 #include <memory>
@@ -797,7 +796,7 @@ void FlightPathMovementGenerator::Reset(Unit& owner)
     if (route.Build(init.Path(), Helm::Frame{player.GetMapId()}))
     {
         m_flight.Begin(route, PLAYER_FLIGHT_SPEED, m_launchedAt,
-                       Helm::Curve::CatmullRom);
+                       Helm::Curve::Smooth);
     }
     else
     {

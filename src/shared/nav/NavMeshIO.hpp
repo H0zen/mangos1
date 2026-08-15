@@ -63,7 +63,7 @@ namespace Nav
 {
     /// Bumped whenever any of the three structures changes shape. A file at the wrong
     /// version is ignored and rebuilt, never read half-understood.
-    constexpr uint32_t NAV_MESH_VERSION = 10;
+    constexpr uint32_t NAV_MESH_VERSION = 11;
 
     /// Everything one tile's geometry is worth precomputing.
     struct TileGeometry

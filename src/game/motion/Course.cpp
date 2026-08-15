@@ -24,6 +24,8 @@
  */
 
 #include "Course.h"
+#include "Curve.h"
+#include "Fall.h"
 
 #include <algorithm>
 #include <cmath>
@@ -44,7 +46,8 @@ namespace
      * straight segment every subdivision count gives the same answer, which is why the
      * ground case is unaffected by the choice.
      */
-    constexpr int kSmoothSteps = 3;
+    // kSmoothSteps lives in Curve.h now -- one subdivision count, so the arc the
+    // wire is timed with and the arc anything else measures cannot drift apart.
 
     /**
      * @brief The millisecond every course starts one ahead by.
@@ -93,6 +96,16 @@ namespace
 
     float Wrap2Pi(float a)
     {
+        // A non-finite angle does not wrap, it LOOPS: adding 2*pi to negative infinity
+        // leaves negative infinity, and the world thread never comes back. The value
+        // cannot arrive from a facing the server computed, but it can arrive from a
+        // corrupt position that reached atan2 -- and a hang is a worse way to find that
+        // out than a heading of zero.
+        if (!std::isfinite(a))
+        {
+            return 0.0f;
+        }
+
         while (a < 0.0f)
         {
             a += TWO_PI_F;
@@ -121,14 +134,82 @@ namespace Helm
         out[3] = (k + 2 <= last) ? m_points[k + 2] : m_points[last];
     }
 
+    Course Course::Falling(Domain const& domain, Vector3 const& from, Vector3 const& to,
+                           Facing const& facing, Instant at, uint32 id)
+    {
+        Course c;
+
+        const float drop = from.z - to.z;
+        if (!(drop > 0.0f) || !std::isfinite(from.x) || !std::isfinite(from.y) ||
+            !std::isfinite(to.z))
+        {
+            // Not a fall: level ground, upward, or a position that is not a position.
+            // An empty course has ended everywhere, which is the honest answer for
+            // "nothing to fall".
+            return c;
+        }
+
+        c.m_domain = domain;
+
+        // STRAIGHT DOWN. The landing point's x and y are deliberately not used: the
+        // client, told FLAG_FALLING, drops the unit vertically and computes the height
+        // itself, so a server that carried the destination's horizontal position would
+        // be describing a different path from the one being drawn.
+        c.m_points.push_back(from);
+        c.m_points.push_back(Vector3(from.x, from.y, to.z));
+
+        c.m_facing = facing;
+        c.m_gait = Gait::Run;
+        c.m_curve = Curve::Segmented;
+        c.m_at = at;
+        c.m_id = id;
+        c.m_quantised = false;
+        c.m_falling = true;
+
+        // The speed is recorded for anything that asks, but nothing about a fall is
+        // derived from it -- this is the average, not a rate the body ever travels at.
+        const float seconds = Fall::Time(drop);
+        c.m_speed = seconds > 0.0f ? drop / seconds : 0.0f;
+
+        c.m_marks.assign(2, 0);
+        c.m_marks[1] = static_cast<uint32>(seconds * 1000.0f + 0.5f);
+        if (c.m_marks[1] == 0)
+        {
+            c.m_marks[1] = 1;   // a duration of zero is a leg the client cannot play
+        }
+
+        return c;
+    }
+
     Course Course::Plan(Domain const& domain, std::vector<Vector3> points, Gait gait,
                         float speed, Facing const& facing, Curve curve, Instant at,
                         uint32 id)
     {
         Course c;
-        if (points.size() < 2 || !(speed > 0.0f))
+
+        // A FLOOR ON THE SPEED, not merely a sign test. The duration is accumulated as
+        // `length * 1000 / speed` and then converted to uint32; at a speed of a
+        // millionth of a yard per second that expression is an infinity, and converting
+        // an infinity to an integer is undefined behaviour -- which then lands in the
+        // unit's pose. A tenth of a yard per second is far below anything in 2.4.3
+        // (a walk is 2.5) and far above the region where the arithmetic stops meaning
+        // anything.
+        constexpr float kSlowestMeaningfulSpeed = 0.1f;
+
+        if (points.size() < 2 || !(speed >= kSlowestMeaningfulSpeed))
         {
             return c;
+        }
+
+        // And every point has to BE a point. `Path::Build` refuses non-finite input and
+        // this did not, so the one path that reached the wire through here could carry a
+        // NaN into the same conversion -- and into the position the server reports.
+        for (Vector3 const& p : points)
+        {
+            if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+            {
+                return c;
+            }
         }
 
         c.m_domain = domain;
@@ -270,6 +351,20 @@ namespace Helm
         if (Empty())
         {
             return Vector3();
+        }
+
+        // A FALL IS NOT INTERPOLATED. Its height comes from gravity and its horizontal
+        // position does not change, so the lerp below would have the body sinking at a
+        // constant rate -- which is the one thing everybody watching can see is wrong,
+        // and which no amount of correct timing at the ENDS would hide.
+        if (m_falling)
+        {
+            const float seconds = float(Elapsed(now)) * 0.001f;
+            const float dropped = Fall::Drop(seconds);
+            const float landed = m_points.back().z;
+            const float z = m_points.front().z - dropped;
+            return Vector3(m_points.front().x, m_points.front().y,
+                           z < landed ? landed : z);
         }
 
         size_t k = 0;

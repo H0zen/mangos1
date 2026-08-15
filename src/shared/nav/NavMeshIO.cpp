@@ -43,6 +43,11 @@ namespace Nav
         constexpr uint32_t MAX_AXIS = 1u << 22;
         constexpr uint32_t MAX_CRITICAL = 1u << 20;
 
+        /// Links are hand-authored, and the hand that authored them wrote three lines
+        /// for the whole of 2.4.3. A thousand is not a limit anyone will meet; it is the
+        /// number past which the file is certainly not a link table.
+        constexpr uint32_t MAX_LINKS = 1024;
+
         /// The height field is a fixed shape, so its count is not a range to bound but a
         /// number to insist on. Anything else is a file from another format.
         constexpr uint32_t MAX_HEIGHTS =
@@ -161,6 +166,7 @@ namespace Nav
         ok = ok && WVector(f, geometry.mesh.rects);
         ok = ok && WVector(f, geometry.mesh.portals);
         ok = ok && WVector(f, geometry.mesh.first);
+        ok = ok && WVector(f, geometry.mesh.links);
         ok = ok && WPod(f, geometry.mesh.baseZ);
         ok = ok && WVector(f, geometry.mesh.heights);
         ok = ok && WVector(f, geometry.axis);
@@ -206,6 +212,7 @@ namespace Nav
         ok = ok && RVector(f, out.mesh.rects, MAX_RECTS);
         ok = ok && RVector(f, out.mesh.portals, MAX_PORTALS);
         ok = ok && RVector(f, out.mesh.first, MAX_RECTS + 1);
+        ok = ok && RVector(f, out.mesh.links, MAX_LINKS);
         ok = ok && RPod(f, out.mesh.baseZ);
         ok = ok && RVector(f, out.mesh.heights, MAX_HEIGHTS);
         ok = ok && RVector(f, out.axis, MAX_AXIS);
@@ -237,8 +244,15 @@ namespace Nav
         {
             for (const Portal& portal : out.mesh.portals)
             {
+                // A rim run's neighbour is Portal::OUTSIDE and names nothing in this
+                // file. Reading that as an index out of range threw away the cache for
+                // EVERY tile whose ground reaches an edge -- which is almost all of
+                // them -- so the baked mesh was silently rebuilt on the map's tick every
+                // single time, and the file the baker spent its effort on was never once
+                // used. The test knew to exclude rim portals; the reader did not.
                 if (portal.rect >= out.mesh.rects.size() ||
-                    portal.neighbour >= out.mesh.rects.size())
+                    (!portal.LeavesTheTile() &&
+                     portal.neighbour >= out.mesh.rects.size()))
                 {
                     ok = false;
                     break;
@@ -251,6 +265,22 @@ namespace Nav
             for (uint32_t at : out.mesh.first)
             {
                 if (at > out.mesh.portals.size())
+                {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+
+        // A link names two rectangles of THIS file and there is no rim case: unlike a
+        // portal, a link has nothing outside the tile to point at. Both ends are indices
+        // the coarse search steps straight into.
+        if (ok)
+        {
+            for (const MeshLink& link : out.mesh.links)
+            {
+                if (link.fromRect >= out.mesh.rects.size() ||
+                    link.toRect >= out.mesh.rects.size())
                 {
                     ok = false;
                     break;

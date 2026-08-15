@@ -99,7 +99,7 @@ class Pathing
         /// it stopped.
         Nav::Route const& getRoute() const { return m_route; }
 
-        Movement::PointsArray const& getPath() const { return m_route.points; }
+        Motion::PointsArray const& getPath() const { return m_route.points; }
 
         Geometry::Vector3 getStartPosition() const { return m_start; }
         Geometry::Vector3 getEndPosition() const { return m_end; }

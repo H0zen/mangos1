@@ -149,7 +149,7 @@ class WaypointMovementGenerator final : public IntentMovementGenerator
         /// The leg PrepareMove built. Empty points mean "not smoothed — route to
         /// m_legEnd instead". The driver holds a pointer to these while the leg is in
         /// flight, so they must not be rebuilt until the leg ends.
-        Movement::PointsArray m_legPoints;
+        Motion::PointsArray m_legPoints;
         Motion::Vector3 m_legEnd;
         Motion::Facing m_legFacing;
         bool m_legWalk = true; ///< Pace of the leg; false only for a DB-flagged runner.
@@ -164,7 +164,7 @@ class WaypointMovementGenerator final : public IntentMovementGenerator
  * so an intent would buy it nothing.
  *
  * It no longer watches the SPLINE for its progress, though, and that part was not
- * deliberate -- it was inherited. `movespline->currentPathIdx()` is the mechanism being
+ * deliberate -- it was inherited. `Unit::CoursePointIndex()` is the mechanism being
  * asked where it has got to, which means the node events a flight fires depend on an
  * object that also decides how a packet is packed. The same question is answered by
  * `Helm::Motion` from the leg's own timing, which is where the answer actually comes

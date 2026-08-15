@@ -196,7 +196,8 @@ TEST(Polyanya_ClearanceRefusesAMoverThatDoesNotFit)
     Nav::MeshQuery query;
     CellWorld(tile, 20, 20, query.startX, query.startY);
     CellWorld(tile, 480, 400, query.endX, query.endY);
-    query.radius = 40.0f;      // far past the 4 yards the ground was painted with
+    // Far past the 4 yards the ground was painted with.
+    query.profile.radius = 40.0f;
 
     const Nav::MeshPath path = Nav::FindMeshPath(tile, mesh, query);
     CHECK(!path.found);

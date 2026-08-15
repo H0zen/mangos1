@@ -129,6 +129,60 @@ namespace Nav
     };
 
     /**
+     * @brief A hand-authored crossing between two areas of one tile, as the mesh sees it.
+     *
+     * The jump off the Booty Bay dock; the ledges in Blade's Edge Arena. Three in the
+     * whole of 2.4.3, and the dock is a place creatures chase players off -- without it
+     * they stop at the edge and evade.
+     *
+     * == Why this is not a Portal ==
+     *
+     * A portal is an INTERVAL of shared boundary, and everything Polyanya does with one
+     * rests on that: it carries a continuum of routes over the opening and the path stays
+     * straight because a straight line between two points of a convex area is inside it.
+     * A link has no shared boundary at all. There is a point you leave from, a point you
+     * arrive at, and nothing walkable between them -- that is what makes it a link rather
+     * than an opening. Giving `Portal` a "kind" byte would have put a thing with no
+     * interval into the one structure whose whole meaning is the interval.
+     *
+     * So it is its own list, the coarse stage steps over it, and the fine stage never
+     * sees one: the route is CUT at the mouth, the jump is emitted as a single segment,
+     * and Polyanya is asked again from the far mouth. Nothing walks a link, which is the
+     * truth about it.
+     *
+     * Derived from the tile's own `Gateway`/`Link` pair -- the baker still authors them
+     * there -- by resolving each mouth's world position to the rectangle covering it.
+     */
+    struct MeshLink
+    {
+        uint32_t fromRect = 0;
+        uint32_t toRect = 0;
+
+        /// The two mouths, in world yards. Not rectangle centres: a link is authored at
+        /// a place, and the place is the lip of the dock rather than the middle of the
+        /// area the lip belongs to.
+        float fromX = 0.0f;
+        float fromY = 0.0f;
+        float fromZ = 0.0f;
+        float toX = 0.0f;
+        float toY = 0.0f;
+        float toZ = 0.0f;
+
+        /// What crossing costs, in yards. A jump is not free: priced at zero, a router
+        /// prefers a detour through a link to walking three yards round it.
+        float cost = 0.0f;
+
+        /// The narrower of the two mouths, in the packed clearance byte.
+        uint8_t clearance = 0;
+
+        /// Usable in both directions -- a dock can be jumped off and climbed back onto.
+        /// A byte and not a bool because this is written to a file.
+        uint8_t bidirectional = 1;
+
+        uint16_t reserved = 0;
+    };
+
+    /**
      * @brief A tile's walkable set as convex areas and the openings between them.
      *
      * Built, not stored: the cell grid is still what the file carries, and this is
@@ -144,6 +198,11 @@ namespace Nav
         /// `portals[first[r] .. first[r + 1])`.
         std::vector<Portal> portals;
         std::vector<uint32_t> first;
+
+        /// The hand-authored crossings, ungrouped. Three in the whole of 2.4.3, so a
+        /// scan is what this is: an index over a list that short would cost more to keep
+        /// correct than it could ever save.
+        std::vector<MeshLink> links;
 
         /**
          * @brief The ground's height, at the terrain's own resolution.
@@ -274,10 +333,28 @@ namespace Nav
         int32_t farTileY = 0;
         uint32_t farRect = 0;
 
-        /// Where the crossing is, on the border, in world yards.
+        /**
+         * @brief Where the crossing is on the NEAR side, in world yards.
+         *
+         * Strictly inside the near tile -- it is the centre of that tile's own border
+         * cell. This is where a route LEAVES from, and it is not a place the far tile
+         * contains.
+         */
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+
+        /**
+         * @brief And where it arrives, on the far side. One cell across.
+         *
+         * Two points and not one, because a border is exactly the place where "where I
+         * left" and "where I arrived" stop being the same fact. With only the near point
+         * a router hands the far tile's search a start it does not contain, the search
+         * refuses it, and no route between two tiles is ever produced.
+         */
+        float farX = 0.0f;
+        float farY = 0.0f;
+        float farZ = 0.0f;
 
         /// The widest matched run, in the packed clearance byte: a crossing is usable by
         /// anyone who fits through its most generous part.

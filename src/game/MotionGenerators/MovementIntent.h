@@ -226,6 +226,19 @@ namespace Motion
         bool    blocked = false;   ///< The last Move could not be laid (once).
         int32   pathIndex = 0;     ///< How far along its points the spline is.
         Vector3 legGoal;           ///< The goal of the leg the driver actually LAID.
+
+        /**
+         * @brief Is `legGoal` a goal at all?
+         *
+         * Without this the default-constructed (0, 0, 0) was indistinguishable from a
+         * goal that happened to be at the map's origin, and every generator that asks
+         * "has my target moved since the leg I laid?" compared against it. On a
+         * continent the answer is always yes and the bug hides; on a TRANSPORT map the
+         * origin is the deck, so a target within a combat reach of the ship's model
+         * origin -- or any first tick after a leg that failed to lay -- answered "no,
+         * nothing has moved" and the chase froze without ever asking for a destination.
+         */
+        bool    haveLeg = false;
     };
 }
 

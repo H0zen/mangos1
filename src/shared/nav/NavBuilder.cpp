@@ -1086,9 +1086,14 @@ namespace Nav
          * aim at one. A link becomes an edge in a graph that exists rather than a new
          * mechanism beside it.
          *
-         * Both ends must be in this tile. Every shipped link spans about eight yards,
-         * so that is nearly always true; one that straddles a tile border is skipped
-         * rather than half-built, and says so.
+         * Both ends must be in this tile. Every shipped link spans about eight yards, so
+         * that is nearly always true. A mouth that does not snap to ground here is passed
+         * over WITHOUT a word, and that is right rather than lax: the whole map's list is
+         * handed to every tile, so most links are somebody else's on any given call and a
+         * message per skip would be one per link per tile. What that silence cannot
+         * distinguish is a link belonging to another tile from one whose two ends fall in
+         * different tiles and which therefore belongs to none -- so THAT is reported by
+         * the baker, which is the only place that sees both ends and the grid at once.
          */
         void PlantLinks(const Work& work, const BuildParams& params,
                         std::vector<Gateway>& gateways,
@@ -1148,6 +1153,11 @@ namespace Nav
 
         /**
          * @brief What it really costs to cross the tile between each pair of gateways.
+         *
+         * MARKED FOR DELETION, with `FindGateways` and `NavTile`'s gateway section. One
+         * shortest-path search per gateway per tile, paid on every bake, filling a matrix
+         * the runtime no longer reads -- the router walks areas now. It stays only
+         * because the tile format still has the field. See NavTile.hpp.
          *
          * One shortest-path search per gateway, seeded from every cell the gateway
          * covers at once, over the tile's own nodes. This is the second pass the whole

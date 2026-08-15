@@ -132,7 +132,11 @@ namespace Nav
     inline uint8_t QuantiseClearance(float yards)
     {
         const float steps = yards / CLEARANCE_QUANTUM;
-        if (steps <= 0.0f)
+
+        // `!(steps > 0)` rather than `steps <= 0`: the two read the same and differ on
+        // NaN, which is the one value that must not reach the cast below -- converting
+        // it to uint8_t is undefined behaviour, not a large number.
+        if (!(steps > 0.0f))
         {
             return 0;
         }
@@ -214,10 +218,51 @@ namespace Nav
 
         bool Admits(uint8_t packed) const { return Admits(AreaOf(packed)); }
 
+        /**
+         * @brief May the mover stand on this ground -- the WHOLE permission, one copy.
+         *
+         * `Admits` is the mask alone, and the mask alone has never been the answer: a
+         * creature that walks stays on the floor even where the floor is a seabed, so
+         * the surface of a bay is offered to it by the data and refused to it by this.
+         *
+         * It lives here rather than in whichever search asked first because it was in
+         * two places and the two disagreed. The cell engine applied the swimmer rule and
+         * the mesh did not, so the same walker was routed across a bay by one and along
+         * the bottom of it by the other -- one question, one answer, and this is where
+         * the answer is.
+         */
+        bool AdmitsGround(uint8_t packed) const
+        {
+            const NavArea area = AreaOf(packed);
+            if (!Admits(area))
+            {
+                return false;
+            }
+
+            return !(area == NavArea::Water && canWalk && !canSwim);
+        }
+
         /// The multiplier for crossing an area.
         float CostOf(NavArea area) const
         {
             return areaCost[uint8_t(area) < uint8_t(NavArea::Count) ? uint8_t(area) : 0];
+        }
+
+        /**
+         * @brief What crossing this ground costs, as a multiplier on distance.
+         *
+         * Above one for ground that is passable and unpleasant. Steep ground is priced
+         * rather than refused, because the geometry really is walkable and a creature
+         * that refused every slope would stand at the bottom of hills it can climb.
+         */
+        float PenaltyOf(uint8_t packed) const
+        {
+            float cost = CostOf(AreaOf(packed));
+            if (FlagsOf(packed) & CELL_STEEP)
+            {
+                cost *= 2.0f;
+            }
+            return cost;
         }
 
         /// Is this cell wide enough for the mover?

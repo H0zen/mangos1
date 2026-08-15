@@ -177,7 +177,8 @@ namespace
      * The map id differs between the two cases so that the two files, the two stores and
      * the two answers cannot borrow anything from each other.
      */
-    Nav::Route RouteAcross(uint32_t mapId, bool withLink)
+    Nav::Route RouteBetween(uint32_t mapId, bool withLink, int fromX, int toX,
+                            const Nav::SearchBudget& budget)
     {
         Nav::SetNavDir(".");
 
@@ -196,11 +197,10 @@ namespace
         if (loaded)
         {
             Nav::RouteRequest request;
-            request.start =
-                Geometry::Vector3(WorldX(STRIP_LOW_X + 5), WorldY(MOUTH_Y), FLOOR_Z);
-            request.end =
-                Geometry::Vector3(WorldX(STRIP_HIGH_X - 5), WorldY(MOUTH_Y), FLOOR_Z);
+            request.start = Geometry::Vector3(WorldX(fromX), WorldY(MOUTH_Y), FLOOR_Z);
+            request.end = Geometry::Vector3(WorldX(toX), WorldY(MOUTH_Y), FLOOR_Z);
             request.profile = Walker();
+            request.budget = budget;
 
             const Nav::Router router(store);
             router.Find(request, route);
@@ -208,6 +208,24 @@ namespace
 
         std::remove(path.c_str());
         return route;
+    }
+
+    Nav::Route RouteAcross(uint32_t mapId, bool withLink)
+    {
+        return RouteBetween(mapId, withLink, STRIP_LOW_X + 5, STRIP_HIGH_X - 5,
+                            Nav::SearchBudget());
+    }
+
+    float PlanLength(const Nav::Route& route)
+    {
+        float walked = 0.0f;
+        for (size_t i = 1; i < route.points.size(); ++i)
+        {
+            const float dx = route.points[i].x - route.points[i - 1].x;
+            const float dy = route.points[i].y - route.points[i - 1].y;
+            walked += std::sqrt(dx * dx + dy * dy);
+        }
+        return walked;
     }
 
     /// The local x of the cell a route point stands over.
@@ -249,6 +267,52 @@ TEST(RouterLink_CarriesARouteAcrossGroundThatDoesNotConnect)
         const int lx = LocalXOf(point);
         CHECK(lx != WALL_LOW_X && lx != WALL_HIGH_X);
     }
+}
+
+// A flee is thirty yards by a rule of the game, and between the emitter changing and this
+// being put back the mesh route ignored the cap entirely: a ten-yard bolt could come back
+// two hundred yards long and be reported as a complete success.
+//
+// The cut lands ON the segment rather than at the corner before it, which is the half
+// that is easy to get wrong. This route is open ground -- two points, one straight run --
+// so a cut that stopped at the previous corner would stop at the start and the length
+// would be zero. Asserting that it is CLOSE to the cap is what tells the two apart.
+TEST(RouterLength_ARouteIsCutAtTheYardsTheCallerAllowed)
+{
+    constexpr float CAP = 4.0f;
+
+    // Both ends west of the wall: one region, no jump involved, so what is measured is
+    // the cap and nothing else.
+    const Nav::Route route = RouteBetween(703, true, STRIP_LOW_X + 1, WALL_LOW_X - 1,
+                                          Nav::SearchBudget::ForLength(CAP));
+
+    REQUIRE(route.points.size() >= size_t(2));
+    CHECK(route.UsedGeometry());
+    CHECK(!route.IsRouted());
+    CHECK(route.stop == Nav::RouteStop::LengthBudget);
+
+    const float walked = PlanLength(route);
+    CHECK(walked <= CAP + 0.01f);
+    CHECK(walked > CAP - 0.5f);
+
+    // And the destination was NOT welded back onto the end. A route that has been cut is
+    // precisely one that does not reach the goal; moving its last point to the goal would
+    // replace walked ground with a straight line through everything never looked at.
+    const float dx = route.points.back().x - WorldX(WALL_LOW_X - 1);
+    const float dy = route.points.back().y - WorldY(MOUTH_Y);
+    CHECK(std::sqrt(dx * dx + dy * dy) > 1.0f);
+}
+
+// The same ground with no cap is one straight run to the goal. Without this the test
+// above would pass on a router that simply failed to route at all.
+TEST(RouterLength_WithoutACapTheSameGroundIsWalkedWhole)
+{
+    const Nav::Route route = RouteBetween(704, true, STRIP_LOW_X + 1, WALL_LOW_X - 1,
+                                          Nav::SearchBudget());
+
+    CHECK(route.IsRouted());
+    CHECK(route.stop == Nav::RouteStop::Reached);
+    CHECK(PlanLength(route) > 4.0f);
 }
 
 TEST(RouterLink_WithoutTheLinkTheSameGroundIsUnroutable)

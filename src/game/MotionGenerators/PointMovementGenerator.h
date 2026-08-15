@@ -70,7 +70,7 @@ class PointMovementGenerator : public IntentMovementGenerator
          *
          * Remembered from the tick `MoveStatus::arrived` fired, because `Finalize` runs
          * outside a tick and has no status to read. It used to ask the spline directly
-         * -- `owner.movespline->Finalized()` -- which is the one question a generator
+         * -- `owner.IsTravelling()` -- which is the one question a generator
          * must not ask: it is the mechanism answering about its own state, so a leg the
          * DRIVER refused, replaced or never laid still reported "finalized" and fired an
          * arrival inform for a journey that never happened.

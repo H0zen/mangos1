@@ -56,20 +56,24 @@
  * the one point on a leg that both sides already agree about.
  */
 
+#include "motion/Course.h"
 #include "motion/Path.h"
 
 #include <cstdint>
 
 namespace Helm
 {
-    enum class Curve : uint8_t
-    {
-        /// Straight segments. Everything that walks, runs or swims.
-        Linear = 0,
-
-        /// Catmull-Rom through the points. Only ever seen together with flight.
-        CatmullRom = 1,
-    };
+    // `Curve` is `Course.h`'s -- Segmented or Smooth -- and is NOT redeclared here.
+    //
+    // It was, and that was ill-formed: two `enum class Helm::Curve` in one namespace,
+    // compiling only because no translation unit had yet included both headers. The
+    // first one to do so would have failed with a redefinition and no clue which of the
+    // two was the newcomer.
+    //
+    // Beyond the language rule, two of them meant two answers. The wire selects
+    // Catmull-Rom and the flying animation with ONE bit, so a smooth course is a flying
+    // course; a second enum that called the same thing `CatmullRom` invited code to ask
+    // for a curved walk, which this format cannot express.
 
     /**
      * @brief The position a fraction of the way along one segment.

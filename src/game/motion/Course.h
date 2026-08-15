@@ -260,7 +260,30 @@ namespace Helm
                                Gait gait, float speed, Facing const& facing,
                                Curve curve, Instant at, uint32 id);
 
+            /**
+             * @brief Lay a FALL from `from` down to `to`.
+             *
+             * A separate constructor because a fall is a separate kind of event, not a
+             * travel with an unusual speed. Its duration comes from gravity (`Helm::Fall`
+             * -- the client's own constants), its shape is the vertical line between the
+             * two, and the wire carries FLAG_FALLING so the client computes the elevation
+             * itself instead of interpolating the chord.
+             *
+             * Until this existed the falling case had to be sent by the old spline
+             * builder, because a Course had no way to say "this is a fall" and no way to
+             * time one. That one exception is what kept the whole packet layer alive.
+             *
+             * @param to  The landing point. Only its Z is used for the drop; a fall goes
+             *            straight down, which is what the client draws.
+             */
+            static Course Falling(Domain const& domain, Vector3 const& from,
+                                  Vector3 const& to, Facing const& facing, Instant at,
+                                  uint32 id);
+
             bool Empty() const { return m_points.size() < 2; }
+
+            /// Gravity times this course, not a speed. See `Falling`.
+            bool IsFalling() const { return m_falling; }
 
             Domain const& GetDomain() const { return m_domain; }
             std::vector<Vector3> const& Points() const { return m_points; }
@@ -281,6 +304,32 @@ namespace Helm
              * between.
              */
             uint32 Duration() const { return m_marks.empty() ? 0 : m_marks.back(); }
+
+            /**
+             * @brief Which point of the course the mover has most recently passed.
+             *
+             * Zero before the first segment ends, `Points().size() - 1` once the leg is
+             * over. What waypoint movement counts arrivals with, and the reason it is a
+             * question for the PLAN rather than for whatever is drawing the movement:
+             * the marks are the same milliseconds the client was told, so the server and
+             * the client agree about which node has been reached without either asking
+             * the other.
+             */
+            std::size_t PointIndex(Instant now) const
+            {
+                if (m_marks.size() < 2)
+                {
+                    return 0;
+                }
+
+                const uint32 elapsed = Elapsed(now);
+                std::size_t at = 0;
+                while (at + 1 < m_marks.size() && m_marks[at + 1] <= elapsed)
+                {
+                    ++at;
+                }
+                return at;
+            }
 
             /// Milliseconds elapsed, clamped to [0, Duration()].
             uint32 Elapsed(Instant now) const;
@@ -376,6 +425,7 @@ namespace Helm
             Gait                 m_gait = Gait::Run;
             Curve                m_curve = Curve::Segmented;
             bool                 m_quantised = false; ///< Has interior points.
+            bool                 m_falling = false;   ///< Timed by gravity, not speed.
     };
 }
 

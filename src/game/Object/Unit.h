@@ -842,11 +842,6 @@ inline ByteBuffer& operator>> (ByteBuffer& buf, MovementInfo& mi)
     return buf;
 }
 
-namespace Movement
-{
-    class MoveSpline;
-}
-
 /**
  * The different available diminishing return levels.
  * \see DiminishingReturn
@@ -3869,17 +3864,45 @@ class Unit : public WorldObject
 
         // Movement info
         MovementInfo m_movementInfo;
-        Movement::MoveSpline* movespline;
 
         /**
-         * @brief The leg this unit was last told to travel, as a plan.
+         * @brief THE LEG THIS UNIT IS TRAVELLING, and the only thing that says so.
          *
-         * It is the value the client was actually sent, and now also what the unit's
-         * own pose is evaluated from on every tick. Arrival and the path index still
-         * come from the spline beside it.
+         * It is the value the client was sent, it is what the unit's pose is evaluated
+         * from on every tick, and -- since the spline engine was deleted -- it is also
+         * what answers whether a leg is running, which point of it has been passed and
+         * when it ends. There was a second object beside this one that answered the same
+         * questions from its own copy of the geometry and its own clock; the two agreed
+         * until they did not, and every disagreement was a unit standing somewhere the
+         * client had not drawn it.
          */
         Helm::Course const& CurrentCourse() const { return m_course; }
         void SetCourse(Helm::Course const& course) { m_course = course; }
+
+        /// Is a leg running right now? False when there is none, and false the instant
+        /// the running one ends.
+        bool IsTravelling() const
+        {
+            return !m_course.Empty() && !m_course.Ended(getMSTime());
+        }
+
+        /// A leg has been laid, whether or not it is still running.
+        bool HasCourse() const { return !m_course.Empty(); }
+
+        /// Which point of the running leg has most recently been passed.
+        std::size_t CoursePointIndex() const
+        {
+            return m_course.PointIndex(getMSTime());
+        }
+
+        /**
+         * @brief Abandon the running leg where it stands.
+         *
+         * The caller has already put the unit where the leg had got to; what this does
+         * is make the plan stop claiming otherwise. An emptied course has ended
+         * everywhere, so nothing afterwards can be posed from it.
+         */
+        void AbandonCourse() { m_course = Helm::Course(); }
 
         /**
          * @brief How far Where() may be from what the client is drawing, in yards.
@@ -3998,7 +4021,7 @@ class Unit : public WorldObject
         UnitVisibility m_Visibility;
         Position m_last_notified_position;
         bool m_AINotifyScheduled;
-        TimeTracker m_movesplineTimer;
+        TimeTracker m_gridRelocationTimer;
 
         Diminishing m_Diminishing;
         // Manage all Units threatening us

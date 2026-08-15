@@ -77,6 +77,7 @@ namespace
             case Nav::RouteStop::Wall:       return "the world blocked it";
             case Nav::RouteStop::NodeBudget: return "the fine search ran out of cells";
             case Nav::RouteStop::PointBudget: return "the point budget was spent";
+            case Nav::RouteStop::LengthBudget: return "the allowed length was spent";
             case Nav::RouteStop::NoMesh:     return "no navigation here";
             case Nav::RouteStop::OffMesh:    return "start or goal is off the ground";
             case Nav::RouteStop::TooNarrow:  return "the mover is too wide for the way";

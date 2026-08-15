@@ -27,7 +27,15 @@
 #define MANGOS_DBCSTRUCTURE_H
 
 #include "DBCEnums.h"
-#include "Path.h"
+
+// Qualified, because there are two headers called Path.h and this file is in neither of
+// their directories. `src/game/motion` is listed ahead of `src/game/WorldHandlers` in the
+// include path, so a bare "Path.h" here resolves to Helm's `Path` class -- and the error
+// lands on the typedef below, twenty lines away, saying "no template named 'Path'".
+// TaxiHandler.cpp and Transports.cpp get away with the bare form only because they sit
+// in WorldHandlers, which a quoted include searches first.
+#include "WorldHandlers/Path.h"
+
 #include "Platform/Define.h"
 #include "SharedDefines.h"
 

@@ -124,7 +124,8 @@ Motion::MoveIntent ConfusedMovementGenerator::Intent(Unit& owner,
     if (!m_staggerTime.Passed())
     {
         return (status.traveling && m_haveLurch)
-            ? Motion::MoveIntent::Move(m_lurch, Motion::MOVE_WALK)
+            ? Motion::MoveIntent::Move(m_lurch,
+                                       Motion::MOVE_WALK | Motion::MOVE_REQUIRE_PATH)
             : Motion::MoveIntent::Hold();
     }
 
@@ -139,5 +140,10 @@ Motion::MoveIntent ConfusedMovementGenerator::Intent(Unit& owner,
     m_haveLurch = true;
     m_staggerTime.Reset(urand(STAGGER_INTERVAL_MIN, STAGGER_INTERVAL_MAX));
 
-    return Motion::MoveIntent::Move(m_lurch, Motion::MOVE_WALK);
+    // Routed, like flee. A confused creature staggers, it does not walk through
+    // walls: without this the lurch is a straight chord to a point picked round a
+    // circle, and the client refuses the half of them that cross geometry -- the
+    // creature jams against a corner for the whole duration of the effect.
+    return Motion::MoveIntent::Move(m_lurch,
+                                    Motion::MOVE_WALK | Motion::MOVE_REQUIRE_PATH);
 }

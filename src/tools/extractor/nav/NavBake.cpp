@@ -97,6 +97,25 @@ namespace Nav
                     spec.radius = 2.5f;
                 }
 
+                // A link is planted by the tile that contains BOTH its mouths, and one
+                // whose ends fall in different tiles is therefore planted by nobody. The
+                // whole map's list is handed to every tile on purpose -- each keeps what
+                // is its own -- so the drop is silent by design, and a link that no tile
+                // can ever claim looks exactly like one that simply belongs elsewhere.
+                //
+                // Said out loud here, which is the only place that can see both ends and
+                // the grid at once. Three lines ship with the tool; one of them quietly
+                // doing nothing is worth a line of output.
+                if (TileOfCell(CellIndex(spec.ax)) != TileOfCell(CellIndex(spec.bx)) ||
+                    TileOfCell(CellIndex(spec.ay)) != TileOfCell(CellIndex(spec.by)))
+                {
+                    std::fprintf(stderr,
+                                 "nav: %s line %d spans a tile border; no tile can "
+                                 "plant it and it will be ignored\n",
+                                 path.c_str(), lineNumber);
+                    continue;
+                }
+
                 links.push_back(spec);
             }
 

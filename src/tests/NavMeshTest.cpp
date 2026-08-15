@@ -42,10 +42,13 @@
 #include "nav/NavArea.hpp"
 #include "nav/NavGrid.hpp"
 #include "nav/NavMesh.hpp"
+#include "nav/NavMeshIO.hpp"
 #include "nav/NavTile.hpp"
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <string>
 #include <vector>
 
 namespace
@@ -140,6 +143,37 @@ namespace
         }
 
         return true;
+    }
+
+    /// Two mouths facing each other across the drop, and the hand-authored jump between
+    /// them. Authored on the TILE, as `offmesh.txt` gives it; what the mesh does with it
+    /// is resolve each mouth to the area it stands in.
+    void AuthorALink(Nav::NavTile& tile, int fromX, int toX)
+    {
+        const auto mouth = [&tile](int localX, float z, uint16_t region)
+        {
+            Nav::Gateway gate;
+            gate.side = Nav::NavTile::SIDE_LINK;
+            gate.region = region;
+            gate.width = 4.0f;
+            gate.x = Nav::CellCentre(Nav::GlobalCell(tile.TileX(), localX));
+            gate.y = Nav::CellCentre(Nav::GlobalCell(tile.TileY(), 128));
+            gate.z = z;
+            gate.firstZ = z;
+            gate.lastZ = z;
+            gate.cell = static_cast<uint32_t>(localX * SIDE + 128);
+            return gate;
+        };
+
+        tile.MutableGateways().push_back(mouth(fromX, 0.0f, 0));
+        tile.MutableGateways().push_back(mouth(toX, -30.0f, 1));
+
+        Nav::Link link;
+        link.fromGate = 0;
+        link.toGate = 1;
+        link.cost = 12.0f;
+        link.bidirectional = true;
+        tile.MutableLinks().push_back(link);
     }
 
     size_t RimPortals(const Nav::TileMesh& mesh, uint8_t side)
@@ -274,5 +308,84 @@ TEST(NavMesh_ASegmentSpansTheWholeOpening)
         const float length = std::sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
         const float expected = float(p.Cells()) * Nav::CELL_SIZE;
         CHECK(std::fabs(length - expected) < 0.01f);
+    }
+}
+
+// A hand-authored jump becomes an edge between two AREAS. The tile carries it as a pair
+// of gateway mouths, which is what the bake authors; what the mesh has to do is find the
+// rectangle under each mouth -- by height, or a link authored on a dock resolves onto the
+// water underneath it.
+TEST(NavMesh_ALinkJoinsTheAreasItsMouthsStandIn)
+{
+    Nav::NavTile tile;
+    Paint(tile, TwoShelves());
+    AuthorALink(tile, 100, 400);
+
+    const Nav::TileMesh mesh = Nav::BuildTileMesh(tile);
+    REQUIRE(mesh.links.size() == static_cast<size_t>(1));
+
+    const Nav::MeshLink& link = mesh.links[0];
+    CHECK(link.fromRect < mesh.rects.size());
+    CHECK(link.toRect < mesh.rects.size());
+    CHECK(link.fromRect != link.toRect);
+
+    // Each mouth landed on its own shelf, and the shelves are separate regions -- which
+    // is the whole reason the link is there.
+    CHECK(mesh.rects[link.fromRect].region != mesh.rects[link.toRect].region);
+
+    // The mouths keep the positions they were authored at. A link is a place, not the
+    // middle of the area the place belongs to.
+    CHECK(std::fabs(link.fromZ - 0.0f) < 0.01f);
+    CHECK(std::fabs(link.toZ + 30.0f) < 0.01f);
+    CHECK(link.clearance > 0);
+    CHECK(link.bidirectional != 0);
+}
+
+// The cache has to survive its own file. Two things are asserted that a reader has got
+// wrong before: a rim portal names Portal::OUTSIDE and is NOT an out-of-range index --
+// reading it as one threw away the cache for every tile whose ground reaches an edge, so
+// the baked mesh was silently rebuilt on the map's tick and never once used -- and the
+// links come back at all, which a reader written before them would drop in silence.
+TEST(NavMeshIO_ARoundTripKeepsRimPortalsAndLinks)
+{
+    Nav::NavTile tile;
+    Paint(tile, TwoShelves());
+    AuthorALink(tile, 100, 400);
+
+    Nav::TileGeometry written;
+    written.mesh = Nav::BuildTileMesh(tile);
+    REQUIRE(!written.mesh.rects.empty());
+    REQUIRE(written.mesh.links.size() == static_cast<size_t>(1));
+    REQUIRE(RimPortals(written.mesh, Nav::SIDE_MINUS_X) > 0);
+
+    const std::string path = "./NavMeshIO_roundtrip.mesh";
+    REQUIRE(Nav::WriteTileGeometry(path, 4242, 32, 32, written));
+
+    // A file from another map or another tile is refused rather than read as if it
+    // described this one.
+    Nav::TileGeometry wrong;
+    CHECK(!Nav::ReadTileGeometry(path, 4243, 32, 32, wrong));
+    CHECK(!Nav::ReadTileGeometry(path, 4242, 33, 32, wrong));
+
+    Nav::TileGeometry read;
+    const bool ok = Nav::ReadTileGeometry(path, 4242, 32, 32, read);
+    std::remove(path.c_str());
+    REQUIRE(ok);
+
+    CHECK_EQ(read.mesh.rects.size(), written.mesh.rects.size());
+    CHECK_EQ(read.mesh.portals.size(), written.mesh.portals.size());
+    CHECK_EQ(read.mesh.first.size(), written.mesh.first.size());
+    CHECK_EQ(read.mesh.heights.size(), written.mesh.heights.size());
+    REQUIRE(read.mesh.links.size() == static_cast<size_t>(1));
+
+    CHECK_EQ(read.mesh.links[0].fromRect, written.mesh.links[0].fromRect);
+    CHECK_EQ(read.mesh.links[0].toRect, written.mesh.links[0].toRect);
+    CHECK(std::fabs(read.mesh.links[0].cost - written.mesh.links[0].cost) < 0.01f);
+    CHECK(std::fabs(read.mesh.links[0].toX - written.mesh.links[0].toX) < 0.01f);
+
+    // Every rim run came back as a rim run, and no reader turned one into an index.
+    for (uint8_t side = 0; side < 4; ++side)
+    {
+        CHECK_EQ(RimPortals(read.mesh, side), RimPortals(written.mesh, side));
     }
 }
