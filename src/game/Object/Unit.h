@@ -64,6 +64,7 @@
 #include "Opcodes.h"
 #include "SpellAuraDefines.h"
 #include "StatBlock.h"
+#include "combat/Combatant.h"
 #include "combat/ProcEvent.h"
 #include "UpdateFields.h"
 #include "SharedDefines.h"
@@ -1523,7 +1524,7 @@ class Unit : public WorldObject
          * @param f the state to add, see UnitState for possible values
          * \see UnitState
          */
-        void addUnitState(uint32 f) { m_state |= f; }
+        void addUnitState(uint32 f) { m_state |= f; m_combatant.Invalidate(); }
         /**
          * Checks if a certain unit state is set
          * @param f the state to check for
@@ -1536,7 +1537,7 @@ class Unit : public WorldObject
          * @param f the state to remove
          * \see UnitState
          */
-        void clearUnitState(uint32 f) { m_state &= ~f; }
+        void clearUnitState(uint32 f) { m_state &= ~f; m_combatant.Invalidate(); }
         /**
          * Checks if the client/mob is in control or no
          * @return true if the client can move by client control, false otherwise
@@ -3595,7 +3596,14 @@ class Unit : public WorldObject
 
         // stat system
         bool HandleStatModifier(UnitMods unitMod, UnitModifierType modifierType, float amount, bool apply);
-        void SetModifierValue(UnitMods unitMod, UnitModifierType modifierType, float value) { m_stats.Set(unitMod, modifierType, value); }
+        void SetModifierValue(UnitMods unitMod, UnitModifierType modifierType, float value) { m_stats.Set(unitMod, modifierType, value); m_combatant.Invalidate(); }
+
+        /// This unit's combat profile, and the switch that says it is stale.
+        Combat::Combatant& CombatProfile() { return m_combatant; }
+
+        /// Something a Profile is derived from has changed. Cheap: it sets a
+        /// bit, and the rebuild happens at the next swing if there is one.
+        void InvalidateCombatProfile() { m_combatant.Invalidate(); }
         float GetModifierValue(UnitMods unitMod, UnitModifierType modifierType) const;
         float GetTotalStatValue(Stats stat) const;
         float GetTotalAuraModValue(UnitMods unitMod) const;
@@ -3869,6 +3877,9 @@ class Unit : public WorldObject
         /// Owns the four modifier slots per stat group and the arithmetic
         /// that assembles them.
         StatBlock m_stats;
+
+        /// Owns this unit's combat Profile and whether it is still current.
+        Combat::Combatant m_combatant;
         float m_weaponDamage[MAX_ATTACK][2];
         bool m_canModifyStats;
         // std::list< spellEffectPair > AuraSpells[TOTAL_AURAS];  // TODO: use this if ok for mem

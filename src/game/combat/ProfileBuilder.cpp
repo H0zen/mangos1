@@ -250,7 +250,25 @@ namespace Combat
         }
     }
 
-    Profile BuildProfile(Unit const* unit, Unit const* opponent)
+    Hundredths CritDamageVersus(Unit const* attacker, Unit const* victim)
+    {
+        if (!attacker || !victim)
+        {
+            return 0;
+        }
+
+        const std::uint32_t types = victim->GetCreatureTypeMask();
+        if (types == 0)
+        {
+            return 0;
+        }
+
+        return ToHundredths(static_cast<float>(
+            attacker->GetTotalAuraModifierByMiscMask(
+                SPELL_AURA_MOD_CRIT_PERCENT_VERSUS, types)));
+    }
+
+    Profile BuildProfile(Unit const* unit)
     {
         Profile profile;
 
@@ -310,9 +328,6 @@ namespace Combat
         profile.caps.mayGlance = profile.kind != Kind::Creature;
         profile.caps.dualWielding = unit->haveOffhandWeapon();
 
-        const std::uint32_t crTypeMask =
-            opponent ? opponent->GetCreatureTypeMask() : 0;
-
         for (std::size_t h = 0; h < HAND_COUNT; ++h)
         {
             const Hand hand = static_cast<Hand>(h);
@@ -346,17 +361,14 @@ namespace Combat
                         SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
                         VICTIMSTATE_DODGE)));
 
-            std::int32_t critDamage = unit->GetTotalAuraModifierByMiscMask(
-                SPELL_AURA_MOD_CRIT_DAMAGE_BONUS, SPELL_SCHOOL_MASK_NORMAL);
-
-            if (crTypeMask != 0)
-            {
-                critDamage += unit->GetTotalAuraModifierByMiscMask(
-                    SPELL_AURA_MOD_CRIT_PERCENT_VERSUS, crTypeMask);
-            }
-
-            profile.critDamageMod[h] =
-                ToHundredths(static_cast<float>(critDamage));
+            // The school-based half only. What a unit does to crits against
+            // one particular creature TYPE is a pair reading and is added at
+            // the swing by CritDamageVersus -- keeping it here would make the
+            // whole profile depend on who is opposite.
+            profile.critDamageMod[h] = ToHundredths(static_cast<float>(
+                unit->GetTotalAuraModifierByMiscMask(
+                    SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+                    SPELL_SCHOOL_MASK_NORMAL)));
 
             profile.attackerMissMod[h] = MissTaken(unit, hand);
             profile.attackerCritMod[h] = CritTaken(unit, hand);

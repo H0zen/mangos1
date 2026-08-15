@@ -358,6 +358,8 @@ int32 Unit::GetMaxNegativeAuraModifierByMiscValue(AuraType auratype, int32 misc_
  */
 bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
 {
+    m_combatant.Invalidate();
+
     SpellEntry const* aurSpellInfo = holder->GetSpellProto();
 
     // ghost spell check, allow apply any auras at player loading in ghost mode (will be cleanup after load)
@@ -1237,6 +1239,10 @@ void Unit::RemoveNotOwnTrackedTargetAuras()
  */
 void Unit::RemoveSpellAuraHolder(SpellAuraHolder* holder, AuraRemoveMode mode)
 {
+    // Half the numbers in a Profile are sums over the aura lists, so the
+    // lists changing is the commonest reason one goes stale.
+    m_combatant.Invalidate();
+
     // Statue unsummoned at holder remove
     SpellEntry const* AurSpellInfo = holder->GetSpellProto();
     Totem* statue = NULL;

@@ -141,18 +141,28 @@ namespace Combat
          *                        weapon range out of it.
          */
         Matchup MeleeMatchup(Unit& attacker, Unit& victim, Hand hand,
-                             Profile& attackerProfile)
+                             Profile const*& attackerProfile)
         {
-            attackerProfile = BuildProfile(&attacker, &victim);
+            // Kept between swings, rebuilt only when the unit said something
+            // changed. Both are one unit's own facts; nothing here depends on
+            // who is opposite.
+            Profile const& mine = attacker.CombatProfile().Read();
+            Profile const& theirs = victim.CombatProfile().Read();
 
-            const Profile victimProfile = BuildProfile(&victim, &attacker);
+            attackerProfile = &mine;
 
             Situation situation = BuildSituation(&attacker, &victim);
             situation.victimImmune = victim.IsImmuneToDamage(
-                SpellSchoolMask(attackerProfile.meleeSchoolMask));
+                SpellSchoolMask(mine.meleeSchoolMask));
 
-            return Matchup::Build(attackerProfile, victimProfile, hand,
-                                  situation);
+            Matchup matchup =
+                Matchup::Build(mine, theirs, hand, situation);
+
+            // The one modifier that belongs to neither profile: an aura on
+            // the attacker selected by the victim's creature type.
+            matchup.critDamageMod += CritDamageVersus(&attacker, &victim);
+
+            return matchup;
         }
 
         /**
@@ -192,7 +202,7 @@ namespace Combat
     void PerformSwing(Unit& attacker, Unit& victim, Hand hand,
                       ReactionQueue& queue, std::uint8_t depth)
     {
-        Profile attackerProfile;
+        Profile const* attackerProfile = nullptr;
 
         const Matchup  matchup = MeleeMatchup(attacker, victim, hand,
                                               attackerProfile);
@@ -211,7 +221,7 @@ namespace Combat
         // see Bonused. The resolver is handed the single number as a
         // degenerate range so that the roll happens exactly once, here, over
         // the weapon's own spread.
-        DamageRange const& range = attackerProfile.weapon[Index(hand)];
+        DamageRange const& range = attackerProfile->weapon[Index(hand)];
 
         const std::uint32_t rolled = range.Empty()
             ? 0u
@@ -276,7 +286,7 @@ namespace Combat
         // would have used, so the log says the same thing in both modes and
         // only the answer that gets APPLIED differs.
         {
-            Profile attackerProfile;
+            Profile const* attackerProfile = nullptr;
 
             const Matchup matchup =
                 MeleeMatchup(attacker, victim, hand, attackerProfile);

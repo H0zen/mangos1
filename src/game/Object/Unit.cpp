@@ -208,6 +208,7 @@ void GlobalCooldownMgr::CancelGlobalCooldown(SpellEntry const* spellInfo)
 Unit::Unit() :
     movespline(new Movement::MoveSpline()),
     m_charmInfo(NULL),
+    m_combatant(this),
     i_motionMaster(this),
     m_ThreatManager(this),
     m_HostileRefManager(this)
@@ -4503,6 +4504,7 @@ uint32 Unit::GetCreatureType() const
 void Unit::SetLevel(uint32 lvl)
 {
     SetUInt32Value(UNIT_FIELD_LEVEL, lvl);
+    m_combatant.Invalidate();
 
     // group update
     if ((GetTypeId() == TYPEID_PLAYER) && ((Player*)this)->GetGroup())

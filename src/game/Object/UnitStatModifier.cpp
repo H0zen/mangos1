@@ -67,6 +67,11 @@ bool Unit::HandleStatModifier(UnitMods unitMod, UnitModifierType modifierType, f
         return false;
     }
 
+    // Armour, attack power and the three weapon damage groups all reach a
+    // Profile, and this is the one funnel every stat aura and every item
+    // bonus goes through.
+    m_combatant.Invalidate();
+
     if (!CanModifyStats())
     {
         return false;

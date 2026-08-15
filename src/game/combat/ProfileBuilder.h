@@ -48,15 +48,21 @@ namespace Combat
      * skill arithmetic that the old path did on every swing. It is meant to
      * happen when something changes, not when something is hit.
      *
-     * @param unit     The unit to describe.
-     * @param opponent Needed only by the three accessors that are still
-     *                 pair-dependent in the old API -- weapon skill, defence
-     *                 skill and the level ceiling all take a target so they
-     *                 can apply the player-versus-player cap. Nothing else
-     *                 here looks at it, and untangling those three is what
-     *                 lets a Profile be cached per unit rather than per pair.
+     * Describes the unit and nobody else. Whoever it ends up fighting changes
+     * nothing here, which is what lets one profile be kept and reused instead
+     * of rebuilt per swing.
      */
-    Profile BuildProfile(Unit const* unit, Unit const* opponent);
+    Profile BuildProfile(Unit const* unit);
+
+    /**
+     * @brief What @a attacker adds to a crit against @a victim's TYPE.
+     *
+     * The one modifier that genuinely belongs to the pair: it is an aura on
+     * the attacker selected by the victim's creature type, so it can be
+     * neither cached on one nor derived from the other. Added to the matchup
+     * at the swing.
+     */
+    Hundredths CritDamageVersus(Unit const* attacker, Unit const* victim);
 
     /**
      * @brief The facts about a swing that belong to neither combatant.

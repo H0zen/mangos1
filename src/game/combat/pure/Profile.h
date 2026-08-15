@@ -189,6 +189,25 @@ namespace Combat
                 : weaponSkill[Index(hand)];
         }
     };
+
+    /**
+     * @brief The name of the first field two profiles disagree about.
+     *
+     * The guard on the cache. A profile kept between swings is only as good
+     * as the promise that something says when it is stale, and a missed
+     * promise is a wrong number in every swing until an unrelated change
+     * happens to clear it -- a balance complaint months later rather than a
+     * bug report.
+     *
+     * A debug build rebuilds on every read and calls this, so a missed
+     * invalidation is a named field in the log the first time it happens.
+     *
+     * @ref Profile::version is not compared: it is the cache's own
+     * bookkeeping and says nothing about the unit.
+     *
+     * @return nullptr when they agree.
+     */
+    char const* FirstDifference(Profile const& a, Profile const& b);
 }
 
 #endif
