@@ -189,6 +189,16 @@ namespace mai
             }
         }
 
+        if (spec->facets & FacetPoints)
+        {
+            // Counted, never given. A converted row has no column that could
+            // say what to compute base points from, so the spell keeps its
+            // own -- and the slots still have to be stepped over, or the
+            // arity check below reads a shape mismatch that is not one.
+            enum : std::size_t { PointsSlots = 4 };
+            slot += PointsSlots;
+        }
+
         if (slot != spec->arity)
         {
             char buffer[192];
