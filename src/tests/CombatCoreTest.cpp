@@ -398,6 +398,46 @@ TEST(CombatEvadeTakesTheWholeTable)
     CHECK(table.Resolve(HUNDRED_PERCENT - 1) == Outcome::Evade);
 }
 
+TEST(CombatImmunityTakesTheWholeTableAndRollsNothing)
+{
+    Situation immune;
+    immune.victimImmune = true;
+
+    const Matchup  m     = PlayerVersusBoss(immune);
+    const HitTable table = HitTable::OneRoll(m);
+
+    // Immunity is an outcome, not a check before the table. It goes through
+    // the same resolve, the same commit and the same combat log as anything
+    // else, and nothing downstream needs a special case for it.
+    CHECK_EQ(table.Band(Outcome::Immune), HUNDRED_PERCENT);
+    CHECK(table.Resolve(0) == Outcome::Immune);
+    CHECK(table.Resolve(HUNDRED_PERCENT - 1) == Outcome::Immune);
+
+    ScriptedRng rng(0, 500, 0.5f);
+    const Strike s =
+        StrikeResolver::Resolve(m, table, DamageRange{500, 500}, rng);
+
+    CHECK(s.outcome == Outcome::Immune);
+    CHECK_EQ(s.raw, 0u);
+    CHECK_EQ(s.applied, 0u);
+    CHECK_EQ(s.clean, 0u);
+    CHECK(s.finalised);
+}
+
+TEST(CombatEvadeOutranksImmunity)
+{
+    // An evading creature is not being fought at all, so evade is decided
+    // first. Both are whole-table answers and they must not overlap.
+    Situation both;
+    both.victimEvading = true;
+    both.victimImmune  = true;
+
+    const HitTable table = HitTable::OneRoll(PlayerVersusBoss(both));
+
+    CHECK_EQ(table.Band(Outcome::Evade), HUNDRED_PERCENT);
+    CHECK_EQ(table.Band(Outcome::Immune), 0);
+}
+
 TEST(CombatSittingPlayerTakesCritButCanStillBeMissed)
 {
     Profile victim = Warrior();

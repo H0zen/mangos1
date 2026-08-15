@@ -609,6 +609,46 @@ nucleul cere tot serverul.
 
 ---
 
+## Etapa 2, așa cum a intrat
+
+`ProfileBuilder` e cusătura, o singură funcție lată. `ReactionQueue` ține cele
+șase forme de consecință într-un `std::variant`, cu ambele capete ca guid-uri.
+`StrikeCommit` are cele șapte faze. `PerformSwing` le leagă, iar
+`AttackerStateUpdate` a fost rescris peste el: coada e o variabilă locală,
+drenată după ce swing-ul s-a terminat.
+
+Ce s-a schimbat efectiv în joc:
+
+- **Procul rulează după damage**, nu între log și damage. Log-ul nu mai minte
+  când un proc omoară ținta, iar `DealMeleeDamage` nu mai rulează pe un pointer
+  eliberat de un despawn.
+- **Nimic nu mai recursează.** Bucla de extra-attacks a dispărut.
+- **Grant-urile de extra se adună** (`EffectAddExtraAttacks` nu mai iese
+  devreme) și se recoltează imediat *după* procul care le-a pus, nu dintr-un
+  snapshot luat înainte. Windfury nu mai întârzie un swing; Sword Spec nu mai
+  e înghițit. Extra-ul păstrează mâna care l-a câștigat.
+- **Scuturile de damage sunt fotografiate**, nu parcurse viu în timp ce damage-ul
+  lor șterge aure din aceeași listă.
+- **`AttackedBy` o singură dată** pe hit, nu de două ori.
+- **Imunitatea a devenit un rezultat**, nu o verificare dinainte de tabelă.
+- **Armura numai pe școala fizică.**
+
+Ce **nu** s-a schimbat, și trebuie spus:
+
+- Faza 4 nu e separată. Threat-ul, rage-ul, notificarea de AI și kill-ul sunt
+  tot înăuntrul lui `DealDamage`. Ce s-a corectat e ordinea exterioară.
+- **Cache-ul de profil nu există încă.** `PerformSwing` construiește două
+  profile complete la fiecare swing, plus `MeleeDamageBonusDone/Taken`, care
+  încă umblă listele de aure. Câștigul de performanță din §1 vine abia cu
+  `Engagement` și biții de murdărie — până atunci codul e mutat, nu ieftinit.
+- Windfury e tot două `CastCustomSpell` în handler-ul de proc. Trece acum prin
+  coadă ca orice proc, dar nu e încă o intrare `ExtraSwing`.
+- `RollMeleeOutcomeAgainst`, `CalculateMeleeDamage` și `DealMeleeDamage` sunt
+  încă în arbore. Se șterg în etapa 7, după ce 3–5 nu mai au nevoie de ele ca
+  referință.
+
+---
+
 ## Prima mișcare
 
 Etapa 0 și etapa 1 pot merge în paralel și nu ating niciun apelant: un fișier de
