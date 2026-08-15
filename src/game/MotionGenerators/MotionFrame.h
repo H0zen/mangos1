@@ -105,7 +105,8 @@ namespace Motion
              *         straight-line fallback used when routing failed (see Failed).
              */
             virtual bool Calculate(Vector3 const& start, Vector3 const& goal,
-                                   bool forceDestination, float lengthLimit) = 0;
+                                   bool forceDestination, float lengthLimit,
+                                   bool rejectIfLonger = false) = 0;
 
             /// The routed polyline from the last successful Calculate.
             virtual PointsArray const& Points() const = 0;

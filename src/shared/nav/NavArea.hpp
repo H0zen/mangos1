@@ -192,9 +192,8 @@ namespace Nav
          *
          * A creature that walks stays on the floor even when the floor is a seabed -- a
          * crab crosses a bay along the bottom, it does not surface halfway. The baked
-         * data cannot express that on its own: it carries the liquid surface and the
-         * seabed as two stacked layers and a walking swimmer is admitted to both, so
-         * which one a search lands on would otherwise be an accident.
+         * data carries the liquid surface and the seabed as two stacked layers;
+         * AdmitsGround keeps a walker on the floor.
          */
         bool canWalk = false;
 
@@ -239,7 +238,10 @@ namespace Nav
                 return false;
             }
 
-            return !(area == NavArea::Water && canWalk && !canSwim);
+            // The water SKIN is for things that swim and do not walk. An amphibian
+            // (makrura) walks the seabed; admitting it to both stacked layers seated
+            // one point on the skin and the next on the floor, and it hopped.
+            return !(area == NavArea::Water && canWalk);
         }
 
         /// The multiplier for crossing an area.

@@ -151,6 +151,10 @@ namespace Motion
         /// Move: cap the routed path length in yards (0 = the router's default).
         float pathLengthLimit = 0.0f;
 
+        /// Move: if the route is longer than pathLengthLimit, refuse it (wander)
+        /// rather than clip it (flee).
+        bool pathRejectIfLonger = false;
+
         /// Move: EXACT geometry for the leg, when the generator must dictate it
         /// rather than name a point and let the driver route there. Only the smoothed
         /// waypoint patrol needs it — it welds several nodes into one spline so the
@@ -200,6 +204,12 @@ namespace Motion
         MoveIntent& WithinLength(float yards)
         {
             pathLengthLimit = yards;
+            return *this;
+        }
+
+        MoveIntent& RejectIfLonger()
+        {
+            pathRejectIfLonger = true;
             return *this;
         }
     };

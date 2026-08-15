@@ -44,6 +44,165 @@ namespace Nav
             return std::sqrt(dx * dx + dy * dy);
         }
 
+        bool Admits(const MoveProfile& profile, const Surface& surface);
+
+        float PathLength2D(const std::vector<Geometry::Vector3>& points)
+        {
+            float walked = 0.0f;
+            for (size_t i = 1; i < points.size(); ++i)
+            {
+                walked += Dist2D(points[i - 1], points[i]);
+            }
+            return walked;
+        }
+
+        /// How far above (or below) the surface the mover's body sits.
+        float SeatOffset(const MoveProfile& profile, NavArea area)
+        {
+            if (area == NavArea::Water && !profile.canWalk)
+            {
+                return -SWIM_SEAT_DEPTH;
+            }
+            return GROUND_CLEARANCE;
+        }
+
+        /// The surface THIS mover is standing on, from the stacked list at a cell.
+        ///
+        /// Walkers keep the floor (Ground/Shallow), even when a water skin is stacked
+        /// above it. Swim-only movers keep the skin. Among the chosen kind, the nearest
+        /// floor below the body wins -- same rule as NavTile::SurfaceUnder.
+        bool PickSeat(const MoveProfile& profile, const std::vector<Surface>& surfaces,
+                      float z, float tolerance, Surface& out)
+        {
+            out = Surface();
+
+            Surface best;
+            float bestDrop = tolerance;
+            Surface bestAbove;
+            float bestRise = tolerance;
+
+            const bool wantFloor = profile.canWalk;
+
+            for (const Surface& surface : surfaces)
+            {
+                if (!Admits(profile, surface))
+                {
+                    continue;
+                }
+
+                const NavArea area = AreaOf(surface.area);
+                const bool isFloor = (area == NavArea::Ground ||
+                                      area == NavArea::Shallow);
+                if (wantFloor && !isFloor)
+                {
+                    continue;
+                }
+                if (!wantFloor && area != NavArea::Water &&
+                    area != NavArea::Shallow)
+                {
+                    continue;
+                }
+
+                const float delta = z - surface.z;
+                if (delta >= 0.0f)
+                {
+                    if (delta <= bestDrop)
+                    {
+                        bestDrop = delta;
+                        best = surface;
+                    }
+                }
+                else if (-delta <= bestRise)
+                {
+                    bestRise = -delta;
+                    bestAbove = surface;
+                }
+            }
+
+            if (best.Valid())
+            {
+                out = best;
+                return true;
+            }
+            if (bestAbove.Valid())
+            {
+                out = bestAbove;
+                return true;
+            }
+
+            // Walker, no floor in reach: a swimming amphibian may take the skin.
+            // AdmitsGround refuses Water for walkers (so the search stays on the
+            // floor); seating still needs a place to put the body when the floor
+            // is out of range.
+            if (wantFloor && profile.canSwim)
+            {
+                bestDrop = tolerance;
+                bestRise = tolerance;
+                best = Surface();
+                bestAbove = Surface();
+                for (const Surface& surface : surfaces)
+                {
+                    if (!surface.Valid() ||
+                        AreaOf(surface.area) != NavArea::Water ||
+                        !profile.Admits(NavArea::Water) ||
+                        !profile.Fits(surface.clearance))
+                    {
+                        continue;
+                    }
+
+                    const float delta = z - surface.z;
+                    if (delta >= 0.0f)
+                    {
+                        if (delta <= bestDrop)
+                        {
+                            bestDrop = delta;
+                            best = surface;
+                        }
+                    }
+                    else if (-delta <= bestRise)
+                    {
+                        bestRise = -delta;
+                        bestAbove = surface;
+                    }
+                }
+
+                if (best.Valid())
+                {
+                    out = best;
+                    return true;
+                }
+                if (bestAbove.Valid())
+                {
+                    out = bestAbove;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool SeatAt(const NavStore& store, const MoveProfile& profile,
+                    float x, float y, float z, float tolerance,
+                    CellRef& cell, Surface& surface)
+        {
+            cell = CellAt(x, y);
+            surface = Surface();
+            if (!cell.Valid())
+            {
+                return false;
+            }
+
+            const std::shared_ptr<const NavTile> tile = store.TileOf(cell);
+            if (!tile)
+            {
+                return false;
+            }
+
+            std::vector<Surface> surfaces;
+            tile->SurfacesAt(cell.InTile(), surfaces);
+            return PickSeat(profile, surfaces, z, tolerance, surface);
+        }
+
         /// May this mover stand on this surface at all? Area and width, and the area half
         /// of it is `MoveProfile`'s own -- see `AdmitsGround`, which is where the rule
         /// about a walker not surfacing halfway across a bay lives now that the mesh
@@ -203,8 +362,8 @@ namespace Nav
          * height field exists because no plane (and therefore no chord) fits the ADT.
          * Sample every SMOOTH_STEP and seat each sample, so the client walks the ground.
          */
-        void SeatLongLegs(const NavStore& store, float tolerance,
-                          std::vector<Geometry::Vector3>& points)
+        void SeatLongLegs(const NavStore& store, const MoveProfile& profile,
+                          float tolerance, std::vector<Geometry::Vector3>& points)
         {
             if (points.size() < 2)
             {
@@ -235,13 +394,10 @@ namespace Nav
 
                     CellRef cell;
                     Surface surface;
-                    if (store.SurfaceAt(p.x, p.y, p.z, tolerance + CELL_SIZE, cell,
-                                        surface) &&
-                        surface.Valid())
+                    if (SeatAt(store, profile, p.x, p.y, p.z,
+                               tolerance + CELL_SIZE, cell, surface))
                     {
-                        p.z = surface.z + (AreaOf(surface.area) == NavArea::Water
-                                               ? -SWIM_SEAT_DEPTH
-                                               : GROUND_CLEARANCE);
+                        p.z = surface.z + SeatOffset(profile, AreaOf(surface.area));
                     }
 
                     seated.push_back(p);
@@ -403,11 +559,11 @@ namespace Nav
         Surface endSurface;
 
         const bool haveStart =
-            m_store.SurfaceAt(request.start.x, request.start.y, request.start.z,
-                              request.seatTolerance, startCell, startSurface);
+            SeatAt(m_store, request.profile, request.start.x, request.start.y,
+                   request.start.z, request.seatTolerance, startCell, startSurface);
         const bool haveEnd =
-            m_store.SurfaceAt(request.end.x, request.end.y, request.end.z,
-                              request.seatTolerance, endCell, endSurface);
+            SeatAt(m_store, request.profile, request.end.x, request.end.y,
+                   request.end.z, request.seatTolerance, endCell, endSurface);
 
         if (!haveStart || !haveEnd)
         {
@@ -449,7 +605,7 @@ namespace Nav
             // chord through the dirt. Sample the floor along any long run before the
             // caps measure it, so a flee ceiling and a point budget see the walked
             // ground rather than the chord.
-            SeatLongLegs(m_store, request.seatTolerance, out.points);
+            SeatLongLegs(m_store, request.profile, request.seatTolerance, out.points);
 
             // THE LENGTH CAP, measured in yards over the points actually emitted. It is
             // the only place it can be measured: a point stands for a corner, so the
@@ -458,7 +614,19 @@ namespace Nav
             // and this line the mesh route ignored it -- a ten-yard bolt could come back
             // two hundred yards long and be reported as a complete success.
             //
+            // Wander refuses a route that would need clipping: a 160-yard coastal
+            // detour is not a 13-yard hop. Flee clips and keeps the prefix.
+            //
             // Before the point budget, because cutting the route may bring it under.
+            if (request.budget.rejectIfLonger && request.budget.maxLength > 0.0f &&
+                PathLength2D(out.points) > request.budget.maxLength)
+            {
+                out.Clear();
+                out.outcome = RouteOutcome::Unroutable;
+                out.stop = RouteStop::LengthBudget;
+                return;
+            }
+
             if (ClipToLength(request.budget.maxLength, out.points))
             {
                 if (out.points.size() < 2)
@@ -1080,9 +1248,11 @@ namespace Nav
                     // start's: on a ramp those diverge by the whole climb, and a
                     // tolerance wide enough to cover it would let the seat jump to a
                     // floor above or below.
-                    const Surface seated = tile.SurfaceUnder(
-                        cell.InTile(), height, request.seatTolerance + CELL_SIZE);
-                    if (seated.Valid())
+                    std::vector<Surface> surfaces;
+                    tile.SurfacesAt(cell.InTile(), surfaces);
+                    Surface seated;
+                    if (PickSeat(request.profile, surfaces, height,
+                                 request.seatTolerance + CELL_SIZE, seated))
                     {
                         z = seated.z;
                         area = AreaOf(seated.area);
@@ -1094,21 +1264,15 @@ namespace Nav
 
             // === WHERE THE BODY SITS, not where the ground is.
             //
-            // A point is a place to put a MOVER, and a mover is not a plane at the
-            // surface: it stands a little above the floor, and a swimmer floats with its
-            // head out rather than at the water's skin. Both figures are the terrain
-            // engine's own, so a route that ignored them disagreed with every other
-            // answer in the server about where a body at that position is.
-            //
-            // This lived in the emitter the cell engine had, and went out with it -- so
-            // between that deletion and this line every routed point was seated exactly
-            // on the geometry, which is the one height a body is never at.
+            // A walker (including a wading makrura) sits a little above the floor.
+            // Only a swim-only mover sits below a water skin. Mixing the two on a
+            // shoreline -- Ground+0.5 then Water-2 -- is the hop.
             //
             // Not applied to the ends: those are the caller's own positions, and a
             // creature already standing somewhere does not need to be lifted off it.
             if (!first && !last)
             {
-                z += area == NavArea::Water ? -SWIM_SEAT_DEPTH : GROUND_CLEARANCE;
+                z += SeatOffset(request.profile, area);
             }
 
             out.points.push_back(Geometry::Vector3(x, y, z));

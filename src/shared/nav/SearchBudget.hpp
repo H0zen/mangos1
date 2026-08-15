@@ -90,6 +90,11 @@ namespace Nav
          */
         float maxLength = 0.0f;
 
+        /// When true, a route longer than maxLength is refused rather than clipped.
+        /// Wander wants this (a 160-yard coastal detour is not a 13-yard hop). Flee
+        /// wants the clip: run this far and stop.
+        bool rejectIfLonger = false;
+
         /**
          * @brief A budget for a route of at most @p yards.
          *
@@ -108,6 +113,14 @@ namespace Nav
                 // of the buffer the client will accept, not a distance.
                 budget.points = MAX_POINTS;
             }
+            return budget;
+        }
+
+        /// Like ForLength, but a route that would need clipping is not a route.
+        static SearchBudget Within(float yards)
+        {
+            SearchBudget budget = ForLength(yards);
+            budget.rejectIfLonger = true;
             return budget;
         }
     };

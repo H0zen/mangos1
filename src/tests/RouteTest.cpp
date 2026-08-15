@@ -142,6 +142,28 @@ TEST(Route_StopIsIndependentOfOutcome)
 // Nav::MoveProfile: what the mover is permitted to do.
 // ---------------------------------------------------------------------------
 
+TEST(MoveProfile_WalkerStaysOffTheWaterSkin)
+{
+    // The water skin is stacked above the seabed. A walking amphibian must keep
+    // the floor; admitting it to both layers is how a makrura hopped.
+    Nav::MoveProfile crab;
+    crab.canWalk = true;
+    crab.canSwim = true;
+    crab.allowedAreas = uint16_t(Nav::AREAS_WALKABLE | Nav::AreaBit(Nav::NavArea::Water));
+
+    CHECK(crab.Admits(Nav::NavArea::Water));
+    CHECK(!crab.AdmitsGround(uint8_t(Nav::NavArea::Water)));
+    CHECK(crab.AdmitsGround(uint8_t(Nav::NavArea::Ground)));
+    CHECK(crab.AdmitsGround(uint8_t(Nav::NavArea::Shallow)));
+
+    Nav::MoveProfile fish;
+    fish.canWalk = false;
+    fish.canSwim = true;
+    fish.allowedAreas = Nav::AREAS_LIQUID;
+
+    CHECK(fish.AdmitsGround(uint8_t(Nav::NavArea::Water)));
+}
+
 TEST(MoveProfile_DefaultPermitsNothing)
 {
     const Nav::MoveProfile p;
@@ -191,4 +213,15 @@ TEST(MoveProfile_MayGoDirectPicksTheAbilityTheGroundCallsFor)
 
     CHECK(!grounded.MayGoDirect(true));
     CHECK(!grounded.MayGoDirect(false));
+}
+
+TEST(SearchBudget_WithinRefusesInsteadOfClipping)
+{
+    const Nav::SearchBudget clip = Nav::SearchBudget::ForLength(30.0f);
+    CHECK_EQ(clip.maxLength, 30.0f);
+    CHECK(!clip.rejectIfLonger);
+
+    const Nav::SearchBudget reject = Nav::SearchBudget::Within(30.0f);
+    CHECK_EQ(reject.maxLength, 30.0f);
+    CHECK(reject.rejectIfLonger);
 }

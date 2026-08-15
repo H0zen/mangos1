@@ -164,7 +164,8 @@ bool MotionDriver::LayLeg(Unit& owner, Motion::MoveIntent const& intent)
 
         const bool routed = query && query->Calculate(start, intent.goal,
                                                       intent.Has(Motion::MOVE_FORCE_DEST),
-                                                      intent.pathLengthLimit);
+                                                      intent.pathLengthLimit,
+                                                      intent.pathRejectIfLonger);
 
         // Nothing usable at all, or the router failed and this movement kind is one
         // that refuses the straight-line fallback through whatever is in the way.

@@ -49,7 +49,8 @@ namespace Motion
                 explicit WorldPathQuery(Unit const& mover) : m_path(&mover) {}
 
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
-                               bool forceDestination, float lengthLimit) override
+                               bool forceDestination, float lengthLimit,
+                               bool rejectIfLonger) override
                 {
                     // The budget travels WITH the request. It used to be a setter, and
                     // the limit it set was sticky on a router that outlives a leg, so an
@@ -57,9 +58,12 @@ namespace Motion
                     // -- which is why a default had to be re-applied here every time.
                     // ForLength reads a non-positive limit as "no cap", so there is no
                     // default left for a caller to remember.
+                    Nav::SearchBudget budget = rejectIfLonger
+                        ? Nav::SearchBudget::Within(lengthLimit)
+                        : Nav::SearchBudget::ForLength(lengthLimit);
                     if (!m_path.calculate(start.x, start.y, start.z,
                                           goal.x, goal.y, goal.z, forceDestination,
-                                          Nav::SearchBudget::ForLength(lengthLimit)))
+                                          budget))
                     {
                         return false;
                     }
@@ -261,11 +265,15 @@ namespace Motion
                 }
 
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
-                               bool forceDestination, float lengthLimit) override
+                               bool forceDestination, float lengthLimit,
+                               bool rejectIfLonger) override
                 {
+                    Nav::SearchBudget budget = rejectIfLonger
+                        ? Nav::SearchBudget::Within(lengthLimit)
+                        : Nav::SearchBudget::ForLength(lengthLimit);
                     if (!m_path.calculate(start.x, start.y, start.z,
                                           goal.x, goal.y, goal.z, forceDestination,
-                                          Nav::SearchBudget::ForLength(lengthLimit)))
+                                          budget))
                     {
                         return false;
                     }
