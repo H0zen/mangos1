@@ -144,15 +144,6 @@ namespace world::terrain
                 entry = 1;
             }
 
-            for (int y = 0; y <= CELL; ++y)
-            {
-                const int cy = int(iy) * CELL + y;
-                for (int x = 0; x <= CELL; ++x)
-                {
-                    const int cx = int(ix) * CELL + x;
-                    out.liquidHeight[cy * ADT_V9 + cx] = RdF32(heights + (y * 9 + x) * 8 + 4);
-                }
-            }
             for (int y = 0; y < CELL; ++y)
             {
                 const int cy = int(iy) * CELL + y;
@@ -168,6 +159,43 @@ namespace world::terrain
                     out.liquidShow[idx] = 1;
                     out.liquidEntry[idx] = entry;
                     out.liquidDark[idx] = (cellFlags & MCLQ_DARK) ? 1 : 0;
+                }
+            }
+
+            /**
+             * The mask is 8x8 cells and the heights are 9x9 vertices, and only the
+             * vertices of a cell that HOLDS liquid carry a height. Blizzard leaves the
+             * rest uninitialised: Azeroth's coastal tiles are full of vertices reading
+             * around 2e38, and taking all 81 unconditionally puts an ocean surface
+             * 2e38 yards above a shoreline. That is not a cosmetic fault -- it is what
+             * made six tiles of map 0 bake with no navmesh at all, because a tile
+             * cannot describe a vertical span that large and the builder refused the
+             * whole square rather than the one bogus surface.
+             *
+             * A vertex belongs to the up-to-four cells that meet at it, so it is taken
+             * when any one of them is wet, and left at the zero EnsureLiquid wrote
+             * otherwise. Every vertex a shown cell interpolates over is one of its own
+             * corners, so nothing that is drawn loses its height.
+             */
+            const auto Wet = [lqFlags](int cellY, int cellX)
+            {
+                return cellY >= 0 && cellY < CELL && cellX >= 0 && cellX < CELL &&
+                       lqFlags[cellY * CELL + cellX] != MCLQ_NO_LIQUID;
+            };
+
+            for (int y = 0; y <= CELL; ++y)
+            {
+                const int cy = int(iy) * CELL + y;
+                for (int x = 0; x <= CELL; ++x)
+                {
+                    if (!Wet(y - 1, x - 1) && !Wet(y - 1, x) && !Wet(y, x - 1) &&
+                        !Wet(y, x))
+                    {
+                        continue;
+                    }
+
+                    const int cx = int(ix) * CELL + x;
+                    out.liquidHeight[cy * ADT_V9 + cx] = RdF32(heights + (y * 9 + x) * 8 + 4);
                 }
             }
 

@@ -30,7 +30,7 @@
 
 add_executable(mangos-wmo-probe WmoProbe.cpp)
 
-target_link_libraries(mangos-wmo-probe PRIVATE extractor_mpq)
+target_link_libraries(mangos-wmo-probe PRIVATE extractor_mpq nav)
 
 set_target_properties(mangos-wmo-probe PROPERTIES FOLDER "tools")
 

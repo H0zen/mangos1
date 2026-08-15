@@ -40,7 +40,6 @@
 #include "WorldSession.h"
 #include "WaypointManager.h"
 #include "WaypointSmoothing.h"
-#include "movement/MoveSpline.h"
 #include "movement/MoveSplineInit.h"
 
 #include <memory>
@@ -319,7 +318,8 @@ void WaypointMovementGenerator::OnArrived(Creature& creature)
     Stop(node.delay);
 }
 
-void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32 pathIndex)
+void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32 pathIndex,
+                                                       bool traveling)
 {
     while (m_segmentArrivals < m_segment.size() &&
            HasReachedWaypointEndpoint(pathIndex, m_segment[m_segmentArrivals].pathPointIndex))
@@ -329,8 +329,11 @@ void WaypointMovementGenerator::ProcessSegmentProgress(Creature& creature, int32
         OnArrived(creature);
         ++m_segmentArrivals;
 
-        // Passing THROUGH a node (rather than stopping at it) leaves the creature moving.
-        if (!creature.movespline->Finalized() && !Stopped(creature))
+        // Passing THROUGH a node (rather than stopping at it) leaves the creature
+        // moving. Whether it is still moving comes from the driver's own report of the
+        // leg, not from the spline: a generator that reads the spline is reading the
+        // mechanism's opinion of a leg the driver may have already replaced.
+        if (traveling && !Stopped(creature))
         {
             creature.addUnitState(UNIT_STAT_ROAMING_MOVE);
         }
@@ -593,7 +596,7 @@ Motion::MoveIntent WaypointMovementGenerator::Intent(Unit& owner,
             return Motion::MoveIntent::Hold();
 
         case WaypointSegmentUpdateState::Finalized:
-            ProcessSegmentProgress(creature, status.pathIndex);
+            ProcessSegmentProgress(creature, status.pathIndex, status.traveling);
             if (!m_isArrivalDone)
             {
                 OnArrived(creature);
@@ -610,7 +613,7 @@ Motion::MoveIntent WaypointMovementGenerator::Intent(Unit& owner,
             return PrepareMove(creature);
 
         case WaypointSegmentUpdateState::Moving:
-            ProcessSegmentProgress(creature, status.pathIndex);
+            ProcessSegmentProgress(creature, status.pathIndex, status.traveling);
             break;
     }
 
@@ -783,6 +786,26 @@ void FlightPathMovementGenerator::Reset(Unit& owner)
     m_splineDuration = uint32(init.Launch());
     m_launchedAt = getMSTime();
 
+    // The same geometry and the same speed, kept as a plan we can interrogate. The
+    // client was sent one duration and reparameterises its curve to it, so an instant is
+    // a position -- and asking this instead of asking the spline is what lets the node
+    // bookkeeping below be reasoned about without a spline under it.
+    //
+    // Catmull-Rom because a taxi is a flight, and on this wire the curved encoding and
+    // the flying animation are the same bit.
+    m_legFirstNode = m_currentNode;
+
+    Helm::Path route;
+    if (route.Build(init.Path(), Helm::Frame{player.GetMapId()}))
+    {
+        m_flight.Begin(route, PLAYER_FLIGHT_SPEED, m_launchedAt,
+                       Helm::Curve::Smooth);
+    }
+    else
+    {
+        m_flight.Clear();
+    }
+
     // Same reason as the landing reset in Finalize: nothing else refreshes this while the
     // client is a passenger, and a leg handover must not carry the old boarding altitude.
     player.SetFallInformation(0, player.Where().Z());
@@ -855,9 +878,9 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
         return;
     }
 
-    // The spline flies straight through the hub, but the booking must not: a relog resumes
-    // from m_taxi, and GetCurrentTaxiPath() is what names the leg currently being flown.
-    // Retire it here, exactly as HandleMoveSplineDoneOpcode does for the last leg.
+    // Arrival of THIS path's last node, before the booking is retired. Update
+    // skips it so the script cannot run twice -- and so the opcode at a map
+    // edge cannot fire the NEXT path's event after we pop.
     if (uint32 pathid = player.m_taxi.GetCurrentTaxiPath())
     {
         TaxiPathNodeList const& nlist = sTaxiPathNodesByPath[pathid];
@@ -879,24 +902,73 @@ void FlightPathMovementGenerator::PassJunction(Player& player)
     }
 }
 
+uint32 FlightPathMovementGenerator::PointIndex(uint32 now) const
+{
+    if (!m_flight.Valid())
+    {
+        return m_legFirstNode;
+    }
+
+    size_t segment = 0;
+    float fraction = 0.0f;
+    m_flight.Timing().Locate(m_flight.Elapsed(now), segment, fraction);
+
+    // The last segment reports a fraction of one when the leg has ended, and the flight
+    // has then reached the point PAST that segment rather than its start.
+    const bool finished = m_flight.Ended(now);
+    return m_legFirstNode + uint32(segment) + (finished ? 1u : 0u);
+}
+
+void FlightPathMovementGenerator::DoEventIfAny(Player& player,
+                                               TaxiPathNodeEntry const& node,
+                                               bool departure)
+{
+    const uint32 eventid = departure ? node.DepartureEventID : node.ArrivalEventID;
+    if (!eventid)
+    {
+        return;
+    }
+
+    if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, departure))
+    {
+        player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
+    }
+}
+
 bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
 {
-    const uint32 pointId = uint32(owner.movespline->currentPathIdx());
+    const uint32 pointId = PointIndex(getMSTime());
+    Player& player = static_cast<Player&>(owner);
 
-    // Each node produces a departure and an arrival event, so the spline index advances
-    // two per node.
     if (pointId > m_currentNode)
     {
-        bool departure = true;
-        while (pointId != m_currentNode)
+        while (pointId > m_currentNode && m_currentNode + 1 < m_path->size())
         {
-            m_currentNode += uint32(departure);
-            departure = !departure;
+            DoEventIfAny(player, (*m_path)[m_currentNode], true);
+            ++m_currentNode;
+
+            bool junction = false;
+            for (uint32 at : m_junctions)
+            {
+                if (at == m_currentNode)
+                {
+                    junction = true;
+                    break;
+                }
+            }
+
+            // Junction arrival is PassJunction (must run before the booking
+            // pops). Last-node arrival is HandleMoveSplineDoneOpcode.
+            if (!junction && m_currentNode + 1 < m_path->size())
+            {
+                DoEventIfAny(player, (*m_path)[m_currentNode], false);
+            }
         }
 
-        while (m_nextJunction < m_junctions.size() && m_currentNode >= m_junctions[m_nextJunction])
+        while (m_nextJunction < m_junctions.size() &&
+               m_currentNode >= m_junctions[m_nextJunction])
         {
-            PassJunction(static_cast<Player&>(owner));
+            PassJunction(player);
             ++m_nextJunction;
         }
     }

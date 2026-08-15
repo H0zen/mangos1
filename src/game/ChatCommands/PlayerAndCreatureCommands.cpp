@@ -35,7 +35,6 @@
 
 #include "Chat.h"
 #include "ObjectMgr.h"
-#include "PathFinder.h"
 #include "TargetedMovementGenerator.h"
 #include "MovementGenerator.h"
 #include "FollowerReference.h"

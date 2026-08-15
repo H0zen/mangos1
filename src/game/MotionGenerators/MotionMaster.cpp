@@ -33,7 +33,6 @@
 #include "TargetedMovementGenerator.h"
 #include "WaypointMovementGenerator.h"
 #include "RandomMovementGenerator.h"
-#include "movement/MoveSpline.h"
 #include "movement/MoveSplineInit.h"
 #include "Map.h"
 #include "CreatureAISelector.h"
@@ -58,6 +57,56 @@ inline static bool isStatic(MovementGenerator* mv)
 }
 
 /**
+ * @brief Chase and follow, which stack on one another and must be dropped together.
+ *
+ * Expiring a chase that was sitting on another chase used to leave the creature
+ * pursuing what it had just been told to stop pursuing. The rule was a loop over two
+ * enum values buried inside expire; naming it does not change it, but it stops it
+ * reading like an accident.
+ */
+inline static bool isTargeted(MovementGenerator* mv)
+{
+    const MovementGeneratorType type = mv->GetMovementGeneratorType();
+    return type == CHASE_MOTION_TYPE || type == FOLLOW_MOTION_TYPE;
+}
+
+
+/**
+ * @brief What a generator's claim on the unit is worth.
+ *
+ * The table is the whole policy, in one readable place, where it used to be an ordering
+ * implied by the sequence of pushes and two special cases inside Mutate.
+ */
+inline static Helm::Rank rankOf(MovementGenerator* mv)
+{
+    switch (mv->GetMovementGeneratorType())
+    {
+        case CONFUSED_MOTION_TYPE:
+        case FLEEING_MOTION_TYPE:
+        case TIMED_FLEEING_MOTION_TYPE:
+            return Helm::Rank::Panic;
+
+        case CHASE_MOTION_TYPE:
+        case FOLLOW_MOTION_TYPE:
+            return Helm::Rank::Combat;
+
+        case POINT_MOTION_TYPE:
+        case ASSISTANCE_MOTION_TYPE:
+        case ASSISTANCE_DISTRACT_MOTION_TYPE:
+        case HOME_MOTION_TYPE:
+        case EFFECT_MOTION_TYPE:
+        case FLIGHT_MOTION_TYPE:
+        case DISTRACT_MOTION_TYPE:
+            return Helm::Rank::Errand;
+
+        // Idle, wander and the waypoint patrol: what the unit does when nothing else
+        // is happening. The default sits at the bottom and is only ever covered.
+        default:
+            return Helm::Rank::Routine;
+    }
+}
+
+/**
  * @brief Initializes the MotionMaster.
  */
 void MotionMaster::Initialize()
@@ -72,7 +121,9 @@ void MotionMaster::Initialize()
     if (m_owner->GetTypeId() == TYPEID_UNIT && !m_owner->hasUnitState(UNIT_STAT_CONTROLLED))
     {
         MovementGenerator* movement = FactorySelector::selectMovementGenerator((Creature*)m_owner);
-        push(movement == nullptr ? &si_idleMovement : movement);
+        MovementGenerator* const first =
+            (movement == nullptr) ? &si_idleMovement : movement;
+        m_roster.Add(first, rankOf(first));
         top()->Initialize(*m_owner);
         if (top()->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -81,7 +132,7 @@ void MotionMaster::Initialize()
     }
     else
     {
-        push(&si_idleMovement);
+        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
     }
 }
 
@@ -90,14 +141,27 @@ void MotionMaster::Initialize()
  */
 MotionMaster::~MotionMaster()
 {
-    // Just deallocate movement generator, but do not Finalize since it may access to already deallocated owner's memory
-    while (!empty())
+    // Deallocate, but do not Finalize: the owner is already being torn down and a
+    // generator's cleanup would reach into memory that has gone.
+    for (MovementGenerator* gen : m_roster)
     {
-        MovementGenerator* m = top();
-        pop();
-        if (!isStatic(m))
+        if (!isStatic(gen))
         {
-            delete m;
+            delete gen;
+        }
+    }
+    m_roster.Abandon();
+}
+
+void MotionMaster::Dispose()
+{
+    for (MovementGenerator* gen : m_roster.TakeRetired())
+    {
+        // The idle generator is a shared static, and deleting it would take every
+        // other unit's default behaviour with it.
+        if (!isStatic(gen))
+        {
+            delete gen;
         }
     }
 }
@@ -113,198 +177,116 @@ void MotionMaster::UpdateMotion(uint32 diff)
         return;
     }
 
-    MANGOS_ASSERT(!empty());
-    m_cleanFlag |= MMCF_UPDATE;
+    MANGOS_ASSERT(!m_roster.Empty());
 
-    if (!top()->Update(*m_owner, diff))
+    // The driving window is exactly the Update call, and that is the point: a generator
+    // that asks to be expired from inside its own Update is asking while we are standing
+    // in it, so the removal must not free it yet. One that expires afterwards can be
+    // freed at once, and is.
+    m_roster.BeginDriving();
+    const bool keepDriving = top()->Update(*m_owner, diff);
+    m_roster.EndDriving();
+
+    if (!keepDriving)
     {
-        m_cleanFlag &= ~MMCF_UPDATE;
         MovementExpired();
     }
-    else
+
+    if (m_roster.HasRetired())
     {
-        m_cleanFlag &= ~MMCF_UPDATE;
-    }
+        Dispose();
 
-    if (m_expList)
-    {
-        for (size_t i = 0; i < m_expList->size(); ++i)
-        {
-            MovementGenerator* mg = (*m_expList)[i];
-            if (!isStatic(mg))
-            {
-                delete mg;
-            }
-        }
-
-        delete m_expList;
-        m_expList = NULL;
-
-        if (empty())
+        // A unit always has something driving it. Emptying the roster is legal on the
+        // way through -- the targeted-motion sweep below can do it -- but never a
+        // resting state.
+        if (m_roster.Empty())
         {
             Initialize();
         }
 
-        if (m_cleanFlag & MMCF_RESET)
+        if (m_resetPending)
         {
+            m_resetPending = false;
             top()->Reset(*m_owner);
-            m_cleanFlag &= ~MMCF_RESET;
         }
     }
 }
 
-/**
- * @brief Directly cleans the movement generators.
- * @param reset Whether to reset the movement generators.
- * @param all Whether to clear all movement generators.
- */
-void MotionMaster::DirectClean(bool reset, bool all)
+void MotionMaster::Clear(bool reset, bool all)
 {
-    while (all ? !empty() : size() > 1)
-    {
-        MovementGenerator* curr = top();
-        pop();
-        curr->Finalize(*m_owner);
+    // The floor says the rule once: a unit keeps its default behaviour unless the
+    // caller is clearing everything. This was `size() > 1` in four places.
+    const std::size_t floor = all ? 0u : 1u;
 
-        if (!isStatic(curr))
-        {
-            delete curr;
-        }
+    while (m_roster.Size() > floor)
+    {
+        MovementGenerator* gen = top();
+        m_roster.RemoveActive(floor);
+        gen->Finalize(*m_owner);
     }
+
+    // Called from inside a generator's Update: the retired list holds something we are
+    // standing in, so freeing waits and so does the reset. UpdateMotion does both.
+    if (m_roster.Driving())
+    {
+        m_resetPending = reset;
+        return;
+    }
+
+    Dispose();
 
     if (!all && reset)
     {
-        MANGOS_ASSERT(!empty());
+        MANGOS_ASSERT(!m_roster.Empty());
         top()->Reset(*m_owner);
     }
 }
 
-/**
- * @brief Delays the cleaning of the movement generators.
- * @param reset Whether to reset the movement generators.
- * @param all Whether to clear all movement generators.
- */
-void MotionMaster::DelayedClean(bool reset, bool all)
+void MotionMaster::MovementExpired(bool reset)
 {
-    if (reset)
-    {
-        m_cleanFlag |= MMCF_RESET;
-    }
-    else
-    {
-        m_cleanFlag &= ~MMCF_RESET;
-    }
-
-    if (empty() || (!all && size() == 1))
+    // Nothing to expire down to. The default behaviour at the bottom outlives every
+    // generator stacked on it.
+    if (m_roster.Size() <= 1)
     {
         return;
     }
 
-    if (!m_expList)
+    MovementGenerator* expiring = top();
+    m_roster.RemoveActive(0);
+
+    // ...and the targeted motions parked underneath it go too. No floor here, and that
+    // is deliberate: if the sweep empties the roster, Initialize below puts the default
+    // back. Stopping at the floor instead would leave a chase running that the caller
+    // has just cancelled.
+    while (!m_roster.Empty() && isTargeted(top()))
     {
-        m_expList = new ExpireList();
+        MovementGenerator* beneath = top();
+        m_roster.RemoveActive(0);
+        beneath->Finalize(*m_owner);
     }
 
-    while (all ? !empty() : size() > 1)
-    {
-        MovementGenerator* curr = top();
-        pop();
-        curr->Finalize(*m_owner);
+    // Read BEFORE the finalize, because a generator's cleanup is allowed to push its
+    // successor -- a creature that stops fleeing goes home, and says so from inside the
+    // flee's own cleanup. Resetting afterwards would reset the newcomer.
+    MovementGenerator* const wasTop = m_roster.Empty() ? nullptr : top();
+    expiring->Finalize(*m_owner);
 
-        if (!isStatic(curr))
-        {
-            m_expList->push_back(curr);
-        }
-    }
-}
-
-/**
- * @brief Directly expires the current movement generator.
- * @param reset Whether to reset the movement generator.
- */
-void MotionMaster::DirectExpire(bool reset)
-{
-    if (empty() || size() == 1)
+    if (m_roster.Driving())
     {
+        m_resetPending = reset;
         return;
     }
 
-    MovementGenerator* curr = top();
-    pop();
+    Dispose();
 
-    // Also drop stored under top() targeted motions
-    while (!empty() && (top()->GetMovementGeneratorType() == CHASE_MOTION_TYPE || top()->GetMovementGeneratorType() == FOLLOW_MOTION_TYPE))
-    {
-        MovementGenerator* temp = top();
-        pop();
-        temp->Finalize(*m_owner);
-        delete temp;
-    }
-
-    // Store current top MMGen, as Finalize might push a new MMGen
-    MovementGenerator* nowTop = empty() ? NULL : top();
-    // It can add another motions instead
-    curr->Finalize(*m_owner);
-
-    if (!isStatic(curr))
-    {
-        delete curr;
-    }
-
-    if (empty())
+    if (m_roster.Empty())
     {
         Initialize();
     }
 
-    // Prevent reseting possible new pushed MMGen
-    if (reset && top() == nowTop)
+    if (reset && top() == wasTop)
     {
         top()->Reset(*m_owner);
-    }
-}
-
-/**
- * @brief Delays the expiration of the current movement generator.
- * @param reset Whether to reset the movement generator.
- */
-void MotionMaster::DelayedExpire(bool reset)
-{
-    if (reset)
-    {
-        m_cleanFlag |= MMCF_RESET;
-    }
-    else
-    {
-        m_cleanFlag &= ~MMCF_RESET;
-    }
-
-    if (empty() || size() == 1)
-    {
-        return;
-    }
-
-    MovementGenerator* curr = top();
-    pop();
-
-    if (!m_expList)
-    {
-        m_expList = new ExpireList();
-    }
-
-    // Also drop stored under top() targeted motions
-    while (!empty() && (top()->GetMovementGeneratorType() == CHASE_MOTION_TYPE || top()->GetMovementGeneratorType() == FOLLOW_MOTION_TYPE))
-    {
-        MovementGenerator* temp = top();
-        pop();
-        temp ->Finalize(*m_owner);
-        m_expList->push_back(temp);
-    }
-
-    curr->Finalize(*m_owner);
-
-    if (!isStatic(curr))
-    {
-        m_expList->push_back(curr);
     }
 }
 
@@ -313,9 +295,34 @@ void MotionMaster::DelayedExpire(bool reset)
  */
 void MotionMaster::MoveIdle()
 {
-    if (empty() || !isStatic(top()))
+    // === "STOP AND DO NOTHING", which is what every caller means by it.
+    //
+    // Adding idle at Routine and hoping is not that. Ranks decide what drives, and
+    // Routine is the bottom of them -- so a chase (Combat) or a flee (Panic) went
+    // straight on running while the pet was told to Stay, the guard was told to hold,
+    // the script was told to stop. Under the old stack idle became the top and the
+    // contract was "stop"; the move to ranks changed it silently, and the callers --
+    // PetAI, GuardAI, CreatureEventAI, TransportMap, aura control, scripts -- were not
+    // changed with it.
+    //
+    // So it clears, like the death path already does by hand, and stops the mover.
+    // Leaving the spline running was the other half: even where idle DID take over, the
+    // generator underneath was never interrupted and the unit kept walking out the rest
+    // of its leg, arriving nowhere anyone had asked for and firing no MovementInform.
+    if (m_roster.Size() == 1 && isStatic(top()))
     {
-        push(&si_idleMovement);
+        return;   // already idle, and nothing to interrupt
+    }
+
+    // Stop the current mover, then cover the default -- do not delete it.
+    // Clear(..., true) is the death path: it throws the waypoint/wander away,
+    // and after evade GetResetPosition on idle is false, so the creature
+    // "comes home" to its spawn instead of its last node.
+    m_owner->StopMoving();
+    Clear(false, false);
+    if (m_roster.Empty() || !isStatic(top()))
+    {
+        m_roster.Add(&si_idleMovement, Helm::Rank::Routine);
     }
 }
 
@@ -642,15 +649,69 @@ void MotionMaster::Mutate(MovementGenerator* m)
             default:
                 break;
         }
-
-        if (!empty())
-        {
-            top()->Interrupt(*m_owner);
-        }
     }
 
-    m->Initialize(*m_owner);
-    push(m);
+    // Who was driving BEFORE the new generator joined. Recorded rather than
+    // interrupted on the spot, because whether it is still driving afterwards is not
+    // this function's to assume any more.
+    MovementGenerator* previous = empty() ? nullptr : top();
+
+    // === INITIALISE ONLY WHAT ACTUALLY TAKES THE WHEEL.
+    //
+    // `Initialize` is not a constructor. PointMovementGenerator's calls StopMoving() and
+    // sets UNIT_STAT_ROAMING; Random's sets it too. Running that for a generator that
+    // then joins BELOW the driver killed the driver's spline and cleared its
+    // UNIT_STAT_CHASE_MOVE -- so a script's MovePoint during a chase stopped the chase
+    // dead, never drove, and the next chase tick had to lay the leg again. A visible
+    // hitch, caused by a generator that never got to do anything.
+    //
+    // Two generators still need their init BEFORE they are ranked, and for one reason:
+    // they capture where the unit is now. Home reads its anchor from the generator it is
+    // displacing (GetResetPosition), and an effect reads the leg it was launched with.
+    // Both are captures, neither steers, so both are safe here.
+    const MovementGeneratorType kind = m->GetMovementGeneratorType();
+    const bool capturesOnInit =
+        kind == HOME_MOTION_TYPE || kind == EFFECT_MOTION_TYPE;
+
+    if (capturesOnInit)
+    {
+        m->Initialize(*m_owner);
+    }
+
+    m_roster.Add(m, rankOf(m));
+
+    if (!capturesOnInit && top() == m)
+    {
+        m->Initialize(*m_owner);
+    }
+
+    // Interrupt the outgoing driver ONLY if it really is outgoing.
+    //
+    // This used to interrupt the top of the roster unconditionally, before adding --
+    // which was right when the roster was a stack and the newest entry always took
+    // over. It stopped being right when Active() started picking by RANK: a MovePoint
+    // (Errand) issued during a chase (Combat) interrupted the chase, joined below it,
+    // and did not take the wheel. The next tick was then driven by a chase sitting in
+    // Interrupt state -- covered, paused, and still steering the unit.
+    //
+    // Note what this does NOT decide: whether the lower-ranked newcomer should have
+    // preempted at all. Under the old stack it would have; under ranks it does not,
+    // and that is the ranking's whole purpose ("the most important generator drives,
+    // not merely the most recent"). Making a script's MovePoint outrank a chase is a
+    // decision about the game, not a defect in this function, so it is left visible
+    // rather than quietly changed here.
+    if (previous && top() != previous)
+    {
+        previous->Interrupt(*m_owner);
+    }
+    else if (previous)
+    {
+        DEBUG_FILTER_LOG(LOG_FILTER_AI_AND_MOVEGENSS,
+                         "%s: %u added but %u still drives (rank did not win)",
+                         m_owner->GetGuidStr().c_str(),
+                         uint32(m->GetMovementGeneratorType()),
+                         uint32(previous->GetMovementGeneratorType()));
+    }
 }
 
 /**
@@ -658,10 +719,9 @@ void MotionMaster::Mutate(MovementGenerator* m)
  */
 void MotionMaster::PropagateSpeedChange()
 {
-    Impl::container_type::iterator it = Impl::c.begin();
-    for (; it != end(); ++it)
+    for (MovementGenerator* gen : m_roster)
     {
-        (*it)->unitSpeedChanged();
+        gen->unitSpeedChanged();
     }
 }
 
@@ -672,7 +732,7 @@ void MotionMaster::PropagateSpeedChange()
  */
 bool MotionMaster::SetNextWaypoint(uint32 pointId)
 {
-    for (Impl::container_type::reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -688,7 +748,7 @@ bool MotionMaster::SetNextWaypoint(uint32 pointId)
  */
 uint32 MotionMaster::getLastReachedWaypoint() const
 {
-    for (Impl::container_type::const_reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -718,7 +778,7 @@ MovementGeneratorType MotionMaster::GetCurrentMovementGeneratorType() const
  */
 void MotionMaster::GetWaypointPathInformation(std::ostringstream& oss) const
 {
-    for (Impl::container_type::const_reverse_iterator rItr = Impl::c.rbegin(); rItr != Impl::c.rend(); ++rItr)
+    for (auto rItr = m_roster.rbegin(); rItr != m_roster.rend(); ++rItr)
     {
         if ((*rItr)->GetMovementGeneratorType() == WAYPOINT_MOTION_TYPE)
         {
@@ -737,12 +797,12 @@ void MotionMaster::GetWaypointPathInformation(std::ostringstream& oss) const
  */
 bool MotionMaster::GetDestination(float& x, float& y, float& z)
 {
-    if (m_owner->movespline->Finalized())
+    if (!m_owner->IsTravelling())
     {
         return false;
     }
 
-    const Geometry::Vector3& dest = m_owner->movespline->FinalDestination();
+    const Geometry::Vector3& dest = m_owner->CurrentCourse().Points().back();
     x = dest.x;
     y = dest.y;
     z = dest.z;

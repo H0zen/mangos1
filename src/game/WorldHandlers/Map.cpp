@@ -66,7 +66,6 @@
 #include "MapRefManager.h"
 #include "DBCEnums.h"
 #include "MapPersistentStateMgr.h"
-#include "MoveMap.h"
 #include "Chat.h"
 #include "Weather.h"
 #include "Transports.h"
@@ -117,8 +116,10 @@ Map::~Map()
     delete i_data;
     i_data = NULL;
 
-    // unload instance specific navigation data
-    MMAP::MMapFactory::createOrGetMMapManager()->unloadMapInstance(m_TerrainData->GetMapId(), GetInstanceId());
+    // Nothing instance-specific to release. The navigation a map instance queries is
+    // the map's own baked tiles and a stateless search over them; the layer this
+    // replaces had to keep one query object per instance because its were not
+    // reentrant, and destroying the instance was the only chance to free them.
 
     // release reference count
     if (m_TerrainData->Release())
@@ -1779,6 +1780,20 @@ void Map::UnloadAll(bool pForce)
     // dissolving is how a teardown finds a half-unloaded world. Nothing
     // pending is worth running while the map is going away.
     m_combat.Clear();
+
+    // Players live in the WORLD container of a cell, not the GRID one
+    // ObjectGridUnloader visits. Force-unload therefore deletes the NGrid
+    // (and, on the last TerrainInfo, NavStores::Drop -- every nav tile of
+    // this map) while the player still holds a Map* and a grid reference.
+    // World::~World then delete's the session, LogoutPlayer walks that
+    // pointer, and the exception lands in a destructor: SIGABRT.
+    if (pForce)
+    {
+        while (MapReference* ref = m_mapRefManager.getFirst())
+        {
+            Remove(ref->getSource(), false);
+        }
+    }
 
     for (GridRefManager<NGridType>::iterator i = GridRefManager<NGridType>::begin(); i != GridRefManager<NGridType>::end();)
     {

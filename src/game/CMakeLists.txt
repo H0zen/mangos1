@@ -49,6 +49,12 @@ source_group("Motion generators" FILES ${SRC_GRP_MOTION_GEN})
 file(GLOB SRC_GRP_MOVEMENT movement/*.cpp movement/*.h)
 source_group("Movement" FILES ${SRC_GRP_MOVEMENT})
 
+# Motion group -- the course model. Separate from "Movement" (the spline machinery it
+# will replace) on purpose: these files depend on points, a clock and a guid, and on
+# nothing in the server, which is what lets the unit tests compile them directly.
+file(GLOB SRC_GRP_MOTION motion/*.cpp motion/*.h)
+source_group("Motion" FILES ${SRC_GRP_MOTION})
+
 #Object group
 file(GLOB SRC_GRP_OBJECT Object/*.cpp Object/*.h)
 source_group("Object" FILES ${SRC_GRP_OBJECT})
@@ -238,6 +244,7 @@ add_library(game STATIC
     ${SRC_GRP_MAP_THREAD}
     ${SRC_GRP_MOTION_GEN}
     ${SRC_GRP_MOVEMENT}
+    ${SRC_GRP_MOTION}
     ${SRC_GRP_OBJECT}
     ${SRC_GRP_OUTDOOR_PVP}
     ${SRC_GRP_REFERENCES}
@@ -259,6 +266,7 @@ target_include_directories(game
         ChatCommands
         Maps
         MotionGenerators
+        motion
         Object
         OutdoorPvP
         References
@@ -314,9 +322,12 @@ target_link_libraries(game
         # The combat rules, on the same terms: numbers in, numbers out, and no
         # knowledge of anything above them.
         combat_pure
+        # Where a mover may go and how it gets there. Like terrain, it knows nothing
+        # of the world, the database or any DBC -- what a MOVER is allowed to do
+        # reaches it as a Nav::MoveProfile value that src/game fills in.
+        nav
         proto
         shared
-        RecastNavigation::Detour
         ZLIB::ZLIB
     PRIVATE
         mangos_openssl_strict

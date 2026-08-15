@@ -28,7 +28,9 @@
 
 #include "Platform/Define.h"
 #include "ObjectGuid.h"
-#include "movement/MoveSplineInitArgs.h"
+#include "Geometry/Vector3.h"
+
+#include <vector>
 
 /**
  * @brief The vocabulary of the INTENT model: what a movement generator wants, and
@@ -42,8 +44,21 @@
  */
 namespace Motion
 {
-    using Movement::PointsArray;
-    using Movement::Vector3;
+    /**
+     * The vocabulary is its own, and that is the point of this file.
+     *
+     * It used to come from `movement/MoveSplineInitArgs.h`, which meant the layer that
+     * decides WHAT a creature wants could not be compiled -- or reasoned about, or
+     * tested -- without the layer that knows how a spline is packed into a packet. The
+     * two types are identical (`Movement::Vector3` is `Geometry::Vector3`, and a
+     * `PointsArray` is a vector of them), so nothing about the data changes here. What
+     * changes is the direction of the dependency: intent no longer points at mechanism.
+     */
+    using Geometry::Vector3;
+
+    /// A route as bare geometry. `Helm::Path` is the same points with a frame and its
+    /// lengths precomputed, and is what the driver builds from this.
+    typedef std::vector<Vector3> PointsArray;
 
     /**
      * @brief The orientation a leg ends in.
@@ -136,6 +151,10 @@ namespace Motion
         /// Move: cap the routed path length in yards (0 = the router's default).
         float pathLengthLimit = 0.0f;
 
+        /// Move: if the route is longer than pathLengthLimit, refuse it (wander)
+        /// rather than clip it (flee).
+        bool pathRejectIfLonger = false;
+
         /// Move: EXACT geometry for the leg, when the generator must dictate it
         /// rather than name a point and let the driver route there. Only the smoothed
         /// waypoint patrol needs it — it welds several nodes into one spline so the
@@ -187,6 +206,12 @@ namespace Motion
             pathLengthLimit = yards;
             return *this;
         }
+
+        MoveIntent& RejectIfLonger()
+        {
+            pathRejectIfLonger = true;
+            return *this;
+        }
     };
 
     /**
@@ -211,6 +236,19 @@ namespace Motion
         bool    blocked = false;   ///< The last Move could not be laid (once).
         int32   pathIndex = 0;     ///< How far along its points the spline is.
         Vector3 legGoal;           ///< The goal of the leg the driver actually LAID.
+
+        /**
+         * @brief Is `legGoal` a goal at all?
+         *
+         * Without this the default-constructed (0, 0, 0) was indistinguishable from a
+         * goal that happened to be at the map's origin, and every generator that asks
+         * "has my target moved since the leg I laid?" compared against it. On a
+         * continent the answer is always yes and the bug hides; on a TRANSPORT map the
+         * origin is the deck, so a target within a combat reach of the ship's model
+         * origin -- or any first tick after a leg that failed to lay -- answered "no,
+         * nothing has moved" and the chase froze without ever asking for a destination.
+         */
+        bool    haveLeg = false;
     };
 }
 

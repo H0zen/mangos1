@@ -29,7 +29,7 @@
 #include "DBCStructure.h"
 #include "IntentMovementGenerator.h"
 #include "WaypointManager.h"
-#include "movement/MoveSplineInitArgs.h"
+#include "motion/Motion.h"
 
 #include <cstddef>
 #include <sstream>
@@ -113,7 +113,11 @@ class WaypointMovementGenerator final : public IntentMovementGenerator
         void OnArrived(Creature& creature);
 
         /// Fire arrival handling for any smoothed waypoints the spline has now passed.
-        void ProcessSegmentProgress(Creature& creature, int32 pathIndex);
+        /// Fire the arrival events for every smoothed node the leg has passed.
+        /// `traveling` is the driver's report of the leg, not the spline's: a node
+        /// passed THROUGH leaves the creature moving, and which of those it is must be
+        /// answered by the same source that laid the leg.
+        void ProcessSegmentProgress(Creature& creature, int32 pathIndex, bool traveling);
 
         /// Weld as many upcoming legs as will fit into one spline. Leaves m_legPoints
         /// empty when the segment cannot be smoothed, and the driver then routes a plain
@@ -145,7 +149,7 @@ class WaypointMovementGenerator final : public IntentMovementGenerator
         /// The leg PrepareMove built. Empty points mean "not smoothed — route to
         /// m_legEnd instead". The driver holds a pointer to these while the leg is in
         /// flight, so they must not be rebuilt until the leg ends.
-        Movement::PointsArray m_legPoints;
+        Motion::PointsArray m_legPoints;
         Motion::Vector3 m_legEnd;
         Motion::Facing m_legFacing;
         bool m_legWalk = true; ///< Pace of the leg; false only for a DB-flagged runner.
@@ -155,9 +159,18 @@ class WaypointMovementGenerator final : public IntentMovementGenerator
 /**
  * @brief The player taxi flight.
  *
- * Deliberately NOT on the intent model: it lays one scripted spline through the taxi
- * nodes and watches the path index. There is nothing to route, nothing to re-path and
- * nothing to face, so an intent would buy it nothing.
+ * NOT on the intent model, and that part is deliberate: it lays one scripted spline
+ * through the taxi nodes, with nothing to route, nothing to re-path and nothing to face,
+ * so an intent would buy it nothing.
+ *
+ * It no longer watches the SPLINE for its progress, though, and that part was not
+ * deliberate -- it was inherited. `Unit::CoursePointIndex()` is the mechanism being
+ * asked where it has got to, which means the node events a flight fires depend on an
+ * object that also decides how a packet is packed. The same question is answered by
+ * `Helm::Motion` from the leg's own timing, which is where the answer actually comes
+ * from: the client was sent a duration and reparameterises to it, so time IS the
+ * position. Same number, no dependency, and it can be asserted in a test with no player
+ * and no spline in it.
  */
 class FlightPathMovementGenerator final : public MovementGenerator
 {
@@ -203,6 +216,12 @@ class FlightPathMovementGenerator final : public MovementGenerator
         /// Retires the leg just flown over: pops its destination and fires its arrival event.
         void PassJunction(Player& player);
 
+        /// One node's DBC script. Departure of the node being left, arrival of the
+        /// node just reached -- the pair the old spline toggle used to walk, and
+        /// which Update stopped firing when PointIndex became one-per-node.
+        void DoEventIfAny(Player& player, TaxiPathNodeEntry const& node,
+                          bool departure);
+
         TaxiPathNodeList m_owned;           ///< Backs m_path only for a merged route.
         TaxiPathNodeList const* m_path;
         std::vector<uint32> m_junctions;
@@ -210,6 +229,23 @@ class FlightPathMovementGenerator final : public MovementGenerator
         uint32 m_currentNode;
         uint32 m_splineDuration;            ///< What Launch() computed AND sent to the client.
         uint32 m_launchedAt;                ///< Wall clock at launch, to compare against it.
+
+        /**
+         * @brief The leg as time to position, so progress is read from the plan.
+         *
+         * Built at launch from the same nodes and the same speed that went to the
+         * client. `PointIndex` turns an instant into the spline point index the flight
+         * has reached, which is what the node bookkeeping below consumes.
+         */
+        Helm::Motion m_flight;
+
+        /// The node the current leg's spline started at -- `SetFirstPointId` on the
+        /// wire, so indices coming out of `m_flight` are offset by it.
+        uint32 m_legFirstNode = 0;
+
+        /// Which spline point the flight has reached, at an instant. Clamped to the
+        /// leg's own points, and equal to `m_legFirstNode` before it has moved.
+        uint32 PointIndex(uint32 now) const;
 };
 
 #endif // MANGOS_WAYPOINTMOVEMENTGENERATOR_H

@@ -81,7 +81,6 @@ their systems package management instead of source packages.**
 
 * **[Git][34] / [Github for Windows][35]**: This version control software allows you to get the source files in the first place.
 * **[MySQL][40]** / **[MariaDB][41]**: These databases are used to store content and user data.
-* **[Recast][44]**: In order to create navigation data from the client's map files, Recast is used to do the dirty work. It provides functions for rendering, pathing, etc.
 * **[Stormlib][46]**: Provides an abstraction layer for reading from the client's data files.
 * **[Zlib][53]/[Zlib for Windows][51]** provides compression algorithms used in both MPQ archive handling and the client/server protocol.
 * **[Bzip2][54]/[Bzip2 for Windows][52]** provides compression algorithms used in MPQ archives.
@@ -92,7 +91,7 @@ their systems package management instead of source packages.**
 * **[Lua][57]**: the runtime the optional Eluna scripting engine is built on. On Unix it
   links [GNU Readline][58]; that dependency exists only when Eluna is enabled.
 
-**Recast**, **Stormlib**, **utf8cpp**, **Lua**, **Zlib** and **Bzip2** are included in the standard
+**Stormlib**, **utf8cpp**, **Lua**, **Zlib** and **Bzip2** are included in the standard
 distribution as we rely on specific versions. **ACE and G3D are gone** -- the networking is
 the C++ standard library, and the geometry is our own.
 

@@ -76,6 +76,7 @@
 #include "FollowerRefManager.h"
 #include "Utilities/EventProcessor.h"
 #include "MotionMaster.h"
+#include "CourseSync.h"
 #include "DBCStructure.h"
 #include "WorldPacket.h"
 #include "Timer.h"
@@ -784,11 +785,6 @@ inline ByteBuffer& operator>> (ByteBuffer& buf, MovementInfo& mi)
 {
     mi.Read(buf);
     return buf;
-}
-
-namespace Movement
-{
-    class MoveSpline;
 }
 
 /**
@@ -3811,7 +3807,54 @@ class Unit : public WorldObject
 
         // Movement info
         MovementInfo m_movementInfo;
-        Movement::MoveSpline* movespline;
+
+        /**
+         * @brief THE LEG THIS UNIT IS TRAVELLING, and the only thing that says so.
+         *
+         * It is the value the client was sent, it is what the unit's pose is evaluated
+         * from on every tick, and -- since the spline engine was deleted -- it is also
+         * what answers whether a leg is running, which point of it has been passed and
+         * when it ends. There was a second object beside this one that answered the same
+         * questions from its own copy of the geometry and its own clock; the two agreed
+         * until they did not, and every disagreement was a unit standing somewhere the
+         * client had not drawn it.
+         */
+        Helm::Course const& CurrentCourse() const { return m_course; }
+        void SetCourse(Helm::Course const& course) { m_course = course; }
+
+        /// Is a leg running right now? False when there is none, and false the instant
+        /// the running one ends.
+        bool IsTravelling() const
+        {
+            return !m_course.Empty() && !m_course.Ended(getMSTime());
+        }
+
+        /// A leg has been laid, whether or not it is still running.
+        bool HasCourse() const { return !m_course.Empty(); }
+
+        /// Which point of the running leg has most recently been passed.
+        std::size_t CoursePointIndex() const
+        {
+            return m_course.PointIndex(getMSTime());
+        }
+
+        /**
+         * @brief Abandon the running leg where it stands.
+         *
+         * The caller has already put the unit where the leg had got to; what this does
+         * is make the plan stop claiming otherwise. An emptied course has ended
+         * everywhere, so nothing afterwards can be posed from it.
+         */
+        void AbandonCourse() { m_course = Helm::Course(); }
+
+        /**
+         * @brief How far Where() may be from what the client is drawing, in yards.
+         *
+         * Zero when nothing is running and zero at both ends of a leg. Nothing reads
+         * it yet; it exists so that the checks which fail at the margin can eventually
+         * ask how sure we are rather than assume.
+         */
+        float PositionSlack() const;
 
         void ScheduleAINotify(uint32 delay);
         bool IsAINotifyScheduled() const { return m_AINotifyScheduled;}
@@ -3891,7 +3934,28 @@ class Unit : public WorldObject
 
         void CleanupDeletedAuras();
         void UpdateSplineMovement(uint32 t_diff);
-        void RelocateToSplinePosition();
+        /**
+         * @brief Tell the grid where the unit is, from whichever source is authoritative.
+         *
+         * @param poseIsAuthoritative True when RefreshPoseFromCourse wrote the pose this
+         *        tick, in which case the pose is used verbatim; false to sample the
+         *        spline, which is right precisely when the plan declined to answer.
+         */
+        void RelocateToKnownPosition(bool poseIsAuthoritative);
+
+        /// Send the running leg's progress to the observers when it has run long
+        /// enough, or when the controlling client says it has fallen behind.
+        void MaintainCourseSync();
+
+        /// Put the pose where the plan says the unit is right now. Every tick; the
+        /// grid relocation beside it stays on its timer.
+        bool RefreshPoseFromCourse();
+
+        /// When the running leg was last repaired, and which leg that was.
+        Helm::CourseSync::State m_courseSync;
+
+        /// The plan the client was sent. See CurrentCourse().
+        Helm::Course m_course;
 
         Unit* _GetTotem(TotemSlot slot) const;              // for templated function without include need
         Pet* _GetPet(ObjectGuid guid) const;                // for templated function without include need
@@ -3908,7 +3972,7 @@ class Unit : public WorldObject
         UnitVisibility m_Visibility;
         Position m_last_notified_position;
         bool m_AINotifyScheduled;
-        TimeTracker m_movesplineTimer;
+        TimeTracker m_gridRelocationTimer;
 
         Diminishing m_Diminishing;
         // Manage all Units threatening us

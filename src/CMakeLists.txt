@@ -22,6 +22,7 @@
 # about WoW, any client version, or the server.
 add_subdirectory(shared/Geometry)
 add_subdirectory(shared/terrain)
+add_subdirectory(shared/nav)
 
 # The combat rules, and nothing else: no Unit, no World, no DBC, no packet.
 # Configured unconditionally and outside the BUILD_MANGOSD guard for the same

@@ -194,7 +194,17 @@ WorldSession::~WorldSession()
     ///- unload player if not unloaded
     if (_player)
     {
-        LogoutPlayer(true);
+        // Maps, grids and nav tiles are already gone once IsStopped().
+        // LogoutPlayer would walk GetMap() / Remove and throw into this
+        // destructor. The process is exiting; leaking the Player is fine.
+        if (sWorld.IsStopped())
+        {
+            _player = NULL;
+        }
+        else
+        {
+            LogoutPlayer(true);
+        }
     }
 
     /// - If the client link remains live, close it

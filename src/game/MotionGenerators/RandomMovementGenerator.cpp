@@ -148,5 +148,9 @@ Motion::MoveIntent RandomMovementGenerator::Intent(Unit& owner,
         ? RETRY_DELAY
         : urand(REST_AFTER_HOP_MIN, REST_AFTER_HOP_MAX));
 
-    return Motion::MoveIntent::Move(m_hop, Motion::MOVE_WALK);
+    // The hop is inside the leash. A coastal mesh detour of 160 yards for a
+    // 13-yard hop is not: refuse it and Pathing lays the straight line instead.
+    return Motion::MoveIntent::Move(m_hop, Motion::MOVE_WALK)
+        .WithinLength(m_radius * 2.5f)
+        .RejectIfLonger();
 }

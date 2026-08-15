@@ -32,6 +32,8 @@
 #include "Opcodes.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include "CourseWire.h"
+#include "movement/MoveSplineInit.h"
 #include "World.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
@@ -57,7 +59,6 @@
 #include "CellImpl.h"
 #include "MovementGenerator.h"
 #include "movement/MoveSplineInit.h"
-#include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
 #include "Transports.h"
@@ -194,7 +195,6 @@ void GlobalCooldownMgr::CancelGlobalCooldown(SpellEntry const* spellInfo)
 // Methods of class Unit
 
 Unit::Unit() :
-    movespline(new Movement::MoveSpline()),
     m_charmInfo(NULL),
     m_combatant(this),
     i_motionMaster(this),
@@ -304,7 +304,6 @@ Unit::~Unit()
     }
 
     delete m_charmInfo;
-    delete movespline;
 
     // those should be already removed at "RemoveFromWorld()" call
     MANGOS_ASSERT(m_gameObj.size() == 0);
@@ -4233,9 +4232,13 @@ void Unit::SetDeathState(DeathState s)
         // there and the corpse, its loot range and every later create block sit on the stale
         // spot while the client snaps the body to the position the stop packet names: the
         // corpse that slides away and cannot be looted, and the one that pops back.
-        if (!movespline->Finalized() && IsInWorld())
+        if (IsTravelling() && IsInWorld())
         {
-            RelocateToSplinePosition();
+            // Refresh from the plan first, then land on whatever that produced. The
+            // plan is what the CLIENT has been drawing, which is the whole point of
+            // this call -- sampling the spline instead would land the corpse on the
+            // server's own laggier estimate.
+            RelocateToKnownPosition(RefreshPoseFromCourse());
         }
 
         StopMoving(true);
@@ -5379,16 +5382,19 @@ void Unit::InterruptMoving(bool forceSendStop /*=false*/)
 {
     bool isMoving = false;
 
-    if (!movespline->Finalized())
+    if (IsTravelling())
     {
-        Movement::Location loc = movespline->ComputePosition();
-        movespline->_Interrupt();
-        Place().MoveTo(loc.x, loc.y, loc.z, loc.orientation);
+        const uint32 now = getMSTime();
+        const Geometry::Vector3 at = m_course.At(now);
+        const float heading = m_course.IsFalling() ? Where().Facing()
+                                                   : m_course.Heading(now);
+        AbandonCourse();
+        Place().MoveTo(at.x, at.y, at.z, heading);
 
         // The stop packet below, and every create block until the client speaks again, are
         // written from the movement state -- so it follows the placement whenever the
         // server is the one that moved the unit.
-        m_movementInfo.ChangePosition(loc.x, loc.y, loc.z, loc.orientation);
+        m_movementInfo.ChangePosition(at.x, at.y, at.z, heading);
         isMoving = true;
     }
 
@@ -6336,50 +6342,238 @@ void Unit::UpdateSplineMovement(uint32 t_diff)
         POSITION_UPDATE_DELAY = 400,
     };
 
-    if (movespline->Finalized())
+    if (!HasCourse())
     {
         return;
     }
 
-    movespline->updateState(t_diff);
-    bool arrived = movespline->Finalized();
+    // ARRIVAL IS A FACT ABOUT THE PLAN, not a state some evaluator has to be advanced
+    // into. There was a second object here holding its own copy of the geometry and its
+    // own accumulated clock, stepped by t_diff every tick; the course answers the same
+    // question from the milliseconds the client itself was told, so the two can no
+    // longer disagree about when this leg ended.
+    const bool arrived = m_course.Ended(getMSTime());
 
     if (arrived)
     {
         DisableSpline();
     }
-
-    m_movesplineTimer.Update(t_diff);
-    if (m_movesplineTimer.Passed() || arrived)
+    else
     {
-        m_movesplineTimer.Reset(POSITION_UPDATE_DELAY);
-        RelocateToSplinePosition();
+        MaintainCourseSync();
     }
+
+    // Where the unit is, every tick, from the plan it was given. Three floats and a
+    // short search: no grid work, no notifications, nothing that costs.
+    const bool posedByCourse = RefreshPoseFromCourse();
+
+    // Telling the GRID is the expensive half, and it is the half that can wait. A cell
+    // is 33 yards across; a creature that has moved a couple of yards is still in it.
+    m_gridRelocationTimer.Update(t_diff);
+    if (m_gridRelocationTimer.Passed() || arrived)
+    {
+        m_gridRelocationTimer.Reset(POSITION_UPDATE_DELAY);
+        RelocateToKnownPosition(posedByCourse);
+    }
+
+    if (arrived)
+    {
+        // The leg is over and the pose has been landed on its end. Dropping it here is
+        // what keeps "is a leg running" answerable from one place: an ended course that
+        // stays in hand would go on being asked and go on answering about a movement
+        // that finished.
+        AbandonCourse();
+    }
+}
+
+/**
+ * @brief Put the pose where the plan says the unit is right now.
+ *
+ * The position this server reports has never been the position it means. It was
+ * refreshed every 400 ms from the spline, so between refreshes it lagged by up to 2.8
+ * yards at a run -- on every moving creature, all the time, in the direction of travel.
+ * Everything that asks where something is has been reading that: spell range, melee
+ * reach, aggro radius, line of sight.
+ *
+ * The plan can answer the question exactly, for any instant, and it costs a binary
+ * search over at most a few dozen marks and a lerp. So ask it every tick and leave the
+ * grid on its timer. This is not a new approximation replacing an old one; it is the
+ * removal of one.
+ *
+ * Four gates, and each of them guards a way the plan could be the wrong plan:
+ */
+bool Unit::RefreshPoseFromCourse()
+{
+    if (m_course.Empty())
+    {
+        return false;
+    }
+
+    // 1. The course must be THIS leg. Any other and we would be walking the unit along
+    //    something it is no longer doing -- which is precisely what a spline id is for,
+    //    and precisely why it mattered that every one of them used to be zero.
+    // 2. The frame must be the one the unit stands in. A deck course is expressed on
+    //    the vessel's map and composing it into the world would place the unit a few
+    //    yards from the map origin.
+    if (m_course.GetDomain().map != GetMapId())
+    {
+        return false;
+    }
+
+    // 3. A falling course is now a fall in its own right -- `Course::Falling`, timed by
+    //    the client's own gravity constants -- so it may pose the unit like any other.
+    //    What must still be refused is a fall the SPLINE believes in and the course does
+    //    not, which is the one case Course::Falling declines to build.
+    // A fall is now a course in its own right (Course::Falling), timed by the client's
+    // own gravity constants, so there is nothing left to refuse here.
+
+    // 4. Once it has ended the course clamps to its destination, which is right -- but
+    //    the arrival relocation below is what tells the grid, and leaving this to run
+    //    afterwards would keep overwriting a pose that something else may since have
+    //    set (a teleport, a knockback).
+    const Helm::Instant now = getMSTime();
+    if (m_course.Ended(now))
+    {
+        return false;
+    }
+
+    // A fall has no XY tangent. Heading() would be atan2(0,0) = east, and the
+    // client keeps the entry facing. Keep the pose's facing too.
+    const float heading = m_course.IsFalling() ? Where().Facing()
+                                               : m_course.Heading(now);
+    Place().MoveTo(m_course.At(now), heading);
+    return true;
+}
+
+/**
+ * @brief How far the position just reported may be from what the client is drawing.
+ *
+ * Zero when nothing is running, and zero at both ends of a leg -- the duration is on
+ * the wire and both sides agree there by construction. In between there is real
+ * uncertainty and this is the first time the server has been able to state it rather
+ * than pretend it away.
+ *
+ * Two parts. The course knows what its own geometry costs: the quarter-yard packing of
+ * its interior points, and, on a curved leg, a parameterisation that is not arc length.
+ * The session knows the rest: how far the client's movement clock has drifted from
+ * ours, which turns into yards at this leg's speed.
+ *
+ * Nothing consults it yet. It is here so that the checks which fail at the margin --
+ * melee reach, spell range, an aggro radius -- can eventually ask how sure we are
+ * instead of assuming.
+ */
+float Unit::PositionSlack() const
+{
+    if (m_course.Empty())
+    {
+        return 0.0f;
+    }
+
+    const Helm::Instant now = getMSTime();
+    if (m_course.Ended(now))
+    {
+        return 0.0f;
+    }
+
+    float slack = m_course.Slack(now);
+
+    if (Player const* driver = GetCharmerOrOwnerPlayerOrPlayerItself())
+    {
+        if (WorldSession* session = driver->GetSession())
+        {
+            const Helm::Millis unsure = session->CourseClock().Uncertainty(now);
+            slack += m_course.Speed() * float(unsure) / 1000.0f;
+        }
+    }
+    return slack;
+}
+
+/**
+ * @brief Repair a long leg the client may have fallen behind on, for eleven bytes.
+ *
+ * A client that has lost movement time is drawing this unit short of where the leg says
+ * it is. There are two ways to fix that: resend the whole leg -- 48 to 76 bytes in the
+ * retail captures, and the client restarts its animation -- or send it the fraction it
+ * should be at and let it slide. Retail does the second, and the legs that need it are
+ * long: 12.5 seconds at the 95th percentile and 425 seconds at the longest observed.
+ *
+ * The policy is the conservative one by default, matching what the captures show retail
+ * doing, and the scheduler refuses everything short, everything finished, and the last
+ * stretch of everything else -- so on the two thirds of legs that are one brief hop this
+ * costs a pair of integer comparisons and sends nothing.
+ */
+void Unit::MaintainCourseSync()
+{
+    const Helm::Instant now = getMSTime();
+
+    // Speed is what turns the client's lost milliseconds into yards, which is the only
+    // form in which "behind" means anything. Take the pace the leg is actually running
+    // at rather than the unit's nominal run speed.
+    const UnitMoveType pace =
+        Movement::SelectSpeedType(m_movementInfo.GetMovementFlags());
+
+    const Helm::Leg leg = m_course.LegAt(now);
+
+    // Whose clock? The one that is actually drawing this unit under its own control. A
+    // creature nobody drives has none, and an unfed clock reports no skew -- which
+    // disables the early trigger and leaves the plain cadence, the right answer for it.
+    static const Helm::ClientClock unowned;
+    Helm::ClientClock const* clock = &unowned;
+    if (Player const* driver = GetCharmerOrOwnerPlayerOrPlayerItself())
+    {
+        if (WorldSession* session = driver->GetSession())
+        {
+            clock = &session->CourseClock();
+        }
+    }
+
+    if (!Helm::CourseSync::Due(m_courseSync, leg, *clock, now,
+                                 Helm::CourseSync::Reach::FlyingOnly))
+    {
+        return;
+    }
+
+    WorldPacket data;
+    Helm::Wire::WriteSync(leg, now, GetObjectGuid().GetRawValue(), data);
+    SendMessageToSet(&data, true);
 }
 
 /**
  * @brief Lands the server copy on the position the spline has actually reached.
  */
-void Unit::RelocateToSplinePosition()
+void Unit::RelocateToKnownPosition(bool poseIsAuthoritative)
 {
-    Movement::Location loc = movespline->ComputePosition();
+    // ONE source of truth per tick, and the caller has already decided which.
+    //
+    // When RefreshPoseFromCourse wrote the pose, the pose IS the answer: it was
+    // computed from the plan that is on the wire, at this instant. There used to be a
+    // second estimate here, taken from the spline's own clock, and the parameter existed
+    // to choose between them: the two differed by centimetres normally and by yards once
+    // the clocks drifted. With the spline gone there is one answer, and the pose already
+    // holds it -- RefreshPoseFromCourse wrote it this tick, or nothing moved the unit
+    // and it is still where it was.
+    (void)poseIsAuthoritative;
 
-    // No frame question here any more. A boarded unit is ON THE VESSEL'S MAP, so the
-    // spline ran in that map's coordinates and what ComputePosition hands back is a
-    // position on it -- the same kind of number an ordinary relocate expects, on
-    // whichever map the unit happens to be.
+    const float x = Where().X();
+    const float y = Where().Y();
+    const float z = Where().Z();
+    const float o = Where().Facing();
+
+    // No frame question here. A boarded unit is ON THE VESSEL'S MAP, so the plan ran in
+    // that map's coordinates and what comes out is a position on it -- the same kind of
+    // number an ordinary relocate expects, on whichever map the unit happens to be.
     if (GetTypeId() == TYPEID_PLAYER)
     {
-        ((Player*)this)->SetPosition(loc.x, loc.y, loc.z, loc.orientation);
+        ((Player*)this)->SetPosition(x, y, z, o);
     }
     else
     {
-        GetMap()->CreatureRelocation((Creature*)this, loc.x, loc.y, loc.z, loc.orientation);
+        GetMap()->CreatureRelocation((Creature*)this, x, y, z, o);
     }
 
     // Create blocks and the stop packet are written from the movement state, so it follows
     // the placement whenever the server is the one that moved the unit.
-    m_movementInfo.ChangePosition(loc.x, loc.y, loc.z, loc.orientation);
+    m_movementInfo.ChangePosition(x, y, z, o);
 }
 
 /**
@@ -6388,7 +6582,6 @@ void Unit::RelocateToSplinePosition()
 void Unit::DisableSpline()
 {
     m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_SPLINE_ENABLED | MOVEFLAG_FORWARD));
-    movespline->_Interrupt();
 }
 
 bool Unit::IsSchoolAllowed(SpellSchoolMask mask) const

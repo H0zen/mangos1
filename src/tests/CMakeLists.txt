@@ -47,7 +47,6 @@ set(SRC_GRP_TESTS
     TerrainModelTest.cpp
     TileSerializerTest.cpp
     ModelMapTest.cpp
-    NavBinningTest.cpp
     DynamicCollisionTest.cpp
     PlacementTest.cpp
     GeometryMathTest.cpp
@@ -101,7 +100,36 @@ set(SRC_GRP_TESTS
     # property: it turns `if`/`repeat`/`while` rows into jumps knowing
     # nothing about a world, so what it decides can be asserted without one.
     ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiCompile.cpp
+    # The movement plan's arithmetic. Compiled in rather than linked from `game` for
+    # the same reason as the three above: a Course is a value over points and a clock,
+    # so it owes the server nothing, and the whole point of extracting it was that its
+    # timing could be asserted against the retail captures without standing a world up.
+    CourseTest.cpp
+    RosterTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Course.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/ClientClock.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/CourseSync.cpp
+    # The four values a movement is made of -- where, how it bends, how fast, and where
+    # WHEN. None of them refers to a Unit, a Map, a packet or a running clock, so all
+    # four compile into a test binary with nothing else present. That is the property
+    # they were designed for: the client's duration accumulator is four lines of
+    # arithmetic that decides where every mover in the world is, and until it could be
+    # built out of plain numbers nobody had ever asserted on it.
+    MotionLayerTest.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Path.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Pace.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Curve.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/motion/Motion.cpp
 )
+
+# The navigation: the grid's binning, a baked tile's round trip through its file, the
+# joining of two tiles, and the routing decisions over them. These link `nav` and
+# nothing of the server -- that is the whole reason the profile is a value and the
+# router takes a store rather than a Map.
+list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp
+                          RouterLinkTest.cpp NavBuilderTest.cpp
+                          NavPolygonTest.cpp NavMeshTest.cpp PolyanyaTest.cpp
+                          MedialAxisTest.cpp ReebGraphTest.cpp)
 
 # The socket tests. Off unless asked for -- see the note above.
 if(WITH_NET_TESTS)
@@ -116,6 +144,8 @@ add_executable(mangos_tests ${SRC_GRP_TESTS})
 target_include_directories(mangos_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers
+        ${CMAKE_SOURCE_DIR}/src/game/MotionGenerators
+        ${CMAKE_SOURCE_DIR}/src/game/motion
         ${CMAKE_SOURCE_DIR}/src/game/Server
         ${CMAKE_SOURCE_DIR}/src/game/Object
         ${CMAKE_SOURCE_DIR}/src/game/Scripting)
@@ -125,6 +155,7 @@ target_link_libraries(mangos_tests
         proto
         shared
         combat_pure
+        nav
         dataintegrity
         extractor_client
         extractor_data

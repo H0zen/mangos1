@@ -27,7 +27,7 @@
 #include "MotionFrame.h"
 #include "Map.h"
 #include "MapManager.h"
-#include "PathFinder.h"
+#include "Pathing.h"
 #include "Player.h"
 #include "Transports.h"
 #include "TransportMap.h"
@@ -42,26 +42,28 @@ namespace Motion
 {
     namespace
     {
-        /// The default ceiling on a routed path, in yards. Re-applied on every query
-        /// because the limit is sticky on a reused PathFinder, so an unlimited request
-        /// after a capped one (a flee leg) would otherwise inherit the cap.
-        constexpr float DEFAULT_PATH_LENGTH =
-            float(MAX_POINT_PATH_LENGTH) * SMOOTH_PATH_STEP_SIZE;
-
-        /// The world frame's router: the Detour navmesh, behind IPathQuery.
+        /// The world frame's router: the baked navigation, behind IPathQuery.
         class WorldPathQuery final : public IPathQuery
         {
             public:
                 explicit WorldPathQuery(Unit const& mover) : m_path(&mover) {}
 
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
-                               bool forceDestination, float lengthLimit) override
+                               bool forceDestination, float lengthLimit,
+                               bool rejectIfLonger) override
                 {
-                    m_path.setPathLengthLimit(lengthLimit > 0.0f ? lengthLimit
-                                                                 : DEFAULT_PATH_LENGTH);
-
+                    // The budget travels WITH the request. It used to be a setter, and
+                    // the limit it set was sticky on a router that outlives a leg, so an
+                    // uncapped chase issued after a capped flee inherited the flee's cap
+                    // -- which is why a default had to be re-applied here every time.
+                    // ForLength reads a non-positive limit as "no cap", so there is no
+                    // default left for a caller to remember.
+                    Nav::SearchBudget budget = rejectIfLonger
+                        ? Nav::SearchBudget::Within(lengthLimit)
+                        : Nav::SearchBudget::ForLength(lengthLimit);
                     if (!m_path.calculate(start.x, start.y, start.z,
-                                          goal.x, goal.y, goal.z, forceDestination))
+                                          goal.x, goal.y, goal.z, forceDestination,
+                                          budget))
                     {
                         return false;
                     }
@@ -74,26 +76,14 @@ namespace Motion
 
                 PointsArray const& Points() const override { return m_path.getPath(); }
 
-                bool Failed() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NOPATH) != 0;
-                }
+                bool Failed() const override { return m_path.getRoute().Failed(); }
 
-                bool Routed() const override
-                {
-                    return (m_path.getPathType() &
-                            (PATHFIND_NOPATH | PATHFIND_NOT_USING_PATH)) == 0;
-                }
+                bool Routed() const override { return m_path.getRoute().UsedGeometry(); }
 
-                bool Reachable() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NORMAL) != 0;
-                }
+                bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                /// getPath() is non-const on PathFinder, though reading the routed points
-                /// does not mutate the query as far as callers are concerned.
-                mutable PathFinder m_path;
+                Pathing m_path;
         };
 
         /**
@@ -253,7 +243,18 @@ namespace Motion
          * than a sampled line that merely follows the floor. Deck coordinates are that
          * map's coordinates, so nothing is transformed on the way in or out.
          *
-         * The mover is still filed under the world map, so the map id is passed explicitly.
+         * The map id is passed EXPLICITLY, taken from the hull rather than from the
+         * mover. Today those are the same number -- a boarded unit is on the vessel's
+         * map, which is the invariant the whole deck design rests on -- so this class
+         * and the world's own query would behave identically, and for a while nothing
+         * constructed it at all: TransportFrame inherited WorldFrame::CreatePathQuery
+         * and never overrode it, which worked by that coincidence and by nothing else.
+         *
+         * Naming the hull is what makes it stop being a coincidence. If boarding is ever
+         * changed so a passenger keeps a continent's map id, the world's query would
+         * search the WORLD's navigation using DECK coordinates -- a few yards from the
+         * map origin, under the sea floor, with no diagnostic -- while this one still
+         * asks the right map.
          */
         class DeckPathQuery final : public IPathQuery
         {
@@ -264,13 +265,15 @@ namespace Motion
                 }
 
                 bool Calculate(Vector3 const& start, Vector3 const& goal,
-                               bool forceDestination, float lengthLimit) override
+                               bool forceDestination, float lengthLimit,
+                               bool rejectIfLonger) override
                 {
-                    m_path.setPathLengthLimit(lengthLimit > 0.0f ? lengthLimit
-                                                                 : DEFAULT_PATH_LENGTH);
-
+                    Nav::SearchBudget budget = rejectIfLonger
+                        ? Nav::SearchBudget::Within(lengthLimit)
+                        : Nav::SearchBudget::ForLength(lengthLimit);
                     if (!m_path.calculate(start.x, start.y, start.z,
-                                          goal.x, goal.y, goal.z, forceDestination))
+                                          goal.x, goal.y, goal.z, forceDestination,
+                                          budget))
                     {
                         return false;
                     }
@@ -280,24 +283,14 @@ namespace Motion
 
                 PointsArray const& Points() const override { return m_path.getPath(); }
 
-                bool Failed() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NOPATH) != 0;
-                }
+                bool Failed() const override { return m_path.getRoute().Failed(); }
 
-                bool Routed() const override
-                {
-                    return (m_path.getPathType() &
-                            (PATHFIND_NOPATH | PATHFIND_NOT_USING_PATH)) == 0;
-                }
+                bool Routed() const override { return m_path.getRoute().UsedGeometry(); }
 
-                bool Reachable() const override
-                {
-                    return (m_path.getPathType() & PATHFIND_NORMAL) != 0;
-                }
+                bool Reachable() const override { return m_path.getRoute().WillArrive(); }
 
             private:
-                mutable PathFinder m_path;
+                Pathing m_path;
         };
 
         /**
@@ -318,6 +311,22 @@ namespace Motion
         {
             public:
                 FrameKind Kind() const override { return FrameKind::Transport; }
+
+                /// Route on the HULL's map, named rather than inherited. See
+                /// DeckPathQuery for why the distinction is worth the override even
+                /// while the two map ids agree.
+                std::unique_ptr<IPathQuery> CreatePathQuery(Unit const& mover) const override
+                {
+                    if (TransportMap* hull = mover.GetMap()->AsTransport())
+                    {
+                        return std::make_unique<DeckPathQuery>(mover, hull->GetId());
+                    }
+
+                    // A transport frame with no hull is not a state this reaches, but
+                    // routing the mover on its own map is the answer that degrades
+                    // rather than crashes.
+                    return WorldFrame::CreatePathQuery(mover);
+                }
 
                 Vector3 NearPoint(Unit const& mover, WorldObject const& target,
                                   float /*searcherBounding*/, float distance2d,

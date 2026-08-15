@@ -56,7 +56,6 @@
 #include "CellImpl.h"
 #include "MovementGenerator.h"
 #include "movement/MoveSplineInit.h"
-#include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
 

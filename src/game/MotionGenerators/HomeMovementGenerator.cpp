@@ -33,12 +33,21 @@ void HomeMovementGenerator::Initialize(Unit& owner)
     m_haveHome = false;
     ResetLeg();
 
-    if (owner.hasUnitState(UNIT_STAT_NOT_MOVE))
-    {
-        return;
-    }
+    // CAPTURING HOME IS NOT MOVING, and bailing out here when the creature cannot move
+    // is what made "evade in place" possible. A rooted or stunned creature returned with
+    // m_haveHome false; UpdateMotion does not run at all while UNIT_STAT_CAN_NOT_MOVE,
+    // so the first Intent after the root fell saw no home, called that "arrived", and
+    // Finalize ran JustReachedHome -- combat reset, full heal, addon reset -- on the spot
+    // it was fighting on. Frost Nova a mob and it evades where it stands.
+    //
+    // The capture must happen ALWAYS, and it must happen here: this runs before the
+    // generator is ranked, so the generator being evacuated is still the one that knows
+    // where this creature belongs. Once ranked, that answer is unreachable.
+    //
+    // What UNIT_STAT_NOT_MOVE really means is "cannot travel YET", and Intent below
+    // answers it with Hold rather than with Done.
 
-    // MotionMaster::Mutate initializes us BEFORE pushing us, so the stack top here is
+    // MotionMaster::Mutate initializes us BEFORE ranking us, so the roster top here is
     // still the generator we are evacuating — and it is the only one that knows where
     // this creature belongs. Ask it now; once we are on top the answer is unreachable.
     float x, y, z, o;
@@ -60,12 +69,21 @@ void HomeMovementGenerator::Initialize(Unit& owner)
     owner.clearUnitState(UNIT_STAT_ALL_DYN_STATES);
 }
 
-Motion::MoveIntent HomeMovementGenerator::Intent(Unit& /*owner*/,
+Motion::MoveIntent HomeMovementGenerator::Intent(Unit& owner,
                                                  Motion::MoveStatus const& status,
                                                  uint32 /*diff*/)
 {
-    // A creature that could not be sent home — it cannot move, or there was no way back
-    // at all — still counts as home. Evade MUST always terminate, or the creature stays
+    // Cannot travel yet -- rooted, stunned, feared into stillness. WAIT, do not declare
+    // arrival: "could not be sent home counts as home" is a fair rule for a route that
+    // failed, and a false one for a creature that has not been allowed to try. Saying
+    // Done here is what ran JustReachedHome on the battlefield.
+    if (owner.hasUnitState(UNIT_STAT_NOT_MOVE))
+    {
+        return Motion::MoveIntent::Hold();
+    }
+
+    // A creature that could not be sent home -- no way back at all, or nowhere recorded
+    // to go -- still counts as home. Evade MUST always terminate, or the creature stays
     // stuck in a fight it has already left.
     if (!m_haveHome || status.arrived || status.blocked)
     {

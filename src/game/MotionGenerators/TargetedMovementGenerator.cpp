@@ -150,12 +150,19 @@ Motion::MoveIntent TargetedMovementGenerator::Intent(Unit& owner,
     // wanted. That distinction is load-bearing: when the route failed, no leg was laid,
     // the stale goal fails this test, and we derive a fresh spot and try again on the
     // next recheck — instead of standing there believing we are already on our way.
-    bool needDest = !m_haveDest;
+    // No leg was ever laid, or the last one could not be: there is nothing to compare
+    // against and nothing running, so a new destination is needed whatever the timer
+    // says. Reading `status.legGoal` in that state compared the target against the map's
+    // ORIGIN -- true by accident on a continent, and on a transport map the origin is
+    // the deck, so a chase near the ship's model origin decided nothing had moved and
+    // stood still for ever.
+    bool needDest = !m_haveDest || !status.haveLeg || status.blocked;
+
     m_recheckTime.Update(diff);
     if (m_recheckTime.Passed())
     {
         m_recheckTime.Reset(RecheckIntervalMs());
-        needDest = RequiresNewPosition(owner, status.legGoal);
+        needDest = needDest || RequiresNewPosition(owner, status.legGoal);
     }
 
     if (needDest)

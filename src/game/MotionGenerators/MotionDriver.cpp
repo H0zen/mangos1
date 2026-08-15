@@ -26,7 +26,6 @@
 #include "MotionDriver.h"
 #include "ObjectLookup.h"
 #include "Unit.h"
-#include "movement/MoveSpline.h"
 #include "movement/MoveSplineInit.h"
 
 #include <cmath>
@@ -70,14 +69,17 @@ Motion::IPathQuery* MotionDriver::Query(Unit const& owner)
 
 Motion::MoveStatus MotionDriver::BeginTick(Unit& owner)
 {
-    const bool traveling = !owner.movespline->Finalized();
+    const bool traveling = owner.IsTravelling();
 
     Motion::MoveStatus status;
     status.traveling = traveling;
     status.arrived = m_wasTraveling && !traveling;
     status.blocked = m_blocked;
-    status.pathIndex = owner.movespline->Initialized() ? owner.movespline->currentPathIdx() : 0;
+    status.pathIndex = owner.HasCourse()
+                           ? int32(owner.CoursePointIndex())
+                           : 0;
 
+    status.haveLeg = m_haveLeg;
     if (m_haveLeg)
     {
         status.legGoal = m_legGoal;
@@ -117,7 +119,7 @@ bool MotionDriver::ReconcileMove(Unit& owner, Motion::MoveIntent const& intent)
     // something that moves — when it has drifted past the intent's tolerance. A live
     // leg whose goal is still fresh is left alone: re-routing every tick would spam the
     // client and read as a foot-slide.
-    bool relay = !m_haveLeg || owner.movespline->Finalized();
+    bool relay = !m_haveLeg || !owner.IsTravelling();
 
     // A speed change re-paces a routed leg (the route from HERE to the goal is still
     // the right one, it is just being walked at the wrong pace). It must NOT re-lay an
@@ -162,7 +164,8 @@ bool MotionDriver::LayLeg(Unit& owner, Motion::MoveIntent const& intent)
 
         const bool routed = query && query->Calculate(start, intent.goal,
                                                       intent.Has(Motion::MOVE_FORCE_DEST),
-                                                      intent.pathLengthLimit);
+                                                      intent.pathLengthLimit,
+                                                      intent.pathRejectIfLonger);
 
         // Nothing usable at all, or the router failed and this movement kind is one
         // that refuses the straight-line fallback through whatever is in the way.
@@ -208,7 +211,14 @@ bool MotionDriver::LayLeg(Unit& owner, Motion::MoveIntent const& intent)
     // The velocity is left to MoveSplineInit, which resolves the unit's live
     // walk/run/swim/flight speed from its movement flags at Launch — so a speed change
     // re-paces the next leg instead of a stale value being baked in here.
-    init.Launch();
+    if (init.Launch() <= 0)
+    {
+        // Nothing went on the wire and the previous course is still the plan.
+        // Recording the new goal here is how a failed launch was reported as
+        // arrival at a destination the unit never walked toward.
+        m_blocked = true;
+        return false;
+    }
 
     m_legGoal = intent.goal;
     m_haveLeg = true;
@@ -225,7 +235,7 @@ void MotionDriver::ReconcileHold(Unit& owner, Motion::MoveIntent const& intent)
     // arriving chase from stuttering a yard short of its victim. A generator that
     // really must halt calls Unit::StopMoving itself — that is a unit-level action, not
     // a decision about the next leg.
-    if (!owner.movespline->Finalized())
+    if (owner.IsTravelling())
     {
         return;
     }

@@ -74,7 +74,7 @@
 #include "BattleGround/BattleGroundMgr.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "TemporarySummon.h"
-#include "MoveMap.h"
+#include "MotionGenerators/Pathing.h"
 #include "GameEventMgr.h"
 #include "PoolManager.h"
 #include "GridNotifiersImpl.h"
@@ -732,8 +732,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_MMAP_ENABLED, "mmap.enabled", true);
     std::string ignoreMapIds = sConfig.GetStringDefault("mmap.ignoreMapIds", "");
-    MMAP::MMapFactory::preventPathfindingOnMaps(ignoreMapIds.c_str());
-    sLog.outString("WORLD: MMap pathfinding %sabled", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
+    Nav::Policy::PreventOnMaps(ignoreMapIds.c_str());
+    sLog.outString("WORLD: Pathfinding %sabled", getConfig(CONFIG_BOOL_MMAP_ENABLED) ? "en" : "dis");
 
     // Only on reload: the first load is announced by World.cpp once the
     // engines exist, which they do not yet at this point in start-up.

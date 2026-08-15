@@ -77,7 +77,10 @@
 #include "Policies/Singleton.h"
 #include "BattleGround/BattleGroundMgr.h"
 #include "OutdoorPvP/OutdoorPvP.h"
-#include "MoveMap.h"
+#include "MotionGenerators/Pathing.h"
+#include "nav/NavStore.hpp"
+#include "nav/NavMeshIO.hpp"
+#include "nav/NavTileIO.hpp"
 #include "terrain/FusedTerrain.hpp"
 #include "terrain/GoModelStore.hpp"
 #include "GameObjectModel.h"
@@ -242,13 +245,19 @@ World::World()
 /// World destructor
 World::~World()
 {
-
     ///- Empty the kicked session set
+    // The real drain is Master::ShutdownWorld -> DeleteAllSessions, which runs
+    // while everything a session touches is still alive. By the time this
+    // destructor runs -- at exit-time static destruction -- the map is
+    // expected to be empty. Do not wrap the delete in a try/catch:
+    // ~WorldSession is implicitly noexcept, so the compiler emits a plain
+    // nounwind call and the handler is dead code.
     while (!m_sessions.empty())
     {
         // not remove from queue, prevent loading new sessions
-        delete m_sessions.begin()->second;
+        WorldSession* session = m_sessions.begin()->second;
         m_sessions.erase(m_sessions.begin());
+        delete session;
     }
 
     CliCommandHolder* command = NULL;
@@ -262,9 +271,43 @@ World::~World()
     {
         delete session;
     }
+}
 
+/// Tear down what still needs a live world, before the maps go away.
+///
+/// The Eluna state used to be deleted from ~World, which is the same trap the
+/// nav stores fell into: by exit-time static destruction the Lua state's own
+/// singletons are gone and the objects it holds handles to have been freed
+/// with their maps. Close it here instead -- after the sessions are drained,
+/// so logout hooks have already run, and before the maps are unloaded.
+void World::CleanupsBeforeMapUnload()
+{
+#ifdef ENABLE_ELUNA
+    delete eluna;
+    eluna = nullptr;
+#endif /* ENABLE_ELUNA */
+
+    // ~BattleGroundMgr does this too, but only at exit-time static
+    // destruction, by which point the singletons a battleground unwinds
+    // through may already be gone. Doing it here makes the order ours.
+    sBattleGroundMgr.DeleteAllBattleGrounds();
+}
+
+/// Release the process-wide caches the world pulls in at run time.
+///
+/// This MUST NOT be done from ~World. World is a global, so its destructor is
+/// registered with __cxa_atexit before main; the stores below are Meyers
+/// singletons registered on first use, long after. atexit unwinds in reverse,
+/// so by the time ~World runs they have already been destroyed -- and
+/// NavStores::Clear locks a std::mutex, which on a destroyed mutex throws
+/// std::system_error out of a noexcept destructor and terminates the process.
+/// Call this from the shutdown path instead, after the maps are unloaded and
+/// while the singletons are still alive.
+void World::CleanupsAfterStop()
+{
     LineOfSightExemptions::Clear();
-    MMAP::MMapFactory::clear();
+    Nav::NavStores::Instance().Clear();
+    Nav::Policy::Clear();
 }
 
 /// Cleanups before world stop
@@ -281,11 +324,24 @@ bool World::StartupAborted(const char* phase)
     return true;
 }
 
-void World::CleanupsBeforeStop()
+void World::DeleteAllSessions()
 {
-    KickAll();                                       // save and kick all players
-    UpdateSessions(1);                               // real players unload required UpdateSessions call
-    sBattleGroundMgr.DeleteAllBattleGrounds();       // unload battleground templates before different singletons destroyed
+    m_QueuedSessions.clear();
+
+    while (!m_sessions.empty())
+    {
+        WorldSession* session = m_sessions.begin()->second;
+        m_sessions.erase(m_sessions.begin());
+        session->LogoutPlayer(true);
+        delete session;
+    }
+
+    WorldSession* pending = NULL;
+    while (addSessQueue.next(pending))
+    {
+        pending->LogoutPlayer(true);
+        delete pending;
+    }
 }
 
 
@@ -467,9 +523,6 @@ void World::SetInitialWorldSettings()
     ///- Time server startup
     uint32 startupBegin = GameTime::GetGameTimeMS();
 
-    ///- Initialize detour memory management
-    dtAllocSetCustom(dtCustomAlloc, dtCustomFree);
-
     ///- Initialize config settings
     LoadConfigSettings();
 
@@ -478,6 +531,18 @@ void World::SetInitialWorldSettings()
     ///  tile loading, and the old "use vmaps" switch is a no-op).
     world::terrain::FusedTerrain::SetTileDir(m_dataPath + "tiles");
     sLog.outString("WORLD: Fused terrain tile directory is: %stiles", m_dataPath.c_str());
+
+    ///- And at the baked navigation beside it. A missing nav/ is not fatal: every
+    ///  query answers "no ground" and the movement code lays a straight line, which
+    ///  is exactly what a map with no navigation has always got.
+    Nav::SetNavDir(m_dataPath + "nav");
+
+    // The derived geometry lives beside the tiles it was derived from. Pointed at the
+    // same folder because that is where the baker writes it, and because a data set from
+    // before the cache existed simply has none -- the store notices and derives instead,
+    // which is why this needs no version check and no warning.
+    Nav::SetMeshDir(m_dataPath + "nav");
+    sLog.outString("WORLD: Navigation tile directory is: %snav", m_dataPath.c_str());
 
     ///- Point game-object collision at the baked per-display models. Replaces the vmap
     ///  model store (vmaps/*.vmo + the GAMEOBJECT_MODELS list file).

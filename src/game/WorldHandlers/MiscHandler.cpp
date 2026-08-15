@@ -987,6 +987,13 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
     // Keeps server m_movementInfo timeline aligned when the client pauses/lags without MOVE packets.
     mover->m_movementInfo.UpdateTime(mover->m_movementInfo.GetTime() + time_dif);
 
+    // And record it as a DEBT. The retail captures show this arriving constantly -- a
+    // median of 74 to 189 ms per report and single reports as large as 29 seconds -- so
+    // it is not an anomaly to be smoothed away but the main reason a client is drawing a
+    // unit somewhere the server is not. Owning the running total is what lets the course
+    // scheduler repair the leg instead of waiting for it to end wrong.
+    CourseClock().Skipped(Helm::Millis(time_dif), getMSTime());
+
     // Observers apply the same skip to remote interpolation (MSG_MOVE_TIME_SKIPPED is SMSG-only).
     WorldPacket data(MSG_MOVE_TIME_SKIPPED, 16);
     data << mover->GetPackGUID();
@@ -1484,9 +1491,16 @@ void WorldSession::HandleTimeSyncResp(WorldPacket& recv_data)
 
     // The client stamped clientTicks when the REQ reached it -- half a round trip after we sent
     // it, which is the term that keeps the delta from eating into the playout buffer.
-    const uint32 roundTrip = getMSTime() - _player->m_timeSyncServer;
+    const uint32 answeredAt = getMSTime();
+    const uint32 roundTrip = answeredAt - _player->m_timeSyncServer;
     const int64 clockDelta = int64(_player->m_timeSyncServer) + int64(roundTrip / 2) - int64(clientTicks);
     PushTimeSyncSample(clockDelta, roundTrip);
+
+    // The same answer, kept as an error bar rather than an average. The filtered delta
+    // above exists to nudge a movement timestamp; this keeps the round trip alongside
+    // the offset, because how far the client may have drifted is a different question
+    // from where its clock sits, and the course scheduler asks the first one.
+    CourseClock().Sync(clientTicks, _player->m_timeSyncServer, answeredAt);
 
     DEBUG_LOG("WORLD: CMSG_TIME_SYNC_RESP counter %u client %u since=%u sample=%lld delay=%lld rtt=%u latency=%u",
               counter, clientTicks, clientTicks - _player->m_timeSyncClient,
