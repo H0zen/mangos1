@@ -28,9 +28,10 @@
 #include "BattleGround/BattleGround.h"
 #include "GameObject.h"
 #include "Log.h"
-#include "MapPersistentStateMgr.h"
+#include "dbscripts/DbScripts.h"
 #include "Player.h"
 #include "PlayerRegistry.h"
+#include "ScriptHost.h"
 #include "ScriptTypes.h"
 #include "WorldHooks.h"
 
