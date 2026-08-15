@@ -268,6 +268,17 @@ namespace mai
         /// a second apart -- three beats that have to agree about who.
         SelectRemembered        = 11,
 
+        /// Whoever owns or charms the unit acting. A pet's proc that buffs
+        /// the hunter needs it, and no threat-list question can reach him:
+        /// the owner is not on the list and may not be in the fight at all.
+        SelectSelfOwner         = 12,
+
+        /// A random hostile within melee reach, chosen without a threat list.
+        /// Blade Flurry and its relatives: "whoever else is standing here",
+        /// which is not the same question as "who is on my threat list" and
+        /// is the only one a player's own proc can ask.
+        SelectRandomUnfriendly  = 13,
+
         SelectEnd,
 
         /// Not a selector: the absence of one. `select_else` defaults to this,

@@ -284,7 +284,7 @@ namespace scripting
             // the three verbs that need one do nothing, which is what they
             // mean on a corpse.
             run.actor = frame.hasActor ? &frame.actor : nullptr;
-            run.fromRule = frame.hasActor;
+            run.useSelectors = frame.hasActor;
 
             return mai::Execute(run, step);
         }
@@ -1406,6 +1406,19 @@ namespace scripting
         if (numbers)
         {
             run.numbers = *numbers;
+        }
+
+        // A proc's steps were written, not converted, so their selector column
+        // means what it says. Every other inline kind came from a table that
+        // had no such column.
+        //
+        // The invoker comes with it: a proc's other end is who was hit, and
+        // `select=6` is how a step reaches them. Without this the selectors
+        // would be on and half of them would find nobody.
+        if (type == mai::KindProc)
+        {
+            run.useSelectors = true;
+            run.from.invoker = target ? target->ToUnit() : nullptr;
         }
 
         // Which item this was about. The inline half had it in the Run and the

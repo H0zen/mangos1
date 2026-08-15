@@ -45,99 +45,21 @@
 
 namespace mai
 {
-    Unit* Select(Creature* self, Selector select, Invocation const& from,
+    Unit* Select(Unit* self, Selector select, Invocation const& from,
                  bool& missing, uint32 forSpellId, uint32 selectFlags)
     {
-        if (!self)
-        {
-            missing = true;
-            return nullptr;
-        }
-
         Unit* found = nullptr;
 
+        // The four that need no threat list. Answered first so that they work
+        // for a source that is not a creature at all.
         switch (select)
         {
         case SelectSelf:
+            if (!self)
+            {
+                missing = true;
+            }
             return self;
-
-        case SelectVictim:
-            found = self->getVictim();
-            if (!found)
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectSecondAggro:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_TOPAGGRO, 1,
-                                                forSpellId, selectFlags);
-            // Silent when the list holds exactly one: there is no second, and
-            // saying so on every tick of a two-minute fight is noise.
-            if (!found &&
-                ((forSpellId == 0 && selectFlags == 0 &&
-                  self->GetThreatManager().getThreatList().size() > 1) ||
-                 self->GetThreatManager().getThreatList().empty()))
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectLastAggro:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_BOTTOMAGGRO, 0,
-                                                forSpellId, selectFlags);
-            if (!found && self->GetThreatManager().getThreatList().empty())
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectRandom:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0,
-                                                forSpellId, selectFlags);
-            if (!found && self->GetThreatManager().getThreatList().empty())
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectRandomNotTop:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 1,
-                                                forSpellId, selectFlags);
-            if (!found &&
-                ((forSpellId == 0 && selectFlags == 0 &&
-                  self->GetThreatManager().getThreatList().size() > 1) ||
-                 self->GetThreatManager().getThreatList().empty()))
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectRandomPlayer:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0,
-                                                forSpellId,
-                                                SELECT_FLAG_PLAYER | selectFlags);
-            // Unlike its non-player twin this always complains, which is the
-            // original's own asymmetry: a script that asked for a player and
-            // got none is usually a script running on the wrong pull.
-            if (!found)
-            {
-                missing = true;
-            }
-            return found;
-
-        case SelectRandomPlayerNotTop:
-            found = self->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 1,
-                                                forSpellId,
-                                                SELECT_FLAG_PLAYER | selectFlags);
-            if (!found &&
-                ((forSpellId == 0 && selectFlags == 0 &&
-                  self->GetThreatManager().getThreatList().size() > 1) ||
-                 self->GetThreatManager().getThreatList().empty()))
-            {
-                missing = true;
-            }
-            return found;
 
         case SelectInvoker:
             if (!from.invoker)
@@ -161,6 +83,114 @@ namespace mai
                 missing = true;
             }
             return from.sender;
+
+        case SelectSelfOwner:
+            found = self ? self->GetCharmerOrOwner() : nullptr;
+            if (!found)
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectRandomUnfriendly:
+            found = self ? self->SelectRandomUnfriendlyTarget() : nullptr;
+            if (!found)
+            {
+                missing = true;
+            }
+            return found;
+
+        default:
+            break;
+        }
+
+        // Everything below reads a threat list, which only a creature has.
+        Creature* creature = self ? creature->ToCreature() : nullptr;
+        if (!creature)
+        {
+            missing = true;
+            return nullptr;
+        }
+
+        switch (select)
+        {
+        case SelectVictim:
+            found = creature->getVictim();
+            if (!found)
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectSecondAggro:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_TOPAGGRO, 1,
+                                                forSpellId, selectFlags);
+            // Silent when the list holds exactly one: there is no second, and
+            // saying so on every tick of a two-minute fight is noise.
+            if (!found &&
+                ((forSpellId == 0 && selectFlags == 0 &&
+                  creature->GetThreatManager().getThreatList().size() > 1) ||
+                 creature->GetThreatManager().getThreatList().empty()))
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectLastAggro:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_BOTTOMAGGRO, 0,
+                                                forSpellId, selectFlags);
+            if (!found && creature->GetThreatManager().getThreatList().empty())
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectRandom:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0,
+                                                forSpellId, selectFlags);
+            if (!found && creature->GetThreatManager().getThreatList().empty())
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectRandomNotTop:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 1,
+                                                forSpellId, selectFlags);
+            if (!found &&
+                ((forSpellId == 0 && selectFlags == 0 &&
+                  creature->GetThreatManager().getThreatList().size() > 1) ||
+                 creature->GetThreatManager().getThreatList().empty()))
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectRandomPlayer:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0,
+                                                forSpellId,
+                                                SELECT_FLAG_PLAYER | selectFlags);
+            // Unlike its non-player twin this always complains, which is the
+            // original's own asymmetry: a script that asked for a player and
+            // got none is usually a script running on the wrong pull.
+            if (!found)
+            {
+                missing = true;
+            }
+            return found;
+
+        case SelectRandomPlayerNotTop:
+            found = creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 1,
+                                                forSpellId,
+                                                SELECT_FLAG_PLAYER | selectFlags);
+            if (!found &&
+                ((forSpellId == 0 && selectFlags == 0 &&
+                  creature->GetThreatManager().getThreatList().size() > 1) ||
+                 creature->GetThreatManager().getThreatList().empty()))
+            {
+                missing = true;
+            }
+            return found;
 
         default:
             missing = true;

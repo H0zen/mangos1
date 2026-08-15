@@ -299,7 +299,7 @@ namespace mai
         // loader refuses a row that says both.
         bool const named = step.buddy.entry != 0;
 
-        if (run.fromRule && !named)
+        if (run.useSelectors && !named)
         {
             // A rule names its third object by a question rather than by an
             // entry, and the answer is ordinary enough to be absent: a boss
@@ -321,7 +321,7 @@ namespace mai
             }
             else
             {
-                picked = Select(source ? source->ToCreature() : nullptr,
+                picked = Select(source ? source->ToUnit() : nullptr,
                                 step.select, run.from, missing,
                                 SpellUnder(step), step.selectFlags);
             }
@@ -336,7 +336,7 @@ namespace mai
                              ? ((run.actor && run.map)
                                     ? run.map->GetUnit(run.actor->remembered)
                                     : nullptr)
-                             : Select(source ? source->ToCreature() : nullptr,
+                             : Select(source ? source->ToUnit() : nullptr,
                                       step.selectElse, run.from, missing,
                                       SpellUnder(step), step.selectFlags);
             }
@@ -369,7 +369,7 @@ namespace mai
         // Not finding anybody here is not a reason to skip: a step whose
         // source selector is empty falls back to the creature whose rule it
         // is, which is what the step meant before the column existed.
-        if (run.fromRule && step.selectSource != SelectNone)
+        if (run.useSelectors && step.selectSource != SelectNone)
         {
             bool missingSource = false;
             Unit* actor =
@@ -377,7 +377,7 @@ namespace mai
                     ? ((run.actor && run.map)
                            ? run.map->GetUnit(run.actor->remembered)
                            : nullptr)
-                    : Select(source ? source->ToCreature() : nullptr,
+                    : Select(source ? source->ToUnit() : nullptr,
                              Selector(step.selectSource), run.from,
                              missingSource,
                              SpellUnder(step), step.selectFlags);

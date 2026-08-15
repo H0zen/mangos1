@@ -800,7 +800,7 @@ namespace mai
             run.from.sender = sender;
             run.actor = &m_actor;
             run.driver = this;
-            run.fromRule = true;
+            run.useSelectors = true;
             run.numbers = frame.numbers;
 
             // The one path that runs a step without the runner, so it is also
@@ -993,7 +993,7 @@ namespace mai
         go.actor = &m_actor;
         go.driver = this;
         go.refused = &refused;
-        go.fromRule = true;
+        go.useSelectors = true;
         go.numbers = frame.numbers;
 
         // Resolved fresh each tick and never stored: anything a rule named

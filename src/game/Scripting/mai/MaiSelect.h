@@ -67,8 +67,16 @@ namespace mai
      *        has no "second highest threat") and not a script error.
      * @param forSpellId when the step is a cast, so a target that cannot be
      *        hit by that spell is not chosen. Zero means "any".
+     *
+     * @param self a Unit rather than a Creature because four of the twelve
+     *        selectors do not need one. Everything that reads a threat list
+     *        does, and answers "nobody" when @a self is not a creature; the
+     *        ones that ask the EVENT -- the invoker, its owner, the sender --
+     *        and the one that names @a self answer for a player just as well.
+     *        That is what lets a sequence use them, and a player's proc has no
+     *        creature anywhere in it.
      */
-    Unit* Select(Creature* self, Selector select, Invocation const& from,
+    Unit* Select(Unit* self, Selector select, Invocation const& from,
                  bool& missing, uint32 forSpellId = 0, uint32 selectFlags = 0);
 }
 

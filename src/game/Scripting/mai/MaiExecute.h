@@ -89,10 +89,14 @@ namespace mai
         /// which is only ever an inline run.
         bool*      cancel = nullptr;
 
-        /// Whether the step's Selector applies. Only a rule sets one, and a
-        /// DB-script step's zero means SelectSelf rather than "no selector" --
-        /// so the two cases cannot be told apart from the step alone.
-        bool       fromRule = false;
+        /// Whether the step's Selector means anything.
+        ///
+        /// A sequence lowered from `dbscripts_on_*` has no selectors, and its
+        /// zero in that column reads as SelectSelf rather than as "none" --
+        /// the two cannot be told apart from the step alone, so the caller
+        /// says which it is. Rules set it, and so do the kinds whose steps
+        /// were written rather than converted.
+        bool       useSelectors = false;
 
         /// What the moment that started this carried, for a step that
         /// computes its own numbers. Copied from the frame each tick.
