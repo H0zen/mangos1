@@ -46,6 +46,11 @@ add_library(combat_pure STATIC
     HitTable.cpp
     StrikeResolver.h
     StrikeResolver.cpp
+    SpellFacts.h
+    ProcPoints.h
+    ProcPoints.cpp
+    ProcTrigger.h
+    ProcTrigger.cpp
 )
 
 # Consumers spell it #include "combat/pure/HitTable.h", so the root is src/game.
