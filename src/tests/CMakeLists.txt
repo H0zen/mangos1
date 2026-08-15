@@ -42,7 +42,6 @@ set(SRC_GRP_TESTS
     SessionMailboxTest.cpp
     SessionProtocolPolicyTest.cpp
     DatabaseConcurrencyTest.cpp
-    OpenSSLProviderTest.cpp
     ClientParserTest.cpp
     TerrainModelTest.cpp
     TileSerializerTest.cpp
@@ -82,6 +81,9 @@ set(SRC_GRP_TESTS
     ${CMAKE_SOURCE_DIR}/src/game/combat/ReactionQueue.cpp
     ByteBufferStressTest.cpp
     CryptoStressTest.cpp
+    # Re-keying, kept out of CryptoStressTest so that file stays the untouched proof
+    # that the in-tree RC4 reproduces the published vector.
+    Arc4RekeyTest.cpp
     # AuthCryptTest is deliberately absent. 2.4.3's packet crypt is a
     # different scheme -- a fixed-length header crypt, four bytes out and six
     # in, with no HMAC-seeded RC4 pair and no continuous keystream -- so the
@@ -235,26 +237,7 @@ if(WIN32)
                 "${MANGOS_TEST_MYSQL_DLL_DIR}/${MANGOS_TEST_MYSQL_DLL_NAME}"
                 "$<TARGET_FILE_DIR:mangos_tests>")
     endif()
-    set_property(TEST mangos_tests APPEND PROPERTY
-        ENVIRONMENT "OPENSSL_MODULES=")
-
-    # Match the release layout and leave OPENSSL_MODULES empty: provider discovery
-    # must work from ossl-modules beside the executable, not from the build host.
-    find_file(MANGOS_TEST_OPENSSL_LEGACY_DLL
-        NAMES legacy.dll
-        HINTS "${MANGOS_SSL_ROOT}" "${OPENSSL_ROOT_DIR}"
-        PATH_SUFFIXES bin/ossl-modules bin ossl-modules lib/ossl-modules ""
-        NO_DEFAULT_PATH)
-
-    if(MANGOS_TEST_OPENSSL_LEGACY_DLL)
-        add_custom_command(TARGET mangos_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:mangos_tests>/ossl-modules"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${MANGOS_TEST_OPENSSL_LEGACY_DLL}"
-                "$<TARGET_FILE_DIR:mangos_tests>/ossl-modules/legacy.dll")
-    else()
-        message(WARNING
-            "OpenSSL legacy provider (legacy.dll) not found; mangos_tests may fail its RC4 cases.")
-    endif()
+    # No ossl-modules here, and no OPENSSL_MODULES to point at one. RC4 was the only
+    # thing this tree ever asked the legacy provider for, and it is in the tree now, so
+    # the tests need libcrypto and nothing beside it.
 endif()
