@@ -64,6 +64,7 @@
 #include "CreatureEventAIMgr.h"
 #include "GuildMgr.h"
 #include "SpellMgr.h"
+#include "combat/SpellFactsStore.h"
 #include "Chat.h"
 #include "DBCStores.h"
 #include "MassMailMgr.h"
@@ -635,6 +636,13 @@ void World::SetInitialWorldSettings()
 
     sLog.outString("Loading Aggro Spells Definitions...");
     sSpellMgr.LoadSpellThreats();
+
+    // Materialise what the DBC only implies, once, now that every overlay that
+    // can change a spell has been applied. Nothing reads this yet; the audit
+    // that follows is the gate that decides whether anything ever will.
+    sLog.outString("Materialising Spell Facts...");
+    sSpellFacts.Load();
+    sSpellFacts.Audit();
 
     sLog.outString("Loading NPC Texts...");
     sObjectMgr.LoadGossipText();
