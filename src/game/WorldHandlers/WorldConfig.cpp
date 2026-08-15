@@ -687,6 +687,7 @@ void World::LoadConfigSettings(bool reload)
     ///  oddly" into a line naming the file, and a server whose data is intact pays a few
     ///  seconds of hashing once, at start-up, on every core it has.
     setConfigMinMax(CONFIG_UINT32_DATA_INTEGRITY_CHECK, "DataIntegrityCheck", 1, 0, 2);
+    setConfigMinMax(CONFIG_UINT32_COMBAT_SHADOW, "CombatShadow", 0, 0, 2);
 
     ///- Load the CharDelete related config options
     setConfigMinMax(CONFIG_UINT32_CHARDELETE_METHOD, "CharDelete.Method", 0, 0, 1);

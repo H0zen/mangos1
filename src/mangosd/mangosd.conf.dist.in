@@ -73,11 +73,31 @@ ConfVersion=@MANGOS_WORLD_VER@
 #        1 - report a mismatch and start anyway (default)
 #        2 - refuse to start
 #
+#    CombatShadow
+#        Scaffolding for the combat rewrite, and temporary by design: it is removed
+#        when the transition finishes (see src/game/combat/COMBAT.md).
+#        The combat engine had no tests and no reference implementation but itself,
+#        so a rewritten rule cannot be switched on confidence. This runs the old
+#        answer beside the new one on live traffic and reports where they part.
+#        Only the chances are compared -- the numbers that go INTO the roll. Nothing
+#        with a side effect is run twice: no second roll, no second absorb, no second
+#        proc. Reports are rate-limited per site and go to the error log.
+#        Five divergences are intended and are never reported: armour on a
+#        non-physical school, weapon damage rounded instead of truncated, the dual
+#        wield penalty kept off specials, no caster penalty on glancing, and a
+#        half-open roll.
+#        Costs a second profile build per swing while it is on. Leave it off on a
+#        production realm unless you are gathering evidence.
+#        0 - off (default)
+#        1 - shadow: compare, apply the OLD answer
+#        2 - switched: compare, apply the NEW answer
+#
 ################################################################################
 
 RealmID                      = 1
 DataDir                      = "@CONF_INSTALL_DIR@"
 DataIntegrityCheck           = 1
+CombatShadow                 = 0
 LogsDir                      = ""
 LoginDatabaseInfo            = "127.0.0.1;3306;root;mangos;realmd"
 WorldDatabaseInfo            = "127.0.0.1;3306;root;mangos;mangos1"

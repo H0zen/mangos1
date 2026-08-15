@@ -26,6 +26,7 @@
 #include "MeleeSwing.h"
 
 #include "CombatRng.h"
+#include "CombatShadow.h"
 #include "ProfileBuilder.h"
 #include "StrikeCommit.h"
 #include "combat/pure/HitTable.h"
@@ -139,6 +140,13 @@ namespace Combat
         const Matchup  matchup = Matchup::Build(attackerProfile, victimProfile,
                                                 hand, situation);
         const HitTable table   = HitTable::OneRoll(matchup);
+
+        // The evidence this rewrite was switched on without. Off by default,
+        // and it rolls nothing and consumes nothing when it is on.
+        if (ShadowWanted())
+        {
+            ShadowMeleeChances(attacker, victim, hand, matchup);
+        }
 
         const DamageRange weapon = Bonused(
             attacker, victim, hand, attackerProfile.weapon[Index(hand)]);

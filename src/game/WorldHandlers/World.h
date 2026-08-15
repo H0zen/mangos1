@@ -230,6 +230,7 @@ enum eConfigUInt32Values
     CONFIG_UINT32_CINEMATIC_FLYOVER_BODY_ENTRY,
     /// 0 off, 1 report, 2 refuse to start. See World::VerifyDataIntegrity.
     CONFIG_UINT32_DATA_INTEGRITY_CHECK,
+    CONFIG_UINT32_COMBAT_SHADOW,
     CONFIG_UINT32_VALUE_COUNT
 };
 
