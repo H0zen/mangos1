@@ -55,6 +55,7 @@
 #include "CreatureAISelector.h"
 #include "SQLStorages.h"
 #include "GameObjectAI.h"
+#include "GameObjectUseRegistry.h"
 #include "Geometry/Quat.h"
 #include "PlayerRegistry.h"
 
@@ -97,85 +98,27 @@ void GameObject::Use(Unit* user)
         scripting::GameobjectUse{ scripting::RefOf(spellCaster),
                                   scripting::RefOf(this) });
 
+    // The type's own behaviour. Eleven of the seventeen are free functions
+    // registered against their type; what is left below is the six that have
+    // not moved yet.
+    GameObjectUse::Use const use{ this, user, scriptReturnValue };
+
+    GameObjectUse::Outcome outcome;
+    outcome.caster = spellCaster;
+
+    if (GameObjectUse::Handler handler =
+            GameObjectUse::HandlerFor(GetGoType()))
+    {
+        handler(use, outcome);
+
+        spellCaster = outcome.caster;
+        spellId     = outcome.spellId;
+        triggered   = outcome.triggered;
+    }
+    else
+    {
     switch (GetGoType())
     {
-        case GAMEOBJECT_TYPE_DOOR:                          // 0
-        {
-            // doors never really despawn, only reset to default state/flags
-            UseDoorOrButton();
-
-            // activate script
-            if (!scriptReturnValue)
-            {
-                scripting::Notify(GetMap(),
-                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
-                                                   scripting::RefOf(this) });
-            }
-            return;
-        }
-        case GAMEOBJECT_TYPE_BUTTON:                        // 1
-        {
-            // buttons never really despawn, only reset to default state/flags
-            UseDoorOrButton();
-
-            TriggerLinkedGameObject(user);
-
-            // activate script
-            if (!scriptReturnValue)
-            {
-                scripting::Notify(GetMap(),
-                    scripting::GameobjectActivate{ scripting::RefOf(spellCaster),
-                                                   scripting::RefOf(this) });
-            }
-
-            return;
-        }
-        case GAMEOBJECT_TYPE_QUESTGIVER:                    // 2
-        {
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            Player* player = (Player*)user;
-
-            if (!scripting::GossipHello(player, this))
-            {
-                player->PrepareGossipMenu(this, GetGOInfo()->questgiver.gossipID);
-                player->SendPreparedGossip(this);
-            }
-
-            return;
-        }
-        case GAMEOBJECT_TYPE_CHEST:                         // 3
-        {
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            TriggerLinkedGameObject(user);
-
-            // TODO: possible must be moved to loot release (in different from linked triggering)
-            if (GetGOInfo()->chest.eventId)
-            {
-                DEBUG_LOG("Chest ScriptStart id %u for %s (opened by %s)", GetGOInfo()->chest.eventId, GetGuidStr().c_str(), user->GetGuidStr().c_str());
-                StartEvents_Event(GetMap(), GetGOInfo()->chest.eventId, user, this);
-            }
-
-            return;
-        }
-        case GAMEOBJECT_TYPE_GENERIC:                       // 5
-        {
-            if (scriptReturnValue)
-            {
-                return;
-            }
-
-            // No known way to exclude some - only different approach is to select despawnable GOs by Entry
-            SetLootState(GO_JUST_DEACTIVATED);
-            return;
-        }
         case GAMEOBJECT_TYPE_TRAP:                          // 6
         {
             if (scriptReturnValue)
@@ -300,13 +243,6 @@ void GameObject::Use(Unit* user)
             player->SetStandState(UNIT_STAND_STATE_SIT_LOW_CHAIR + info->chair.height);
             return;
         }
-        case GAMEOBJECT_TYPE_SPELL_FOCUS:                   // 8
-        {
-            TriggerLinkedGameObject(user);
-
-            // some may be activated in addition? Conditions for this? (ex: entry 181616)
-            return;
-        }
         case GAMEOBJECT_TYPE_GOOBER:                        // 10
         {
             // Handle OutdoorPvP use cases
@@ -403,33 +339,6 @@ void GameObject::Use(Unit* user)
             spellId = info->goober.spellId;
 
             break;
-        }
-        case GAMEOBJECT_TYPE_CAMERA:                        // 13
-        {
-            GameObjectInfo const* info = GetGOInfo();
-            if (!info)
-            {
-                return;
-            }
-
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            Player* player = (Player*)user;
-
-            if (info->camera.cinematicId)
-            {
-                player->SendCinematicStart(info->camera.cinematicId);
-            }
-
-            if (info->camera.eventID)
-            {
-                StartEvents_Event(GetMap(), info->camera.eventID, player, this);
-            }
-
-            return;
         }
         case GAMEOBJECT_TYPE_FISHINGNODE:                   // 17 fishing bobber
         {
@@ -649,112 +558,6 @@ void GameObject::Use(Unit* user)
             // go to end function to spell casting
             break;
         }
-        case GAMEOBJECT_TYPE_SPELLCASTER:                   // 22
-        {
-            SetUInt32Value(GAMEOBJECT_FLAGS, GO_FLAG_LOCKED);
-
-            GameObjectInfo const* info = GetGOInfo();
-            if (!info)
-            {
-                return;
-            }
-
-            if (info->spellcaster.partyOnly)
-            {
-                Unit* caster = GetOwner();
-                if (!caster || caster->GetTypeId() != TYPEID_PLAYER)
-                {
-                    return;
-                }
-
-                if (user->GetTypeId() != TYPEID_PLAYER || !((Player*)user)->IsInSameRaidWith((Player*)caster))
-                {
-                    return;
-                }
-            }
-
-            spellId = info->spellcaster.spellId;
-
-            AddUse();
-            break;
-        }
-        case GAMEOBJECT_TYPE_MEETINGSTONE:                  // 23
-        {
-            GameObjectInfo const* info = GetGOInfo();
-
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            Player* player = (Player*)user;
-
-            Player* targetPlayer = sPlayerRegistry.Find(player->GetSelectionGuid());
-
-            // accept only use by player from same group for caster except caster itself
-            if (!targetPlayer || targetPlayer == player || !targetPlayer->IsInSameGroupWith(player))
-            {
-                return;
-            }
-
-            // required lvl checks!
-            uint8 level = player->getLevel();
-            if (level < info->meetingstone.minLevel || level > info->meetingstone.maxLevel)
-            {
-                return;
-            }
-
-            level = targetPlayer->getLevel();
-            if (level < info->meetingstone.minLevel || level > info->meetingstone.maxLevel)
-            {
-                return;
-            }
-
-            spellId = 23598;
-
-            break;
-        }
-        case GAMEOBJECT_TYPE_FLAGSTAND:                     // 24
-        {
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            Player* player = (Player*)user;
-
-            if (player->CanUseBattleGroundObject())
-            {
-                // in battleground check
-                BattleGround* bg = player->GetBattleGround();
-                if (!bg)
-                {
-                    return;
-                }
-                // BG flag click
-                // AB:
-                // 15001
-                // 15002
-                // 15003
-                // 15004
-                // 15005
-                bg->EventPlayerClickedOnFlag(player, this);
-                return;                                     // we don't need to delete flag ... it is despawned!
-            }
-            break;
-        }
-        case GAMEOBJECT_TYPE_FISHINGHOLE:                   // 25
-        {
-            if (user->GetTypeId() != TYPEID_PLAYER)
-            {
-                return;
-            }
-
-            Player* player = (Player*)user;
-
-            player->SendLoot(GetObjectGuid(), LOOT_FISHINGHOLE);
-            return;
-        }
         case GAMEOBJECT_TYPE_FLAGDROP:                      // 26
         {
             if (user->GetTypeId() != TYPEID_PLAYER)
@@ -808,6 +611,7 @@ void GameObject::Use(Unit* user)
         default:
             sLog.outError("GameObject::Use unhandled GameObject type %u (entry %u).", GetGoType(), GetEntry());
             return;
+    }
     }
 
     if (!spellId)
