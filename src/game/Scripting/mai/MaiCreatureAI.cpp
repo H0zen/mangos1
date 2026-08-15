@@ -718,7 +718,7 @@ namespace mai
     }
 
     bool MaiCreatureAI::Fire(Armed& armed, Unit* invoker, Creature* sender,
-                             bool now)
+                             bool now, Combat::PointsInputs const* numbers)
     {
         if (!Ready(armed))
         {
@@ -745,7 +745,7 @@ namespace mai
             return false;
         }
 
-        Start(*armed.rule, invoker, sender, now);
+        Start(*armed.rule, invoker, sender, now, numbers);
         return true;
     }
 
@@ -764,7 +764,8 @@ namespace mai
     // -- running what fired --------------------------------------------------
 
     void MaiCreatureAI::Start(Rule const& rule, Unit* invoker,
-                              Creature* sender, bool now)
+                              Creature* sender, bool now,
+                              Combat::PointsInputs const* numbers)
     {
         if (rule.steps.steps.empty())
         {
@@ -776,6 +777,11 @@ namespace mai
         frame.source = m_creature->GetObjectGuid();
         frame.target = invoker ? invoker->GetObjectGuid() : ObjectGuid();
         frame.sender = sender ? sender->GetObjectGuid() : ObjectGuid();
+
+        if (numbers)
+        {
+            frame.numbers = *numbers;
+        }
 
         if (rule.flags & RuleRandomStep)
         {
@@ -795,6 +801,7 @@ namespace mai
             run.actor = &m_actor;
             run.driver = this;
             run.fromRule = true;
+            run.numbers = frame.numbers;
 
             // The one path that runs a step without the runner, so it is also
             // the one that would silently ignore the step's guard. A guard has
@@ -987,6 +994,7 @@ namespace mai
         go.driver = this;
         go.refused = &refused;
         go.fromRule = true;
+        go.numbers = frame.numbers;
 
         // Resolved fresh each tick and never stored: anything a rule named
         // can die between two steps of the sequence that named it.
@@ -1568,6 +1576,46 @@ namespace mai
             }
 
             Fire(armed, victim);
+        }
+    }
+
+    /**
+     * One of this creature's auras procced.
+     *
+     * `aura` is the spell holding it, so a rule names the buff rather than
+     * the event. Whether the aura procs at all -- which schools, which spell
+     * families, how often, at what chance -- is `spell_proc_event`'s answer
+     * and is settled before this is called; what is left for the rule is the
+     * part that varies per encounter.
+     *
+     * @a numbers is snapshotted here rather than read later: the damage that
+     * caused this and the amount of the aura are what a step's base points
+     * are computed from, and neither survives to a step three seconds in.
+     */
+    void MaiCreatureAI::AuraProcced(Unit* other, uint32 auraSpellId,
+                                    uint32 procSpellId,
+                                    Combat::PointsInputs const& numbers)
+    {
+        for (Armed& armed : m_armed)
+        {
+            if (armed.rule->trigger != RuleId::AuraProcced)
+            {
+                continue;
+            }
+
+            uint32 const wantedAura = armed.rule->Param(0);
+            if (wantedAura && auraSpellId != wantedAura)
+            {
+                continue;
+            }
+
+            uint32 const wantedProc = armed.rule->Param(1);
+            if (wantedProc && procSpellId != wantedProc)
+            {
+                continue;
+            }
+
+            Fire(armed, other, nullptr, false, &numbers);
         }
     }
 

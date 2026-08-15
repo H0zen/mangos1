@@ -152,8 +152,23 @@ namespace scripting
          * @return true when a step REFUSED, which the caller turns into a
          *         cancel.
          */
+        /// @param numbers What the moment carried, for the steps that compute
+        ///                their own values. Null when it carried none.
         bool RunNow(Map* map, uint32 type, uint32 id, WorldObject* source,
-                    WorldObject* target, ObjectGuid owner, ObjectGuid item);
+                    WorldObject* target, ObjectGuid owner, ObjectGuid item,
+                    Combat::PointsInputs const* numbers = nullptr);
+
+        /**
+         * One of @a actor's auras procced.
+         *
+         * Runs the `proc` sequence for @a auraSpellId if there is one, and
+         * tells @a actor's rules if it is a creature MAI drives. Answers
+         * whether anything did, so the caller can fall through to whatever
+         * else still handles that aura.
+         */
+        static bool AuraProcced(Unit* actor, Unit* other, uint32 auraSpellId,
+                                uint32 procSpellId,
+                                Combat::PointsInputs const& numbers);
 
         static MaiEngine* s_instance;
 

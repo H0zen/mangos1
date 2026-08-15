@@ -110,6 +110,13 @@ namespace mai
                                 Unit* invoker, uint32 misc) override;
             void MovementInform(uint32 type, uint32 pointId) override;
 
+            /// One of this creature's auras procced. Not a CreatureAI
+            /// override: the proc machinery reaches it through MaiEngine,
+            /// which is what keeps the base class free of it.
+            void AuraProcced(Unit* other, uint32 auraSpellId,
+                             uint32 procSpellId,
+                             Combat::PointsInputs const& numbers);
+
             void UpdateAI(uint32 diff) override;
 
             /// Driver: set one of this creature's rules to fire in @a ms,
@@ -183,8 +190,12 @@ namespace mai
             /// One rule: the phase, the trigger's own condition, the chance,
             /// and then the sequence.
             /// @return true when it fired.
+            /// @a numbers is what the moment carried, for a sequence whose
+            /// steps compute their own values. Null for every trigger that
+            /// carries none, which is all but one of them.
             bool Fire(Armed& armed, Unit* invoker = nullptr,
-                      Creature* sender = nullptr, bool now = false);
+                      Creature* sender = nullptr, bool now = false,
+                      Combat::PointsInputs const* numbers = nullptr);
 
             /// Whether the trigger's own condition holds, and re-arm it if so.
             /// Split from Fire because this is the half that reads the world.
@@ -194,7 +205,8 @@ namespace mai
             /// EventAI's always were, but a rule is not required to be an
             /// EventAI row.
             void Start(Rule const& rule, Unit* invoker, Creature* sender,
-                       bool now = false);
+                       bool now = false,
+                       Combat::PointsInputs const* numbers = nullptr);
 
             /// Advance every running sequence by @a diff.
             void Advance(uint32 diff);

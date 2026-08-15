@@ -210,7 +210,21 @@ namespace mai
         /// A player stepping into an area trigger, keyed by trigger id. Runs
         /// INLINE for the same reason `item_use` does: the seam asks whether
         /// anything handled it, and a queued sequence has no answer yet.
-        KindAreaTrigger = 14
+        KindAreaTrigger = 14,
+
+        /**
+         * One of a unit's auras procced, keyed by the aura's spell.
+         *
+         * A KIND rather than only a rule, because most procs are a player's
+         * and a player has no creature AI to hang a rule on. Creatures get
+         * both: the `aura_procced` rule when the encounter needs a guard, and
+         * this when the proc is the same wherever it happens.
+         *
+         * Runs INLINE. A proc's whole reason to exist is that it lands with
+         * the hit that caused it, and the numbers it computes from -- the
+         * damage, the aura's amount -- are gone by the next tick.
+         */
+        KindProc = 15
     };
 
     /**

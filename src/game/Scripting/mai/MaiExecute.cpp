@@ -411,6 +411,7 @@ namespace mai
         doing.refused = run.refused;
         doing.item = run.item;
         doing.cancel = run.cancel;
+        doing.numbers = run.numbers;
 
         // Before Redirect moved anything: who this is being done FOR.
         doing.ruleOwner = decider;

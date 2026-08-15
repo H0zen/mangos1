@@ -605,6 +605,7 @@ namespace scripting
             { "branch",            mai::KindBranch },
             { "item_use",          mai::KindItemUse },
             { "areatrigger",       mai::KindAreaTrigger },
+            { "proc",              mai::KindProc },
         };
         std::size_t const kindCount = sizeof(kinds) / sizeof(*kinds);
 
@@ -1321,9 +1322,49 @@ namespace scripting
         return true;
     }
 
+    bool MaiEngine::AuraProcced(Unit* actor, Unit* other, uint32 auraSpellId,
+                                uint32 procSpellId,
+                                Combat::PointsInputs const& numbers)
+    {
+        if (!actor || auraSpellId == 0)
+        {
+            return false;
+        }
+
+        bool handled = false;
+
+        // The sequence first. Keyed by the aura's spell and open to any unit,
+        // which is what a player's proc needs: a player has no creature AI to
+        // carry a rule.
+        if (s_instance && actor->GetMap())
+        {
+            handled = s_instance->RunNow(actor->GetMap(), mai::KindProc,
+                                         auraSpellId, actor, other,
+                                         ObjectGuid(), ObjectGuid(),
+                                         &numbers) || handled;
+        }
+
+        // Then the creature's own rules, for the procs whose behaviour is a
+        // property of the encounter rather than of the spell.
+        if (actor->GetTypeId() == TYPEID_UNIT)
+        {
+            Creature* creature = static_cast<Creature*>(actor);
+
+            if (MaiCreatureAI* ai =
+                    dynamic_cast<MaiCreatureAI*>(creature->AI()))
+            {
+                ai->AuraProcced(other, auraSpellId, procSpellId, numbers);
+                handled = true;
+            }
+        }
+
+        return handled;
+    }
+
     bool MaiEngine::RunNow(Map* map, uint32 type, uint32 id,
                            WorldObject* source, WorldObject* target,
-                           ObjectGuid owner, ObjectGuid item)
+                           ObjectGuid owner, ObjectGuid item,
+                           Combat::PointsInputs const* numbers)
     {
         auto found = m_sequences.find(Key{ type, id });
         if (found == m_sequences.end() || found->second.steps.empty())
@@ -1361,6 +1402,11 @@ namespace scripting
         run.source = source ? source->GetObjectGuid() : ObjectGuid();
         run.target = target ? target->GetObjectGuid() : ObjectGuid();
         run.owner = owner;
+
+        if (numbers)
+        {
+            run.numbers = *numbers;
+        }
 
         // Which item this was about. The inline half had it in the Run and the
         // queued half did not, so "refuse the use, and two seconds later say

@@ -32,7 +32,9 @@
 #include "SpellMgr.h"
 #include "Unit.h"
 #include "Utilities/Util.h"
+#include "mai/MaiEngine.h"
 
+#include <cstdint>
 #include <ctime>
 
 namespace Combat
@@ -442,15 +444,77 @@ namespace Combat
             return ProcResult::Ok;
         }
 
-        // -- still on Unit -------------------------------------------------
+        namespace
+        {
+            /// The numbers a proc's triggered spell may compute from, read
+            /// once at the moment it fires. A step three seconds in gets what
+            /// was true when the proc happened, not what is true when it runs.
+            PointsInputs NumbersOf(ProcEvent const& e)
+            {
+                PointsInputs in;
+
+                in.damage           = std::int32_t(e.damage);
+                in.auraAmount       = e.Amount();
+                in.procSpellManaCost = e.procSpell
+                    ? std::int32_t(e.procSpell->ManaCost)
+                    : 0;
+
+                if (SpellEntry const* aura = e.AuraSpell())
+                {
+                    in.auraEffectValue =
+                        aura->CalculateSimpleValue(EFFECT_INDEX_1);
+                }
+
+                if (e.actor)
+                {
+                    in.actorMaxHealth   = std::int32_t(e.actor->GetMaxHealth());
+                    in.actorMaxMana     =
+                        std::int32_t(e.actor->GetMaxPower(POWER_MANA));
+                    in.actorAttackPower = std::int32_t(
+                        e.actor->GetTotalAttackPowerValue(BASE_ATTACK));
+                }
+
+                if (e.target)
+                {
+                    in.targetCreateHealth =
+                        std::int32_t(e.target->GetCreateHealth());
+                }
+
+                return in;
+            }
+
+            /// Ask the scripts. True when one of them owned this proc.
+            bool RanAsScript(ProcEvent const& e)
+            {
+                SpellEntry const* aura = e.AuraSpell();
+                if (!aura)
+                {
+                    return false;
+                }
+
+                return mai::MaiEngine::AuraProcced(
+                    e.actor, e.target, aura->ID,
+                    e.procSpell ? e.procSpell->ID : 0, NumbersOf(e));
+            }
+        }
 
         ProcResult Dummy(ProcEvent const& e)
         {
+            if (RanAsScript(e))
+            {
+                return ProcResult::Ok;
+            }
+
             return e.actor->HandleDummyAuraProc(e);
         }
 
         ProcResult TriggerSpell(ProcEvent const& e)
         {
+            if (RanAsScript(e))
+            {
+                return ProcResult::Ok;
+            }
+
             return e.actor->HandleProcTriggerSpellAuraProc(e);
         }
     }

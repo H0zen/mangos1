@@ -131,7 +131,7 @@ CREATE TABLE `mai_script`
                    'go_template_use','creature_death','creature_movement',
                    'gossip','event','internal',
                    'aura_apply','aura_remove','branch','item_use',
-                   'areatrigger') NOT NULL,
+                   'areatrigger','proc') NOT NULL,
 
     -- What the id means depends on the kind: a quest id, a spell id, a
     -- creature entry, a gameobject guid. It was the same before; what is new
@@ -148,7 +148,7 @@ CREATE TABLE `mai_step`
                     'go_template_use','creature_death','creature_movement',
                     'gossip','event','internal',
                     'aura_apply','aura_remove','branch','item_use',
-                    'areatrigger') NOT NULL,
+                    'areatrigger','proc') NOT NULL,
     `script`   INT UNSIGNED NOT NULL,
 
     -- Ties are broken by this, so two steps at the same instant have a defined

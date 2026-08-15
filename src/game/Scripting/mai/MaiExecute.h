@@ -93,6 +93,10 @@ namespace mai
         /// DB-script step's zero means SelectSelf rather than "no selector" --
         /// so the two cases cannot be told apart from the step alone.
         bool       fromRule = false;
+
+        /// What the moment that started this carried, for a step that
+        /// computes its own numbers. Copied from the frame each tick.
+        Combat::PointsInputs numbers;
     };
 
     /**

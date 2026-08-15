@@ -30,6 +30,7 @@
 
 #include "ObjectGuid.h"
 #include "Platform/Define.h"
+#include "combat/pure/ProcPoints.h"
 
 #include <string>
 #include <vector>
@@ -686,6 +687,20 @@ namespace mai
         /// outlives the moment that started it, and the sender can be dead by
         /// the time a step three seconds in asks for it.
         ObjectGuid      sender;
+
+        /**
+         * The numbers the moment that started this sequence carried.
+         *
+         * A SNAPSHOT, and that is the point rather than the cost. "Fifteen
+         * percent of the damage that triggered this" is fifteen percent of
+         * the damage that triggered it, not of whatever the number would be
+         * three seconds later when a delayed step gets to run -- and the aura
+         * that supplied half of them may not exist by then.
+         *
+         * Zero for every sequence not started by something that carries
+         * numbers, which is most of them.
+         */
+        Combat::PointsInputs numbers;
 
         /**
          * Which LOADING of the shared sequence table @a sequence points into.
