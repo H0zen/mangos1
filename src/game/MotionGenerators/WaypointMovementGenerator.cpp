@@ -929,10 +929,10 @@ void FlightPathMovementGenerator::DoEventIfAny(Player& player,
         return;
     }
 
-    if (!sScriptMgr.OnProcessEvent(eventid, &player, &player, departure))
-    {
-        player.GetMap()->ScriptsStart(DBS_ON_EVENT, eventid, &player, &player);
-    }
+    scripting::Notify(player.GetMap(),
+        scripting::ServerEventRaised{ scripting::RefOf(&player),
+                                      scripting::RefOf(&player),
+                                      eventid, departure });
 }
 
 bool FlightPathMovementGenerator::Update(Unit& owner, uint32 /*diff*/)
