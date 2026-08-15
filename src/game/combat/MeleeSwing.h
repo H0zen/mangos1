@@ -29,6 +29,7 @@
 #include "ReactionQueue.h"
 #include "combat/pure/CombatTypes.h"
 
+class Map;
 class Unit;
 
 namespace Combat
@@ -59,12 +60,12 @@ namespace Combat
     class WorldReactionSink : public ReactionSink
     {
         public:
-            explicit WorldReactionSink(Unit& anchor) : m_anchor(anchor) {}
+            explicit WorldReactionSink(Map& map) : m_map(map) {}
 
             void Run(Reaction const& reaction, ReactionQueue& queue) override;
 
         private:
-            Unit& m_anchor;
+            Map& m_map;
     };
 }
 

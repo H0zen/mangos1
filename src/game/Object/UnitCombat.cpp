@@ -59,8 +59,8 @@
 #include "movement/MoveSpline.h"
 #include "CreatureLinkingMgr.h"
 #include "GameTime.h"
+#include "combat/CombatRegistry.h"
 #include "combat/MeleeSwing.h"
-#include "combat/ReactionQueue.h"
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -80,11 +80,11 @@
  * this Unit rather than about the strike -- the guards, the interrupt auras
  * and the magnet redirect.
  *
- * The queue is a local. Everything a swing sets off -- procs, damage shields,
- * weapon spells, daze, extra attacks -- goes into it and is drained here,
- * after the swing is finished, instead of running from inside it. That is
- * what stops a proc from killing the target halfway through the function that
- * is still reading it, and it is why nothing recurses any more.
+ * The queue belongs to the map. Everything a swing sets off -- procs, damage
+ * shields, weapon spells, daze, extra attacks -- goes into it and is drained
+ * after the swing is finished, instead of running from inside it. That is what
+ * stops a proc from killing the target halfway through the function that is
+ * still reading it, and it is why nothing recurses any more.
  *
  * @param pVictim The attack victim.
  * @param attType The attack type to use.
@@ -130,11 +130,24 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType)
         ? Combat::Hand::Off
         : Combat::Hand::Main;
 
-    Combat::ReactionQueue queue;
-    Combat::PerformSwing(*this, *pVictim, hand, queue);
+    Map* map = GetMap();
+    if (!map)
+    {
+        return;
+    }
 
-    Combat::WorldReactionSink sink(*this);
-    queue.Drain(sink);
+    // The queue belongs to the map, not to this swing. A weapon proc, the
+    // spell it triggers and whatever that spell procs have to share one depth
+    // counter and one budget, or neither limit means anything.
+    Combat::CombatRegistry& combat = map->CombatState();
+
+    Combat::PerformSwing(*this, *pVictim, hand, combat.Queue());
+
+    // Drained here rather than at the end of the tick, deliberately: a proc
+    // still lands between this swing and the next thing the world does, which
+    // is the ordering the old path had. The map drains again at the end of its
+    // update for anything a path without its own drain left behind.
+    combat.Drain(*map);
 }
 
 /**

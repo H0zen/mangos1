@@ -34,7 +34,7 @@
 #include "combat/pure/StrikeResolver.h"
 
 #include "Log.h"
-#include "ObjectLookup.h"
+#include "Map.h"
 #include "Opcodes.h"
 #include "Player.h"
 #include "SQLStorages.h"
@@ -188,8 +188,12 @@ namespace Combat
 
     void WorldReactionSink::Run(Reaction const& reaction, ReactionQueue& queue)
     {
-        Unit* source = ObjectLookup::GetUnit(m_anchor, reaction.source);
-        Unit* target = ObjectLookup::GetUnit(m_anchor, reaction.target);
+        // Resolved against the map, not against a unit that happened to be
+        // handy. The sink outlives any particular combatant -- the queue is
+        // the map's, and by the time a reaction runs the swing that produced
+        // it is over.
+        Unit* source = m_map.GetUnit(reaction.source);
+        Unit* target = m_map.GetUnit(reaction.target);
 
         // The lifetime handling, in full. Both ends were guids the whole time,
         // so a unit that died or despawned between the swing and here is a

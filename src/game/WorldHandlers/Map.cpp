@@ -1059,6 +1059,12 @@ void Map::Update(const uint32& t_diff)
 
     ProcessPendingCellUnloads();
 
+    // Anything a combat event left behind. A swing drains its own reactions
+    // straight after committing, so this is not the usual path -- it is the
+    // safety net for a producer that has no drain of its own, which is every
+    // spell path until triggered casts become reactions.
+    m_combat.Drain(*this);
+
     ///- Process necessary scripts
     if (!m_scriptSchedule.empty())
     {
@@ -1792,6 +1798,12 @@ bool Map::UnloadGrid(const uint32& x, const uint32& y, bool pForce)
  */
 void Map::UnloadAll(bool pForce)
 {
+    // Before the grids, and the order is the point: a reaction names two
+    // guids, and resolving one against a map that has already begun
+    // dissolving is how a teardown finds a half-unloaded world. Nothing
+    // pending is worth running while the map is going away.
+    m_combat.Clear();
+
     for (GridRefManager<NGridType>::iterator i = GridRefManager<NGridType>::begin(); i != GridRefManager<NGridType>::end();)
     {
         NGridType& grid(*i->getSource());

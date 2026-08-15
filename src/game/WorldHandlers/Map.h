@@ -70,6 +70,7 @@
 #include "ScriptMgr.h"
 #include "CreatureLinkingMgr.h"
 #include "DynamicCollision.h"
+#include "combat/CombatRegistry.h"
 #ifdef ENABLE_ELUNA
 #include "LuaValue.h"
 #endif /* ENABLE_ELUNA */
@@ -286,6 +287,17 @@ class Map : public GridRefManager<NGridType>
 
         // can't be nullptr for loaded map
         MapPersistentState* GetPersistentState() const { return m_persistentState; }
+
+        /**
+         * The combat state that belongs to the map rather than to a unit.
+         *
+         * The reaction queue lives here so that a weapon proc, the spell it
+         * triggers and whatever that spell procs all share one depth counter
+         * and one per-tick budget. One registry per map: two maps updating on
+         * different threads never touch the same queue, and nothing in it is
+         * locked.
+         */
+        Combat::CombatRegistry& CombatState() { return m_combat; }
 
         void AddObjectToRemoveList(WorldObject* obj);
 
@@ -527,6 +539,8 @@ class Map : public GridRefManager<NGridType>
         std::multiset<float> m_cinematicViewerRadii;  ///< radii of active cinematic flyover viewers on this map
         float m_cinematicViewerRadius;                ///< cached largest of m_cinematicViewerRadii (0 when none)
         MapPersistentState* m_persistentState;
+
+        Combat::CombatRegistry m_combat;
 
         MapRefManager m_mapRefManager;
         MapRefManager::iterator m_mapRefIter;
