@@ -331,8 +331,8 @@ namespace mai
                     error);
     }
 
-    bool ParseGuards(char const* text, Rule& out, RuleSet& owner,
-                     std::string& error)
+    bool ParseGuards(char const* text, std::vector<Guard>& out,
+                     RuleSet* owner, std::string& error)
     {
         char buffer[192];
 
@@ -425,7 +425,22 @@ namespace mai
 
             if (!prefixed)
             {
-                std::size_t const slot = owner.Intern(held);
+                // A bare name is one of the creature's own remembered numbers,
+                // and a sequence the world starts has no creature to ask. The
+                // same refusal `set_state` gives for the same reason, in the
+                // same words, so a guard and a step disagreeing about whose
+                // memory they mean is one message and not two.
+                if (!owner)
+                {
+                    std::snprintf(buffer, sizeof(buffer),
+                                  "guard names '%s', which is a remembered "
+                                  "value, and nothing said whose",
+                                  held.c_str());
+                    error = buffer;
+                    return false;
+                }
+
+                std::size_t const slot = owner->Intern(held);
                 if (slot >= MaxStates)
                 {
                     std::snprintf(buffer, sizeof(buffer),
@@ -453,9 +468,15 @@ namespace mai
                 return false;
             }
 
-            out.guards.push_back(guard);
+            out.push_back(guard);
         }
 
         return true;
+    }
+
+    bool ParseGuards(char const* text, Rule& out, RuleSet& owner,
+                     std::string& error)
+    {
+        return ParseGuards(text, out.guards, &owner, error);
     }
 }

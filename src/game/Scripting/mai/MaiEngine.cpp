@@ -25,6 +25,7 @@
 
 #include "MaiEngine.h"
 
+#include "mai/MaiCompile.h"
 #include "mai/MaiCreatureAI.h"
 #include "mai/MaiExecute.h"
 #include "mai/MaiLowering.h"
@@ -35,6 +36,9 @@
 #include "Creature.h"
 #include "Database/DatabaseEnv.h"
 #include "GameObject.h"
+// Not for a pointer -- the seam forward-declares it -- but for GetData, which
+// a guard about an instance's own state has to call.
+#include "InstanceData.h"
 #include "Log.h"
 #include "Map.h"
 #include "ObjectMgr.h"
@@ -275,6 +279,71 @@ namespace scripting
 
             return mai::Execute(run, step);
         }
+
+        /**
+         * What a guard can be asked about a sequence the WORLD started.
+         *
+         * Less than a creature can answer, and the difference is the point of
+         * the interface: there is no Actor here, so there is nothing that
+         * remembers anything, so a bare name -- `enraged=0` -- is unanswerable
+         * rather than zero. The loader already refuses to parse one into a
+         * `mai_step` row for that reason; this is the same answer at the other
+         * end, in case a sequence ever acquires one another way.
+         *
+         * `aura:` is the source's and `target_aura:` is the target's, which is
+         * the only reading available when the two ends are all there is.
+         */
+        struct WorldSight : public mai::Sight
+        {
+            Map*       map = nullptr;
+            ObjectGuid source;
+            ObjectGuid target;
+
+            bool Ask(mai::Guard const& guard, uint32& held) const override
+            {
+                if (!map)
+                {
+                    return false;
+                }
+
+                if (guard.of == mai::GuardInstance)
+                {
+                    InstanceData* data = map->GetInstanceData();
+                    if (!data)
+                    {
+                        // Zero is a real encounter state -- NOT_STARTED -- so
+                        // "there is no instance" must not read as it, or an
+                        // `instance:6=0` guard holds in the open world.
+                        return false;
+                    }
+
+                    held = data->GetData(guard.subject);
+                    return true;
+                }
+
+                if (guard.of == mai::GuardAura ||
+                    guard.of == mai::GuardTargetAura)
+                {
+                    ObjectGuid const& whose = guard.of == mai::GuardAura
+                                                  ? source : target;
+                    Unit* who = whose.IsEmpty() ? nullptr
+                                                : map->GetUnit(whose);
+                    if (!who)
+                    {
+                        return false;
+                    }
+
+                    // Stacks, not presence: absent is zero, so `aura:9438=0`
+                    // means "not under it" and `>=3` means what it says.
+                    SpellAuraHolder* holder =
+                        who->GetSpellAuraHolder(guard.subject);
+                    held = holder ? holder->GetStackAmount() : 0;
+                    return true;
+                }
+
+                return false;
+            }
+        };
     }
 
     MaiEngine* MaiEngine::s_instance = nullptr;
@@ -488,7 +557,19 @@ namespace scripting
 
         // Every step in one query, keyed as the sequences are so the join is a
         // lookup rather than a query per script.
-        std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> byScript;
+        //
+        // The guards travel WITH the steps rather than being read afterwards,
+        // because a step names a window into its sequence's guard table and
+        // that window is only meaningful beside the table it indexes. Two
+        // collections that had to be zipped up later would be two chances to
+        // get the offsets wrong.
+        struct Draft
+        {
+            std::vector<mai::Step>  steps;
+            std::vector<mai::Guard> guards;
+        };
+
+        std::map<std::pair<uint32, uint32>, Draft> byScript;
         {
             // `seq` is selected only to be able to NAME the row in an error.
             // (kind, script, seq) is the primary key, and a refusal that says
@@ -496,7 +577,8 @@ namespace scripting
             // of that script's steps was meant.
             std::unique_ptr<QueryResult> rows(WorldDatabase.Query(
                 "SELECT `kind`+0, `script`, `at_ms`, `action`, `params`, "
-                "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance`, `seq` "
+                "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance`, `seq`, "
+                "`guard` "
                 "FROM `mai_step` ORDER BY `kind`, `script`, `seq`"));
 
             while (rows && rows->NextRow())
@@ -547,7 +629,43 @@ namespace scripting
                     step.chance = 100;
                 }
 
-                byScript[std::make_pair(type, script)].push_back(step);
+                Draft& draft = byScript[std::make_pair(type, script)];
+
+                // WHETHER, beside the step's WHAT and WHEN. The same column a
+                // rule has carried since there were rules, and the same
+                // parser: `if` is a verb whose guard decides a jump, and an
+                // ordinary step's guard decides whether that one line runs.
+                //
+                // No owner, because a sequence the world starts has no
+                // creature -- so `instance:`, `aura:` and `target_aura:` are
+                // askable here and a bare name is refused with the same words
+                // `set_state` uses.
+                step.guardFirst = uint16(draft.guards.size());
+                if (!mai::ParseGuards(field[10].GetString(), draft.guards,
+                                      nullptr, error))
+                {
+                    sLog.outErrorDb("MAI: %s script %u seq %u: %s",
+                                    kinds[which - 1].name, script,
+                                    field[9].GetUInt32(), error.c_str());
+                    draft.guards.resize(step.guardFirst);
+                    ++refusedSteps;
+                    continue;
+                }
+                std::size_t const guards =
+                    draft.guards.size() - step.guardFirst;
+                if (guards > 0xFF)
+                {
+                    sLog.outErrorDb("MAI: %s script %u seq %u: more guards "
+                                    "than one step may carry",
+                                    kinds[which - 1].name, script,
+                                    field[9].GetUInt32());
+                    draft.guards.resize(step.guardFirst);
+                    ++refusedSteps;
+                    continue;
+                }
+                step.guardCount = uint8(guards);
+
+                draft.steps.push_back(step);
             }
         }
 
@@ -586,14 +704,44 @@ namespace scripting
             auto found = byScript.find(std::make_pair(type, id));
             if (found != byScript.end())
             {
-                sequence.steps = std::move(found->second);
+                sequence.steps = std::move(found->second.steps);
+                sequence.guards = std::move(found->second.guards);
 
+                // A TIMELINE IS SORTED AND A PROGRAM IS NOT, and the script
+                // itself says which it is by whether anything in it branches.
+                //
                 // The runner stops at the first step not yet due, so an
-                // unsorted list drops everything after the first out-of-order
-                // row. `seq` orders the query; this orders the clock.
-                std::stable_sort(sequence.steps.begin(), sequence.steps.end(),
-                                 [](mai::Step const& a, mai::Step const& b)
-                                 { return a.atMs < b.atMs; });
+                // unsorted timeline drops everything after the first
+                // out-of-order row: `seq` orders the query, and this orders
+                // the clock. But sorting a program by time would move a step
+                // out of the block it belongs to and leave the jumps pointing
+                // at whatever landed at that index -- so a script with control
+                // in it keeps the order it was written in, and MaiCompile
+                // checks the times instead of rearranging them.
+                if (mai::Branches(sequence.steps))
+                {
+                    std::string error;
+                    if (!mai::Compile(sequence, error))
+                    {
+                        // Refused whole. Half a program is not a smaller
+                        // program: an `if` whose `end` is missing would run
+                        // its body unconditionally, which is the one outcome
+                        // worse than the script not running at all.
+                        sLog.outErrorDb("MAI: %s %u: %s", sequence.kind,
+                                        sequence.id, error.c_str());
+                        refusedSteps += sequence.steps.size();
+                        sequence.steps.clear();
+                        sequence.guards.clear();
+                        sequence.program = false;
+                    }
+                }
+                else
+                {
+                    std::stable_sort(sequence.steps.begin(),
+                                     sequence.steps.end(),
+                                     [](mai::Step const& a, mai::Step const& b)
+                                     { return a.atMs < b.atMs; });
+                }
             }
 
             refusedSteps += mai::Validate(sequence);
@@ -652,12 +800,19 @@ namespace scripting
         // own name table, and a guard reading `enraged=0` has to find the same
         // slot. Both go through the RuleSet, so whichever is met first creates
         // it and the other finds it.
-        std::map<std::pair<uint32, uint32>, std::vector<mai::Step>> steps;
+        struct Draft
+        {
+            std::vector<mai::Step>  steps;
+            std::vector<mai::Guard> guards;
+        };
+
+        std::map<std::pair<uint32, uint32>, Draft> steps;
         {
             std::unique_ptr<QueryResult> stepRows(WorldDatabase.Query(
                 "SELECT `creature`, `rule`, `action`, `params`, `select`, "
                 "`buddy_flags`, `select_flags`, `buddy_entry`, `buddy_range`, "
-                "`chance`, `at_ms`, `select_else`, `select_source`, `seq` "
+                "`chance`, `at_ms`, `select_else`, `select_source`, `seq`, "
+                "`guard` "
                 "FROM `mai_rule_step` "
                 "ORDER BY `creature`, `rule`, `seq`"));
 
@@ -725,7 +880,38 @@ namespace scripting
                     continue;
                 }
 
-                steps[std::make_pair(creature, rule)].push_back(step);
+                Draft& draft = steps[std::make_pair(creature, rule)];
+
+                // The step's own guard, interned into the SAME creature the
+                // rule's guard and its `set_state` steps intern into -- so
+                // `enraged` means one slot whether it is set by a step, tested
+                // by a rule, or tested by an `if` three rows further down.
+                step.guardFirst = uint16(draft.guards.size());
+                if (!mai::ParseGuards(field[14].GetString(), draft.guards,
+                                      &owner, error))
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: %s",
+                                    creature, rule, field[13].GetUInt32(),
+                                    error.c_str());
+                    draft.guards.resize(step.guardFirst);
+                    ++refusedSteps;
+                    continue;
+                }
+
+                std::size_t const guards =
+                    draft.guards.size() - step.guardFirst;
+                if (guards > 0xFF)
+                {
+                    sLog.outErrorDb("MAI: creature %u rule %u seq %u: more "
+                                    "guards than one step may carry", creature,
+                                    rule, field[13].GetUInt32());
+                    draft.guards.resize(step.guardFirst);
+                    ++refusedSteps;
+                    continue;
+                }
+                step.guardCount = uint8(guards);
+
+                draft.steps.push_back(step);
             }
         }
 
@@ -766,17 +952,48 @@ namespace scripting
             auto found = steps.find(std::make_pair(creature, id));
             if (found != steps.end())
             {
-                rule.steps.steps = std::move(found->second);
+                rule.steps.steps = std::move(found->second.steps);
+                rule.steps.guards = std::move(found->second.guards);
 
-                // The runner walks steps in order and stops at the first one
-                // not yet due, so an unsorted list silently drops everything
-                // after the first out-of-order row. `seq` orders the query;
-                // this orders the clock, and stable_sort keeps `seq` as the
-                // tie-break for steps sharing an instant.
-                std::stable_sort(rule.steps.steps.begin(),
-                                 rule.steps.steps.end(),
-                                 [](mai::Step const& a, mai::Step const& b)
-                                 { return a.atMs < b.atMs; });
+                // A timeline is sorted and a program is not -- the same
+                // decision LoadSequences makes, for the same reason, and made
+                // by the same two functions rather than by a second copy of
+                // the argument. See there.
+                if (mai::Branches(rule.steps.steps))
+                {
+                    if (rule.flags & mai::RuleRandomStep)
+                    {
+                        // `random_step` runs ONE of the steps and no more,
+                        // which was EventAI's only randomness and is a switch
+                        // with the arms hidden. There is no coherent answer
+                        // for what it means to pick one row out of a program
+                        // -- an `else` on its own, an `end` with nothing open
+                        // -- so the combination is refused rather than given
+                        // one.
+                        sLog.outErrorDb("MAI: creature %u rule %u: a rule that "
+                                        "picks one step at random cannot also "
+                                        "branch", creature, id);
+                        ++refused;
+                        continue;
+                    }
+
+                    std::string trouble;
+                    if (!mai::Compile(rule.steps, trouble))
+                    {
+                        sLog.outErrorDb("MAI: creature %u rule %u: %s",
+                                        creature, id, trouble.c_str());
+                        refusedSteps += rule.steps.steps.size();
+                        ++refused;
+                        continue;
+                    }
+                }
+                else
+                {
+                    std::stable_sort(rule.steps.steps.begin(),
+                                     rule.steps.steps.end(),
+                                     [](mai::Step const& a, mai::Step const& b)
+                                     { return a.atMs < b.atMs; });
+                }
             }
 
             rule.steps.id = id;
@@ -1098,7 +1315,13 @@ namespace scripting
         for (std::size_t i = 0; i < wasSize && i < frames.size(); ++i)
         {
             mai::Frame& frame = frames[i];
-            mai::Runner run(frame, diff);
+
+            WorldSight sight;
+            sight.map = ctx.map;
+            sight.source = frame.source;
+            sight.target = frame.target;
+
+            mai::Runner run(frame, diff, &sight);
 
             while (mai::Step const* step = run.Next())
             {
@@ -1106,6 +1329,20 @@ namespace scripting
                 {
                     run.Stop();
                 }
+            }
+
+            if (run.Exhausted())
+            {
+                // Not an error and not the end of the sequence: the frame kept
+                // its place and will carry on next tick. It is said out loud
+                // because the only way to reach it is a loop that is not
+                // getting anywhere, and a creature quietly burning a tick's
+                // worth of steps for ever is exactly the thing nobody notices.
+                sLog.outErrorDb("MAI: %s %u ran %u steps in one tick without "
+                                "finishing; a loop in it is not advancing.",
+                                frame.sequence ? frame.sequence->kind : "?",
+                                frame.sequence ? frame.sequence->id : 0,
+                                uint32(mai::MaxStepsPerTick));
             }
         }
 

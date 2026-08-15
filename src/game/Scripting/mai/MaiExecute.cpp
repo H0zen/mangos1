@@ -44,6 +44,7 @@
 
 #include "MaiExecute.h"
 
+#include "MaiCompile.h"
 #include "MaiLowering.h"
 #include "MaiPerform.h"
 #include "MaiTargeting.h"
@@ -241,6 +242,19 @@ namespace mai
 
     bool Execute(Run const& run, Step const& step)
     {
+        // A branch is not a thing that happens in the world, and this is the
+        // only place that could mistake one for a thing that does. MaiRunner
+        // resolves every control verb itself and hands out none of them, so
+        // arriving here means somebody ran a step list without one -- and the
+        // fall-through below would look up a borrowed body for `end`, find
+        // none, and log a puzzle. Refusing costs a comparison and keeps the
+        // rule stated where it can be read: control flow belongs to the frame,
+        // never to a verb.
+        if (IsControl(step.action))
+        {
+            return false;
+        }
+
         // Before anything is resolved: a step that is not going to happen
         // should not search the grid to discover whom it would not have
         // happened to.

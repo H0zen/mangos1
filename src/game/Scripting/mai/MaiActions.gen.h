@@ -207,6 +207,15 @@ namespace mai
         QuestEvent                 = 119,
         CastEvent                  = 120,
         KilledMonster              = 121,
+
+        // control
+        If                         = 152,
+        Else                       = 153,
+        End                        = 154,
+        Repeat                     = 155,
+        While                      = 156,
+        Break                      = 157,
+        Continue                   = 158,
     };
 
     inline constexpr ParamSpec g_actionParamsTalk[] =
@@ -769,6 +778,11 @@ namespace mai
         { "creature", ParamType::Creature, false },
     };
 
+    inline constexpr ParamSpec g_actionParamsRepeat[] =
+    {
+        { "times", ParamType::U32, false },
+    };
+
     /// Which shared facets an action carries, and therefore
     /// where its own parameters stop and theirs begin. The
     /// lowering from `dbscripts_on_*` reads this instead of
@@ -896,6 +910,13 @@ namespace mai
         { ActionId::QuestEvent, "quest_event", g_actionParamsQuestEvent, 2, 2, 0 },
         { ActionId::CastEvent, "cast_event", g_actionParamsCastEvent, 3, 3, 0 },
         { ActionId::KilledMonster, "killed_monster", g_actionParamsKilledMonster, 1, 1, 0 },
+        { ActionId::If, "if", nullptr, 0, 0, 0 },
+        { ActionId::Else, "else", nullptr, 0, 0, 0 },
+        { ActionId::End, "end", nullptr, 0, 0, 0 },
+        { ActionId::Repeat, "repeat", g_actionParamsRepeat, 1, 1, 0 },
+        { ActionId::While, "while", nullptr, 0, 0, 0 },
+        { ActionId::Break, "break", nullptr, 0, 0, 0 },
+        { ActionId::Continue, "continue", nullptr, 0, 0, 0 },
     };
 
     /// The shape of @a id, or nullptr when nothing carries it.

@@ -84,6 +84,23 @@ namespace mai
     /// encounter wants writing rather than declaring.
     enum : std::size_t { MaxStates = 8 };
 
+    /// How deep loops may nest. Four for the same reason eight states are
+    /// eight: each level costs a counter on EVERY running frame, the slot is
+    /// handed out at LOAD from the static nesting depth rather than pushed at
+    /// run time, and an encounter wanting a fifth is an encounter that wants
+    /// writing rather than declaring.
+    enum : std::size_t { MaxLoopDepth = 4 };
+
+    /// The most steps one frame may run in one tick. A loop whose body takes
+    /// no time would otherwise spin here for ever, and "here" is the world
+    /// thread: mangosd has one, and a `while` in a table row must not be able
+    /// to stop it.
+    ///
+    /// Running out is not an error and does not end the sequence -- the frame
+    /// simply resumes on the next tick, which turns a runaway loop into a
+    /// creature that is busy rather than a server that is gone.
+    enum : uint32 { MaxStepsPerTick = 256 };
+
     /**
      * A decision, which is the one thing MAI had no way to say.
      *
@@ -238,6 +255,56 @@ namespace mai
     };
 
     /**
+     * How a step moves the frame it is standing in -- the whole of the
+     * control flow, after the block verbs have been compiled away.
+     *
+     * THE THREE STRUCTURES, and no more than three. A sequence was already the
+     * first: steps in order, each with a time. What the table could not say was
+     * the other two, and each of them was being faked somewhere -- `chance` is
+     * a probabilistic `if`, `select_else` is an if-else about a target,
+     * `random_step` is a switch, `retry` is a do-while, and a sequence that
+     * starts itself is a loop with no exit condition. Six ad-hoc decisions in
+     * six columns, each with its own meaning to remember.
+     *
+     * This is those two structures written down once. `if`/`else`/`end`,
+     * `repeat n`/`end` and `while`/`end` are what an author writes in the
+     * `action` column; MaiCompile turns them into these five, resolves every
+     * jump to an index, and refuses a script whose blocks do not balance --
+     * at LOAD, which is the whole argument for MAI being data.
+     *
+     * DELIBERATELY NOT MORE. There is no call, no return, no expression, no
+     * `or`. A guard is still one comparison against one remembered number and
+     * a rule may carry several. The line MaiScript has drawn since the first
+     * commit is unchanged: when an encounter needs more than this, it is a
+     * program and belongs in C++ -- a boundary worth keeping visible rather
+     * than eroding one operator at a time.
+     */
+    enum FlowKind : uint8
+    {
+        /// An ordinary step. It runs, the frame advances by one.
+        FlowNone,
+
+        /// `if` and `while`: when the guards do NOT hold, go to @a jump
+        /// instead of to the next step. When they do, fall through.
+        FlowSkip,
+
+        /// `else`, `break` and `continue`: go to @a jump, always.
+        FlowAlways,
+
+        /// `repeat`: load the loop counter and fall through, or -- when the
+        /// count is zero -- go to @a jump, which is past the matching `end`.
+        FlowEnter,
+
+        /// The `end` of a `repeat`: count down, and go back to @a jump while
+        /// anything is left. Falls through on the last turn.
+        FlowLoop
+    };
+
+    /// A step that does not move the frame. 0xFFFF rather than 0, because 0 is
+    /// a perfectly good jump target: the first step of the sequence.
+    enum : uint16 { NoJump = 0xFFFF };
+
+    /**
      * One thing that happens, and when.
      *
      * @a atMs is measured from the START of the sequence, not from the step
@@ -324,6 +391,41 @@ namespace mai
         uint16   given = 0;
 
         /**
+         * What must hold for this step to run at all, as a window into the
+         * sequence's own guard table.
+         *
+         * INDICES RATHER THAN A VECTOR, and that is the whole reason the table
+         * is on the Sequence. A step is a fixed-size record and an array of
+         * them is contiguous -- which is why walking a handful of them looking
+         * for the ones due is not a pointer chase. A `std::vector<Guard>` per
+         * step would have put a heap allocation and an indirection on all
+         * 27,561 converted steps to buy something 27,561 of them do not use.
+         *
+         * A step with none -- every step in the world today -- runs as it
+         * always did, and pays four bytes it never reads.
+         */
+        uint16   guardFirst = 0;
+        uint8    guardCount = 0;
+
+        /// How this step moves the frame. FlowNone on everything the world
+        /// currently has; the rest is what MaiCompile writes.
+        FlowKind flow = FlowNone;
+
+        /// Where it moves it TO, as an index into the same sequence. NoJump on
+        /// an ordinary step -- and on a guarded ordinary step, which is simply
+        /// skipped when its guards fail rather than jumping anywhere.
+        uint16   jump = NoJump;
+
+        /// Which of the frame's loop counters a `repeat` and its `end` share.
+        ///
+        /// Handed out at LOAD from the static nesting depth, not pushed and
+        /// popped at run time, which is what lets `break` be an ordinary jump:
+        /// there is no stack to unwind on the way out, because there is no
+        /// stack. Nesting deeper than MaxLoopDepth is refused where it can be
+        /// seen -- when the script loads.
+        uint8    loopSlot = 0;
+
+        /**
          * The row this step was lowered from, while the DB tables still exist.
          *
          * MIGRATION SCAFFOLDING, and deliberately visible as such. MAI owns the
@@ -376,13 +478,66 @@ namespace mai
         char const*       kind = "script";
 
         std::string       name;     ///< as reported in an error
-        std::vector<Step> steps;    ///< sorted by atMs
+        std::vector<Step> steps;    ///< sorted by atMs unless @a program
 
-        /// The last moment anything happens, which is how long a frame must be
-        /// kept alive.
+        /**
+         * Every guard any of the steps carries, in one run.
+         *
+         * A step names a window into this rather than owning a vector, so that
+         * a step stays a fixed-size record -- see Step::guardFirst. Empty on
+         * every sequence converted from `dbscripts_on_*`, which is all of them
+         * today.
+         */
+        std::vector<Guard> guards;
+
+        /**
+         * Whether the steps are a TIMELINE or a PROGRAM, decided at load by
+         * whether anything in them branches.
+         *
+         * The distinction is not cosmetic and it is why the two can share one
+         * runner. A timeline is sorted by `at_ms` and read in that order, which
+         * is what makes it printable without being run and is what the 27,561
+         * converted steps are. A program is read in `seq` order -- sorting it
+         * would reorder the branches away from the blocks they belong to --
+         * and its `at_ms` still gate each step against the same clock.
+         *
+         * So a script with no control verb in it behaves EXACTLY as it did
+         * before this existed, down to the sort. Nothing had to be reconverted
+         * to keep working, which is the only way a change to a live table's
+         * meaning is safe to make.
+         */
+        bool              program = false;
+
+        /**
+         * The last moment anything happens, which is how long a frame must be
+         * kept alive.
+         *
+         * A timeline is sorted, so that is its last step. A program is not,
+         * so it is the largest time in it -- and for one containing a loop
+         * that is a floor rather than an answer: how long a `while` runs is
+         * the question a `while` exists to leave open.
+         */
         uint32 Duration() const
         {
-            return steps.empty() ? 0 : steps.back().atMs;
+            if (steps.empty())
+            {
+                return 0;
+            }
+
+            if (!program)
+            {
+                return steps.back().atMs;
+            }
+
+            uint32 most = 0;
+            for (Step const& step : steps)
+            {
+                if (step.atMs > most)
+                {
+                    most = step.atMs;
+                }
+            }
+            return most;
         }
     };
 
@@ -422,6 +577,17 @@ namespace mai
         /// outlives the moment that started it, and the sender can be dead by
         /// the time a step three seconds in asks for it.
         ObjectGuid      sender;
+
+        /**
+         * How many turns each open `repeat` has left.
+         *
+         * On the FRAME rather than the sequence, for the reason everything
+         * else here is: the sequence is shared by every run of it, and two
+         * creatures three turns apart in the same loop are two frames. The
+         * slot is fixed at load from the nesting depth, so this is an array
+         * and not a stack -- see Step::loopSlot.
+         */
+        uint32          loopCount[MaxLoopDepth] = {};
 
         bool Finished() const
         {

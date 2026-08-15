@@ -207,6 +207,54 @@ namespace mai
         return Allowed(*armed.rule);
     }
 
+    bool MaiCreatureAI::Ask(Guard const& guard, uint32& held) const
+    {
+        if (guard.of == GuardInstance)
+        {
+            InstanceData* data = m_creature->GetMap()->GetInstanceData();
+            if (!data)
+            {
+                // Outside an instance there is nothing to ask, and whatever
+                // asked is not satisfied. Refusing rather than defaulting to
+                // zero: zero is a real encounter state -- NOT_STARTED -- so
+                // treating "no instance" as zero would make `instance:6=0`
+                // hold in the open world.
+                return false;
+            }
+
+            held = data->GetData(guard.subject);
+            return true;
+        }
+
+        if (guard.of == GuardAura || guard.of == GuardTargetAura)
+        {
+            // Stacks, not presence: absent is zero, so one comparison answers
+            // "is it up", "is it gone" and "is it at three".
+            Unit const* who = guard.of == GuardAura
+                                  ? static_cast<Unit const*>(m_creature)
+                                  : m_creature->getVictim();
+            if (!who)
+            {
+                return false;
+            }
+
+            SpellAuraHolder* holder =
+                const_cast<Unit*>(who)->GetSpellAuraHolder(guard.subject);
+            held = holder ? holder->GetStackAmount() : 0;
+            return true;
+        }
+
+        // The creature's own memory. A slot out of range is a load that went
+        // wrong rather than a state of zero, so it is unanswerable too.
+        if (guard.subject >= MaxStates)
+        {
+            return false;
+        }
+
+        held = m_actor.states[guard.subject];
+        return true;
+    }
+
     bool MaiCreatureAI::Allowed(Rule const& rule) const
     {
         // The decision, and it comes BEFORE the trigger's own condition on
@@ -214,55 +262,17 @@ namespace mai
         // free to test, while a condition asks the world -- who is on the
         // threat list, what auras are up. A boss that only enrages once should
         // not search the grid every half second to rediscover that.
-        for (Guard const& guard : rule.guards)
-        {
-            uint32 held = 0;
-
-            if (guard.of == GuardInstance)
-            {
-                InstanceData* data = m_creature->GetMap()->GetInstanceData();
-                if (!data)
-                {
-                    // Outside an instance there is nothing to ask, and a rule
-                    // that asked is not satisfied. Refusing rather than
-                    // defaulting to zero: zero is a real encounter state --
-                    // NOT_STARTED -- so treating "no instance" as zero would
-                    // make `instance:6=0` fire in the open world.
-                    return false;
-                }
-
-                held = data->GetData(guard.subject);
-            }
-            else if (guard.of == GuardAura || guard.of == GuardTargetAura)
-            {
-                // Stacks, not presence: absent is zero, so one comparison
-                // answers "is it up", "is it gone" and "is it at three".
-                Unit const* who = guard.of == GuardAura
-                                      ? static_cast<Unit const*>(m_creature)
-                                      : m_creature->getVictim();
-                if (!who)
-                {
-                    return false;
-                }
-
-                SpellAuraHolder* holder =
-                    const_cast<Unit*>(who)->GetSpellAuraHolder(guard.subject);
-                held = holder ? holder->GetStackAmount() : 0;
-            }
-            else
-            {
-                held = guard.subject < MaxStates
-                           ? m_actor.states[guard.subject]
-                           : 0;
-            }
-
-            if (!guard.Holds(held))
-            {
-                return false;
-            }
-        }
-
-        return true;
+        //
+        // The comparison itself is in MaiGuard.h, shared with the guard on a
+        // STEP -- which is what makes `if` a verb rather than a second dialect:
+        // a rule deciding whether to fire and a step deciding whether to run
+        // ask the same question of the same creature through the same code.
+        //
+        // Qualified, and it has to be: this class has its own `Holds`, which
+        // asks whether a TRIGGER's condition is met. Unqualified, the member
+        // hides the namespace function outright -- class scope is searched
+        // first and does not fall through on a bad signature.
+        return mai::Holds(rule.guards.data(), rule.guards.size(), this);
     }
 
     bool MaiCreatureAI::ReArm(Armed& armed, std::size_t minSlot,
@@ -778,7 +788,15 @@ namespace mai
             run.driver = this;
             run.fromRule = true;
 
-            Execute(run, rule.steps.steps[pick]);
+            // The one path that runs a step without the runner, so it is also
+            // the one that would silently ignore the step's guard. A guard has
+            // to mean the same thing wherever a step is run from, or `if` for
+            // one line means "usually".
+            Step const& chosen = rule.steps.steps[pick];
+            if (mai::Holds(rule.steps, chosen, this))
+            {
+                Execute(run, chosen);
+            }
             return;
         }
 
@@ -914,7 +932,11 @@ namespace mai
         ++m_running;
 
         bool cancelled = false;
-        Runner runner(frame, diff);
+
+        // `this` is the Sight: a guard on a step is answered out of this
+        // creature's own states, phase and victim, which is the same place a
+        // guard on a rule is answered from.
+        Runner runner(frame, diff, this);
         while (Step const* step = runner.Next())
         {
             if (Execute(go, *step))
@@ -938,6 +960,19 @@ namespace mai
         }
 
         m_frames[index] = frame;
+
+        if (runner.Exhausted())
+        {
+            // The frame kept its place and carries on next tick -- it is not
+            // an error and the sequence has not ended. Said out loud because
+            // the only way here is a loop that is not advancing, and a
+            // creature quietly spending a tick's worth of steps on one for
+            // ever is exactly what nobody notices.
+            sLog.outErrorDb("MAI: creature %u ran %u steps in one tick without "
+                            "finishing; a loop in one of its rules is not "
+                            "advancing.", m_creature->GetEntry(),
+                            uint32(MaxStepsPerTick));
+        }
 
         if (refused)
         {

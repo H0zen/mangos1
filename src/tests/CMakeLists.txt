@@ -73,6 +73,10 @@ set(SRC_GRP_TESTS
     MaiLoweringTest.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiLowering.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiParse.cpp
+    # The block compiler. Here for the same reason and with the same
+    # property: it turns `if`/`repeat`/`while` rows into jumps knowing
+    # nothing about a world, so what it decides can be asserted without one.
+    ${CMAKE_SOURCE_DIR}/src/game/Scripting/mai/MaiCompile.cpp
 )
 
 # The socket tests. Off unless asked for -- see the note above.

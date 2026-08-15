@@ -53,17 +53,57 @@
 --   kind    := quest_start | quest_end | spell | go_use | go_template_use
 --            | creature_death | creature_movement | gossip | event | internal
 --
---   step    := script, at_ms, action, params, buddy, comment
+--   step    := script, at_ms, action, params, guard, buddy, comment
 --   at_ms   := milliseconds from the start of the sequence   -- not from the
 --                                                               previous step
 --   action  := a verb from actions.manifest
 --   params  := "name=value name=value ..."   -- names and types from the same
+--   guard   := "name=value name>=value ..."  -- all of them must hold
 --   buddy   := entry, radius_or_guid, flags  -- who the step really acts on
 --
 --
 -- ORDER. Steps run in at_ms order, and steps sharing an at_ms run in the order
 -- their `seq` gives them. Nothing anywhere relies on primary-key order or on
 -- the order rows were inserted, because neither is a thing SQL promises.
+--
+--
+-- ...UNLESS THE SCRIPT BRANCHES, and then it is a program and runs in `seq`
+-- order. Which of the two a script is, is decided by the script: if any row in
+-- it uses one of the seven control verbs, the whole thing keeps the order it
+-- was written in and `at_ms` gates each row against the clock rather than
+-- deciding what comes next. A script with no control verb -- which is every
+-- converted one, all 27,561 steps of them -- is read exactly as it always was.
+--
+-- The seven are `if`, `else`, `end`, `repeat`, `while`, `break`, `continue`,
+-- and they take their condition from `guard`, not from `params`. They are
+-- resolved into jumps when the script LOADS, so an `if` that is never closed
+-- is an error naming the row rather than a creature standing still in front of
+-- a raid. A boss that says one thing below half health and another above:
+--
+--     seq  at_ms  action      params              guard
+--       0      0  if                              health_low=1
+--       1      0    talk      text0=-1000123
+--       2      0  else
+--       3      0    talk      text0=-1000124
+--       4      0  end
+--
+-- and one that summons three adds a second apart:
+--
+--     seq  at_ms  action      params              guard
+--       0      0  repeat      times=3
+--       1      0    summon_creature  entry=15629
+--       2   1000  end
+--
+-- ON A LOOP, THE `end`'s at_ms IS THE PERIOD OF ONE TURN. The clock is rewound
+-- by that much each time round, so what is written is one turn and what runs is
+-- that turn repeated. Everywhere else time only moves forward, and a row that
+-- would be reached by a row with a LATER at_ms is refused at load.
+--
+-- WHAT THERE IS NOT. No goto, no label, no call, no expression, no `or`. A
+-- guard is one comparison against one remembered number, exactly as it has
+-- been since rules existed. Three structures is what a program needs; a fourth
+-- thing here would be the beginning of a language nobody asked for, and the
+-- honest home for an encounter that needs one is still C++.
 
 DROP TABLE IF EXISTS `mai_step`;
 DROP TABLE IF EXISTS `mai_script`;
@@ -112,6 +152,22 @@ CREATE TABLE `mai_step`
     `at_ms`    INT UNSIGNED NOT NULL DEFAULT 0,
     `action`   VARCHAR(48) NOT NULL,
     `params`   VARCHAR(512) NOT NULL DEFAULT '',
+
+    -- WHETHER, beside the row's WHAT and WHEN. The same language a rule's
+    -- guard has always been written in -- `instance:6=1`, `aura:9438>=3`, all
+    -- of them holding -- read by the same parser.
+    --
+    -- On an ordinary verb it decides whether that one line runs. On `if` and
+    -- `while` it decides a JUMP, which is the whole of what makes those two
+    -- verbs rather than features: a condition is not an argument of a verb, so
+    -- it does not belong in `params`, and a step that merely wants to be
+    -- conditional does not need a block around it.
+    --
+    -- A sequence the world starts has no creature, so `instance:`, `aura:` and
+    -- `target_aura:` may be asked here while a bare name -- one of a creature's
+    -- own remembered numbers -- is refused at load, in the same words
+    -- `set_state` uses. `mai_rule_step` has the same column and no such limit.
+    `guard`    VARCHAR(255) NOT NULL DEFAULT '',
 
     -- Not part of `params` because it modifies the step rather than being an
     -- argument of the verb: any action at all may be redirected at a creature
@@ -229,6 +285,17 @@ CREATE TABLE `mai_rule_step`
 
     `action`   VARCHAR(48) NOT NULL,
     `params`   VARCHAR(512) NOT NULL DEFAULT '',
+
+    -- The step's own guard, in the language `mai_rule`.`guard` is written in
+    -- and interned into the SAME creature -- so `enraged` is one slot whether
+    -- a step sets it, the rule tests it, or an `if` three rows down tests it.
+    --
+    -- This is the second of the three structures arriving in the table. The
+    -- rule's guard decides whether the whole thing fires; this decides whether
+    -- one line of it runs, or -- on `if` and `while` -- which way the sequence
+    -- goes. Everything the rules were doing with `chance`, `select_else` and
+    -- the `random_step` flag was a worse-spelt version of this.
+    `guard`    VARCHAR(255) NOT NULL DEFAULT '',
 
     -- The buddy search, the same one `mai_step` has had since the DB scripts:
     -- find a creature of this entry within this range and let the step act on

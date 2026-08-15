@@ -39,6 +39,7 @@
 
 #include "TestHarness.h"
 
+#include "mai/MaiCompile.h"
 #include "mai/MaiLowering.h"
 #include "mai/MaiTargeting.h"
 #include "mai/MaiRunner.h"
@@ -845,4 +846,542 @@ TEST(MaiParse_RefusesWhatItCannotUnderstand)
     CHECK(step.operands[1].u == 2);
     CHECK(step.Has(0));
     CHECK(step.Has(1));
+}
+
+// ---- control flow -----------------------------------------------------------
+//
+// The other two structures of a program, once they are rows in a table.
+//
+// What is worth asserting is split in two, and the split is the design: the
+// COMPILER decides what a script means and refuses what cannot mean anything,
+// at load, with the row named -- and the RUNNER then only follows indices. So
+// the tests below are of two kinds, and neither of them needs a world. A
+// guard's answer arrives through one virtual call, which here comes out of a
+// std::map instead of out of a creature.
+
+namespace
+{
+    /// A Sight backed by a table. Everything a branch needs to know about the
+    /// world, in the amount the world is asked for it.
+    struct FakeSight : public mai::Sight
+    {
+        std::map<uint32, uint32> states;
+
+        /// Nothing can be asked at all -- what a sequence the world started
+        /// has to say about a creature's memory.
+        bool blind = false;
+
+        bool Ask(mai::Guard const& guard, uint32& held) const override
+        {
+            if (blind || guard.of != mai::GuardState)
+            {
+                return false;
+            }
+
+            std::map<uint32, uint32>::const_iterator found =
+                states.find(guard.subject);
+            held = found == states.end() ? 0 : found->second;
+            return true;
+        }
+    };
+
+    /// One row, spelt as somebody would type it into `mai_step`.
+    struct Line
+    {
+        uint32      atMs;
+        char const* action;
+        char const* params;
+        char const* guard;
+    };
+
+    /**
+     * The rows, through the real parser and the real compiler.
+     *
+     * Deliberately not hand-built steps: what is being tested includes whether
+     * `if` is a verb the parser knows and whether a guard column reads the same
+     * as a rule's, and a fixture that filled the fields in directly would be
+     * asserting that the test agrees with itself.
+     */
+    bool Build(mai::Sequence& out, mai::RuleSet& owner,
+               std::initializer_list<Line> lines, std::string& error)
+    {
+        out = mai::Sequence();
+        out.name = "test";
+
+        for (Line const& line : lines)
+        {
+            mai::Step step;
+            if (!mai::Parse(line.action, line.params, step, owner, error))
+            {
+                return false;
+            }
+
+            step.atMs = line.atMs;
+            step.guardFirst = uint16(out.guards.size());
+            if (!mai::ParseGuards(line.guard, out.guards, &owner, error))
+            {
+                return false;
+            }
+            step.guardCount = uint8(out.guards.size() - step.guardFirst);
+
+            out.steps.push_back(step);
+        }
+
+        return mai::Compile(out, error);
+    }
+
+    /// Which steps a tick handed out, by index -- so a test says which ROW ran
+    /// rather than which verb, and two rows with the same verb stay apart.
+    std::vector<std::size_t> Ran(mai::Sequence const& sequence,
+                                 mai::Frame& frame, uint32 diff,
+                                 mai::Sight const* sight,
+                                 bool* exhausted = nullptr)
+    {
+        std::vector<std::size_t> ran;
+
+        mai::Runner run(frame, diff, sight);
+        while (mai::Step const* step = run.Next())
+        {
+            ran.push_back(std::size_t(step - sequence.steps.data()));
+        }
+
+        if (exhausted)
+        {
+            *exhausted = run.Exhausted();
+        }
+
+        return ran;
+    }
+}
+
+TEST(MaiCompile_ASequenceWithNoControlIsLeftExactlyAsItWas)
+{
+    // The whole reason this is safe to add to a live table: a script that does
+    // not branch is not a program, is not reordered, and carries no jumps.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0,    "talk", "text0=-1", "" },
+                    { 1000, "talk", "text0=-2", "" } }, error));
+
+    CHECK(!sequence.program);
+    CHECK(!mai::Branches(sequence.steps));
+    CHECK(sequence.steps[0].flow == mai::FlowNone);
+    CHECK(sequence.steps[0].jump == mai::NoJump);
+    CHECK(sequence.Duration() == 1000);
+}
+
+TEST(MaiCompile_RefusesBlocksThatDoNotBalance)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    // An `if` that is never closed. Running its body unconditionally is the
+    // one outcome worse than the script not running at all.
+    CHECK(!Build(sequence, owner,
+                 { { 0, "if",   "", "phase=2" },
+                   { 0, "talk", "text0=-1", "" } }, error));
+
+    CHECK(!Build(sequence, owner,
+                 { { 0, "else", "", "" } }, error));
+
+    CHECK(!Build(sequence, owner,
+                 { { 0, "end", "", "" } }, error));
+
+    // Two `else` arms on one `if`.
+    CHECK(!Build(sequence, owner,
+                 { { 0, "if",   "", "phase=2" },
+                   { 0, "else", "", "" },
+                   { 0, "else", "", "" },
+                   { 0, "end",  "", "" } }, error));
+
+    // A guard on `else` would be an `else if` with half of one decision in
+    // each of two rows.
+    CHECK(!Build(sequence, owner,
+                 { { 0, "if",   "", "phase=2" },
+                   { 0, "else", "", "phase=3" },
+                   { 0, "end",  "", "" } }, error));
+}
+
+TEST(MaiCompile_RefusesBreakAndContinueWithNoLoopRoundThem)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    CHECK(!Build(sequence, owner, { { 0, "break", "", "" } }, error));
+    CHECK(!Build(sequence, owner, { { 0, "continue", "", "" } }, error));
+
+    // An `if` is not a loop, which is the mistake worth catching: it is the
+    // one block a `break` looks like it should leave.
+    CHECK(!Build(sequence, owner,
+                 { { 0, "if",    "", "phase=2" },
+                   { 0, "break", "", "" },
+                   { 0, "end",   "", "" } }, error));
+}
+
+TEST(MaiCompile_RefusesLoopsNestedDeeperThanAFrameCanCount)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    // Four is the ceiling, and it is a ceiling rather than a stack because the
+    // counter slot is handed out here rather than pushed at run time.
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "repeat", "times=2", "" },
+                    { 0, "repeat", "times=2", "" },
+                    { 0, "repeat", "times=2", "" },
+                    { 0, "repeat", "times=2", "" },
+                    { 0, "talk",   "text0=-1", "" },
+                    { 0, "end", "", "" }, { 0, "end", "", "" },
+                    { 0, "end", "", "" }, { 0, "end", "", "" } }, error));
+
+    CHECK(!Build(sequence, owner,
+                 { { 0, "repeat", "times=2", "" },
+                   { 0, "repeat", "times=2", "" },
+                   { 0, "repeat", "times=2", "" },
+                   { 0, "repeat", "times=2", "" },
+                   { 0, "repeat", "times=2", "" },
+                   { 0, "talk",   "text0=-1", "" },
+                   { 0, "end", "", "" }, { 0, "end", "", "" },
+                   { 0, "end", "", "" }, { 0, "end", "", "" },
+                   { 0, "end", "", "" } }, error));
+}
+
+TEST(MaiCompile_RefusesTimeThatRunsBackwardsExceptRoundALoop)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    // Reached from a step five seconds later, this would run the instant it
+    // was reached rather than when it says -- silently, and only on one arm.
+    CHECK(!Build(sequence, owner,
+                 { { 0,    "if",   "", "phase=2" },
+                   { 5000, "talk", "text0=-1", "" },
+                   { 0,    "talk", "text0=-2", "" },
+                   { 5000, "end",  "", "" } }, error));
+
+    // Round a loop it is not backwards, it is the next turn -- and the times
+    // inside the body are that turn's own.
+    REQUIRE(Build(sequence, owner,
+                  { { 0,    "repeat", "times=3", "" },
+                    { 0,    "talk",   "text0=-1", "" },
+                    { 1000, "end",    "", "" },
+                    { 1000, "talk",   "text0=-2", "" } }, error));
+}
+
+TEST(MaiRunner_AnIfRunsOneArmAndOnlyOne)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "if",   "", "phase=2" },
+                    { 0, "talk", "text0=-1", "" },
+                    { 0, "else", "", "" },
+                    { 0, "talk", "text0=-2", "" },
+                    { 0, "end",  "", "" } }, error));
+
+    CHECK(sequence.program);
+
+    FakeSight sight;
+    sight.states[uint32(owner.Intern("phase"))] = 2;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 1);
+    CHECK(frame.Finished());
+
+    // And the other way.
+    sight.states[uint32(owner.Intern("phase"))] = 1;
+    mai::Frame other;
+    other.sequence = &sequence;
+
+    ran = Ran(sequence, other, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 3);
+    CHECK(other.Finished());
+}
+
+TEST(MaiRunner_AGuardOnAnOrdinaryStepNeedsNoBlock)
+{
+    // The same field doing the same thing without the ceremony: `if` for one
+    // line. It is also why a timeline can carry guards and stay a timeline.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "talk", "text0=-1", "enraged=1" },
+                    { 0, "talk", "text0=-2", "" } }, error));
+
+    CHECK(!sequence.program);
+
+    FakeSight sight;
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 1);
+}
+
+TEST(MaiRunner_AGuardNobodyCanAnswerDoesNotHold)
+{
+    // A sequence the world started, asked about a creature's memory. Failing
+    // closed is the only safe direction: a step that did not run is a bug a
+    // log shows, and one that should not have run is a bug a player finds.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "talk", "text0=-1", "enraged=0" } }, error));
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+    CHECK(Ran(sequence, frame, 0, nullptr).empty());
+
+    FakeSight blind;
+    blind.blind = true;
+    mai::Frame other;
+    other.sequence = &sequence;
+    CHECK(Ran(sequence, other, 0, &blind).empty());
+}
+
+TEST(MaiRunner_RepeatRunsItsBodyThatManyTimesAndKeepsTheRemainder)
+{
+    // The loop, and the property the straight line has always had: elapsed
+    // accumulates, and what comes off at each turn is the turn's period -- so
+    // a hundred turns do not drift by a hundred hitches.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0,   "repeat", "times=3", "" },
+                    { 0,   "talk",   "text0=-1", "" },
+                    { 100, "end",    "", "" } }, error));
+
+    FakeSight sight;
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    // The first turn's body is due at once; its `end` is not.
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 1);
+
+    // One awkward 250ms tick crosses two more turns and keeps the 50ms over.
+    ran = Ran(sequence, frame, 250, &sight);
+    CHECK_EQ(int(ran.size()), 2);
+    CHECK_EQ(int(frame.elapsedMs), 50);
+    CHECK(!frame.Finished());
+
+    // The third `end` falls through rather than going round again.
+    ran = Ran(sequence, frame, 100, &sight);
+    CHECK(ran.empty());
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_RepeatNoTimesAtAllSkipsTheBody)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "repeat", "times=0", "" },
+                    { 0, "talk",   "text0=-1", "" },
+                    { 0, "end",    "", "" },
+                    { 0, "talk",   "text0=-2", "" } }, error));
+
+    FakeSight sight;
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(ran[0] == 3);
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_WhileRunsUntilItsGuardTurnsFalse)
+{
+    // The unbounded one. Nothing in the sequence counts the turns; what ends
+    // it is the world changing under it, which is the whole reason it exists.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0,    "while", "", "adds>0" },
+                    { 0,    "talk",  "text0=-1", "" },
+                    { 1000, "end",   "", "" } }, error));
+
+    FakeSight sight;
+    uint32 const adds = uint32(owner.Intern("adds"));
+    sight.states[adds] = 2;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 1);
+    sight.states[adds] = 1;
+
+    ran = Ran(sequence, frame, 1000, &sight);
+    REQUIRE(ran.size() == 1);
+    CHECK(!frame.Finished());
+    sight.states[adds] = 0;
+
+    ran = Ran(sequence, frame, 1000, &sight);
+    CHECK(ran.empty());
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_BreakLeavesTheLoopAndContinueGoesRoundAgain)
+{
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0,   "repeat", "times=3", "" },
+                    { 0,   "talk",   "text0=-1", "" },
+                    { 0,   "break",  "", "stop=1" },
+                    { 0,   "talk",   "text0=-2", "" },
+                    { 100, "end",    "", "" },
+                    { 100, "talk",   "text0=-3", "" } }, error));
+
+    FakeSight sight;
+    uint32 const stop = uint32(owner.Intern("stop"));
+
+    // Nothing to stop it: three turns of both lines, then the step after.
+    sight.states[stop] = 0;
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 1000, &sight);
+    CHECK_EQ(int(ran.size()), 7);
+    CHECK(frame.Finished());
+
+    // And with it: one line, then out of the loop entirely.
+    sight.states[stop] = 1;
+    mai::Frame stopped;
+    stopped.sequence = &sequence;
+
+    ran = Ran(sequence, stopped, 1000, &sight);
+    REQUIRE(ran.size() == 2);
+    CHECK(ran[0] == 1);
+    CHECK(ran[1] == 5);
+    CHECK(stopped.Finished());
+}
+
+TEST(MaiRunner_AContinueInABoundedLoopStillCountsTheTurn)
+{
+    // Sent to the top of the loop instead of to its `end`, a `continue` would
+    // skip the counter and turn `repeat 2` into a loop with no exit.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "repeat",   "times=2", "" },
+                    { 0, "talk",     "text0=-1", "" },
+                    { 0, "continue", "", "skip=1" },
+                    { 0, "talk",     "text0=-2", "" },
+                    { 0, "end",      "", "" } }, error));
+
+    FakeSight sight;
+    sight.states[uint32(owner.Intern("skip"))] = 1;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight);
+    REQUIRE(ran.size() == 2);
+    CHECK(ran[0] == 1);
+    CHECK(ran[1] == 1);
+    CHECK(frame.Finished());
+}
+
+TEST(MaiRunner_ALoopThatGetsNowhereCannotTakeTheServerWithIt)
+{
+    // The one guarantee that is not about fidelity. mangosd has one world
+    // thread, and a `while` in a table row must not be able to stop it: the
+    // frame spends a tick's worth of steps, says so, keeps its place, and the
+    // tick goes on.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "while", "", "spin=1" },
+                    { 0, "talk",  "text0=-1", "" },
+                    { 0, "end",   "", "" } }, error));
+
+    FakeSight sight;
+    sight.states[uint32(owner.Intern("spin"))] = 1;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    bool exhausted = false;
+    std::vector<std::size_t> ran = Ran(sequence, frame, 0, &sight, &exhausted);
+
+    CHECK(exhausted);
+    CHECK(!ran.empty());
+    CHECK(ran.size() <= std::size_t(mai::MaxStepsPerTick));
+    CHECK(!frame.Finished());
+
+    // And the next tick picks it up rather than starting over.
+    ran = Ran(sequence, frame, 0, &sight, &exhausted);
+    CHECK(exhausted);
+    CHECK(!ran.empty());
+}
+
+TEST(MaiRunner_NoControlVerbIsEverHandedToWhateverRunsSteps)
+{
+    // A branch is not a thing that happens in the world. If one ever left the
+    // runner it would reach Execute, find no body for `end`, and log a puzzle.
+    mai::RuleSet owner;
+    mai::Sequence sequence;
+    std::string error;
+
+    REQUIRE(Build(sequence, owner,
+                  { { 0, "if",       "", "phase=1" },
+                    { 0, "repeat",   "times=2", "" },
+                    { 0, "continue", "", "never=1" },
+                    { 0, "break",    "", "never=1" },
+                    { 0, "talk",     "text0=-1", "" },
+                    { 0, "end",      "", "" },
+                    { 0, "else",     "", "" },
+                    { 0, "talk",     "text0=-2", "" },
+                    { 0, "end",      "", "" } }, error));
+
+    FakeSight sight;
+    sight.states[uint32(owner.Intern("phase"))] = 1;
+
+    mai::Frame frame;
+    frame.sequence = &sequence;
+
+    mai::Runner run(frame, 0, &sight);
+    std::size_t handed = 0;
+    while (mai::Step const* step = run.Next())
+    {
+        CHECK(!mai::IsControl(step->action));
+        ++handed;
+    }
+
+    CHECK_EQ(int(handed), 2);
 }

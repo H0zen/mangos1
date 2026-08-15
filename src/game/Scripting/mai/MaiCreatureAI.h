@@ -27,6 +27,7 @@
 #define MANGOS_MAI_CREATURE_AI_H
 
 #include "MaiActor.h"
+#include "MaiGuard.h"
 #include "MaiRule.h"
 #include "MaiScript.h"
 
@@ -65,7 +66,17 @@
  */
 namespace mai
 {
-    class MaiCreatureAI : public CreatureAI, public Driver
+    /**
+     * Three interfaces, and each of them is somebody else's question.
+     *
+     * CreatureAI is the world's -- what happened. Driver is a verb's -- carry
+     * this out, since only the AI object can. Sight is the runner's, and it is
+     * the newest: a guard on a step is decided where the states, the phase and
+     * the victim are, which is here, while the deciding itself is done in
+     * MaiRunner, which must be able to run with no creature at all. One
+     * question, `Ask`, is the whole of what crosses that line.
+     */
+    class MaiCreatureAI : public CreatureAI, public Driver, public Sight
     {
         public:
             /// @a rules may be null: an entry bound to MAI with no rows is not
@@ -112,6 +123,12 @@ namespace mai
                              ObjectGuid target) override;
 
             bool IsVisible(Unit* who) const override;
+
+            /// Sight: the number a guard is asking about, or false when this
+            /// creature is somewhere the question cannot be asked -- outside
+            /// an instance, with nobody to look at. See MaiGuard.h for why
+            /// that is not the same as an answer of zero.
+            bool Ask(Guard const& guard, uint32& held) const override;
 
             /// A player accepted or handed in a quest to this creature. Not a
             /// CreatureAI callback -- the world has never had one -- so the

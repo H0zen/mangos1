@@ -479,3 +479,69 @@ category quest = 0x14
     quest_event             119   quest:quest all:bool?
     cast_event              120   creature:creature spell:spell all:bool?
     killed_monster          121   creature:creature
+
+# The other two structures of a program, and nothing beyond them.
+#
+# A sequence was already the first: steps in order, each with a time. What the
+# table had no way to say was selection and iteration -- and it was faking both
+# in six different columns. `chance` is a probabilistic `if`; `select_else` is
+# an if-else about a target; the `random_step` flag is a switch; `retry` is a
+# do-while; and a sequence that starts itself is a loop with no exit. Six
+# decisions, six meanings to remember, none of them nameable in the row that
+# uses them.
+#
+# These seven are those two structures written once. They take no parameters
+# to speak of, because the CONDITION is not a parameter of the verb: it goes in
+# the row's `guard` column, in the same language a rule's guard has always been
+# written in -- `phase=2 enraged=0`, one comparison against one remembered
+# number, all of them holding.
+#
+# WHAT HAPPENS TO THEM. Nothing here reaches the world. MaiCompile resolves
+# every one of them into a jump before the script is ever run, refuses a script
+# whose blocks do not balance, and the runner walks the jumps -- so a branch
+# costs an index and cannot be got wrong at run time, and a mismatched `end` is
+# a load error naming the row rather than a creature standing still on a live
+# server.
+#
+# NO CALL, NO RETURN, NO EXPRESSION, NO `or`. The line MaiScript.h has drawn
+# from the first commit is unchanged: when an encounter needs more than
+# sequence, selection and iteration over the verbs above, it is a program and
+# belongs in C++. Moving that line once, deliberately, is the opposite of
+# eroding it one operator at a time.
+category control = 0x17
+    # Run what follows only while the row's `guard` holds. `else` is optional
+    # and there is no `else if`: nest a second `if`, which is what an `else if`
+    # is anyway and reads the same in a table.
+    if                      152
+    else                    153
+
+    # Closes whichever block is open -- an `if`, a `repeat` or a `while`. One
+    # word rather than three, because the compiler has the stack and an author
+    # counting `end_if` against `end_loop` is an author being asked to do the
+    # compiler's job.
+    #
+    # ON A LOOP, ITS `at_ms` IS THE PERIOD OF ONE TURN. That is the whole of
+    # how a loop is timed: the clock is rewound by `end`'s time less the body's
+    # first, so what an author writes is one turn and what runs is that turn
+    # repeated. `repeat times=3` with the body at 0 and the `end` at 1000 is
+    # three casts a second apart.
+    end                     154
+
+    # A bounded loop, and the one to reach for. `times` is a number the row
+    # states, so how long the loop can run is known when it LOADS -- which is
+    # the property that lets a script still be printed without being run.
+    repeat                  155   times:u32
+
+    # An unbounded one, for when the number is not knowable: "while anything of
+    # mine is still alive". Bounded by its guard and by nothing else, which is
+    # why the fuel in MaiRunner exists: a `while` whose body takes no time and
+    # whose guard never turns false cannot be told apart at load from the same
+    # loop over a guard the body is about to change, so it is not refused --
+    # it is capped per tick and reported.
+    while                   156
+
+    # Out of the innermost loop, and back to the top of it. Both take a guard,
+    # which is the one-line form: `break` guarded by `adds=0` is what would
+    # otherwise be an `if` block wrapped round it.
+    break                   157
+    continue                158

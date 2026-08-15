@@ -30,6 +30,7 @@
 #include "MaiScript.h"
 
 #include <string>
+#include <vector>
 
 /**
  * Reading a step back out of the table.
@@ -67,12 +68,24 @@ namespace mai
                RuleSet& owner, std::string& error);
 
     /**
-     * A rule's guard: `enraged=0`, or `kills>=3 phase!=2`.
+     * A guard: `enraged=0`, or `kills>=3 phase!=2`.
      *
      * All of them must hold. The operators are the six a comparison has and
      * nothing else -- see Guard in MaiScript.h for why there is deliberately
      * no `or` and no nesting.
+     *
+     * ONE PARSER FOR TWO PLACES. This was a rule's column and is now also a
+     * step's, which is what makes `if` a verb rather than a feature: the row
+     * that decides whether a whole rule fires and the row that decides whether
+     * one step runs say the same thing the same way. @a owner is where a bare
+     * name is interned and may be null -- a sequence the world starts has no
+     * creature, so a guard about a creature's memory is refused there rather
+     * than being quietly read as zero.
      */
+    bool ParseGuards(char const* text, std::vector<Guard>& out, RuleSet* owner,
+                     std::string& error);
+
+    /// The same, appending to a rule's own guards.
     bool ParseGuards(char const* text, Rule& out, RuleSet& owner,
                      std::string& error);
 }
