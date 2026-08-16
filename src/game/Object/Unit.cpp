@@ -525,12 +525,23 @@ void Unit::WriteMovementInfo(ByteBuffer& out) const
         // branch below had always taken its numbers from Where().
         MovementInfo ashore = m_movementInfo;
         ashore.ChangePosition(Where().X(), Where().Y(), Where().Z(), Where().Facing());
+        if (!HasCourseOnWire())
+        {
+            // The flag is a promise that a spline block follows. Do not make it on a
+            // packet that carries none, and do not make it for a course that ended --
+            // see HasCourseOnWire.
+            ashore.RemoveMovementFlag(MOVEFLAG_SPLINE_ENABLED);
+        }
         ashore.Write(out);
         return;
     }
 
     MovementInfo onDeck = m_movementInfo;
     onDeck.AddMovementFlag(MOVEFLAG_ONTRANSPORT);
+    if (!HasCourseOnWire())
+    {
+        onDeck.RemoveMovementFlag(MOVEFLAG_SPLINE_ENABLED);
+    }
     onDeck.SetTransportData(vessel->GetObjectGuid(), Where().X(), Where().Y(), Where().Z(),
                             Where().Facing(), 0);
     onDeck.ChangePosition(0.0f, 0.0f, 0.0f, Where().Facing());

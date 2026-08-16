@@ -307,8 +307,11 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint8 updateFlags) const
         *data << float(unit->GetSpeed(MOVE_FLIGHT_BACK));
         *data << float(unit->GetSpeed(MOVE_TURN_RATE));
 
-        // 0x08000000
-        if (unit->m_movementInfo.GetMovementFlags() & MOVEFLAG_SPLINE_ENABLED)
+        // 0x08000000 -- and asked of the course, not of the flag alone. The flag
+        // outlives the course it was raised for, and a block written from an ended
+        // course carries a count of zero, which the client reads as "leave the array
+        // alone" and later copies as a length out of whatever was there.
+        if (unit->HasCourseOnWire())
         {
             // From the PLAN. The old builder walked the spline's internal control
             // array -- the path plus the two phantom controls a Catmull-Rom

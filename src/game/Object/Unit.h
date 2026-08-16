@@ -3985,6 +3985,32 @@ class Unit : public WorldObject
          * client had not drawn it.
          */
         Helm::Course const& CurrentCourse() const { return m_course; }
+
+        /**
+         * @brief IS THERE A SPLINE TO PUT ON THE WIRE? The flag and the block must
+         *        agree, and this is the one fact both of them ask.
+         *
+         * MOVEFLAG_SPLINE_ENABLED is what tells a client to go and read a spline block,
+         * and it is set when a course starts and cleared when the unit's own update
+         * notices it ended. Between those two the flag outlives the course, and every
+         * writer that trusted the flag alone put a lie on the wire:
+         *
+         *   - a create block wrote the flag and then a block of ZERO points. The
+         *     client's reader only fills its point array when the count is non-zero, so
+         *     zero leaves the array untouched; whatever was in that memory is then
+         *     copied as a length and handed to the allocator. A crash asking for
+         *     4294967192 bytes is that length read as -26.
+         *   - a heartbeat wrote the flag and NO block at all, because heartbeats never
+         *     carry one. The client then reads a spline out of a structure that ends
+         *     eighty-eight bytes in.
+         *
+         * A course with fewer than two points cannot be travelled and is not one.
+         */
+        bool HasCourseOnWire() const
+        {
+            return m_movementInfo.HasMovementFlag(MOVEFLAG_SPLINE_ENABLED) &&
+                   !m_course.Empty();
+        }
         void SetCourse(Helm::Course const& course) { m_course = course; }
 
         /// Is a leg running right now? False when there is none, and false the instant
