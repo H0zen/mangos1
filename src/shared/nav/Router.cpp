@@ -46,6 +46,10 @@ namespace Nav
 
         bool Admits(const MoveProfile& profile, const Surface& surface);
 
+        bool SeatAt(const NavStore& store, const MoveProfile& profile,
+                    float x, float y, float z, float tolerance,
+                    CellRef& cell, Surface& surface);
+
         float PathLength2D(const std::vector<Geometry::Vector3>& points)
         {
             float walked = 0.0f;
@@ -201,6 +205,123 @@ namespace Nav
             return false;
         }
 
+        /**
+         * @brief Where a body sits at one place, INCLUDING in open water.
+         *
+         * PickSeat answers with a surface, and a surface is a plane: the floor, or the
+         * skin of a lake. That is the whole of what a walker needs and half of what a
+         * swimmer is. A swimming creature is neither on the bottom nor at the top --
+         * it is somewhere in the column between them, and until now nothing could say
+         * so.
+         *
+         * What that cost, measured at the exact place a player watched it: a makrura
+         * at Darkspear Strand hanging at z = -7.03, with the seabed at -11.60 (4.57
+         * below, past the three-yard tolerance) and the water skin at 0.02 (7.06
+         * above, likewise). Neither plane was in reach, so the seat failed, so the
+         * route was OffMesh, so movement fell through to a straight line. When the
+         * creature drifted within three yards of the sand it got a real route seated
+         * on the bottom, and when it drifted off again it did not -- which is a
+         * three-yard alternation, and is exactly the hopping that was reported.
+         *
+         * So: a mover that may be in the water is at home anywhere between the floor
+         * and the skin, and it stays at the depth it is at. No plane to snap to, and
+         * therefore no snap.
+         *
+         * @return false when there is nothing here this mover may use at all.
+         */
+        bool SeatHeight(const NavStore& store, const MoveProfile& profile,
+                        float x, float y, float z, float tolerance,
+                        float& outZ, NavArea& outArea)
+        {
+            CellRef cell;
+            Surface surface;
+            if (SeatAt(store, profile, x, y, z, tolerance, cell, surface))
+            {
+                outArea = AreaOf(surface.area);
+                outZ = surface.z + SeatOffset(profile, outArea);
+                return true;
+            }
+
+            // Nothing within reach of a plane. The column is the remaining answer, and
+            // only for something that can be in it.
+            if (!profile.canSwim || !profile.Admits(NavArea::Water))
+            {
+                return false;
+            }
+
+            const CellRef at = CellAt(x, y);
+            if (!at.Valid())
+            {
+                return false;
+            }
+
+            const std::shared_ptr<const NavTile> tile = store.TileOf(at);
+            if (!tile)
+            {
+                return false;
+            }
+
+            std::vector<Surface> surfaces;
+            tile->SurfacesAt(at.InTile(), surfaces);
+
+            float skin = -std::numeric_limits<float>::max();
+            float floor = std::numeric_limits<float>::max();
+            bool haveSkin = false;
+            bool haveFloor = false;
+
+            for (const Surface& s : surfaces)
+            {
+                if (!s.Valid() || !profile.Fits(s.clearance))
+                {
+                    continue;
+                }
+
+                const NavArea area = AreaOf(s.area);
+                if (area == NavArea::Water)
+                {
+                    if (!profile.Admits(area))
+                    {
+                        continue;
+                    }
+                    haveSkin = true;
+                    skin = std::max(skin, s.z);
+                }
+                else if (area == NavArea::Ground || area == NavArea::Shallow)
+                {
+                    haveFloor = true;
+                    floor = std::min(floor, s.z);
+                }
+            }
+
+            if (!haveSkin)
+            {
+                return false;
+            }
+
+            // The bottom of the column. Without a floor recorded here the skin alone
+            // still bounds it from above, and the body simply keeps its depth.
+            const float bottom = haveFloor ? floor + GROUND_CLEARANCE
+                                           : -std::numeric_limits<float>::max();
+            const float top = skin - SWIM_SEAT_DEPTH;
+
+            if (z > skin || (haveFloor && z < floor))
+            {
+                return false;   // out of the water, not in it
+            }
+
+            outArea = NavArea::Water;
+            outZ = z;
+            if (outZ > top)
+            {
+                outZ = top;
+            }
+            if (haveFloor && outZ < bottom)
+            {
+                outZ = bottom;
+            }
+            return true;
+        }
+
         bool SeatAt(const NavStore& store, const MoveProfile& profile,
                     float x, float y, float z, float tolerance,
                     CellRef& cell, Surface& surface)
@@ -221,6 +342,56 @@ namespace Nav
             std::vector<Surface> surfaces;
             tile->SurfacesAt(cell.InTile(), surfaces);
             return PickSeat(profile, surfaces, z, tolerance, surface);
+        }
+
+        /**
+         * @brief The surface of ONE area class at a point, if the mover may use it.
+         *
+         * The seat with a layer named. PickSeat answers "the nearest thing you may
+         * stand on", which is the right question at the start of a route and the
+         * wrong one in the middle of it: on a shelving seabed the nearest alternates
+         * between the floor and the skin every few yards, and a body that follows it
+         * hops. This asks for the layer the body is already on.
+         */
+        bool SeatOnArea(const NavStore& store, const MoveProfile& profile,
+                        float x, float y, float z, float tolerance, NavArea want,
+                        Surface& out)
+        {
+            out = Surface();
+
+            const CellRef cell = CellAt(x, y);
+            if (!cell.Valid())
+            {
+                return false;
+            }
+
+            const std::shared_ptr<const NavTile> tile = store.TileOf(cell);
+            if (!tile)
+            {
+                return false;
+            }
+
+            std::vector<Surface> surfaces;
+            tile->SurfacesAt(cell.InTile(), surfaces);
+
+            float bestGap = tolerance;
+            for (const Surface& surface : surfaces)
+            {
+                if (!surface.Valid() || AreaOf(surface.area) != want ||
+                    !profile.Admits(want) || !profile.Fits(surface.clearance))
+                {
+                    continue;
+                }
+
+                const float gap = std::fabs(z - surface.z);
+                if (gap <= bestGap)
+                {
+                    bestGap = gap;
+                    out = surface;
+                }
+            }
+
+            return out.Valid();
         }
 
         /// May this mover stand on this surface at all? Area and width, and the area half
@@ -375,6 +546,57 @@ namespace Nav
         }
 
         /**
+         * @brief Drop the points that are not a step.
+         *
+         * The wire packs an interior point as a quarter-yard offset from the midpoint
+         * of the run, so two points closer together than that are the SAME point once
+         * they arrive -- and the segment between them has length zero. The client
+         * divides by segment length to walk it.
+         *
+         * They arise honestly: a taut corner and the seated sample beside it can land
+         * a hundredth of a yard apart, and a leg that ends where the next begins is
+         * two points at one place. On the beach at Darkspear Strand a real route came
+         * out with consecutive points 0.01 yards apart.
+         *
+         * The ends are never dropped. The first is where the mover is and the last is
+         * where it was asked to go; a route that quietly stops short of its
+         * destination is a worse answer than a redundant point.
+         */
+        void DropDegenerate(std::vector<Geometry::Vector3>& points)
+        {
+            if (points.size() < 3)
+            {
+                return;
+            }
+
+            // One quantisation unit. Below it the wire cannot tell two points apart.
+            const float least = 0.25f;
+
+            std::vector<Geometry::Vector3> kept;
+            kept.reserve(points.size());
+            kept.push_back(points.front());
+
+            for (size_t i = 1; i + 1 < points.size(); ++i)
+            {
+                if (Dist2D(kept.back(), points[i]) >= least)
+                {
+                    kept.push_back(points[i]);
+                }
+            }
+
+            // And the destination, unless the point before it is already there -- in
+            // which case that one goes instead, because the destination is the one
+            // that has to survive.
+            if (kept.size() > 1 && Dist2D(kept.back(), points.back()) < least)
+            {
+                kept.pop_back();
+            }
+            kept.push_back(points.back());
+
+            points.swap(kept);
+        }
+
+        /**
          * @brief Put the floor under a long taut run.
          *
          * Polyanya's points are the turns. A maximal rectangle can be hundreds of yards
@@ -393,6 +615,29 @@ namespace Nav
             std::vector<Geometry::Vector3> seated;
             seated.reserve(points.size());
             seated.push_back(points.front());
+
+            // WHICH LAYER THE BODY IS ON, carried from the point before.
+            //
+            // Without it the seat is chosen per sample by "nearest surface", and on a
+            // shelving seabed the nearest one alternates: floor, skin, floor, skin,
+            // every four yards. What that looks like in the client is a makrura
+            // hopping its way across a bay -- observed, on Darkspear Strand, and it is
+            // the very failure the old flat ban on the water skin was there to
+            // prevent.
+            //
+            // A mover changes layer when the one it is on runs out, and not because
+            // the sand dipped. Once swimming it keeps swimming until there is floor
+            // shallow enough to stand on; once walking it keeps walking.
+            NavArea carried = NavArea::Blocked;
+            {
+                CellRef cell;
+                Surface surface;
+                if (SeatAt(store, profile, points.front().x, points.front().y,
+                           points.front().z, tolerance + CELL_SIZE, cell, surface))
+                {
+                    carried = AreaOf(surface.area);
+                }
+            }
 
             for (size_t i = 1; i < points.size(); ++i)
             {
@@ -429,6 +674,23 @@ namespace Nav
                     if (SeatAt(store, profile, p.x, p.y, p.z,
                                tolerance + CELL_SIZE, cell, surface))
                     {
+                        const NavArea here = AreaOf(surface.area);
+
+                        // Staying on the layer costs nothing to ask for and is what
+                        // stops the hop. Only when the carried layer is not here at
+                        // all does the body change what it is riding.
+                        Surface same;
+                        if (carried != NavArea::Blocked && here != carried &&
+                            SeatOnArea(store, profile, p.x, p.y, p.z,
+                                       tolerance + CELL_SIZE, carried, same))
+                        {
+                            surface = same;
+                        }
+                        else
+                        {
+                            carried = here;
+                        }
+
                         p.z = surface.z + SeatOffset(profile, AreaOf(surface.area));
                     }
 
@@ -590,12 +852,67 @@ namespace Nav
         CellRef endCell;
         Surface endSurface;
 
-        const bool haveStart =
+        bool haveStart =
             SeatAt(m_store, request.profile, request.start.x, request.start.y,
                    request.start.z, request.seatTolerance, startCell, startSurface);
-        const bool haveEnd =
+        bool haveEnd =
             SeatAt(m_store, request.profile, request.end.x, request.end.y,
                    request.end.z, request.seatTolerance, endCell, endSurface);
+
+        // A swimmer hanging in open water is on neither plane, and the two lines above
+        // only know planes. Rather than call that "no ground", ask whether the point is
+        // in the column -- and if it is, stand on the water the way the search already
+        // lets it: the Water surface of this cell is the ground it is using.
+        //
+        // This is the difference between a creature that can be pathed and one that
+        // falls through to a straight line every time it drifts more than three yards
+        // off the sand.
+        const auto standOnColumn = [&](const Geometry::Vector3& where, CellRef& cell,
+                                       Surface& surface)
+        {
+            float seatZ = 0.0f;
+            NavArea area = NavArea::Ground;
+            if (!SeatHeight(m_store, request.profile, where.x, where.y, where.z,
+                            request.seatTolerance, seatZ, area) ||
+                area != NavArea::Water)
+            {
+                return false;
+            }
+
+            cell = CellAt(where.x, where.y);
+            if (!cell.Valid())
+            {
+                return false;
+            }
+
+            const std::shared_ptr<const NavTile> tile = m_store.TileOf(cell);
+            if (!tile)
+            {
+                return false;
+            }
+
+            std::vector<Surface> surfaces;
+            tile->SurfacesAt(cell.InTile(), surfaces);
+            for (const Surface& s : surfaces)
+            {
+                if (s.Valid() && AreaOf(s.area) == NavArea::Water &&
+                    Admits(request.profile, s))
+                {
+                    surface = s;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if (!haveStart)
+        {
+            haveStart = standOnColumn(request.start, startCell, startSurface);
+        }
+        if (!haveEnd)
+        {
+            haveEnd = standOnColumn(request.end, endCell, endSurface);
+        }
 
         if (!haveStart || !haveEnd)
         {
@@ -638,6 +955,12 @@ namespace Nav
             // caps measure it, so a flee ceiling and a point budget see the walked
             // ground rather than the chord.
             SeatLongLegs(m_store, request.profile, request.seatTolerance, out.points);
+
+            // Before anything measures or sends them: a zero-length segment is a
+            // division by zero on the client, and seating a taut corner can put two
+            // points a hundredth of a yard apart. Also before the caps, so the count
+            // a budget sees is the count that will go out.
+            DropDegenerate(out.points);
 
             // THE LENGTH CAP, measured in yards over the points actually emitted. It is
             // the only place it can be measured: a point stands for a corner, so the
