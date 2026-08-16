@@ -527,7 +527,7 @@ class WorldSession
         Helm::ClientClock& CourseClock() { return m_courseClock; }
         Helm::ClientClock const& CourseClock() const { return m_courseClock; }
         void PushTimeSyncSample(int64 clockDelta, uint32 roundTrip);
-        void AdjustMovementInfoTime(MovementInfo& mi);
+        void AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt);
         uint32 getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus);
 
         // Misc
@@ -662,7 +662,7 @@ class WorldSession
 
         /// Shared tail of the forced-state ACKs (root, water walk, hover, feather fall):
         /// time-adjust, verify and relocate from the pose the client applied the state at.
-        void ApplyStateAck(MovementInfo& movementInfo);
+        void ApplyStateAck(MovementInfo& movementInfo, uint32 receivedAt);
 
         /// Snap the mover's client back onto the last pose the server accepted, after a
         /// movement packet was rejected. Rate limited, and a no-op for a boarded mover.

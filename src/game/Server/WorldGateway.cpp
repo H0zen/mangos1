@@ -11,6 +11,7 @@
 #include "Log.h"
 #include "OpcodeTable.h"
 #include "SessionMailbox.h"
+#include "Utilities/Timer.h"
 #include "SharedDefines.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -235,7 +236,16 @@ void WorldGateway::Deliver(proto::SessionId session, WorldPacket&& packet)
         mailbox = route->second;
     }
 
-    mailbox->Enqueue(std::make_unique<WorldPacket>(std::move(packet)));
+    // THE ARRIVAL, TAKEN HERE AND NOWHERE ELSE. This runs on the network thread, the
+    // same place CMSG_TIME_SYNC_RESP is timed, so a stamp taken now is comparable with
+    // the clock offset that sync produces. Taken in the handler instead it would already
+    // include the wait in the mailbox, and every measurement built on it would quietly
+    // fold that wait into the network.
+    std::unique_ptr<WorldPacket> carried =
+        std::make_unique<WorldPacket>(std::move(packet));
+    carried->SetReceivedAt(getMSTime());
+
+    mailbox->Enqueue(std::move(carried));
 }
 
 void WorldGateway::Detach(proto::SessionId session)

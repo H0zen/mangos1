@@ -407,7 +407,8 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
 
     // TIME_SYNC offset (m_clientTimeDelay) + MovementPacketDelay playout.
     const uint32 rawClientTime = movementInfo.GetTime();
-    AdjustMovementInfoTime(movementInfo);
+    const uint32 arrivedAt = recv_data.GetReceivedAt();
+    AdjustMovementInfoTime(movementInfo, arrivedAt);
 
     if (!VerifyMovementInfo(movementInfo))
     {
@@ -432,14 +433,20 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
         plMover->UpdateFallInformationIfNeed(movementInfo, opcode);
     }
 
-    // Set LogFilter_PlayerMoves = 0 to see it. Three columns settle every argument we have
-    // had about this path: `srv` deltas are the real relay cadence, `wire` must never go
-    // backwards for one mover or the observer repositions it, and `cli`->`wire` shows what
-    // the session offset actually did.
+    // Set LogFilter_PlayerMoves = 0 to see it. Every argument we have had about this path
+    // is settled by these columns: `wire` must never go backwards for one mover or the
+    // observer repositions it; `wire` minus `srv` is the cushion the stamp still carries
+    // when it is relayed, and an observer whose clock passes the stamp stops moving the
+    // unit entirely rather than interpolating toward it; and `q` is the wait between the
+    // packet landing on the network thread and this line running, which is what that
+    // cushion is actually being spent on.
+    const uint32 relayedAt = getMSTime();
     DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES,
-                     "MOVE %-26s %s cli=%u wire=%u srv=%u xyz=%.2f %.2f %.2f",
+                     "MOVE %-26s %s cli=%u wire=%u srv=%u arr=%u q=%d "
+                     "xyz=%.2f %.2f %.2f",
                      LookupOpcodeName(opcode), mover->GetName(),
-                     rawClientTime, movementInfo.GetTime(), getMSTime(),
+                     rawClientTime, movementInfo.GetTime(), relayedAt, arrivedAt,
+                     arrivedAt ? int32(relayedAt - arrivedAt) : -1,
                      movementInfo.GetPos()->x, movementInfo.GetPos()->y,
                      movementInfo.GetPos()->z);
 
@@ -624,7 +631,7 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recv_data)
     recv_data >> Unused<uint32>();                          // knockback packets counter
     movementInfo.Read(recv_data);
 
-    AdjustMovementInfoTime(movementInfo);
+    AdjustMovementInfoTime(movementInfo, recv_data.GetReceivedAt());
 
     /* Make sure input is valid */
     if (!VerifyMovementInfo(movementInfo, guid))
@@ -687,7 +694,7 @@ void WorldSession::HandleMoveHoverAck(WorldPacket& recv_data)
     recv_data >> movementInfo;
     recv_data >> Unused<uint32>();                          // unk2
 
-    ApplyStateAck(movementInfo);
+    ApplyStateAck(movementInfo, recv_data.GetReceivedAt());
 }
 
 /**
@@ -706,7 +713,7 @@ void WorldSession::HandleMoveWaterWalkAck(WorldPacket& recv_data)
     recv_data >> movementInfo;
     recv_data >> Unused<uint32>();                          // unk2
 
-    ApplyStateAck(movementInfo);
+    ApplyStateAck(movementInfo, recv_data.GetReceivedAt());
 }
 
 /**
@@ -749,7 +756,7 @@ void WorldSession::ResyncMover()
  *
  * @param movementInfo The movement state carried by the acknowledgement.
  */
-void WorldSession::ApplyStateAck(MovementInfo& movementInfo)
+void WorldSession::ApplyStateAck(MovementInfo& movementInfo, uint32 receivedAt)
 {
     // The client has APPLIED the state and is reporting the pose and flags it applied it at.
     // Knockback was the only ACK that ever believed it; the rest read the struct and dropped
@@ -764,7 +771,7 @@ void WorldSession::ApplyStateAck(MovementInfo& movementInfo)
         return;
     }
 
-    AdjustMovementInfoTime(movementInfo);
+    AdjustMovementInfoTime(movementInfo, receivedAt);
 
     if (VerifyMovementInfo(movementInfo))
     {

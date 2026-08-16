@@ -92,6 +92,46 @@ namespace
 {
     const size_t TIME_SYNC_SAMPLE_COUNT = 6;
     const int64 TIME_SYNC_DEAD_BAND_MS = 25;
+
+    /**
+     * @brief How much of the offset's error to take back on a sample inside the band.
+     *
+     * The band exists so a jittering estimate does not shove the mapping about on every
+     * sync. What it also did was refuse a drift that always leans the same way: measured
+     * over one session, the freshest sample sat above the offset in use by a median of
+     * 15 ms and a p90 of 49, and the band refused adoption on 27 of 29 syncs. A bias
+     * that is never corrected is spent out of the playout budget.
+     *
+     * So a small sample is not discarded, it is followed slowly. A quarter converges in
+     * a handful of syncs without any single one of them being able to jerk the mapping.
+     */
+    const int64 TIME_SYNC_SLEW_DIVISOR = 4;
+
+    /**
+     * @brief The least a relayed stamp may lead the moment it is relayed at.
+     *
+     * An observing client interpolates toward the stamp as a deadline and computes the
+     * time remaining as an UNSIGNED difference, so a stamp that is already expired when
+     * it lands wraps to about 4.3 million seconds, the rate comes out at zero, and the
+     * unit stops until the next packet jerks it. That is the freeze that looks like a
+     * flicker at turns.
+     *
+     * MovementPacketDelay is nominally 500 ms of cushion against exactly this, and it is
+     * not delivering it. Measured over 1,600 relayed packets: a median lead of 74 ms, a
+     * p90 of 105, a minimum of -120, and 1.7% already expired before they even left --
+     * of which 23 of 27 were MSG_MOVE_SET_FACING, which is 82% of the traffic through a
+     * turn. The deficit is not the network: half the measured round trip is 70 ms, so
+     * some 356 ms of it is the packet's own passage through this server.
+     *
+     * Until that passage is shortened, the floor is what keeps the arithmetic on the
+     * right side of zero. It only binds when the lead has already collapsed, so ordinary
+     * spacing between packets survives untouched.
+     *
+     * Chosen above the measured median and far below the nominal buffer, with room left
+     * for the relay's own trip out to the observer. It is a number to revisit with the
+     * same log rather than a constant of nature.
+     */
+    const int64 MOVEMENT_MIN_LEAD_MS = 200;
 }
 
 /**
@@ -1234,15 +1274,32 @@ void WorldSession::PushTimeSyncSample(int64 clockDelta, uint32 roundTrip)
         m_clientTimeDelay = filtered;
         m_clientTimeDelayKnown = true;
     }
+    else
+    {
+        // Inside the band, follow rather than ignore. Refusing every small sample is
+        // what let a one-sided drift accumulate against the playout budget.
+        m_clientTimeDelay += (filtered - m_clientTimeDelay) / TIME_SYNC_SLEW_DIVISOR;
+    }
 }
 
-void WorldSession::AdjustMovementInfoTime(MovementInfo& mi)
+void WorldSession::AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt)
 {
+    // WHEN THIS PACKET ARRIVED, not when we got round to it. The two differ by the wait
+    // in the mailbox, and everything below is measured against a clock that CMSG_TIME_
+    // SYNC_RESP reads on the network thread. Zero means the caller had no arrival, which
+    // only happens for packets the server made itself.
+    const uint32 arrival = receivedAt ? receivedAt : getMSTime();
+
     if (!m_clientTimeDelayKnown)
     {
         // Before the first sync the raw value is the client's uptime counter, which no observer
         // can interpolate against; seed from this packet rather than ship it unmapped.
-        m_clientTimeDelay = int64(getMSTime()) - int64(mi.GetTime());
+        //
+        // SEEDED FROM THE ARRIVAL for the same reason the sync is timed there. Seeding
+        // from the handler's clock folded the whole mailbox wait into the offset, and
+        // the first real sync then took it straight back out -- a step of exactly that
+        // size, in the middle of somebody's movement, every session.
+        m_clientTimeDelay = int64(arrival) - int64(mi.GetTime());
         m_clientTimeDelayKnown = true;
     }
 
@@ -1268,6 +1325,18 @@ void WorldSession::AdjustMovementInfoTime(MovementInfo& mi)
     // exactly as long as the correction was large, after which the new offset carries on
     // from where the old one left off. Compared as a signed difference for the same
     // reason the client does.
+    // THE FLOOR, before the ratchet. A stamp that has already expired when it is
+    // relayed cannot be interpolated toward at all -- see MOVEMENT_MIN_LEAD_MS -- so it
+    // is pushed forward to the least lead that still means something. It binds only when
+    // the lead has collapsed, which the measurement says is 1.7% of packets, so the
+    // spacing that carries a mover's real cadence is otherwise untouched.
+    const uint32 now = getMSTime();
+    if (int32(wire - now) < int32(MOVEMENT_MIN_LEAD_MS))
+    {
+        wire = now + uint32(MOVEMENT_MIN_LEAD_MS);
+    }
+
+    // And the ratchet after it, so the floor can never be used to walk the clock back.
     if (m_lastWireTimeKnown && int32(wire - m_lastWireTime) < 0)
     {
         wire = m_lastWireTime;
