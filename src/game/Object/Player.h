@@ -4210,6 +4210,7 @@ class Player : public Unit
         uint32 m_zoneUpdateTimer; // Zone update timer
         uint32 m_areaUpdateId; // Area update ID
         uint32 m_positionStatusUpdateTimer; // Position status update timer
+        uint32 m_movingHeartbeat;           // countdown to the next observer heartbeat
 
         uint32 m_deathTimer; // Death timer
         time_t m_deathExpireTime; // Death expire time

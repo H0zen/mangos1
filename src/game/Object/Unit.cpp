@@ -564,6 +564,15 @@ void Unit::SendHeartBeat()
     SendMessageToSet(&data, true);
 }
 
+void Unit::SendHeartBeatToObservers()
+{
+    m_movementInfo.UpdateTime(MovementStreamTime());
+    WorldPacket data(MSG_MOVE_HEARTBEAT, 64);
+    data << GetPackGUID();
+    WriteMovementInfo(data);
+    SendMessageToSet(&data, false);
+}
+
 /**
  * @brief Resets an attack timer based on attack speed modifiers.
  *

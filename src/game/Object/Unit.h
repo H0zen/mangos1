@@ -792,6 +792,17 @@ enum MovementFlags
  * the three and the client pins it -- which is the intended state and the reason to have
  * the rule written down under one name instead of spelled out at each site.
  */
+/**
+ * @brief The bits that mean a unit is under its own power right now.
+ *
+ * An observing client extrapolates a remote unit along these between packets; with none
+ * of them set it draws the unit standing. So they are also the test for "is this mover
+ * worth telling anyone about again before its next packet arrives".
+ */
+MovementFlags const movementFlagsSelfPropelled = MovementFlags(
+    MOVEFLAG_FORWARD | MOVEFLAG_BACKWARD | MOVEFLAG_STRAFE_LEFT |
+    MOVEFLAG_STRAFE_RIGHT | MOVEFLAG_TURN_LEFT | MOVEFLAG_TURN_RIGHT);
+
 MovementFlags const movementFlagsUnpinnedFromGround = MovementFlags(
     MOVEFLAG_SWIMMING | MOVEFLAG_FLYING2 | MOVEFLAG_LEVITATING
     );
@@ -3089,6 +3100,15 @@ class Unit : public WorldObject
          * in the same \ref Cell
          */
         void SendHeartBeat();
+
+        /**
+         * @brief The same heartbeat, to everyone except the unit itself.
+         *
+         * A mover predicts its own position and is the authority on it until the server
+         * disagrees; sending it our copy invites it to correct towards a position it had
+         * already passed. Observers are the ones with nothing better to go on.
+         */
+        void SendHeartBeatToObservers();
 
         /// Serialise this unit's movement AS THE WIRE MUST SEE IT. Decided here, at the
         /// instant of writing, from the map: aboard a vessel our coordinates are that

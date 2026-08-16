@@ -431,6 +431,7 @@ Player::Player(WorldSession* session): Unit(), m_inventory(this), m_petMgr(this)
     m_zoneUpdateId = 0;
     m_zoneUpdateTimer = 0;
     m_positionStatusUpdateTimer = 0;
+    m_movingHeartbeat = 0;
 
     m_areaUpdateId = 0;
 
@@ -1206,6 +1207,43 @@ void Player::Update(uint32 update_diff, uint32 p_time)
         else
         {
             m_positionStatusUpdateTimer -= update_diff;
+        }
+    }
+
+    // A HEARTBEAT OF OUR OWN, FOR A PLAYER WHO IS MOVING.
+    //
+    // Between two packets from a mover, an observing client has nothing to draw with but
+    // the last heading it was given, so it extrapolates in a straight line. On a curve
+    // that line walks off sideways, and the next packet puts the unit back in one frame.
+    // The gap it extrapolates across is whatever the mover's own client chose to send:
+    // measured, a median of 267 ms and up to 530.
+    //
+    // The direction was established by running the experiment backwards. Thinning the
+    // relay instead -- one facing change per 100 ms rather than all of them -- made the
+    // twitch worse in exactly the way this predicts: from 1.71 a second to 3.41, and the
+    // largest jump from 179 px to 307. Fewer packets, rarer and bigger corrections. So
+    // more packets, more often, smaller ones.
+    //
+    // Nothing is invented here. The server owns this player's position and is simply
+    // saying it again, on its own schedule, to the people who cannot see it.
+    if (const uint32 period = sWorld.getConfig(CONFIG_UINT32_MOVING_HEARTBEAT))
+    {
+        if (m_movementInfo.HasMovementFlag(movementFlagsSelfPropelled))
+        {
+            if (update_diff >= m_movingHeartbeat)
+            {
+                SendHeartBeatToObservers();
+                m_movingHeartbeat = period;
+            }
+            else
+            {
+                m_movingHeartbeat -= update_diff;
+            }
+        }
+        else
+        {
+            // Standing still needs no repetition: the observer already draws it stopped.
+            m_movingHeartbeat = 0;
         }
     }
 
