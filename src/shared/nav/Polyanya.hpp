@@ -129,6 +129,24 @@ namespace Nav
         /// Refuse to expand more than this many nodes. A budget, not a correctness
         /// device: the answer is optimal or there is no answer.
         uint32_t maxExpansions = 20000;
+
+        /**
+         * @brief A ROUTE THE CALLER ALREADY HAS, so areas that cannot beat it are skipped.
+         *
+         * After Koch & Funke (SoCS 2025): with any real route in hand, every area whose
+         * cheapest possible detour already exceeds it is provably not on the shortest
+         * path and need not be expanded. See `MeshBound.hpp` for the bound and why it
+         * keeps the answer optimal.
+         *
+         * The straight-line heuristic this supplements is at its worst exactly where a
+         * bay or an inlet doubles back -- it pours the search into the water because the
+         * target is on the far shore -- and that is the geometry these tiles are full of.
+         *
+         * MUST BE ACHIEVABLE. A number smaller than the true optimum discards the
+         * optimum. Zero means "none known", which is the honest default and disables the
+         * test entirely.
+         */
+        float upperBound = 0.0f;
     };
 
     struct MeshPath

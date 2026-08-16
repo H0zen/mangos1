@@ -25,6 +25,8 @@
 
 #include "nav/Polyanya.hpp"
 
+#include "nav/MeshBound.hpp"
+
 #include "nav/NavArea.hpp"
 #include "nav/NavGrid.hpp"
 
@@ -195,10 +197,46 @@ namespace Nav
         // "maybe" -- the portal's narrowest is the real filter and is tested beside it.
         // The area is not a bound at all: a rectangle covers cells of exactly one area,
         // so a mover this refuses could not stand anywhere in it.
+        // The rectangle's own footprint in world plan. Cell indices grow as world
+        // coordinates fall, so the low index is the HIGH coordinate, and the outer face
+        // of a border row is half a cell beyond its centre.
+        const auto boxOf = [&](uint32_t rect, float& minX, float& minY,
+                               float& maxX, float& maxY)
+        {
+            const NavRect& r = mesh.rects[rect];
+            maxX = CellCentre(GlobalCell(tile.TileX(), r.x0)) + CELL_SIZE * 0.5f;
+            minX = CellCentre(GlobalCell(tile.TileX(), r.x1)) - CELL_SIZE * 0.5f;
+            maxY = CellCentre(GlobalCell(tile.TileY(), r.y0)) + CELL_SIZE * 0.5f;
+            minY = CellCentre(GlobalCell(tile.TileY(), r.y1)) - CELL_SIZE * 0.5f;
+        };
+
+        // Width AND permission, in the one place every step of the search asks. The width
+        // figure is the rectangle's own, which is an upper bound and can only ever say
+        // "maybe" -- the portal's narrowest is the real filter and is tested beside it.
+        // The area is not a bound at all: a rectangle covers cells of exactly one area,
+        // so a mover this refuses could not stand anywhere in it.
+        //
+        // The third test is the caller's route, if it has one: an area whose cheapest
+        // conceivable detour already loses to a route we hold cannot be on the shortest
+        // one. It is last because it is the only one that costs square roots, and the
+        // two ahead of it reject most of what it would.
         const auto passable = [&](uint32_t rect)
         {
-            return mesh.rects[rect].clearance >= needed &&
-                   query.profile.AdmitsGround(mesh.rects[rect].area);
+            if (mesh.rects[rect].clearance < needed ||
+                !query.profile.AdmitsGround(mesh.rects[rect].area))
+            {
+                return false;
+            }
+
+            if (!(query.upperBound > 0.0f))
+            {
+                return true;
+            }
+
+            float minX = 0.f, minY = 0.f, maxX = 0.f, maxY = 0.f;
+            boxOf(rect, minX, minY, maxX, maxY);
+            return BoxCanCarryPath(start.x, start.y, goal.x, goal.y,
+                                   minX, minY, maxX, maxY, query.upperBound);
         };
 
         if (!passable(static_cast<uint32_t>(startRect)) ||

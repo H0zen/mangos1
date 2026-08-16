@@ -37,6 +37,8 @@ add_library(nav STATIC
     NavBuilder.hpp
     MedialAxis.cpp
     MedialAxis.hpp
+    MeshBound.cpp
+    MeshBound.hpp
     NavGrid.hpp
     NavMesh.cpp
     NavMesh.hpp

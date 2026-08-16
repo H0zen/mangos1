@@ -131,7 +131,7 @@ set(SRC_GRP_TESTS
 # joining of two tiles, and the routing decisions over them. These link `nav` and
 # nothing of the server -- that is the whole reason the profile is a value and the
 # router takes a store rather than a Map.
-list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp
+list(APPEND SRC_GRP_TESTS RouteTest.cpp NavGridTest.cpp NavTileTest.cpp MeshBoundTest.cpp
                           RouterLinkTest.cpp NavBuilderTest.cpp
                           NavPolygonTest.cpp NavMeshTest.cpp PolyanyaTest.cpp
                           MedialAxisTest.cpp ReebGraphTest.cpp)
