@@ -121,6 +121,50 @@ void Creature::SetLevitate(bool enable)
 }
 
 /**
+ * @brief Whether the client should be shown the swim animation.
+ *
+ * THE SAME DISCRIMINANT THE ROUTER SEATS BY, asked again where the packet is sent.
+ * Nav::SeatHeight puts a body with feet on the floor -- on sand, on a seabed, under
+ * thirty yards of ocean if that is where the floor is -- and puts everything else in
+ * the column between the floor and the skin. A body on the floor is walking, whatever
+ * stands above it; a body in the column is swimming. One question in both places is
+ * what stops the route and the animation describing two different creatures.
+ *
+ * A pet is the one walker that rides the surface, because it follows its owner out
+ * over water no floor can reach.
+ *
+ * The walker answers without touching the terrain, which is the whole population that
+ * is relocated every tick and never swims.
+ */
+bool Creature::ShouldSwim() const
+{
+    if (CanWalk() && !RidesWater())
+    {
+        return false;
+    }
+
+    // Any liquid, not only water: an ooze in slime and an elemental in lava are
+    // swimming as far as the client is concerned, and IsInWater asks about all of them.
+    return IsInWater();
+}
+
+/**
+ * @brief Bring the swim flag in line with where the body actually is.
+ *
+ * Called on every relocation. The flag used to be decided once, at spawn, from the
+ * InhabitType and the spawn point -- so a creature that spawned in water carried it
+ * onto dry land for the rest of its life, and one that spawned ashore swam without it.
+ */
+void Creature::UpdateSwimState()
+{
+    const bool swim = ShouldSwim();
+    if (swim != IsSwimming())
+    {
+        SetSwim(swim);
+    }
+}
+
+/**
  * @brief Enables or disables swim movement flags and broadcasts the change.
  *
  * @param enable true to swim; false to stop swimming.

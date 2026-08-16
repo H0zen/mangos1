@@ -581,11 +581,10 @@ bool Creature::InitEntry(uint32 Entry, CreatureData const* data /*=NULL*/, GameE
 
     SetLevitate(cinfo->InhabitType & INHABIT_AIR); // TODO: may not be correct to send opcode at this point (already handled by UPDATE_OBJECT createObject)
 
-    // check if we need to add swimming movement. TODO: i thing movement flags should be computed automatically at each movement of creature so we need a sort of UpdateMovementFlags() method
-    if (cinfo->InhabitType & INHABIT_WATER &&                                   // check inhabit type water
-        data &&                                                                 // check if there is data to get creature spawn pos
-            GetMap()->GetTerrain()->IsInWater(data->posX, data->posY, data->posZ))  // check if creature is in water
-        m_movementInfo.AddMovementFlag(MOVEFLAG_SWIMMING);                      // add swimming movement
+    // The swim flag is NOT decided here. This runs before the creature has a position
+    // -- which is why the old decision read the spawn row instead -- and it runs again
+    // on every entry change. UpdateSwimState answers from where the body is, and
+    // Creature::Create makes the first call once the body is somewhere.
 
     // checked at loading
     m_defaultMovementType = MovementGeneratorType(cinfo->MovementType);
@@ -1176,6 +1175,10 @@ bool Creature::Create(uint32 guidlow, CreatureCreatePos& cPos, CreatureInfo cons
     {
         return false;
     }
+
+    // The first answer, now that there is a body to ask about. Every later one comes
+    // from Map::CreatureRelocation.
+    UpdateSwimState();
 
     // Notify the outdoor pvp script
     if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(GetTerrain()->GetZoneId(Where().X(), Where().Y(), Where().Z())))

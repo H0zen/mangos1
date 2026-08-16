@@ -1352,6 +1352,7 @@ void Map::CreatureRelocation(Creature* creature, float x, float y, float z, floa
         // update pos
         creature->Place().MoveTo(x, y, z, ang);
         creature->m_movementInfo.ChangePosition(x, y, z, ang);
+        creature->UpdateSwimState();
         creature->OnRelocated();
     }
     // if creature can't be move in new cell/grid (not loaded) move it to repawn cell/grid

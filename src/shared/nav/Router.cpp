@@ -78,133 +78,6 @@ namespace Nav
             return GROUND_CLEARANCE;
         }
 
-        /// The surface THIS mover is standing on, from the stacked list at a cell.
-        ///
-        /// Walkers keep the floor (Ground/Shallow), even when a water skin is stacked
-        /// above it. Swim-only movers keep the skin. Among the chosen kind, the nearest
-        /// floor below the body wins -- same rule as NavTile::SurfaceUnder.
-        bool PickSeat(const MoveProfile& profile, const std::vector<Surface>& surfaces,
-                      float z, float tolerance, Surface& out)
-        {
-            out = Surface();
-
-            Surface best;
-            float bestDrop = tolerance;
-            Surface bestAbove;
-            float bestRise = tolerance;
-
-            const bool wantFloor = profile.canWalk;
-
-            for (const Surface& surface : surfaces)
-            {
-                if (!Admits(profile, surface))
-                {
-                    continue;
-                }
-
-                const NavArea area = AreaOf(surface.area);
-                const bool isFloor = (area == NavArea::Ground ||
-                                      area == NavArea::Shallow);
-                if (wantFloor && !isFloor)
-                {
-                    continue;
-                }
-
-                // A mover that does not walk rides whatever LIQUID its profile lets
-                // it into -- and that is more than water. ProfileOf gives a swimming
-                // creature magma and slime as well, in as many words ("creatures take
-                // no environmental damage, so swimming covers the hazards too"), and
-                // this named only water and shallow: every lava-dweller in Blackrock
-                // Depths was admitted to the lava by its mask and then refused a place
-                // to sit on it, so the route came back OffMesh and it could not be
-                // pathed at all.
-                //
-                // `Admits` above has already applied the profile. There is nothing
-                // left for a second, shorter list to add except the chance of
-                // disagreeing with the first.
-                if (!wantFloor && isFloor)
-                {
-                    continue;
-                }
-
-                const float delta = z - surface.z;
-                if (delta >= 0.0f)
-                {
-                    if (delta <= bestDrop)
-                    {
-                        bestDrop = delta;
-                        best = surface;
-                    }
-                }
-                else if (-delta <= bestRise)
-                {
-                    bestRise = -delta;
-                    bestAbove = surface;
-                }
-            }
-
-            if (best.Valid())
-            {
-                out = best;
-                return true;
-            }
-            if (bestAbove.Valid())
-            {
-                out = bestAbove;
-                return true;
-            }
-
-            // Walker, no floor in reach: a swimming amphibian may take the skin.
-            // AdmitsGround refuses Water for walkers (so the search stays on the
-            // floor); seating still needs a place to put the body when the floor
-            // is out of range.
-            if (wantFloor && profile.canSwim)
-            {
-                bestDrop = tolerance;
-                bestRise = tolerance;
-                best = Surface();
-                bestAbove = Surface();
-                for (const Surface& surface : surfaces)
-                {
-                    if (!surface.Valid() ||
-                        AreaOf(surface.area) != NavArea::Water ||
-                        !profile.Admits(NavArea::Water) ||
-                        !profile.Fits(surface.clearance))
-                    {
-                        continue;
-                    }
-
-                    const float delta = z - surface.z;
-                    if (delta >= 0.0f)
-                    {
-                        if (delta <= bestDrop)
-                        {
-                            bestDrop = delta;
-                            best = surface;
-                        }
-                    }
-                    else if (-delta <= bestRise)
-                    {
-                        bestRise = -delta;
-                        bestAbove = surface;
-                    }
-                }
-
-                if (best.Valid())
-                {
-                    out = best;
-                    return true;
-                }
-                if (bestAbove.Valid())
-                {
-                    out = bestAbove;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         /**
          * @brief Where a body sits at one place, INCLUDING in open water.
          *
@@ -229,26 +102,42 @@ namespace Nav
          *
          * @return false when there is nothing here this mover may use at all.
          */
+        /**
+         * @brief WHERE THE BODY SITS. The one answer, and the only one.
+         *
+         * Six functions used to answer this between them -- a nearest-surface pick, a
+         * named-layer pick, a column fallback, an amphibian fallback, a carried layer
+         * to stop the first two disagreeing, and a special case at the ends of a
+         * route. They disagreed, and every disagreement was a creature bobbing.
+         *
+         * THE RULE, in the order it decides:
+         *
+         *   INHABIT DECIDES. `canWalk` is `InhabitType & INHABIT_GROUND` and nothing
+         *   else needs asking.
+         *
+         *   GROUND WINS. A creature with feet stands on the floor -- on sand, on a
+         *   seabed, under thirty yards of ocean if that is where the floor is. A
+         *   makrura does not swim. Carrying the water bit means water does not stop
+         *   it. The tolerance does not apply when it is under a liquid: the seabed is
+         *   not "some other floor" to be careful about, it is the only floor there is.
+         *
+         *   PETS AND PLAYERS RIDE. A pet follows its owner over water no floor can
+         *   reach; a player is client-driven. Those, and creatures with no ground
+         *   inhabit at all, use the liquid -- and in it they KEEP THE DEPTH THEY ARE
+         *   AT, held between the floor and the skin. The skin bounds the column; it is
+         *   not a place to sit. Snapping to it is what put a swimmer two yards under
+         *   the surface however deep it started.
+         *
+         * Because the rule is total, nothing can alternate: a walker never sees a
+         * skin, a swimmer never sees a floor. The hop is not prevented here, it is
+         * unrepresentable.
+         *
+         * @return false when there is nothing here this mover may use.
+         */
         bool SeatHeight(const NavStore& store, const MoveProfile& profile,
                         float x, float y, float z, float tolerance,
                         float& outZ, NavArea& outArea)
         {
-            CellRef cell;
-            Surface surface;
-            if (SeatAt(store, profile, x, y, z, tolerance, cell, surface))
-            {
-                outArea = AreaOf(surface.area);
-                outZ = surface.z + SeatOffset(profile, outArea);
-                return true;
-            }
-
-            // Nothing within reach of a plane. The column is the remaining answer, and
-            // only for something that can be in it.
-            if (!profile.canSwim || !profile.Admits(NavArea::Water))
-            {
-                return false;
-            }
-
             const CellRef at = CellAt(x, y);
             if (!at.Valid())
             {
@@ -264,10 +153,12 @@ namespace Nav
             std::vector<Surface> surfaces;
             tile->SurfacesAt(at.InTile(), surfaces);
 
-            float skin = -std::numeric_limits<float>::max();
-            float floor = std::numeric_limits<float>::max();
-            bool haveSkin = false;
-            bool haveFloor = false;
+            // The floor nearest the body, and the liquid it is under. Gathered once;
+            // which of them answers is the rule above.
+            const Surface* floor = nullptr;
+            const Surface* liquid = nullptr;
+            float floorGap = std::numeric_limits<float>::max();
+            float liquidGap = std::numeric_limits<float>::max();
 
             for (const Surface& s : surfaces)
             {
@@ -277,49 +168,87 @@ namespace Nav
                 }
 
                 const NavArea area = AreaOf(s.area);
-                if (area == NavArea::Water)
+                const bool isFloor = area == NavArea::Ground ||
+                                     area == NavArea::Shallow;
+
+                if (isFloor)
                 {
                     if (!profile.Admits(area))
                     {
                         continue;
                     }
-                    haveSkin = true;
-                    skin = std::max(skin, s.z);
+                    const float gap = std::fabs(z - s.z);
+                    if (gap < floorGap)
+                    {
+                        floorGap = gap;
+                        floor = &s;
+                    }
                 }
-                else if (area == NavArea::Ground || area == NavArea::Shallow)
+                else
                 {
-                    haveFloor = true;
-                    floor = std::min(floor, s.z);
+                    // AdmitsGround and not Admits: the mask says a makrura may enter
+                    // water, and the rule says a makrura still walks the bottom.
+                    if (!profile.AdmitsGround(s.area))
+                    {
+                        continue;
+                    }
+                    const float gap = std::fabs(z - s.z);
+                    if (gap < liquidGap)
+                    {
+                        liquidGap = gap;
+                        liquid = &s;
+                    }
                 }
             }
 
-            if (!haveSkin)
+            // A walker. The floor, and the tolerance is waived when a liquid stands
+            // over it -- a crab the server has floating eight yards up belongs on the
+            // sand, and refusing to seat it there is what left it unroutable.
+            if (profile.canWalk && floor)
             {
-                return false;
+                if (floorGap <= tolerance || (liquid && z <= liquid->z))
+                {
+                    outArea = AreaOf(floor->area);
+                    outZ = floor->z + GROUND_CLEARANCE;
+                    return true;
+                }
             }
 
-            // The bottom of the column. Without a floor recorded here the skin alone
-            // still bounds it from above, and the body simply keeps its depth.
-            const float bottom = haveFloor ? floor + GROUND_CLEARANCE
+            // Anything else that may be in the liquid keeps its depth there.
+            if (liquid && z <= liquid->z)
+            {
+                const float top = liquid->z - SWIM_SEAT_DEPTH;
+                const float bottom = floor ? floor->z + GROUND_CLEARANCE
                                            : -std::numeric_limits<float>::max();
-            const float top = skin - SWIM_SEAT_DEPTH;
 
-            if (z > skin || (haveFloor && z < floor))
-            {
-                return false;   // out of the water, not in it
+                outArea = AreaOf(liquid->area);
+                outZ = z;
+                if (outZ > top)
+                {
+                    outZ = top;
+                }
+                if (floor && outZ < bottom)
+                {
+                    outZ = bottom;
+                }
+                return true;
             }
 
-            outArea = NavArea::Water;
-            outZ = z;
-            if (outZ > top)
+            // Out of the water: whichever of the two is in reach, floor first.
+            if (floor && floorGap <= tolerance)
             {
-                outZ = top;
+                outArea = AreaOf(floor->area);
+                outZ = floor->z + GROUND_CLEARANCE;
+                return true;
             }
-            if (haveFloor && outZ < bottom)
+            if (liquid && liquidGap <= tolerance)
             {
-                outZ = bottom;
+                outArea = AreaOf(liquid->area);
+                outZ = liquid->z + SeatOffset(profile, outArea);
+                return true;
             }
-            return true;
+
+            return false;
         }
 
         bool SeatAt(const NavStore& store, const MoveProfile& profile,
@@ -333,34 +262,9 @@ namespace Nav
                 return false;
             }
 
-            const std::shared_ptr<const NavTile> tile = store.TileOf(cell);
-            if (!tile)
-            {
-                return false;
-            }
-
-            std::vector<Surface> surfaces;
-            tile->SurfacesAt(cell.InTile(), surfaces);
-            return PickSeat(profile, surfaces, z, tolerance, surface);
-        }
-
-        /**
-         * @brief The surface of ONE area class at a point, if the mover may use it.
-         *
-         * The seat with a layer named. PickSeat answers "the nearest thing you may
-         * stand on", which is the right question at the start of a route and the
-         * wrong one in the middle of it: on a shelving seabed the nearest alternates
-         * between the floor and the skin every few yards, and a body that follows it
-         * hops. This asks for the layer the body is already on.
-         */
-        bool SeatOnArea(const NavStore& store, const MoveProfile& profile,
-                        float x, float y, float z, float tolerance, NavArea want,
-                        Surface& out)
-        {
-            out = Surface();
-
-            const CellRef cell = CellAt(x, y);
-            if (!cell.Valid())
+            float seatZ = 0.0f;
+            NavArea area = NavArea::Ground;
+            if (!SeatHeight(store, profile, x, y, z, tolerance, seatZ, area))
             {
                 return false;
             }
@@ -373,25 +277,21 @@ namespace Nav
 
             std::vector<Surface> surfaces;
             tile->SurfacesAt(cell.InTile(), surfaces);
-
-            float bestGap = tolerance;
-            for (const Surface& surface : surfaces)
+            for (const Surface& s : surfaces)
             {
-                if (!surface.Valid() || AreaOf(surface.area) != want ||
-                    !profile.Admits(want) || !profile.Fits(surface.clearance))
+                if (s.Valid() && AreaOf(s.area) == area && Admits(profile, s))
                 {
-                    continue;
-                }
+                    surface = s;
 
-                const float gap = std::fabs(z - surface.z);
-                if (gap <= bestGap)
-                {
-                    bestGap = gap;
-                    out = surface;
+                    // Written so the height the rule chose falls back out of it:
+                    // callers take a surface and put the body SeatOffset away from it,
+                    // and it is the rule's answer that has to survive that.
+                    surface.z = seatZ - SeatOffset(profile, area);
+                    return true;
                 }
             }
 
-            return out.Valid();
+            return false;
         }
 
         /// May this mover stand on this surface at all? Area and width, and the area half
@@ -616,28 +516,6 @@ namespace Nav
             seated.reserve(points.size());
             seated.push_back(points.front());
 
-            // WHICH LAYER THE BODY IS ON, carried from the point before.
-            //
-            // Without it the seat is chosen per sample by "nearest surface", and on a
-            // shelving seabed the nearest one alternates: floor, skin, floor, skin,
-            // every four yards. What that looks like in the client is a makrura
-            // hopping its way across a bay -- observed, on Darkspear Strand, and it is
-            // the very failure the old flat ban on the water skin was there to
-            // prevent.
-            //
-            // A mover changes layer when the one it is on runs out, and not because
-            // the sand dipped. Once swimming it keeps swimming until there is floor
-            // shallow enough to stand on; once walking it keeps walking.
-            NavArea carried = NavArea::Blocked;
-            {
-                CellRef cell;
-                Surface surface;
-                if (SeatAt(store, profile, points.front().x, points.front().y,
-                           points.front().z, tolerance + CELL_SIZE, cell, surface))
-                {
-                    carried = AreaOf(surface.area);
-                }
-            }
 
             for (size_t i = 1; i < points.size(); ++i)
             {
@@ -669,29 +547,16 @@ namespace Nav
                     const float t = along / leg;
                     Geometry::Vector3 p = a + (b - a) * t;
 
-                    CellRef cell;
-                    Surface surface;
-                    if (SeatAt(store, profile, p.x, p.y, p.z,
-                               tolerance + CELL_SIZE, cell, surface))
+                    // One question, one answer. No carried layer and no hysteresis:
+                    // the rule is total, so a walker never sees a skin and a swimmer
+                    // never sees a floor, and there is nothing left for consecutive
+                    // samples to alternate between.
+                    float seatZ = 0.0f;
+                    NavArea here = NavArea::Ground;
+                    if (SeatHeight(store, profile, p.x, p.y, p.z,
+                                   tolerance + CELL_SIZE, seatZ, here))
                     {
-                        const NavArea here = AreaOf(surface.area);
-
-                        // Staying on the layer costs nothing to ask for and is what
-                        // stops the hop. Only when the carried layer is not here at
-                        // all does the body change what it is riding.
-                        Surface same;
-                        if (carried != NavArea::Blocked && here != carried &&
-                            SeatOnArea(store, profile, p.x, p.y, p.z,
-                                       tolerance + CELL_SIZE, carried, same))
-                        {
-                            surface = same;
-                        }
-                        else
-                        {
-                            carried = here;
-                        }
-
-                        p.z = surface.z + SeatOffset(profile, AreaOf(surface.area));
+                        p.z = seatZ;
                     }
 
                     seated.push_back(p);
@@ -873,8 +738,7 @@ namespace Nav
             float seatZ = 0.0f;
             NavArea area = NavArea::Ground;
             if (!SeatHeight(m_store, request.profile, where.x, where.y, where.z,
-                            request.seatTolerance, seatZ, area) ||
-                area != NavArea::Water)
+                            request.seatTolerance, seatZ, area))
             {
                 return false;
             }
@@ -895,10 +759,26 @@ namespace Nav
             tile->SurfacesAt(cell.InTile(), surfaces);
             for (const Surface& s : surfaces)
             {
-                if (s.Valid() && AreaOf(s.area) == NavArea::Water &&
+                if (s.Valid() && AreaOf(s.area) == area &&
                     Admits(request.profile, s))
                 {
                     surface = s;
+
+                    // THE DEPTH, not the lake's lid. Everything downstream takes a
+                    // surface and puts the body SeatOffset below it, so handing back
+                    // the skin puts every swimmer two yards under the surface however
+                    // deep it actually was -- a makrura at -9.6 given a route ending
+                    // at -1.975, which is the whole water column as one step, twice a
+                    // second. The surface a swimmer is riding is the top of the water
+                    // IT is in, so it is written where the body's own height falls out
+                    // of it unchanged.
+                    // Written so the body's own height falls back out of it: everything
+                    // downstream takes a surface and puts the body SeatOffset away from
+                    // it, and the height SeatHeight worked out is the one that must
+                    // survive. Handing back the raw plane put every swimmer two yards
+                    // under the surface however deep it was, and every crab at the
+                    // sand's height plus a clearance it had already been given.
+                    surface.z = seatZ - SeatOffset(request.profile, area);
                     return true;
                 }
             }
@@ -1600,6 +1480,12 @@ namespace Nav
             float z = last ? endZ : height;
             NavArea area = last ? endArea : NavArea::Ground;
 
+            // SeatHeight answers with the height of the BODY, offset included. The
+            // ends do not go through it -- they carry the caller's own positions --
+            // so they still need the offset applied below, and an interior point that
+            // did go through it must not have it applied twice.
+            bool alreadySeated = false;
+
             if (!first && !last)
             {
                 const CellRef cell = CellAt(x, y);
@@ -1610,14 +1496,19 @@ namespace Nav
                     // start's: on a ramp those diverge by the whole climb, and a
                     // tolerance wide enough to cover it would let the seat jump to a
                     // floor above or below.
-                    std::vector<Surface> surfaces;
-                    tile.SurfacesAt(cell.InTile(), surfaces);
-                    Surface seated;
-                    if (PickSeat(request.profile, surfaces, height,
-                                 request.seatTolerance + CELL_SIZE, seated))
+                    //
+                    // Through SeatHeight for the same reason the sampler goes through
+                    // it: a swimmer is in the column, not on a plane, and asking for a
+                    // plane here snapped it to the surface.
+                    float seatZ = 0.0f;
+                    NavArea seatedArea = NavArea::Ground;
+                    if (SeatHeight(m_store, request.profile, x, y, height,
+                                   request.seatTolerance + CELL_SIZE, seatZ,
+                                   seatedArea))
                     {
-                        z = seated.z;
-                        area = AreaOf(seated.area);
+                        z = seatZ;
+                        area = seatedArea;
+                        alreadySeated = true;
                     }
                 }
             }
@@ -1639,7 +1530,7 @@ namespace Nav
             // swim depth, so a pet crossed a bay two yards under and surfaced on the
             // last step. The arrival is a place the mover will be, and is seated like
             // any other.
-            if (!first)
+            if (!first && !alreadySeated)
             {
                 z += SeatOffset(request.profile, area);
             }

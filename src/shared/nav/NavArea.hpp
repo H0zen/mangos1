@@ -188,18 +188,22 @@ namespace Nav
         bool canFly = false;
 
         /**
-         * @brief The mover is IN the water now, not merely able to enter it.
+         * @brief This mover rides the water rather than the bottom of it.
          *
-         * The difference decides whether the water SKIN is ground it may use. A crab
-         * that can swim but is walking a shallow bay keeps the seabed; the same crab
-         * once it is actually swimming rides the surface, because the floor under it
-         * is out of reach and there is nothing else to stand on.
+         * INHABIT DECIDES, and ground wins. A creature whose InhabitType carries
+         * GROUND walks -- on the sand, on the seabed, under thirty yards of ocean if
+         * that is where the floor is. A makrura does not swim. A crab does not swim.
+         * Having WATER as well only means the water does not stop them.
          *
-         * Set by ProfileOf from `IsInWater() || IsUnderWater()`, which it already asks
-         * in order to widen the area mask. Nothing infers it from `canSwim`: that is
-         * an ability, and this is a situation.
+         * The exception is a pet, which follows a player wherever the player goes,
+         * including out over water too deep for any floor to matter. It is the only
+         * thing in the game that has feet and still has to be given the surface.
+         *
+         * So this is not `canSwim` (an ability every second creature has) and not "is
+         * currently wet" (a situation) -- it is a small, named exception, and it stays
+         * small.
          */
-        bool inWater = false;
+        bool ridesWater = false;
 
         /**
          * @brief Does this mover have feet on the floor?
@@ -252,30 +256,21 @@ namespace Nav
                 return false;
             }
 
-            // The water SKIN belongs to whoever is IN the water, and walking is not
-            // the question -- being in it is.
+            // GROUND WINS, and the data says so plainly. InhabitType is where a
+            // creature lives: a Surf Crawler is GROUND, a threshadon is WATER, a
+            // makrura is GROUND|WATER -- and a makrura walks. Carrying the water bit
+            // means the water does not stop it, not that it swims. `canWalk` here IS
+            // `InhabitType & INHABIT_GROUND`; nothing else needs asking.
             //
-            // A walking amphibian keeps the floor: a makrura crosses a shallow bay on
-            // the seabed, and admitting it to both stacked layers once seated one
-            // point on the skin and the next on the floor, so it hopped. That rule
-            // stands and is tested.
+            // Admitting a ground-dweller to the skin as well is what makes it hop:
+            // two stacked layers, a seat chosen per point, and a body that alternates
+            // between the sand and the surface all the way across a bay. Watched, on
+            // Darkspear Strand, on a Makrura Shellhide -- InhabitType 3.
             //
-            // What the rule could not express is a pet swimming after its owner. The
-            // seabed under deep water is twenty yards down and out of seating range,
-            // so PickSeat correctly offers the skin -- and a flat ban on `canWalk`
-            // then refused the very surface the seating had just chosen. The route
-            // came back OffMesh, movement fell through to a straight line, and the pet
-            // swam off across the bay. That is the whole of "my pet runs away when it
-            // swims".
-            //
-            // So the question is asked of the moment rather than of the legs.
-            // ProfileOf already knows -- it widens the area mask for a mover that
-            // IsInWater -- and this reads the same fact instead of guessing at it from
-            // whether the creature owns feet.
-            //
-            // Preference stays where preference belongs: water costs 1.5 against
-            // ground's 1.0, so a route that can stay dry does.
-            return !(area == NavArea::Water && canWalk && !inWater);
+            // The exception is small and stays small. A pet follows its owner out over
+            // water no floor can reach, and a player is client-driven anyway. Those
+            // ride the water. Everything with feet walks on the bottom.
+            return !(area == NavArea::Water && canWalk && !ridesWater);
         }
 
         /// The multiplier for crossing an area.

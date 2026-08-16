@@ -122,6 +122,12 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
                                     AreaBit(NavArea::Magma) | AreaBit(NavArea::Slime);
         }
 
+        // The exception to "ground wins": a pet follows its owner out over water no
+        // floor can reach. Everything else with feet walks the bottom, whatever its
+        // InhabitType says about water. Creature::RidesWater is also what decides the
+        // swim flag, so the seat and the animation answer from one rule.
+        profile.ridesWater = static_cast<Creature const&>(mover).RidesWater();
+
         profile.mayLeaveMesh = true;
     }
     else if (mover.GetTypeId() == TYPEID_PLAYER)
@@ -130,6 +136,10 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
         profile.canWalk = true;
         profile.allowedAreas |= AreaBit(NavArea::Ground) |
                                 AreaBit(NavArea::Shallow) | AreaBit(NavArea::Water);
+
+        // A player swims, and is client-driven besides -- nothing here paths one, but
+        // when something asks about one the answer should not be "walks the seabed".
+        profile.ridesWater = true;
     }
 
     // RECOMPUTED, where the mask it replaces was only ever widened. The old filter
@@ -140,11 +150,6 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
     if (mover.IsInWater() || mover.IsUnderWater())
     {
         profile.allowedAreas |= AreaBit(AreaUnderfoot(mover));
-
-        // And the same fact by name, because the mask alone cannot carry it: a
-        // creature that CAN swim has the water bit set whether or not it is wet, and
-        // whether the skin is ground it may ride is a question about now.
-        profile.inWater = true;
     }
 
     // How wide the mover is. New: the baked data records the room around every cell, so
