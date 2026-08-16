@@ -89,6 +89,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 /**
  * @brief Spell interrupt flags
@@ -3300,9 +3301,29 @@ class Unit : public WorldObject
         bool CheckAllControlledUnits(Func const& func, uint32 controlledMask) const;
 
         /**
-         * Adds a \ref SpellAuraHolder
-         * @param holder the holder to add
-         * @return true if the holder was added, false otherwise
+         * Adds a \ref SpellAuraHolder.
+         *
+         * OWNERSHIP PASSES IN, ALWAYS. On every path -- accepted, stacked onto
+         * an existing holder, refused, or deleted mid-apply -- this function
+         * is what disposes of @a holder. A caller must not delete it after the
+         * call, and must not keep the pointer.
+         *
+         * @return whether the holder became this unit's own live aura.
+         *
+         * FALSE DOES NOT MEAN "NOT PRESENT", and that is the trap. Three
+         * different things return false:
+         *
+         *   - refused before insert (dead target, wrong target, a higher rank
+         *     already there): the holder was deleted here;
+         *   - stacked onto an existing holder: the incoming was deleted here
+         *     and the STACK on the existing one went up;
+         *   - deleted during its own apply, by something the apply triggered:
+         *     the holder is in m_spellAuraHolders AND on m_deletedHolders, and
+         *     will be freed by CleanupDeletedAuras.
+         *
+         * Only the last of those has the holder still reachable, and in none
+         * of them is deleting it the caller's job. Reading false as "it did
+         * not go in, so I still own it" is a double free.
          */
         bool AddSpellAuraHolder(SpellAuraHolder* holder);
         /**
@@ -3430,12 +3451,40 @@ class Unit : public WorldObject
          */
         void RemoveRankAurasDueToSpell(uint32 spellId);
         /**
+         * A holder that has to go but cannot go YET, named by what identifies
+         * it rather than by pointer.
          *
-         * @param holder
-         * @return true if we could remove something (and did), false otherwise
+         * A pointer would not survive the wait: what makes the holder
+         * un-removable is that it is in the middle of its own apply, and the
+         * apply it is in the middle of is free to delete it.
+         *
+         * The caster is carried for identity -- it is what says WHICH holder
+         * the scan meant, and it is what the log names. The removal itself
+         * goes by spell, because that is what the scan does when the same
+         * conflict is not mid-apply.
+         */
+        struct AuraConflictKey
+        {
+            uint32     spellId;
+            ObjectGuid casterGuid;
+        };
+
+        /**
+         * Remove what the incoming @a holder is not allowed to coexist with.
+         *
+         * @param deferred where to record a conflict that could not be removed
+         *        because it was IN USE -- applying, with this call somewhere
+         *        below it on the stack. Null means the caller is not going to
+         *        come back for them, which is what the shapeshift boosts want:
+         *        they re-run the scan for a holder that is already applied.
+         *
+         * @return false when the incoming loses outright to a higher rank, and
+         *         then nothing was removed.
+         *
          * \todo Document what this does and break into smaller functions!
          */
-        bool RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder);
+        bool RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder,
+                                               std::vector<AuraConflictKey>* deferred = NULL);
         /**
          * Removes all \ref Aura s that have the given interrupt flags
          * @param flags see \ref AuraInterruptFlags for possible flags

@@ -481,10 +481,16 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
         }
     }
 
+    // Conflicts the scan below could not remove because they were applying
+    // while it ran. A LOCAL, not a member: apply re-enters this function --
+    // a boost casts, the cast lands here -- and two runs must not drain each
+    // other's list.
+    std::vector<AuraConflictKey> deferredConflicts;
+
     // normal spell or passive auras not stackable with other ranks
     if (!IsPassiveSpell(aurSpellInfo) || !IsPassiveSpellStackableWithRanks(aurSpellInfo))
     {
-        if (!RemoveNoStackAurasDueToAuraHolder(holder))
+        if (!RemoveNoStackAurasDueToAuraHolder(holder, &deferredConflicts))
         {
             delete holder;
             return false;                                   // couldn't remove conflicting aura with higher rank
@@ -572,10 +578,40 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     // this can be possible it it removed indirectly by triggered spell effect at ApplyModifier
     if (holder->IsDeleted())
     {
+        // FALSE HERE DOES NOT MEAN "NOT ADDED". The holder is in
+        // m_spellAuraHolders and on m_deletedHolders already, so a caller that
+        // reads this as failure and deletes the pointer double-frees it. The
+        // contract is on the declaration in Unit.h; every in-tree caller obeys
+        // it, and the ones that delete a holder do so only BEFORE handing it
+        // over.
+        //
+        // The deferred conflicts are dropped with it on purpose: the incoming
+        // lost, so what it was going to displace keeps its place.
         return false;
     }
 
     holder->HandleSpellSpecificBoosts(true);
+
+    // NOW the conflicts that were applying when the scan reached them. The
+    // incoming is committed and its boosts are done, so nothing is standing
+    // inside the holders about to be freed.
+    //
+    // BY SPELL, WHICH IS WHAT THE SCAN ITSELF DOES three lines below each
+    // place that deferred one -- RemoveAurasDueToSpell, every caster's copy.
+    // Narrowing to the one caster that was in use would make "the conflict was
+    // mid-apply" quietly mean something different from "it was not", and a
+    // seal that survives depending on the timing of an unrelated cast is worse
+    // than either rule consistently applied.
+    for (std::vector<AuraConflictKey>::const_iterator itr = deferredConflicts.begin();
+         itr != deferredConflicts.end(); ++itr)
+    {
+        DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST,
+                         "Spell %u displaced spell %u (caster %s), which was "
+                         "applying when it arrived; removed after the fact",
+                         holder->GetId(), itr->spellId,
+                         itr->casterGuid.GetString().c_str());
+        RemoveAurasDueToSpell(itr->spellId);
+    }
 
     return true;
 }
@@ -636,7 +672,54 @@ void Unit::RemoveRankAurasDueToSpell(uint32 spellId)
  * @param holder The incoming aura holder.
  * @return True if conflicts were resolved and the holder may proceed; otherwise, false.
  */
-bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
+namespace
+{
+    /**
+     * Write down a conflict that cannot be removed right now.
+     *
+     * IN USE means the holder is applying and this call is somewhere below
+     * that apply on the stack -- `HandleSpellSpecificBoosts` and the dummy
+     * handlers both cast during apply, and a cast lands here. Removing it now
+     * would free an object its own apply is still standing in.
+     *
+     * Skipping it, which is what happened before, is the other extreme: the
+     * incoming aura then coexists with the seal, blessing or armor it was
+     * supposed to replace, and the only trace is a line in the error log that
+     * asks somebody to "add stack rule".
+     *
+     * So it is neither. The identity is kept and the removal happens when the
+     * incoming apply has finished and nobody is standing in it any more.
+     */
+    void DeferInUseConflict(std::vector<Unit::AuraConflictKey>* deferred,
+                            SpellAuraHolder const* conflicting)
+    {
+        if (!conflicting)
+        {
+            return;
+        }
+
+        if (!deferred)
+        {
+            // Nobody is coming back for it, so this one really is skipped and
+            // the conflicting aura stays. Said out loud, quietly: it is a
+            // rarity rather than a fault, and the old outError asked whoever
+            // read it to go and write a stacking rule.
+            DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST,
+                             "Spell %u was applying and could not be displaced; "
+                             "the caller cannot come back for it, so it stays",
+                             conflicting->GetId());
+            return;
+        }
+
+        Unit::AuraConflictKey key;
+        key.spellId = conflicting->GetId();
+        key.casterGuid = conflicting->GetCasterGuid();
+        deferred->push_back(key);
+    }
+}
+
+bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder,
+                                             std::vector<AuraConflictKey>* deferred)
 {
     if (!holder)
     {
@@ -744,7 +827,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
             // Its a parent aura (create this aura in ApplyModifier)
             if ((*i).second->IsInUse())
             {
-                sLog.outError("SpellAuraHolder (Spell %u) is in process but attempt removed at SpellAuraHolder (Spell %u) adding, need add stack rule for Unit::RemoveNoStackAurasDueToAuraHolder", i->second->GetId(), holder->GetId());
+                DeferInUseConflict(deferred, (*i).second);
                 continue;
             }
             RemoveAurasDueToSpell(i_spellId);
@@ -775,7 +858,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
             // Its a parent aura (create this aura in ApplyModifier)
             if ((*i).second->IsInUse())
             {
-                sLog.outError("SpellAuraHolder (Spell %u) is in process but attempt removed at SpellAuraHolder (Spell %u) adding, need add stack rule for Unit::RemoveNoStackAurasDueToAuraHolder", i->second->GetId(), holder->GetId());
+                DeferInUseConflict(deferred, (*i).second);
                 continue;
             }
             RemoveAurasDueToSpell(i_spellId);
@@ -798,7 +881,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
             // Its a parent aura (create this aura in ApplyModifier)
             if ((*i).second->IsInUse())
             {
-                sLog.outError("SpellAuraHolder (Spell %u) is in process but attempt removed at SpellAuraHolder (Spell %u) adding, need add stack rule for Unit::RemoveNoStackAurasDueToAuraHolder", i->second->GetId(), holder->GetId());
+                DeferInUseConflict(deferred, (*i).second);
                 continue;
             }
             RemoveAurasDueToSpell(i_spellId);
@@ -828,7 +911,7 @@ bool Unit::RemoveNoStackAurasDueToAuraHolder(SpellAuraHolder* holder)
                 // Its a parent aura (create this aura in ApplyModifier)
                 if ((*i).second->IsInUse())
                 {
-                    sLog.outError("SpellAuraHolder (Spell %u) is in process but attempt removed at SpellAuraHolder (Spell %u) adding, need add stack rule for Unit::RemoveNoStackAurasDueToAuraHolder", i->second->GetId(), holder->GetId());
+                    DeferInUseConflict(deferred, (*i).second);
                     continue;
                 }
                 RemoveAurasDueToSpell(i_spellId);
