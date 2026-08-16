@@ -175,55 +175,6 @@ namespace Helm
             }
         }
 
-        /**
-         * @brief THE CONTROL ARRAY THE CREATE BLOCK CARRIES, AND WHY IT IS PADDED.
-         *
-         * A Catmull-Rom evaluator needs one control before the path and one after it,
-         * and in the spline block of SMSG_UPDATE_OBJECT the CLIENT expects to be handed
-         * both -- it does not synthesise them. The reference says so in its own words,
-         * at the point where it picks the initialiser: "we should use catmullrom
-         * initializer even for linear mode! (client's internal structure limitation)".
-         *
-         * The client's segment count is the array length minus three. A two-point walk
-         * written bare is therefore -1 segments, and it asks the allocator for a
-         * negative size and dies. That is not a hypothesis: three crash reports, two
-         * zones, two characters, every one of them requesting 4294967192 bytes, which
-         * is -104 read as unsigned, which is -1 segments of 104 bytes.
-         *
-         * SMSG_MONSTER_MOVE is the opposite and stays so: there the count is the INDEX
-         * of the final point and no virtual controls are sent. The asymmetry belongs to
-         * the client, not to us.
-         *
-         * @return the count written, which is never below four.
-         */
-        template <typename Buffer>
-        uint32 WriteControlArray(Buffer& out, std::vector<Vector3> const& pts)
-        {
-            const Vector3 first = pts.empty() ? Vector3() : pts.front();
-            const Vector3 second = pts.size() > 1 ? pts[1] : first;
-            const Vector3 last = pts.empty() ? Vector3() : pts.back();
-
-            // A degenerate course is padded into a standing one. Reporting it honestly
-            // as zero or one would hand the client -3 or -2 segments: the same death,
-            // a different negative number.
-            const size_t real = pts.size() < 2 ? 2 : pts.size();
-            const uint32 count = uint32(real + 2);
-            out << count;
-
-            const Vector3 reflected = first + (first - second);
-            out << reflected.x << reflected.y << reflected.z;
-
-            out << first.x << first.y << first.z;
-            for (size_t i = 1; i < real; ++i)
-            {
-                const Vector3& p = i < pts.size() ? pts[i] : last;
-                out << p.x << p.y << p.z;
-            }
-
-            out << last.x << last.y << last.z;
-            return count;
-        }
-
         /// The type byte, which carries the final facing entirely outside the flags.
         enum Form : uint8
         {

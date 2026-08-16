@@ -167,10 +167,25 @@ namespace Helm
             out << int32(course.Duration());
             out << uint32(course.Id());
 
-            // The padded control array, and the destination that follows it. Both
-            // rules live in the header, where a test can reach them: this function
-            // needs a WorldPacket to exist and the invariant does not.
-            WriteControlArray(out, pts);
+            // THE PATH AS PLANNED, AND NOTHING ELSE. Read out of the client rather
+            // than reasoned about: the reader of this block takes a count and then
+            // exactly `count * 12` bytes of absolute points, and the routine that
+            // merely skips the block sizes it as `12 * count + 12` -- the points, plus
+            // the one destination that follows. Nowhere does it expect the two virtual
+            // controls a Catmull-Rom evaluator needs; it builds those itself, the same
+            // way it does for SMSG_MONSTER_MOVE.
+            //
+            // Sending them anyway is not a crash, because the count still matches what
+            // follows. It is worse than a crash: the client pads an already-padded
+            // array, so its first segment starts behind the unit and its last is a tail
+            // of zero length, and only whoever received the create block sees that
+            // curve. Everyone watching the same creature move draws a different one.
+            out << uint32(pts.size());
+            for (Vector3 const& p : pts)
+            {
+                WriteVector(out, p);
+            }
+
             WriteVector(out, pts.empty() ? Vector3() : pts.back());
         }
 
