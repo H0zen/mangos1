@@ -41,11 +41,31 @@ COLUMNS = ('script_type id delay command datalong datalong2 buddy_entry '
            'x y z o').split()
 
 
+def joined(path):
+    """The file's lines, with a trailing backslash meaning "and the next one".
+
+    The same reader gen_actions.py uses, and it has to be: a verb with four
+    optional parameters does not fit in eighty columns, so the manifest wraps
+    it. Reading the manifest a line at a time instead gets half a declaration
+    and a bare `\\` where a `name:type` belongs.
+    """
+    held = ''
+    for raw in io.open(path, encoding='utf-8'):
+        line = raw.split('#')[0].rstrip()
+        if line.endswith('\\'):
+            held += line[:-1]
+            continue
+        yield held + line
+        held = ''
+    if held:
+        yield held
+
+
 def load_manifest(path):
     """id -> (name, own parameter names, facet names), from the manifest."""
     facets, actions = {}, {}
-    for raw in io.open(path, encoding='utf-8'):
-        line = raw.split('#')[0].strip()
+    for raw in joined(path):
+        line = raw.strip()
         if not line or line.startswith('category'):
             continue
 
@@ -82,11 +102,38 @@ def number(text):
     return str(int(value)) if value == int(value) else repr(value)
 
 
-def params_for(row, name, own, used, facets):
-    """The `name=value` text for one row, in the manifest's own order."""
+def params_for(row, name, own, used, facets, problems=None):
+    """The `name=value` text for one row, in the manifest's own order.
+
+    A db_scripts row carries exactly TWO generic longs, so only the verb's
+    first two own parameters have a column to come from. A third has no source
+    at all and is left absent -- which is what it means, and what the verb's
+    own default then supplies.
+
+    Written as "datalong for the first, datalong2 for the rest" this quietly
+    gave every parameter past the second a COPY of the second. On one_world
+    that was 531 `temp_summon_creature` rows whose `scatter` -- a radius in
+    yards -- became the despawn delay in milliseconds, so a summon meant to
+    appear where it was told scattered over 300,000 yards.
+
+    The other 15 verbs with a third parameter were untouched only by luck: the
+    163 `cast_spell` rows all happen to carry `datalong2` = 0, so their
+    `credit_owner` and `stop_if_refused` were dropped as absent instead of
+    being set true. The value was a plausible number in a plausible column
+    either way, which is why this survived a conversion and a load.
+    """
     pairs = []
 
     for i, (param, kind, optional) in enumerate(own):
+        if i > 1:
+            # No column to read. A required one is a mismatch between the
+            # manifest and what db_scripts can express, and is worth saying
+            # out loud rather than filling with a zero.
+            if not optional and problems is not None:
+                problems['%s wants %s and db_scripts has no column for it'
+                         % (name, param)] += 1
+            continue
+
         raw = row['datalong'] if i == 0 else row['datalong2']
         # A zero is dropped only where it is allowed to be absent. Dropping a
         # required one leaves a row the loader refuses, which the round-trip
@@ -268,6 +315,10 @@ def main():
     entities = collections.defaultdict(dict)
     unknown = collections.Counter()
 
+    # Kept apart from `unknown`, which is keyed by command NUMBER. One counter
+    # for both would print a name through a `%d`.
+    problems = collections.Counter()
+
     for raw in io.open(source, encoding='utf-8'):
         cells = raw.rstrip('\n').split('\t')
         if len(cells) != len(COLUMNS):
@@ -286,7 +337,7 @@ def main():
 
         step = (int(row['delay']) * 1000,
                 name,
-                params_for(row, name, own, used, facets),
+                params_for(row, name, own, used, facets, problems),
                 (int(row['buddy_entry']), int(row['search_radius']),
                  int(row['data_flags'])))
 
@@ -326,6 +377,10 @@ def main():
         print('commands with no MAI action, skipped:')
         for command, count in unknown.most_common():
             print('  %d  (%d row(s))' % (command, count))
+    if problems:
+        print('parameters the manifest wants and db_scripts cannot supply:')
+        for what, count in problems.most_common():
+            print('  %s  (%d row(s))' % (what, count))
     return 0
 
 

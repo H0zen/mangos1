@@ -118,13 +118,33 @@ RULES = {
 }
 
 
+def joined(path):
+    """The file's lines, with a trailing backslash meaning "and the next one".
+
+    The same reader gen_actions.py uses. Read a line at a time instead, the
+    two functions below do not crash -- they check for a colon first -- they
+    simply do not SEE the parameters on the wrapped half. `cast_spell`'s
+    `stop_if_refused` and its whole `points` facet live there.
+    """
+    held = ''
+    for raw in io.open(path, encoding='utf-8'):
+        line = raw.split('#')[0].rstrip()
+        if line.endswith('\\'):
+            held += line[:-1]
+            continue
+        yield held + line
+        held = ''
+    if held:
+        yield held
+
+
 def optional_names(path):
     """Which parameters a manifest declares optional -- a zero may be dropped
     only there, which is the lesson the db_scripts conversion taught."""
     optional = collections.defaultdict(set)
     current = None
-    for raw in io.open(path, encoding='utf-8'):
-        line = raw.split('#')[0].strip()
+    for raw in joined(path):
+        line = raw.strip()
         if not line or line.startswith('category') or line.startswith('facet'):
             continue
         parts = line.split()
@@ -140,8 +160,8 @@ def optional_names(path):
 def declared_names(path):
     """The parameters a manifest declares, in the order it declares them."""
     names = {}
-    for raw in io.open(path, encoding='utf-8'):
-        line = raw.split('#')[0].strip()
+    for raw in joined(path):
+        line = raw.strip()
         if not line or line.startswith('category') or line.startswith('facet'):
             continue
         parts = line.split()
@@ -471,10 +491,10 @@ def main():
     print('%d file(s), %d rule(s), %d step(s)' % (written, rules, steps))
     if unknown_rules:
         print('event types with no MAI rule:',
-              ', '.join('%d (%d)' % kv for kv in unknown_rules.most_common()))
+              ', '.join('%s (%d)' % kv for kv in unknown_rules.most_common()))
     if unknown_actions:
         print('action types with no MAI verb:',
-              ', '.join('%d (%d)' % kv
+              ', '.join('%s (%d)' % kv
                         for kv in unknown_actions.most_common()))
     return 0
 
