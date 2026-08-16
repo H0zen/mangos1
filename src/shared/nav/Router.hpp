@@ -202,8 +202,13 @@ namespace Nav
              *             every leg put each intermediate handover at the elevation of a
              *             place the mover has not reached yet.
              */
+            /// @param endArea what the leg's last point stands on, so the body can be
+            ///        seated there the same way every point before it was. A leg that
+            ///        ends at a tile crossing hands on the ground it crossed; the last
+            ///        leg of all hands on the destination's own surface.
             void EmitMeshPath(const NavTile& tile, const MeshPath& path,
-                              const RouteRequest& request, float endZ, Route& out) const;
+                              const RouteRequest& request, float endZ,
+                              NavArea endArea, Route& out) const;
 
             const NavStore& m_store;
     };

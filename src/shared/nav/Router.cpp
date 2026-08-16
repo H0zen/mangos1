@@ -105,8 +105,20 @@ namespace Nav
                 {
                     continue;
                 }
-                if (!wantFloor && area != NavArea::Water &&
-                    area != NavArea::Shallow)
+
+                // A mover that does not walk rides whatever LIQUID its profile lets
+                // it into -- and that is more than water. ProfileOf gives a swimming
+                // creature magma and slime as well, in as many words ("creatures take
+                // no environmental damage, so swimming covers the hazards too"), and
+                // this named only water and shallow: every lava-dweller in Blackrock
+                // Depths was admitted to the lava by its mask and then refused a place
+                // to sit on it, so the route came back OffMesh and it could not be
+                // pathed at all.
+                //
+                // `Admits` above has already applied the profile. There is nothing
+                // left for a second, shorter list to add except the chance of
+                // disagreeing with the first.
+                if (!wantFloor && isFloor)
                 {
                     continue;
                 }
@@ -1106,7 +1118,8 @@ namespace Nav
             const MeshPath path = FindMeshPath(*startTile, *startMesh, query);
             if (path.found)
             {
-                EmitMeshPath(*startTile, path, request, endSurface.z, out);
+                EmitMeshPath(*startTile, path, request, endSurface.z,
+                             AreaOf(endSurface.area), out);
                 return true;
             }
 
@@ -1187,9 +1200,15 @@ namespace Nav
 
             Route piece;
 
-            // The leg's OWN end height. Handing every leg the destination's would put
-            // each handover at the elevation of somewhere the mover has not reached.
-            EmitMeshPath(*tile, path, leg, last ? endSurface.z : leave.z, piece);
+            // The leg's OWN end height and its own ground. Handing every leg the
+            // destination's would put each handover at the elevation of somewhere the
+            // mover has not reached -- and seat it on a surface it is not standing on.
+            const NavArea legEndArea =
+                last ? AreaOf(endSurface.area)
+                     : AreaOf(mesh->rects[corridor[j].rect].area);
+
+            EmitMeshPath(*tile, path, leg, last ? endSurface.z : leave.z,
+                         legEndArea, piece);
 
             // The first point of a leg is the last point of the one before it. Dropped
             // rather than emitted twice: a repeated point is a zero-length segment, and
@@ -1221,7 +1240,7 @@ namespace Nav
 
     void Router::EmitMeshPath(const NavTile& tile, const MeshPath& path,
                               const RouteRequest& request, float endZ,
-                              Route& out) const
+                              NavArea endArea, Route& out) const
     {
         out.points.clear();
         if (path.points.empty())
@@ -1256,7 +1275,7 @@ namespace Nav
             }
 
             float z = last ? endZ : height;
-            NavArea area = NavArea::Ground;
+            NavArea area = last ? endArea : NavArea::Ground;
 
             if (!first && !last)
             {
@@ -1288,9 +1307,16 @@ namespace Nav
             // Only a swim-only mover sits below a water skin. Mixing the two on a
             // shoreline -- Ground+0.5 then Water-2 -- is the hop.
             //
-            // Not applied to the ends: those are the caller's own positions, and a
-            // creature already standing somewhere does not need to be lifted off it.
-            if (!first && !last)
+            // NOT the first: the mover is already standing there and does not need
+            // lifting off its own feet.
+            //
+            // But the LAST is where it arrives, and it was left on the bare surface
+            // while every point before it carried the body's offset. On land that is
+            // half a yard of destination inside the dirt; in water it is the whole
+            // swim depth, so a pet crossed a bay two yards under and surfaced on the
+            // last step. The arrival is a place the mover will be, and is seated like
+            // any other.
+            if (!first)
             {
                 z += SeatOffset(request.profile, area);
             }
