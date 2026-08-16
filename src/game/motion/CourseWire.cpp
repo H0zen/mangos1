@@ -143,7 +143,23 @@ namespace Helm
             Facing const& facing = course.GetFacing();
             const FacingWire wire = FacingWireOf(facing.mode);
 
-            out << uint32(FlagsOf(course) | wire.bit);
+            // THE SAME FORCED Runmode THE MONSTER MOVE CARRIES. One leg was going out
+            // described two ways -- 0x100 on SMSG_MONSTER_MOVE, 0x000 here -- and this
+            // is the half where the client cannot survive it.
+            //
+            // The point count its geometry is sized from does not come from the count
+            // field this block carries: that fills a raw array, and the point buffer is
+            // built by an initialiser which branches on THIS word. With no bit set the
+            // initialiser does not run, the point count stays at the zero the object was
+            // constructed with, and the client then sizes its overflow array as
+            // count - 26, because twenty-five points live inline. Zero gives -26, four
+            // bytes each gives -104, and -104 read as unsigned is the 4294967192 the
+            // crash reports have been printing all day.
+            //
+            // WriteLaunch has forced this bit since it was written, with a comment
+            // saying the client has strange issues without it. This is what one of
+            // those issues is.
+            out << uint32(FlagsOf(course) | FLAG_RUNNING | wire.bit);
 
             // wire.bytes says how many the client will now read. The rows below write
             // exactly that many, and FacingWireOf is where the two are kept equal.
