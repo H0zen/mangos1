@@ -65,6 +65,9 @@ set(SRC_GRP_TESTS
     ${CMAKE_SOURCE_DIR}/src/game/Object/PowerPool.cpp
     SpeedSetTest.cpp
     ${CMAKE_SOURCE_DIR}/src/game/Object/SpeedSet.cpp
+    # The first aura rule with a test. Linked from aura_pure rather than
+    # compiled in, like combat_pure, because it is a library of its own.
+    AuraSlotTest.cpp
     # Compiled in, not linked from `game`: game.lib pulls the whole server, down to the
     # database globals that only mangosd defines. These three know nothing of it.
     ${CMAKE_SOURCE_DIR}/src/game/WorldHandlers/DynamicCollision.cpp
@@ -157,6 +160,7 @@ target_link_libraries(mangos_tests
         proto
         shared
         combat_pure
+        aura_pure
         nav
         dataintegrity
         extractor_client
@@ -194,10 +198,10 @@ add_test(NAME movement_state_seed
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
         -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckMovementStateSeed.cmake)
 
-add_test(NAME combat_boundary
+add_test(NAME pure_boundary
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckCombatBoundary.cmake)
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckPureBoundary.cmake)
 
 add_test(NAME script_events
     COMMAND ${CMAKE_COMMAND}

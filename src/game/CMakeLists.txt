@@ -322,6 +322,8 @@ target_link_libraries(game
         # The combat rules, on the same terms: numbers in, numbers out, and no
         # knowledge of anything above them.
         combat_pure
+        # The aura rules that are arithmetic, on those same terms.
+        aura_pure
         # Where a mover may go and how it gets there. Like terrain, it knows nothing
         # of the world, the database or any DBC -- what a MOVER is allowed to do
         # reaches it as a Nav::MoveProfile value that src/game fills in.

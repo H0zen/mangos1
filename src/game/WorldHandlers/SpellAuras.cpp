@@ -45,6 +45,9 @@
 
 #include "Geometry/Placement.h"
 #include "WorldHooks.h"
+// Which visible slot a holder gets: arithmetic over the client's two bands,
+// kept where a test can reach it without a unit.
+#include "Aura/pure/SlotAllocator.h"
 #include <iterator>
 #include "Utilities/Errors.h"
 #include "Platform/Define.h"
@@ -3490,31 +3493,39 @@ void SpellAuraHolder::_AddSpellAuraHolder()
     uint8 slot = NULL_AURA_SLOT;
     Unit* caster = GetCaster();
 
+    // The pure half answers 0xFF for a full band and this file calls that
+    // NULL_AURA_SLOT. They have to be the same number, and the only way to be
+    // sure is to say so where both are visible.
+    static_assert(aura::NoSlot == NULL_AURA_SLOT,
+                  "the allocator's 'no room' and NULL_AURA_SLOT must agree");
+
     // Lookup free slot
     // will be < MAX_AURAS slot (if find free) with !secondaura
     if (IsNeedVisibleSlot(caster))
     {
-        if (IsPositive())                                   // empty positive slot
+        // Read out of the update fields the client actually looks at, then let
+        // the rule pick. Which slot is free is arithmetic over 56 numbers and
+        // is tested without a unit; reading them is not.
+        uint32 occupied[MAX_AURAS];
+        for (uint8 i = 0; i < MAX_AURAS; ++i)
         {
-            for (uint8 i = 0; i < MAX_POSITIVE_AURAS; i++)
-            {
-                if (m_target->GetUInt32Value((uint16)(UNIT_FIELD_AURA + i)) == 0)
-                {
-                    slot = i;
-                    break;
-                }
-            }
+            occupied[i] = m_target->GetUInt32Value((uint16)(UNIT_FIELD_AURA + i));
         }
-        else                                                // empty negative slot
+
+        slot = aura::AllocateSlot(IsPositive(), occupied,
+                                  MAX_AURAS, MAX_POSITIVE_AURAS);
+
+        if (slot == aura::NoSlot)
         {
-            for (uint8 i = MAX_POSITIVE_AURAS; i < MAX_AURAS; i++)
-            {
-                if (m_target->GetUInt32Value((uint16)(UNIT_FIELD_AURA + i)) == 0)
-                {
-                    slot = i;
-                    break;
-                }
-            }
+            // Not an error and not silent. The aura still exists and still
+            // affects the unit -- m_modAuras is populated either way -- the
+            // client simply has nowhere to draw it, which is what the retail
+            // client did too. A well-buffed raider can genuinely reach forty.
+            DEBUG_FILTER_LOG(LOG_FILTER_SPELL_CAST,
+                             "Spell %u found no free %s aura slot on %s; it "
+                             "applies but the client will not show it",
+                             GetId(), IsPositive() ? "positive" : "negative",
+                             m_target->GetGuidStr().c_str());
         }
     }
 

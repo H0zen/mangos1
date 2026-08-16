@@ -127,13 +127,17 @@ o obligație.
 
 ### F4 — Cusătura se ține cu un test, nu cu o convenție
 
-`src/tests/CheckCombatBoundary.cmake` citește `#include`-urile din
-`combat/pure/` și pică suita dacă vreunul iese din director. Un singur
-`#include "Unit.h"` pentru un enum convenabil compilează perfect în `game` și
-distruge tăcut testabilitatea.
+`src/tests/CheckPureBoundary.cmake` citește `#include`-urile fiecărei jumătăți
+pure și pică suita dacă vreunul iese afară. Un singur `#include "Unit.h"`
+pentru un enum convenabil compilează perfect în `game` și distruge tăcut
+testabilitatea — nimic nu cade în momentul în care se face greșeala, de-aia
+trebuie citit, nu link-uit.
 
-**Generalizare:** `CheckPureBoundary.cmake`, parametrizat pe director. Fiecare
-jumătate pură primește o intrare. Fără asta, F3 se erodează în trei luni.
+Lista de directoare e în capul scriptului: **o jumătate pură nouă e o linie**.
+Sunt permise antetele standard și antetele din oricare director de pe listă,
+deci două jumătăți pure se pot sprijini una pe alta fără ca vreuna să se
+sprijine pe lume. Un director care încă nu există e un pas nefăcut, nu o
+eroare.
 
 ### F5 — Nimic nu se compune peste o graniță de hartă
 

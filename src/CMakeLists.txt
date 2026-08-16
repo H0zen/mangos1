@@ -31,6 +31,10 @@ add_subdirectory(shared/nav)
 # number instead of a running server.
 add_subdirectory(game/combat/pure)
 
+# The second pure half, on the same terms. The aura system has no tests at all;
+# each rule that moves here gets one.
+add_subdirectory(game/Aura/pure)
+
 # Build the mangos shared library
 add_subdirectory(shared)
 

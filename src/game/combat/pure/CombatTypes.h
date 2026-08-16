@@ -34,7 +34,7 @@
  *
  * Nothing in this directory includes a game header. Not a convention: the
  * combat_pure library links into the test binary without the game library,
- * and CheckCombatBoundary.cmake fails the suite if an include creeps in.
+ * and CheckPureBoundary.cmake fails the suite if an include creeps in.
  * Everything a strike needs is either in a Profile or passed as an argument.
  */
 namespace Combat
