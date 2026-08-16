@@ -651,39 +651,150 @@ enum NPCFlags
 };
 
 /**
- * These flags denote the different kinds of movement you can do. You can have many at the
- * same time as this is used as a bitmask.
- * \todo [-ZERO] Need check and update used in most movement packets (send and received)
- * \see MovementInfo
+ * @brief What the 2.4.3 CLIENT does with each of these, read out of Wow.exe.
+ *
+ * A bitmask of movement state, carried in every movement packet and in the living block
+ * of SMSG_UPDATE_OBJECT. The notes below are not conventions inherited from other cores:
+ * each one is what the client's own code tests, sets or ignores, counted over the
+ * decompiled binary at the offset the movement structure keeps this field.
+ *
+ * THE THREE PARTIES. Some bits the client AUTHORS and we merely receive; some the SERVER
+ * authors and the client acts on; some are dead weight in this build. Sending a bit of
+ * the first kind on our own initiative is inventing client state, and it is worth knowing
+ * which those are before writing one.
+ *
+ * WHAT THE CLIENT KEEPS. Applying a movement update does
+ *
+ *     flags = incoming | (flags & 0x88000200)
+ *
+ * so SPLINE_ENABLED, ONTRANSPORT and 0x80000000 survive a packet and everything else is
+ * replaced outright. Those three are client-owned; the rest is ours to state.
+ *
+ * THE ONE THAT MATTERS MOST HERE. Free vertical motion is gated on
+ * `SWIMMING | FLYING2 | LEVITATING`: with none of the three set the client zeroes the
+ * vertical component of the movement delta and the body is pinned to the ground plane.
+ * A creature carrying a stale SWIMMING bit is therefore not merely drawn wrong and moved
+ * at the wrong speed -- it is allowed to leave the floor. See Creature::ShouldSwim.
  */
 enum MovementFlags
 {
     MOVEFLAG_NONE             = 0x00000000,
-    MOVEFLAG_FORWARD          = 0x00000001,           /// verified
-    MOVEFLAG_BACKWARD         = 0x00000002,           /// verified
-    MOVEFLAG_STRAFE_LEFT      = 0x00000004,           /// verified
-    MOVEFLAG_STRAFE_RIGHT     = 0x00000008,           /// verified
-    MOVEFLAG_TURN_LEFT        = 0x00000010,           /// verified
-    MOVEFLAG_TURN_RIGHT       = 0x00000020,           /// verified
-    MOVEFLAG_PITCH_UP         = 0x00000040,           /// not confirmed
-    MOVEFLAG_PITCH_DOWN       = 0x00000080,           /// not confirmed
-    MOVEFLAG_WALK_MODE        = 0x00000100,           /// verified
-    MOVEFLAG_ONTRANSPORT      = 0x00000200,           /// Used for flying on some creatures
+
+    /// The four directions and the two turns. Tested together as 0xF and 0x30, and in
+    /// the composite 0x2E0100F that answers "is this unit doing anything that counts as
+    /// moving". Client-authored.
+    MOVEFLAG_FORWARD          = 0x00000001,
+    MOVEFLAG_BACKWARD         = 0x00000002,
+    MOVEFLAG_STRAFE_LEFT      = 0x00000004,
+    MOVEFLAG_STRAFE_RIGHT     = 0x00000008,
+    MOVEFLAG_TURN_LEFT        = 0x00000010,
+    MOVEFLAG_TURN_RIGHT       = 0x00000020,
+
+    /// CLIENT-AUTHORED, AND THE CLIENT NEVER READS THEM BACK. It clears the pair in
+    /// three places and never branches on either, alone or inside any mask. So they are
+    /// state it reports to us, not state we can put it into -- which is what the old
+    /// "not confirmed" note was groping at.
+    MOVEFLAG_PITCH_UP         = 0x00000040,
+    MOVEFLAG_PITCH_DOWN       = 0x00000080,
+
+    /// NOT TESTED on this field at all. Walking rather than running reaches the client
+    /// for a creature through the SPLINE flag word instead, which carries its own
+    /// Runmode bit at the same numeric value in a different field. Do not confuse them.
+    MOVEFLAG_WALK_MODE        = 0x00000100,
+
+    /// Client-owned: survives a movement update through the 0x88000200 mask. Tested
+    /// with ROOT as 0xA00 -- "neither rooted nor riding" -- before movement is allowed.
+    MOVEFLAG_ONTRANSPORT      = 0x00000200,
+
+    /// One of the three that permit vertical motion (0x2200400), and paired with HOVER
+    /// as 0x40000400 for "held off the ground".
     MOVEFLAG_LEVITATING       = 0x00000400,
+
+    /// Tested once alone, and with ONTRANSPORT as 0xA00.
     MOVEFLAG_ROOT             = 0x00000800,
+
+    /// The client integrates gravity itself. Eighteen tests, the joint most of any bit,
+    /// and it is what makes the four-float jump block follow in the packet.
     MOVEFLAG_FALLING          = 0x00001000,
+
+    /// SET BY THE CLIENT, and unnamed here until the binary was read. It writes this bit
+    /// and never tests it. Nothing is known about its meaning beyond its neighbours.
+    MOVEFLAG_UNK_13           = 0x00002000,
+
+    /// Never tested, anywhere, in any mask.
     MOVEFLAG_FALLINGFAR       = 0x00004000,
-    MOVEFLAG_SWIMMING         = 0x00200000,           /// appears with fly flag also
-    MOVEFLAG_ASCENDING        = 0x00400000,           /// swim up also
+
+    /// Thirteen tests alone, and in every composite about the medium. With FLYING2 as
+    /// 0x2200000 it is what makes the pitch float follow in the packet, and with
+    /// LEVITATING added it permits vertical motion.
+    MOVEFLAG_SWIMMING         = 0x00200000,
+
+    /// Rising through whichever medium the body is in. Always cleared together with the
+    /// medium bit -- 0xFF1FFF3F takes it with SWIMMING, 0xFD3FFF3F with FLYING2 -- which
+    /// is what "swim up also" was reaching for.
+    MOVEFLAG_ASCENDING        = 0x00400000,
+
+    /// A CAPABILITY, NOT A STATE. Appears only inside the composite 0x2E0100F and never
+    /// gates anything on its own.
     MOVEFLAG_CAN_FLY          = 0x00800000,
+
+    /// DEAD IN THIS BUILD. Cleared in one place and tested nowhere, alone or inside any
+    /// mask. Anything asking "is this unit flying" and reading this bit is reading a bit
+    /// the client does not act on; FLYING2 is the one that means it.
     MOVEFLAG_FLYING           = 0x01000000,
-    MOVEFLAG_FLYING2          = 0x02000000,           /// Actual flying mode
-    MOVEFLAG_SPLINE_ELEVATION = 0x04000000,           /// used for flight paths
-    MOVEFLAG_SPLINE_ENABLED   = 0x08000000,           /// used for flight paths
-    MOVEFLAG_WATERWALKING     = 0x10000000,           /// prevent unit from falling through water
-    MOVEFLAG_SAFE_FALL        = 0x20000000,           /// active rogue safe fall spell (passive)
+
+    /// THE OPERATIVE FLYING BIT. Eleven tests alone plus every medium composite, where
+    /// its two siblings have none between them.
+    MOVEFLAG_FLYING2          = 0x02000000,
+
+    /// Four tests, and cleared in three places.
+    MOVEFLAG_SPLINE_ELEVATION = 0x04000000,
+
+    /// Client-owned across a movement update (0x88000200), and what makes the spline
+    /// block follow in the living block of SMSG_UPDATE_OBJECT.
+    MOVEFLAG_SPLINE_ENABLED   = 0x08000000,
+
+    MOVEFLAG_WATERWALKING     = 0x10000000,
+    MOVEFLAG_SAFE_FALL        = 0x20000000,
+
+    /// With LEVITATING as 0x40000400: held off the ground.
     MOVEFLAG_HOVER            = 0x40000000
+
+    // 0x80000000 is PURELY LOCAL, and is deliberately not named here. The client keeps
+    // it across every movement update through the 0x88000200 mask, clears it in exactly
+    // one place, and never tests it -- not by mask and not as a sign bit. What writes it
+    // was not found, and is not guessed at. Naming it would also drag this
+    // enumeration's underlying type to unsigned for a bit nothing may ever send.
 };
+
+/**
+ * @brief THE THREE BITS THAT LET A BODY LEAVE THE FLOOR, and the client's own rule.
+ *
+ * Read out of the 2.4.3 client: with NONE of these set it zeroes the vertical component
+ * of the movement delta outright, so the body is pinned to the ground plane no matter
+ * what heights the server sends. With any one of them, vertical motion is free.
+ *
+ * That makes this mask the difference between a creature that walks a seabed and one
+ * that can rise off it -- not a matter of animation. A makrura carrying a stale
+ * SWIMMING bit was not merely drawn swimming and moved at swim speed; the client was
+ * letting it leave the sand, which is what "it hops" meant.
+ *
+ * WHO SETS WHAT, audited across the server:
+ *
+ *   SWIMMING    Creature::UpdateSwimState, on every relocation, from Creature::ShouldSwim
+ *               -- which is false for anything with feet that is not a pet. So a
+ *               ground|water creature walking a bottom does NOT get it, and a pet or a
+ *               fish in the water does.
+ *   LEVITATING  Creature::SetLevitate, from InhabitType & INHABIT_AIR. Fliers only.
+ *   FLYING2     never set anywhere. Fliers are given LEVITATING instead.
+ *
+ * So a creature with InhabitType GROUND, or GROUND|WATER while walking, carries none of
+ * the three and the client pins it -- which is the intended state and the reason to have
+ * the rule written down under one name instead of spelled out at each site.
+ */
+MovementFlags const movementFlagsUnpinnedFromGround = MovementFlags(
+    MOVEFLAG_SWIMMING | MOVEFLAG_FLYING2 | MOVEFLAG_LEVITATING
+    );
 
 // flags that use in movement check for example at spell casting
 MovementFlags const movementFlagsMask = MovementFlags(
@@ -2992,6 +3103,20 @@ class Unit : public WorldObject
          * \see MovementInfo::HasMovementFlag
          */
         bool IsLevitating() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_LEVITATING); }
+
+        /**
+         * @brief Will the client let this body move vertically at all?
+         *
+         * The question is the client's, not ours: with none of
+         * `movementFlagsUnpinnedFromGround` set it zeroes the vertical component of the
+         * delta and the unit is glued to the ground plane, whatever heights we send.
+         * Anything reasoning about a mover's freedom in Z should ask this rather than
+         * test the three bits by hand and get two of them.
+         */
+        bool IsPinnedToGround() const
+        {
+            return !m_movementInfo.HasMovementFlag(movementFlagsUnpinnedFromGround);
+        }
         /**
          * Checks if this \ref Unit has the movement flag \ref MovementFlags::MOVEFLAG_WALK_MODE
          * @return true if the \ref Unit is walking, ie: it has the flag MOVEFLAG_WALK_MODE, false

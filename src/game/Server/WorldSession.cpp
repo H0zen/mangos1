@@ -175,7 +175,8 @@ WorldSession::WorldSession(uint32 id, std::shared_ptr<proto::IClientLink> link,
     m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
     m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_clientTimeDelay(0),
-    m_clientTimeDelayKnown(false), m_timeSyncSamples(), m_lastMoverResync(0),
+    m_clientTimeDelayKnown(false), m_lastWireTime(0), m_lastWireTimeKnown(false),
+    m_timeSyncSamples(), m_lastMoverResync(0),
     m_npcWatchLastGuid(),
     m_pingTracker()
 {
@@ -1175,6 +1176,11 @@ void WorldSession::ResetClientTimeDelay()
     m_clientTimeDelay = 0;
     m_clientTimeDelayKnown = false;
     m_timeSyncSamples.clear();
+
+    // The ratchet goes with the offset it was guarding. Keeping it across a reset would
+    // hold the wire clock at a value belonging to a mapping that no longer exists.
+    m_lastWireTime = 0;
+    m_lastWireTimeKnown = false;
 }
 
 void WorldSession::PushTimeSyncSample(int64 clockDelta, uint32 roundTrip)
@@ -1241,8 +1247,35 @@ void WorldSession::AdjustMovementInfoTime(MovementInfo& mi)
     }
 
     // Truncation is the point: the low 32 bits are the client's movement clock on the wire.
-    const int64 wire = int64(mi.GetTime()) + m_clientTimeDelay
-                     + int64(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
-    mi.UpdateTime(uint32(wire));
+    const int64 raw = int64(mi.GetTime()) + m_clientTimeDelay
+                    + int64(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
+    uint32 wire = uint32(raw);
+
+    // THE STAMP IS A SORT KEY, NOT A NOTE. An observing client files every movement
+    // change it receives into a list kept in this order, comparing two stamps as a
+    // SIGNED difference so the comparison survives the 32-bit wrap. A value that goes
+    // backwards is therefore not merely odd -- it files the newer change AHEAD of ones
+    // already queued, and the observer plays them out of order and repositions the
+    // mover. Which is the reordering this file has always warned about and never
+    // prevented.
+    //
+    // It can go backwards for an ordinary reason: m_clientTimeDelay is re-estimated from
+    // CMSG_TIME_SYNC_RESP and adopted whenever it moves more than the dead band, so a
+    // correction downwards steps the whole mapping back by that much at once.
+    //
+    // So the clock is held rather than rewound. Repeats are harmless -- equal stamps
+    // compare as "not before", so the list keeps arrival order -- and the hold lasts
+    // exactly as long as the correction was large, after which the new offset carries on
+    // from where the old one left off. Compared as a signed difference for the same
+    // reason the client does.
+    if (m_lastWireTimeKnown && int32(wire - m_lastWireTime) < 0)
+    {
+        wire = m_lastWireTime;
+    }
+
+    m_lastWireTime = wire;
+    m_lastWireTimeKnown = true;
+
+    mi.UpdateTime(wire);
 }
 

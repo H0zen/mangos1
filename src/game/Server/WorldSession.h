@@ -1030,6 +1030,8 @@ class WorldSession
         Helm::ClientClock m_courseClock;
         int64 m_clientTimeDelay;
         bool m_clientTimeDelayKnown;
+        uint32 m_lastWireTime;      ///< last stamp relayed for this session's mover
+        bool m_lastWireTimeKnown;
         std::deque<std::pair<int64, uint32>> m_timeSyncSamples; ///< (clock delta, round trip)
         uint32 m_lastMoverResync;                           ///< rate limit on ResyncMover()
         ObjectGuid m_npcWatchLastGuid;
