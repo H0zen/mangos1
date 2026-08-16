@@ -108,30 +108,29 @@ namespace
     const int64 TIME_SYNC_SLEW_DIVISOR = 4;
 
     /**
-     * @brief The least a relayed stamp may lead the moment it is relayed at.
+     * @brief THERE IS NO FLOOR ON THE LEAD, AND THE MEASUREMENT IS WHY.
      *
-     * An observing client interpolates toward the stamp as a deadline and computes the
-     * time remaining as an UNSIGNED difference, so a stamp that is already expired when
-     * it lands wraps to about 4.3 million seconds, the rate comes out at zero, and the
-     * unit stops until the next packet jerks it. That is the freeze that looks like a
-     * flicker at turns.
+     * One was tried: 200 ms, meant as a net under the rare packet whose stamp had
+     * already expired when it went out. It was expected to bind on the 1.7% that were
+     * arriving late. It bound on 93%.
      *
-     * MovementPacketDelay is nominally 500 ms of cushion against exactly this, and it is
-     * not delivering it. Measured over 1,600 relayed packets: a median lead of 74 ms, a
-     * p90 of 105, a minimum of -120, and 1.7% already expired before they even left --
-     * of which 23 of 27 were MSG_MOVE_SET_FACING, which is 82% of the traffic through a
-     * turn. The deficit is not the network: half the measured round trip is 70 ms, so
-     * some 356 ms of it is the packet's own passage through this server.
+     * That is not a net, that is the mechanism. With the stamp pinned to
+     * `arrival + 200`, it stops carrying the client's own smooth clock and starts
+     * carrying OUR arrival times, jitter and all. Measured over 632 relayed packets
+     * with the floor in: the client sent them a median of 141 ms apart, the stamps went
+     * out a median of 101 ms apart, and the difference between the two ran a median of
+     * 44 ms with a p90 of 184.
      *
-     * Until that passage is shortened, the floor is what keeps the arithmetic on the
-     * right side of zero. It only binds when the lead has already collapsed, so ordinary
-     * spacing between packets survives untouched.
+     * The stamp is a deadline the observer interpolates toward at a constant rate, so
+     * an error in the deadline is an error in how long the movement takes -- on every
+     * packet rather than on the 1.7%. It traded a rare freeze for a permanent wobble,
+     * and the developer could see the difference.
      *
-     * Chosen above the measured median and far below the nominal buffer, with room left
-     * for the relay's own trip out to the observer. It is a number to revisit with the
-     * same log rather than a constant of nature.
+     * The lead being short in the first place is a real problem and is still open. It
+     * is NOT the mailbox: the same log measures that wait at a median of 5 ms, which
+     * also disposes of an earlier guess here that some 356 ms of it was queueing.
      */
-    const int64 MOVEMENT_MIN_LEAD_MS = 200;
+
 }
 
 /**
@@ -1325,18 +1324,10 @@ void WorldSession::AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt)
     // exactly as long as the correction was large, after which the new offset carries on
     // from where the old one left off. Compared as a signed difference for the same
     // reason the client does.
-    // THE FLOOR, before the ratchet. A stamp that has already expired when it is
-    // relayed cannot be interpolated toward at all -- see MOVEMENT_MIN_LEAD_MS -- so it
-    // is pushed forward to the least lead that still means something. It binds only when
-    // the lead has collapsed, which the measurement says is 1.7% of packets, so the
-    // spacing that carries a mover's real cadence is otherwise untouched.
-    const uint32 now = getMSTime();
-    if (int32(wire - now) < int32(MOVEMENT_MIN_LEAD_MS))
-    {
-        wire = now + uint32(MOVEMENT_MIN_LEAD_MS);
-    }
-
-    // And the ratchet after it, so the floor can never be used to walk the clock back.
+    // The ratchet, and nothing before it. Whatever the client's own clock says the
+    // spacing was, that spacing goes out untouched; the only thing refused is a stamp
+    // that would step backwards for this mover, because the observer files them in
+    // stamp order and would replay them out of sequence.
     if (m_lastWireTimeKnown && int32(wire - m_lastWireTime) < 0)
     {
         wire = m_lastWireTime;
