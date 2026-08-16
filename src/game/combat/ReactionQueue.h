@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <variant>
 
 namespace Combat
@@ -59,9 +60,17 @@ namespace Combat
     /// is allocated at all if the target died first.
     struct ProcCast
     {
-        std::uint32_t spellId    = 0;
-        std::int32_t  basePoints = 0;
-        bool          triggered  = true;
+        std::uint32_t spellId   = 0;
+        bool          triggered = true;
+
+        /// Base points computed by whatever raised the proc, for the casts
+        /// whose damage is not a number the spell carries -- "15% of what hit
+        /// me" has none until it fires.
+        ///
+        /// OPTIONAL, not a zero. Zero is a legitimate amount, so a plain
+        /// int32 could not tell "cast for nothing" from "use the spell's own
+        /// points", and the runner picked the second reading for both.
+        std::optional<std::int32_t> basePoints;
     };
 
     /// Thorns and its relatives. The amount is snapshotted at commit time so

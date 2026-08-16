@@ -414,7 +414,15 @@ namespace Combat
 
             [&](ProcCast const& cast)
             {
-                source->CastSpell(target, cast.spellId, cast.triggered);
+                if (!cast.basePoints)
+                {
+                    source->CastSpell(target, cast.spellId, cast.triggered);
+                    return;
+                }
+
+                std::int32_t points = *cast.basePoints;
+                source->CastCustomSpell(target, cast.spellId, &points,
+                                        nullptr, nullptr, cast.triggered);
             },
 
             [&](DamageShield const& shield)

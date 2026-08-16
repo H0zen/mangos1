@@ -37,6 +37,7 @@
 
 #include <cstdint>
 #include <string>
+#include <variant>
 #include <vector>
 
 using namespace Combat;
@@ -275,4 +276,72 @@ TEST(ReactionQueueClearResetsTheCount)
 
     CHECK_EQ(queue.Refused(), 0u);
     CHECK_EQ(queue.Pending(), std::size_t(0));
+}
+
+/**
+ * A proc cast carries its own base points, or it does not, and the two are
+ * different instructions.
+ *
+ * The field was an int32 defaulting to zero and the runner never read it, so
+ * every reaction that computed an amount would have cast for the spell's own
+ * number instead. Nothing pushed one yet, which is the only reason it was not
+ * a bug in the world.
+ */
+
+TEST(ReactionProcCastWithoutPointsAsksForNone)
+{
+    ProcCast cast;
+    cast.spellId = 25504;
+
+    CHECK(!cast.basePoints.has_value());
+}
+
+TEST(ReactionProcCastCarriesAZeroThatMeansZero)
+{
+    ProcCast cast;
+    cast.spellId = 25504;
+    cast.basePoints = 0;
+
+    // The distinction the old int32 could not hold: this is "cast for
+    // nothing", not "use whatever the spell says".
+    CHECK(cast.basePoints.has_value());
+    CHECK_EQ(*cast.basePoints, 0);
+}
+
+TEST(ReactionProcCastSurvivesTheQueue)
+{
+    ReactionQueue queue;
+
+    Reaction r;
+    r.source = ATTACKER;
+    r.target = VICTIM;
+
+    ProcCast cast;
+    cast.spellId = 33750;
+    cast.basePoints = 137;
+    r.what = cast;
+
+    CHECK(queue.Push(r));
+    CHECK_EQ(queue.Pending(), std::size_t(1));
+
+    // The variant round-trip is the part worth pinning: a value type in a
+    // queue is only as good as what comes back out of it.
+    struct Reader : ReactionSink
+    {
+        std::int32_t seen = -1;
+        bool had = false;
+
+        void Run(Reaction const& reaction, ReactionQueue&) override
+        {
+            if (auto const* c = std::get_if<ProcCast>(&reaction.what))
+            {
+                had = c->basePoints.has_value();
+                seen = c->basePoints ? *c->basePoints : -1;
+            }
+        }
+    } reader;
+
+    queue.Drain(reader);
+    CHECK(reader.had);
+    CHECK_EQ(reader.seen, 137);
 }
