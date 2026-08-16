@@ -167,23 +167,10 @@ namespace Helm
             out << int32(course.Duration());
             out << uint32(course.Id());
 
-            // THE POINTS AS PLANNED, and that is the whole of what was wrong before.
-            //
-            // This block used to be written by walking the old spline's internal control
-            // array -- which is the path PLUS the two phantom controls a Catmull-Rom
-            // evaluator needs at its ends (a reflected one in front, a duplicated one
-            // behind). The client builds its own, so it padded an already-padded path:
-            // the first segment began behind the unit and the last was a tail of zero
-            // length. Meanwhile SMSG_MONSTER_MOVE, describing the same leg, carried the
-            // real points -- so whoever saw only the create block (a player logging in,
-            // or walking into range of something already moving) drew a different curve
-            // from everyone else watching the same creature.
-            out << uint32(pts.size());
-            for (Vector3 const& p : pts)
-            {
-                WriteVector(out, p);
-            }
-
+            // The padded control array, and the destination that follows it. Both
+            // rules live in the header, where a test can reach them: this function
+            // needs a WorldPacket to exist and the invariant does not.
+            WriteControlArray(out, pts);
             WriteVector(out, pts.empty() ? Vector3() : pts.back());
         }
 

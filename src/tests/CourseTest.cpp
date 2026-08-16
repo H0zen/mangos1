@@ -40,6 +40,8 @@
 #include "CourseSync.h"
 #include "CourseWire.h"
 
+#include "ByteBuffer.h"
+
 #include <cmath>
 #include <vector>
 
@@ -527,6 +529,81 @@ TEST(Wire_EveryFacingDeclaresItsOwnLength)
         REQUIRE(!c.Empty());
         CHECK_EQ(Wire::FlagsOf(c) & facingBits, 0u);
     }
+}
+
+/// THE CREATE BLOCK'S CONTROL ARRAY IS PADDED, AND NEVER SHORTER THAN FOUR.
+///
+/// The client's spline structure takes its segment count as the array length minus
+/// three and sizes itself from that, so it must be handed the two virtual controls a
+/// Catmull-Rom evaluator needs -- it does not synthesise them. The reference says so
+/// where it picks the initialiser: "we should use catmullrom initializer even for
+/// linear mode! (client's internal structure limitation)".
+///
+/// Sent bare, the shortest possible path -- two points -- is minus one segment. Three
+/// crash reports asked the allocator for 4294967192 bytes, which is -104 unsigned,
+/// which is one negative segment of 104. The count is what this test pins.
+TEST(Wire_TheControlArrayIsPaddedAndNeverShorterThanFour)
+{
+    for (size_t n = 0; n <= 8; ++n)
+    {
+        std::vector<Vector3> pts;
+        for (size_t i = 0; i < n; ++i)
+        {
+            pts.push_back(Vector3(float(i) * 10.0f, 0.0f, 0.0f));
+        }
+
+        ByteBuffer out;
+        const uint32 count = Wire::WriteControlArray(out, pts);
+
+        // Two virtual controls on top of the path, and a degenerate path is stood up
+        // rather than reported as a length the client would subtract three from.
+        CHECK_EQ(count, uint32((n < 2 ? 2 : n) + 2));
+        CHECK(count >= 4);
+
+        // The client reads exactly `count` points and no more.
+        CHECK_EQ(out.size(), size_t(4) + size_t(count) * 12);
+
+        // And what it computes from them is a positive number of segments.
+        CHECK(int32(count) - 3 >= 1);
+    }
+}
+
+/// The leading control is the reflection of the first point through itself, so the
+/// client's first segment leaves the unit in the direction it is actually going. The
+/// trailing one repeats the last, so the curve stops there instead of overshooting.
+TEST(Wire_TheVirtualControlsAreTheReferencesOwn)
+{
+    std::vector<Vector3> pts;
+    pts.push_back(Vector3(10.0f, 20.0f, 30.0f));
+    pts.push_back(Vector3(14.0f, 20.0f, 30.0f));
+    pts.push_back(Vector3(18.0f, 26.0f, 30.0f));
+
+    ByteBuffer out;
+    const uint32 count = Wire::WriteControlArray(out, pts);
+    CHECK_EQ(count, 5u);
+
+    out.rpos(0);
+    uint32 wrote = 0;
+    out >> wrote;
+
+    std::vector<Vector3> got;
+    for (uint32 i = 0; i < wrote; ++i)
+    {
+        float x = 0.0f, y = 0.0f, z = 0.0f;
+        out >> x >> y >> z;
+        got.push_back(Vector3(x, y, z));
+    }
+
+    // 2*p0 - p1, which is controls[0].lerp(controls[1], -1).
+    CHECK(Near(got[0].x, 6.0f, 0.0001f));
+    CHECK(Near(got[0].y, 20.0f, 0.0001f));
+
+    // The path itself, in order, then the last point again.
+    CHECK(Near(got[1].x, 10.0f, 0.0001f));
+    CHECK(Near(got[2].x, 14.0f, 0.0001f));
+    CHECK(Near(got[3].x, 18.0f, 0.0001f));
+    CHECK(Near(got[4].x, 18.0f, 0.0001f));
+    CHECK(Near(got[4].y, 26.0f, 0.0001f));
 }
 
 /// Rounding to nearest rather than toward zero halves the error, and the client cannot
