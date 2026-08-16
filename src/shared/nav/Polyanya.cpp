@@ -233,8 +233,66 @@ namespace Nav
             b = Vec2{bx, by};
         };
 
+        /**
+         * THE SEARCH HAS TO BE ABLE TO STOP, and nothing above makes it.
+         *
+         * A child seen straight through an opening keeps its parent's root and its
+         * parent's `g` -- correctly, no distance is walked by looking further through
+         * the same wedge. So a root that can see many openings hands out any number of
+         * children costing exactly the same, and the only gate before this was
+         * `f < best`, where `best` is infinity until the goal has been seen at least
+         * once. Nothing else recorded that a portal had already been reached.
+         *
+         * The result is a search that does not terminate. On a real coastal tile --
+         * 7,846 rectangles, 36,247 openings -- one thirty-yard query still hit the
+         * expansion cap at FOUR MILLION expansions, in both directions: forwards it
+         * kept the first path it stumbled on (119 yards for a 30-yard walk, shaped
+         * like a hairpin) and backwards it never saw the goal at all, so nothing ever
+         * pruned anything. Every creature chasing anything paid that, every replan.
+         *
+         * So: the cheapest `g` any node has reached each opening with. A child that
+         * arrives no more cheaply than one already did has nothing new to offer and is
+         * dropped. `g` never decreases along a path and there are finitely many
+         * openings, so the search now has a bound that does not depend on a cap.
+         *
+         * BUCKETED BY WHERE ON THE OPENING, because an interval is not a point: two
+         * genuinely different crossings of one wide doorway lead to different corners
+         * to bend around, and collapsing them to a single number would prune the
+         * second before it was tried. Eight is coarse enough to be cheap and fine
+         * enough that the buckets are wider than the corners are apart.
+         */
+        enum : uint32_t { INTERVAL_BUCKETS = 8 };
+
+        std::vector<float> reached(mesh.portals.size() * INTERVAL_BUCKETS,
+                                   std::numeric_limits<float>::max());
+
+        const auto worthPushing = [&](const Node& node)
+        {
+            const float middle = (node.lo + node.hi) * 0.5f;
+            uint32_t bucket = static_cast<uint32_t>(middle * float(INTERVAL_BUCKETS));
+            if (bucket >= INTERVAL_BUCKETS)
+            {
+                bucket = INTERVAL_BUCKETS - 1;
+            }
+
+            const size_t slot =
+                static_cast<size_t>(node.portal) * INTERVAL_BUCKETS + bucket;
+            if (node.g >= reached[slot] - EPS)
+            {
+                return false;
+            }
+
+            reached[slot] = node.g;
+            return true;
+        };
+
         const auto push = [&](const Node& node)
         {
+            if (!worthPushing(node))
+            {
+                return;
+            }
+
             nodes.push_back(node);
             open.push(static_cast<uint32_t>(nodes.size() - 1));
         };
@@ -278,8 +336,17 @@ namespace Nav
         Vec2 bestRoot;
         float best = std::numeric_limits<float>::max();
 
-        while (!open.empty() && result.expansions < query.maxExpansions)
+        while (!open.empty())
         {
+            if (result.expansions >= query.maxExpansions)
+            {
+                // Out of budget rather than out of frontier. Said out loud, because
+                // what is in hand at this moment is not the shortest path and the
+                // caller has to be able to tell.
+                result.exhausted = true;
+                break;
+            }
+
             const uint32_t current = open.top();
             open.pop();
 

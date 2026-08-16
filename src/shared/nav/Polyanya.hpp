@@ -145,6 +145,16 @@ namespace Nav
         /// How many search nodes were expanded. Reported so a regression in the
         /// heuristic shows up as work rather than as a wrong answer.
         uint32_t expansions = 0;
+
+        /**
+         * @brief The cap stopped the search; it did not finish on its own.
+         *
+         * A path found this way is whatever was in hand when the budget ran out, not
+         * the shortest one -- and `found` alone said nothing about the difference. A
+         * capped search once reported a 119-yard hairpin for a 30-yard walk and the
+         * router passed it on as "reached the goal".
+         */
+        bool exhausted = false;
     };
 
     /**
