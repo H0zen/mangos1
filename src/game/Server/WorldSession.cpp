@@ -1289,45 +1289,34 @@ void WorldSession::AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt)
     // only happens for packets the server made itself.
     const uint32 arrival = receivedAt ? receivedAt : getMSTime();
 
+    // Maintained for CMSG_TIME_SYNC_RESP and the diagnostics that read it. The stamp
+    // written below does not depend on it.
     if (!m_clientTimeDelayKnown)
     {
-        // Before the first sync the raw value is the client's uptime counter, which no observer
-        // can interpolate against; seed from this packet rather than ship it unmapped.
-        //
-        // SEEDED FROM THE ARRIVAL for the same reason the sync is timed there. Seeding
-        // from the handler's clock folded the whole mailbox wait into the offset, and
-        // the first real sync then took it straight back out -- a step of exactly that
-        // size, in the middle of somebody's movement, every session.
         m_clientTimeDelay = int64(arrival) - int64(mi.GetTime());
         m_clientTimeDelayKnown = true;
     }
 
-    // Truncation is the point: the low 32 bits are the client's movement clock on the wire.
-    const int64 raw = int64(mi.GetTime()) + m_clientTimeDelay
-                    + int64(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
-    uint32 wire = uint32(raw);
+    // THE STAMP IS A DEADLINE. An observing client subtracts its own clock from it and
+    // divides the distance it must cover by whatever is left, so the one thing this
+    // value must never be is already past. Its angle channel reads that difference as
+    // UNSIGNED: an expired deadline becomes a remaining time of about fifty days, a
+    // rate of nearly zero, and a mover that crawls seconds behind where it belongs. Its
+    // position channel reads the same difference as SIGNED and steps by a negative rate
+    // instead, which is a jump backwards followed by a correction.
+    //
+    // So the deadline is built from OUR clock at arrival, and the room the observer is
+    // given is exactly MovementPacketDelay for every packet, with nothing in between
+    // that can drift. The mover's own clock is deliberately absent: it is a free-running
+    // counter on another machine, and mapping it here means carrying an estimated offset
+    // whose every error lands directly on the deadline. The spacing the client sent
+    // survives regardless, because the arrivals carry it.
+    uint32 wire = arrival
+                + uint32(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
 
-    // THE STAMP IS A SORT KEY, NOT A NOTE. An observing client files every movement
-    // change it receives into a list kept in this order, comparing two stamps as a
-    // SIGNED difference so the comparison survives the 32-bit wrap. A value that goes
-    // backwards is therefore not merely odd -- it files the newer change AHEAD of ones
-    // already queued, and the observer plays them out of order and repositions the
-    // mover. Which is the reordering this file has always warned about and never
-    // prevented.
-    //
-    // It can go backwards for an ordinary reason: m_clientTimeDelay is re-estimated from
-    // CMSG_TIME_SYNC_RESP and adopted whenever it moves more than the dead band, so a
-    // correction downwards steps the whole mapping back by that much at once.
-    //
-    // So the clock is held rather than rewound. Repeats are harmless -- equal stamps
-    // compare as "not before", so the list keeps arrival order -- and the hold lasts
-    // exactly as long as the correction was large, after which the new offset carries on
-    // from where the old one left off. Compared as a signed difference for the same
-    // reason the client does.
-    // The ratchet, and nothing before it. Whatever the client's own clock says the
-    // spacing was, that spacing goes out untouched; the only thing refused is a stamp
-    // that would step backwards for this mover, because the observer files them in
-    // stamp order and would replay them out of sequence.
+    // Arrivals are stamped in order on the network thread, so this guards the 32-bit
+    // wrap and nothing else. The observer files movement changes by stamp, comparing as
+    // a signed difference, and would replay out of sequence anything that stepped back.
     if (m_lastWireTimeKnown && int32(wire - m_lastWireTime) < 0)
     {
         wire = m_lastWireTime;

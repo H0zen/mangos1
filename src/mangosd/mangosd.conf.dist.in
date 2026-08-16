@@ -183,8 +183,11 @@ BindIP                       = "0.0.0.0"
 #        Playout buffer for relayed movement, in milliseconds. A movement packet is
 #        rebroadcast with its timestamp moved into the near future by this much, so the
 #        observing client interpolates towards a position it already holds instead of
-#        dead-reckoning past the last one it got. Set it to 0 and remote players overshoot
-#        every stop and every hard turn, then snap back.
+#        dead-reckoning past the last one it got. The timestamp is our own clock at the
+#        moment the packet arrived plus this value, so the room an observer is given is
+#        exactly this many milliseconds on every packet, and never less. Set it to 0 and
+#        the deadline is "now": remote players stop interpolating and snap from position
+#        to position.
 #        Raising it costs a visible delay on remote units; lowering it costs smoothness.
 #        TrinityCore uses the same 500 and documents it as inferred, not measured, so this
 #        is the one value here genuinely worth A/B testing on your own players.
