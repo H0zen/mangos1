@@ -44,7 +44,7 @@ construcții, nu una. Planul de mai jos le tratează ca nucleu comun.
    rezolvă complet înainte ca lumea să se miște.
 2. **Un singur loc mutează lumea**, cu faze numite.
 3. **Nucleul pur nu vede `Unit` și nu vede DBC-ul.** Regulă de link, ținută de
-   `combat_boundary`: `combat/pure/` se leagă în binarul de teste fără
+   `pure_boundary`: `combat/pure/` se leagă în binarul de teste fără
    biblioteca de joc.
 4. **Identitatea e un guid**, rezolvat la folosire. Inclusiv casterul: un
    `Caster` e guid + fel, ca un GO să poată fi unul.
@@ -143,7 +143,7 @@ Treapta 1, făcută, pe `feature/combat-core`:
 | Piesă | Stare |
 |---|---|
 | `combat/pure/` — constante, `Profile`, `Matchup`, `HitTable`, `Strike`, `StrikeResolver` | aditiv, 30 de teste |
-| `combat_boundary` — invariantul de link, ca test ctest | ține cusătura |
+| `pure_boundary` — invariantul de link, ca test ctest | ține cusătura |
 | `ProfileBuilder`, `CombatRng` | cusătura de citire |
 | `ReactionQueue` — șase forme într-un `variant`, adâncime + buget | 8 teste |
 | `StrikeCommit` — șapte faze | |
