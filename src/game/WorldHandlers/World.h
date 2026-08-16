@@ -227,6 +227,8 @@ enum eConfigUInt32Values
     /// 0 off, 1 report, 2 refuse to start. See World::VerifyDataIntegrity.
     CONFIG_UINT32_DATA_INTEGRITY_CHECK,
     CONFIG_UINT32_COMBAT_SHADOW,
+    /// Smallest gap, in ms, between two facing changes relayed for one mover. 0 relays all.
+    CONFIG_UINT32_RELAY_FACING_MIN_GAP,
     CONFIG_UINT32_VALUE_COUNT
 };
 

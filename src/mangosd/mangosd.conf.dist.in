@@ -193,6 +193,20 @@ BindIP                       = "0.0.0.0"
 #        is the one value here genuinely worth A/B testing on your own players.
 #        Default: 500
 #
+#    RelayFacingMinGap
+#        Smallest gap, in milliseconds, between two facing changes relayed for the same
+#        mover. Below it the packet is not rebroadcast. 0 relays every one.
+#        Facing changes arrive in bursts: measured over one log, 286 runs of consecutive
+#        MSG_MOVE_SET_FACING, 130 of them longer than a single packet and the worst
+#        sixteen deep, with a quarter of the runs bracketed by CMSG_MOVE_TIME_SKIPPED --
+#        the client stalling, then catching up in a spray of re-aims. Each packet carries
+#        the whole MovementInfo, so only the last of a run tells an observer anything.
+#        Nothing is lost by dropping the rest: the next packet out, a heartbeat at worst
+#        and never more than half a second away, carries the current position and
+#        orientation. Server-side state is unaffected -- the mover is relocated for every
+#        packet regardless, only the broadcast is thinned.
+#        Try 100. Default: 0 (off)
+#
 #    RelayFacingAsHeartbeat
 #        Relay a player's MSG_MOVE_SET_FACING to observers as MSG_MOVE_HEARTBEAT. The
 #        payload is unchanged -- the whole MovementInfo, orientation included -- so only

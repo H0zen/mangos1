@@ -169,6 +169,7 @@ WorldSession::WorldSession(uint32 id, std::shared_ptr<proto::IClientLink> link,
     m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
     m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_lastMoverResync(0),
+    m_lastFacingRelay(0),
     m_npcWatchLastGuid(),
     m_pingTracker()
 {

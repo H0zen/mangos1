@@ -1025,6 +1025,7 @@ class WorldSession
         TutorialDataState m_tutorialState;
         Helm::ClientClock m_courseClock;
         uint32 m_lastMoverResync;                           ///< rate limit on ResyncMover()
+        uint32 m_lastFacingRelay;                           ///< rate limit on relayed facing
         ObjectGuid m_npcWatchLastGuid;
 
         // Ping flood tracking now lives exclusively on the world thread and is

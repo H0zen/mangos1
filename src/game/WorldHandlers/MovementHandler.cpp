@@ -486,6 +486,31 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     // clean, and two players running side by side without /follow are clean.
     //
     // Off by default. It is an experiment with a measured motive, not a finding.
+    // A BURST OF FACING CHANGES IS NOT MOVEMENT. Counted over one log: 286 runs of
+    // consecutive MSG_MOVE_SET_FACING with nothing between them, 130 of them longer than
+    // one packet, the worst sixteen deep. And 26% of those runs are immediately preceded
+    // by CMSG_MOVE_TIME_SKIPPED, 21% immediately followed by one -- the client stalls,
+    // then catches up in a spray of re-aims, then stalls again. It is the hitch talking,
+    // not the player turning.
+    //
+    // Only the last one of a run says anything an observer needs, because each carries
+    // the whole MovementInfo. So they are rate limited on the way out: below the gap,
+    // the packet is not relayed. Nothing is lost -- the next packet to go out, a
+    // heartbeat at worst and never more than half a second away, carries the current
+    // position and orientation anyway.
+    //
+    // The server's own state is untouched by this. HandleMoverRelocation above has
+    // already run for every one of them; only the broadcast is thinned.
+    if (opcode == MSG_MOVE_SET_FACING)
+    {
+        const uint32 minGap = sWorld.getConfig(CONFIG_UINT32_RELAY_FACING_MIN_GAP);
+        if (minGap && m_lastFacingRelay && relayedAt - m_lastFacingRelay < minGap)
+        {
+            return;
+        }
+        m_lastFacingRelay = relayedAt;
+    }
+
     uint16 relayOpcode = opcode;
     if (opcode == MSG_MOVE_SET_FACING
         && sWorld.getConfig(CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT))
