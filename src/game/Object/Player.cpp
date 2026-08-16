@@ -386,7 +386,7 @@ UpdateMask Player::updateVisualBits;
  *
  * @param session The owning world session.
  */
-Player::Player(WorldSession* session): Unit(), m_petMgr(this), m_honorMgr(this), m_spellCooldownMgr(this), m_mover(this), m_camera(this), m_reputationMgr(this)
+Player::Player(WorldSession* session): Unit(), m_inventory(this), m_petMgr(this), m_honorMgr(this), m_spellCooldownMgr(this), m_mover(this), m_camera(this), m_reputationMgr(this)
 {
 #ifdef ENABLE_PLAYERBOTS
     m_playerbotAI = 0;
@@ -552,7 +552,7 @@ Player::Player(WorldSession* session): Unit(), m_petMgr(this), m_honorMgr(this),
     // Initialize reset talents time to 0
     m_resetTalentsTime = 0;
     // Initialize item update queue blocked flag to false
-    m_itemUpdateQueueBlocked = false;
+    m_inventory.BlockQueue(false);
 
     // Initialize forced speed changes for all move types to 0
     for (int i = 0; i < MAX_MOVE_TYPE; ++i)

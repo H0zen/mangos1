@@ -1248,7 +1248,7 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff)
         std::list<Item*> problematicItems;
 
         // prevent items from being added to the queue when stored
-        m_itemUpdateQueueBlocked = true;
+        m_inventory.BlockQueue(true);
         do
         {
             Field* fields = result->Fetch();
@@ -1395,7 +1395,7 @@ void Player::_LoadInventory(QueryResult* result, uint32 timediff)
         while (result->NextRow());
 
         delete result;
-        m_itemUpdateQueueBlocked = false;
+        m_inventory.BlockQueue(false);
 
         // send by mail problematic items
         while (!problematicItems.empty())

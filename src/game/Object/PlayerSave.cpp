@@ -544,16 +544,16 @@ void Player::_SaveInventory()
     }
 
     // if no changes
-    if (m_itemUpdateQueue.empty())
+    if (m_inventory.Queue().empty())
     {
         return;
     }
 
     // do not save if the update queue is corrupt
     bool error = false;
-    for (size_t i = 0; i < m_itemUpdateQueue.size(); ++i)
+    for (size_t i = 0; i < m_inventory.Queue().size(); ++i)
     {
-        Item* item = m_itemUpdateQueue[i];
+        Item* item = m_inventory.Queue()[i];
         if (!item || item->GetState() == ITEM_REMOVED)
         {
             continue;
@@ -583,9 +583,9 @@ void Player::_SaveInventory()
     static SqlStatementID updateInventory ;
     static SqlStatementID deleteInventory ;
 
-    for (size_t i = 0; i < m_itemUpdateQueue.size(); ++i)
+    for (size_t i = 0; i < m_inventory.Queue().size(); ++i)
     {
-        Item* item = m_itemUpdateQueue[i];
+        Item* item = m_inventory.Queue()[i];
         if (!item)
         {
             continue;
@@ -630,7 +630,7 @@ void Player::_SaveInventory()
 
         item->SaveToDB();                                   // item have unchanged inventory record and can be save standalone
     }
-    m_itemUpdateQueue.clear();
+    m_inventory.ClearQueue();
 }
 
 /**

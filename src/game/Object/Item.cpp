@@ -26,6 +26,7 @@
 #include "Utilities/Errors.h"
 #include "sd3/ScriptBindings.h"
 #include "Item.h"
+#include "Inventory.h"
 #include "ObjectMgr.h"
 #include "ObjectGuid.h"
 #include "WorldPacket.h"
@@ -630,13 +631,10 @@ void Item::AddToUpdateQueueOf(Player* player)
         return;
     }
 
-    if (player->m_itemUpdateQueueBlocked)
-    {
-        return;
-    }
-
-    player->m_itemUpdateQueue.push_back(this);
-    uQueuePos = player->m_itemUpdateQueue.size() - 1;
+    // The position comes back from the container that owns the vector; it is
+    // never computed here, because an index this side got wrong is a write
+    // into somebody else's queue slot.
+    uQueuePos = player->GetInventory().Enqueue(this);
 }
 
 /**
@@ -669,13 +667,13 @@ void Item::RemoveFromUpdateQueueOf(Player* player)
         return;
     }
 
-    if (player->m_itemUpdateQueueBlocked)
+    if (player->GetInventory().QueueBlocked())
     {
         return;
     }
 
-    player->m_itemUpdateQueue[uQueuePos] = NULL;
-    uQueuePos = -1;
+    player->GetInventory().Dequeue(uQueuePos);
+    uQueuePos = Inventory::NotQueued;
 }
 
 /**

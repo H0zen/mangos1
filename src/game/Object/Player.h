@@ -62,6 +62,7 @@
 #include "ItemPrototype.h"
 #include "Unit.h"
 #include "Item.h"
+#include "Inventory.h"
 
 #include "Database/DatabaseEnv.h"
 #include "QuestDef.h"
@@ -1554,7 +1555,12 @@ class Player : public Unit
         static uint32 GetAttackBySlot(uint8 slot);
 
         // Get the item update queue
-        std::vector<Item*>& GetItemUpdateQueue() { return m_itemUpdateQueue; }
+        std::vector<Item*>& GetItemUpdateQueue() { return m_inventory.Queue(); }
+
+        /// What this player carries. Item reaches the pending-save queue
+        /// through here rather than through the vector directly.
+        Inventory&       GetInventory()       { return m_inventory; }
+        Inventory const& GetInventory() const { return m_inventory; }
 
         // Check if the position is an inventory position
         static bool IsInventoryPos(uint16 pos) { return IsInventoryPos(pos >> 8, pos & 255); }
@@ -4147,8 +4153,9 @@ class Player : public Unit
         Item* m_items[PLAYER_SLOTS_COUNT]; // Array of player items
         uint32 m_currentBuybackSlot; // Current buyback slot
 
-        std::vector<Item*> m_itemUpdateQueue; // Item update queue
-        bool m_itemUpdateQueueBlocked; // Item update queue blocked flag
+        /// Owns the pending-save queue and the rule that an item's remembered
+        /// position and this vector never disagree.
+        Inventory m_inventory;
 
         uint32 m_ExtraFlags; // Extra flags
         ObjectGuid m_curSelectionGuid; // Current selection GUID
