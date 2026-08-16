@@ -61,6 +61,7 @@
 #include "combat/CombatRegistry.h"
 #include "combat/CombatShadow.h"
 #include "combat/MeleeSwing.h"
+#include "combat/pure/HitTable.h"
 
 /**
  * @brief Performs one melee attack update against a victim.
@@ -590,92 +591,87 @@ float Unit::MeleeSpellMissChance(Unit* pVictim, WeaponAttackType attType, int32 
     return missChance;
 }
 
-// Melee based spells hit result calculations
+/**
+ * @brief Rolls whether a melee or ranged ABILITY lands.
+ *
+ * The same profiles, the same Matchup and the same table the white swing uses,
+ * asked for its two-roll form. What is left here is what is genuinely about
+ * this spell rather than about the pair: the attributes that skip a band, the
+ * mechanic the victim resists, and the auras that tell one outcome to stand
+ * down.
+ *
+ * The bands themselves -- expertise, the skill difference, attacks from behind,
+ * a creature that cannot parry -- are not recomputed. They were being worked
+ * out twice from the same inputs, by two pieces of arithmetic that had drifted
+ * apart, and only one of the two had ever been tested.
+ *
+ * @param pVictim The target of the ability.
+ * @param spell The ability being used.
+ * @return Which outcome the roll landed on.
+ */
 SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell)
 {
-    WeaponAttackType attType = BASE_ATTACK;
+    const bool ranged = spell->DefenseType == SPELL_DAMAGE_CLASS_RANGED;
+    const Combat::Hand hand = ranged ? Combat::Hand::Ranged : Combat::Hand::Main;
 
-    if (spell->DefenseType == SPELL_DAMAGE_CLASS_RANGED)
+    Combat::Situation situation;
+    situation.fromBehind = !pVictim->Where().HasInArc(Where(), M_PI_F);
+
+    Combat::Matchup matchup = Combat::Matchup::Build(
+        CombatProfile().Read(), pVictim->CombatProfile().Read(),
+        hand, situation, /*special*/ true);
+
+    // The one part of the miss chance that belongs to the spell and not to the
+    // pair. Everything else -- hit rating, the victim's attacker-hit auras, the
+    // skill difference -- is already in the profiles the Matchup was built from.
+    if (Player* modOwner = GetSpellModOwner())
     {
-        attType = RANGED_ATTACK;
+        float hitChance = 0.0f;
+        modOwner->ApplySpellMod(spell->ID, SPELLMOD_RESIST_MISS_CHANCE, hitChance);
+        matchup.miss -= Combat::Hundredths(hitChance * 100.0f);
     }
 
-    // bonus from skills is 0.04% per skill Diff
-    int32 attackerWeaponSkill = (spell->EquippedItemClass == ITEM_CLASS_WEAPON) ? int32(GetWeaponSkillValue(attType, pVictim)) : GetMaxSkillValueForLevel();
-    int32 skillDiff = attackerWeaponSkill - int32(pVictim->GetMaxSkillValueForLevel(this));
-    int32 fullSkillDiff = attackerWeaponSkill - int32(pVictim->GetDefenseSkillValue(this));
-
-    //is this to get a better spread and not have to resort to floats?
-    uint32 roll = urand(0, 10000);
-
-    uint32 missChance = uint32(MeleeSpellMissChance(pVictim, attType, fullSkillDiff, spell) * 100.0f);
-    // Roll miss
-    uint32 tmp = spell->HasAttribute(SPELL_ATTR_EX3_CANT_MISS) ? 0 : missChance;
-    if (roll < tmp)
+    if (spell->HasAttribute(SPELL_ATTR_EX3_CANT_MISS))
     {
-        return SPELL_MISS_MISS;
+        matchup.miss = 0;
     }
 
-    // Chance resist mechanic (select max value from every mechanic spell effect)
-    int32 resist_mech = 0;
-    // Get effects mechanic and chance
+    if (matchup.miss < 0)
+    {
+        matchup.miss = 0;
+    }
+
+    // The strongest mechanic resistance among the spell's effects. It sits
+    // between miss and dodge, which is the order the old path rolled in.
     for (int eff = 0; eff < MAX_EFFECT_INDEX; ++eff)
     {
-        int32 effect_mech = GetEffectMechanic(spell, SpellEffectIndex(eff));
-        if (effect_mech)
+        const int32 mechanic = GetEffectMechanic(spell, SpellEffectIndex(eff));
+        if (!mechanic)
         {
-            int32 temp = pVictim->GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_MECHANIC_RESISTANCE, effect_mech);
-            if (resist_mech < temp * 100)
-            {
-                resist_mech = temp * 100;
-            }
+            continue;
+        }
+
+        const Combat::Hundredths resisted = Combat::Hundredths(
+            pVictim->GetTotalAuraModifierByMiscValue(
+                SPELL_AURA_MOD_MECHANIC_RESISTANCE, mechanic) * 100);
+
+        if (resisted > matchup.resist)
+        {
+            matchup.resist = resisted;
         }
     }
-    // Roll chance
-    tmp += resist_mech;
-    if (roll < tmp)
+
+    // An ability that cannot be avoided, and a ranged one, which nothing in
+    // this expansion dodges or parries.
+    if (spell->HasAttribute(SPELL_ATTR_IMPOSSIBLE_DODGE_PARRY_BLOCK) || ranged)
     {
-        return SPELL_MISS_RESIST;
+        matchup.dodge = 0;
+        matchup.parry = 0;
     }
 
-    bool canDodge = true;
-    bool canParry = true;
-
-    // Same spells can not be parry/dodge
-    if (spell->HasAttribute(SPELL_ATTR_IMPOSSIBLE_DODGE_PARRY_BLOCK))
-    {
-        return SPELL_MISS_NONE;
-    }
-
-    // Ranged attack can not be parry/dodge
-    if (attType == RANGED_ATTACK)
-    {
-        return SPELL_MISS_NONE;
-    }
-
-    bool from_behind = !pVictim->Where().HasInArc(this->Where(), M_PI_F);
-
-    // Check for attack from behind
-    if (from_behind)
-    {
-        // Can`t dodge from behind in PvP (but its possible in PvE)
-        if (GetTypeId() == TYPEID_PLAYER && pVictim->GetTypeId() == TYPEID_PLAYER)
-        {
-            canDodge = false;
-        }
-        // Can`t parry
-        canParry = false;
-    }
-    // Check creatures flags_extra for disable parry
-    if (pVictim->GetTypeId() == TYPEID_UNIT)
-    {
-        uint32 flagEx = ((Creature*)pVictim)->GetCreatureInfo()->ExtraFlags;
-        if (flagEx & CREATURE_FLAG_EXTRA_NO_PARRY)
-        {
-            canParry = false;
-        }
-    }
-    // Ignore combat result aura
+    // SPELL_AURA_IGNORE_COMBAT_RESULT names an outcome this spell does not
+    // suffer. Block is not a band in the two-roll table -- it is rolled at the
+    // hit -- so it is read and ignored here rather than silently dropped.
     AuraList const& ignore = GetAurasByType(SPELL_AURA_IGNORE_COMBAT_RESULT);
     for (AuraList::const_iterator i = ignore.begin(); i != ignore.end(); ++i)
     {
@@ -683,64 +679,31 @@ SpellMissInfo Unit::MeleeSpellHitResult(Unit* pVictim, SpellEntry const* spell)
         {
             continue;
         }
+
         switch ((*i)->GetModifier()->m_miscvalue)
         {
-            case MELEE_HIT_DODGE: canDodge = false; break;
-            case MELEE_HIT_BLOCK: break; // Block check in hit step
-            case MELEE_HIT_PARRY: canParry = false; break;
+            case MELEE_HIT_DODGE: matchup.dodge = 0; break;
+            case MELEE_HIT_PARRY: matchup.parry = 0; break;
+            case MELEE_HIT_BLOCK: break;               // rolled at the hit
             default:
-                DEBUG_LOG("Spell %u SPELL_AURA_IGNORE_COMBAT_RESULT have unhandled state %d", (*i)->GetId(), (*i)->GetModifier()->m_miscvalue);
+                DEBUG_LOG("Spell %u SPELL_AURA_IGNORE_COMBAT_RESULT have unhandled state %d",
+                          (*i)->GetId(), (*i)->GetModifier()->m_miscvalue);
                 break;
         }
     }
 
-    if (canDodge)
+    const Combat::HitTable table = Combat::HitTable::TwoRoll(matchup);
+
+    switch (table.Resolve(Combat::Hundredths(urand(0, 9999))))
     {
-        // Roll dodge
-        int32 dodgeChance = int32(pVictim->GetUnitDodgeChance() * 100.0f) - skillDiff * 4;
-        // Reduce enemy dodge chance by SPELL_AURA_MOD_COMBAT_RESULT_CHANCE
-        dodgeChance += GetTotalAuraModifierByMiscValue(SPELL_AURA_MOD_COMBAT_RESULT_CHANCE, VICTIMSTATE_DODGE) * 100;
-        // Reduce dodge chance by attacker expertise rating
-        if (GetTypeId() == TYPEID_PLAYER)
-        {
-            dodgeChance -= int32(((Player*)this)->GetExpertiseDodgeOrParryReduction(attType) * 100.0f);
-        }
-        if (dodgeChance < 0)
-        {
-            dodgeChance = 0;
-        }
-
-        tmp += dodgeChance;
-        if (roll < tmp)
-        {
-            return SPELL_MISS_DODGE;
-        }
+        case Combat::Outcome::Miss:   return SPELL_MISS_MISS;
+        case Combat::Outcome::Resist: return SPELL_MISS_RESIST;
+        case Combat::Outcome::Dodge:  return SPELL_MISS_DODGE;
+        case Combat::Outcome::Parry:  return SPELL_MISS_PARRY;
+        case Combat::Outcome::Evade:  return SPELL_MISS_EVADE;
+        case Combat::Outcome::Immune: return SPELL_MISS_IMMUNE;
+        default:                      return SPELL_MISS_NONE;
     }
-
-    if (canParry)
-    {
-        // Roll parry
-        int32 parryChance = int32(pVictim->GetUnitParryChance() * 100.0f)  - skillDiff * 4;
-        // Reduce parry chance by attacker expertise rating
-        if (GetTypeId() == TYPEID_PLAYER)
-        {
-            parryChance -= int32(((Player*)this)->GetExpertiseDodgeOrParryReduction(attType) * 100.0f);
-        }
-
-        // Can`t parry from behind
-        if (parryChance < 0)
-        {
-            parryChance = 0;
-        }
-
-        tmp += parryChance;
-        if (roll < tmp)
-        {
-            return SPELL_MISS_PARRY;
-        }
-    }
-
-    return SPELL_MISS_NONE;
 }
 
 // TODO need use unit spell resistances in calculations

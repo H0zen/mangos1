@@ -891,3 +891,72 @@ TEST(CombatCreatureBlockIsStillFivePercentFlat)
     CHECK_EQ(Constants::CREATURE_BLOCK_BASE, 500);
     CHECK_EQ(Constants::CREATURE_PARRY_BASE, 500);
 }
+
+/**
+ * The ordering a special's bands come out in, and what an ability that skips
+ * one leaves behind.
+ *
+ * These matter because the yellow path used to compute its own bands with its
+ * own arithmetic. Routing it through the table it shares with the white swing
+ * only helps if the table says the same things the hand-rolled sequence did.
+ */
+
+TEST(CombatTwoRollResistSitsBetweenMissAndDodge)
+{
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Main, Situation(), true);
+    m.resist = 500;                                     // 5%
+
+    const HitTable table = HitTable::TwoRoll(m);
+
+    // The order is the whole point: a mechanic the victim resists stops the
+    // ability before anyone gets a chance to dodge it.
+    CHECK(table.Bound(Outcome::Miss) < table.Bound(Outcome::Resist));
+    CHECK(table.Bound(Outcome::Resist) <= table.Bound(Outcome::Dodge));
+    CHECK_EQ(table.Band(Outcome::Resist), 500);
+}
+
+TEST(CombatTwoRollAnUndodgeableAbilityGivesTheBandBack)
+{
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Main, Situation(), true);
+    const Hundredths dodged = HitTable::TwoRoll(m).Band(Outcome::Dodge);
+    CHECK(dodged > 0);
+
+    // What a ranged ability, or one flagged impossible to dodge or parry,
+    // hands the table. The removed chance becomes a normal hit rather than
+    // vanishing -- the bands still have to sum to a certainty.
+    m.dodge = 0;
+    m.parry = 0;
+
+    const HitTable table = HitTable::TwoRoll(m);
+    CHECK_EQ(table.Band(Outcome::Dodge), 0);
+    CHECK_EQ(table.Band(Outcome::Parry), 0);
+    CHECK_EQ(table.Bound(Outcome::Normal), 10000);
+}
+
+TEST(CombatTwoRollACantMissAbilityStillLandsSomewhere)
+{
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Main, Situation(), true);
+    m.miss = 0;
+
+    const HitTable table = HitTable::TwoRoll(m);
+    CHECK_EQ(table.Band(Outcome::Miss), 0);
+
+    // Zero is a roll, and with no miss band it has to resolve to whatever
+    // comes first rather than falling off the front of the table.
+    CHECK(table.Resolve(0) != Outcome::Miss);
+    CHECK_EQ(table.Bound(Outcome::Normal), 10000);
+}
+
+TEST(CombatTwoRollRangedIsNotDeniedItsMiss)
+{
+    // Ranged loses dodge and parry and keeps everything else. Worth pinning
+    // because the reading is easy to get wrong: an ability that cannot be
+    // avoided is not an ability that cannot be missed.
+    Matchup m = Matchup::Build(Warrior(), Boss(), Hand::Ranged, Situation(), true);
+    m.dodge = 0;
+    m.parry = 0;
+
+    const HitTable table = HitTable::TwoRoll(m);
+    CHECK(table.Band(Outcome::Miss) > 0);
+    CHECK(table.Resolve(0) == Outcome::Miss);
+}
