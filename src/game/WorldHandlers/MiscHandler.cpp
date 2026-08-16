@@ -994,11 +994,21 @@ void WorldSession::HandleMoveTimeSkippedOpcode(WorldPacket& recv_data)
     // scheduler repair the leg instead of waiting for it to end wrong.
     CourseClock().Skipped(Helm::Millis(time_dif), getMSTime());
 
-    // Observers apply the same skip to remote interpolation (MSG_MOVE_TIME_SKIPPED is SMSG-only).
-    WorldPacket data(MSG_MOVE_TIME_SKIPPED, 16);
-    data << mover->GetPackGUID();
-    data << time_dif;
-    mover->SendMessageToSetExcept(&data, _player);
+    // NOT RELAYED. A skip report is this client's private accounting of its own stalled
+    // clock, and an observer has no use for it: the observer re-anchors on the mover's
+    // next movement packet regardless.
+    //
+    // Sending it does active harm. An observing client files it into the same queue that
+    // drives position interpolation, but the record carries no position, so when it
+    // reaches the head the client zeroes the interpolation denominator and skips the
+    // correction towards the mover's true position for that frame -- drawing the raw
+    // extrapolation instead, at whatever it has drifted to, then snapping back on the
+    // next frame. One frame out and one frame back, per report.
+    //
+    // And the reports are not rare. Two clients on one machine produce them continuously,
+    // because a throttled client's movement clock stalls constantly: measured at about
+    // six or seven per second per mover. Creatures never send one, which is why only
+    // players were ever seen to twitch.
 }
 
 /**
