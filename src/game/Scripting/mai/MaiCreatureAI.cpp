@@ -244,6 +244,36 @@ namespace mai
             return true;
         }
 
+        if (guard.of == GuardTargetIsSelf ||
+            guard.of == GuardTargetFriendly ||
+            guard.of == GuardTargetClass)
+        {
+            // A rule's target is whoever the creature is fighting.
+            Unit* to = m_creature->getVictim();
+
+            if (guard.of == GuardTargetIsSelf)
+            {
+                held = (to == static_cast<Unit const*>(m_creature)) ? 1u : 0u;
+                return true;
+            }
+
+            if (!to)
+            {
+                return false;
+            }
+
+            if (guard.of == GuardTargetFriendly)
+            {
+                held = m_creature->IsFriendlyTo(to) ? 1u : 0u;
+                return true;
+            }
+
+            held = to->GetTypeId() == TYPEID_PLAYER
+                 ? uint32(static_cast<Player*>(to)->getClass())
+                 : 0u;
+            return true;
+        }
+
         if (guard.of == GuardPhase)
         {
             // The number `set_phase` writes, which is not a state slot and

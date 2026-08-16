@@ -342,6 +342,41 @@ namespace scripting
                     return true;
                 }
 
+                if (guard.of == mai::GuardTargetIsSelf ||
+                    guard.of == mai::GuardTargetFriendly ||
+                    guard.of == mai::GuardTargetClass)
+                {
+                    if (guard.of == mai::GuardTargetIsSelf)
+                    {
+                        // Guid comparison rather than pointer: neither end has
+                        // to be resolved for the question to have an answer,
+                        // and an empty target is not the actor.
+                        held = (!target.IsEmpty() && target == source) ? 1u : 0u;
+                        return true;
+                    }
+
+                    Unit* from = source.IsEmpty() ? nullptr : map->GetUnit(source);
+                    Unit* to   = target.IsEmpty() ? nullptr : map->GetUnit(target);
+                    if (!from || !to)
+                    {
+                        return false;
+                    }
+
+                    if (guard.of == mai::GuardTargetFriendly)
+                    {
+                        held = from->IsFriendlyTo(to) ? 1u : 0u;
+                        return true;
+                    }
+
+                    // Zero for anything that is not a player, so
+                    // `target_class=0` means "not a player" and needs no
+                    // second name.
+                    held = to->GetTypeId() == TYPEID_PLAYER
+                         ? uint32(static_cast<Player*>(to)->getClass())
+                         : 0u;
+                    return true;
+                }
+
                 if (guard.of == mai::GuardInstance)
                 {
                     InstanceData* data = map->GetInstanceData();

@@ -473,6 +473,33 @@ namespace mai
                 break;
             }
 
+            // Questions about the pair. Answerable with no owner, like
+            // `phase` and unlike a state: they are about the two units a step
+            // already has, which is why a sequence the world started can ask
+            // them at all.
+            static struct { char const* word; GuardOf of; } const kPairWords[] =
+            {
+                { "target_is_self",  GuardTargetIsSelf },
+                { "target_friendly", GuardTargetFriendly },
+                { "target_class",    GuardTargetClass },
+            };
+
+            if (!prefixed)
+            {
+                for (auto const& known : kPairWords)
+                {
+                    if (held != known.word)
+                    {
+                        continue;
+                    }
+
+                    guard.of = known.of;
+                    guard.subject = 0;
+                    prefixed = true;
+                    break;
+                }
+            }
+
             // A reserved word: it looks like a bare state name and is not one.
             // `phase` is what `set_phase` writes, and interned as a state it
             // was a guard on a slot nothing ever wrote -- always zero, for

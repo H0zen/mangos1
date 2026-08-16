@@ -170,7 +170,28 @@ namespace mai
          * cannot also have a state called `phase` and two things cannot mean
          * one word.
          */
-        GuardPhase
+        GuardPhase,
+
+        /**
+         * Questions about the PAIR rather than about one side of it.
+         *
+         * The vocabulary had none, and it is the largest single reason a proc
+         * stays written in C++: six of the handlers that cannot be data ask
+         * only "is this me", "is this a friend" or "what class is it".
+         *
+         * `target_is_self=1` -- the two ends are the same unit. A retaliation
+         * that must not fire on the wearer's own damage says so with this.
+         *
+         * `target_friendly=1` -- the target is friendly to the actor. A cast
+         * that heals and a cast that harms pick each other apart here.
+         *
+         * `target_class=N` -- the target's class, Classes in SharedDefines.
+         * Zero when the target is not a player, which makes `target_class=0`
+         * mean "not a player" and needs no second name.
+         */
+        GuardTargetIsSelf,
+        GuardTargetFriendly,
+        GuardTargetClass
     };
 
     struct Guard
