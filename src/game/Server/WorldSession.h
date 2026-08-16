@@ -510,8 +510,6 @@ class WorldSession
         {
             m_latency = latency;
         }
-        void SetClientTimeDelay(int64 delay) { m_clientTimeDelay = delay; }
-        int64 GetClientTimeDelay() const { return m_clientTimeDelay; }
         void ResetClientTimeDelay();
 
         /**
@@ -526,8 +524,6 @@ class WorldSession
          */
         Helm::ClientClock& CourseClock() { return m_courseClock; }
         Helm::ClientClock const& CourseClock() const { return m_courseClock; }
-        void PushTimeSyncSample(int64 clockDelta, uint32 roundTrip);
-        void AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt);
         uint32 getDialogStatus(Player* pPlayer, Object* questgiver, uint32 defstatus);
 
         // Misc
@@ -1028,11 +1024,6 @@ class WorldSession
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
         Helm::ClientClock m_courseClock;
-        int64 m_clientTimeDelay;
-        bool m_clientTimeDelayKnown;
-        uint32 m_lastWireTime;      ///< last stamp relayed for this session's mover
-        bool m_lastWireTimeKnown;
-        std::deque<std::pair<int64, uint32>> m_timeSyncSamples; ///< (clock delta, round trip)
         uint32 m_lastMoverResync;                           ///< rate limit on ResyncMover()
         ObjectGuid m_npcWatchLastGuid;
 

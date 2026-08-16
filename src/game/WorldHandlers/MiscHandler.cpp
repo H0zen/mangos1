@@ -1504,18 +1504,17 @@ void WorldSession::HandleTimeSyncResp(WorldPacket& recv_data)
     const uint32 answeredAt = getMSTime();
     const uint32 roundTrip = answeredAt - _player->m_timeSyncServer;
     const int64 clockDelta = int64(_player->m_timeSyncServer) + int64(roundTrip / 2) - int64(clientTicks);
-    PushTimeSyncSample(clockDelta, roundTrip);
 
-    // The same answer, kept as an error bar rather than an average. The filtered delta
-    // above exists to nudge a movement timestamp; this keeps the round trip alongside
-    // the offset, because how far the client may have drifted is a different question
-    // from where its clock sits, and the course scheduler asks the first one.
+    // The one consumer of this answer, and it is not the wire. How far the client may
+    // have drifted is a different question from where its clock sits, and only the
+    // course scheduler asks it -- to turn "the client is 500 ms behind" into "the client
+    // is drawing this unit four yards from where the plan says it is". Nothing here
+    // reaches a relayed timestamp.
     CourseClock().Sync(clientTicks, _player->m_timeSyncServer, answeredAt);
 
-    DEBUG_LOG("WORLD: CMSG_TIME_SYNC_RESP counter %u client %u since=%u sample=%lld delay=%lld rtt=%u latency=%u",
+    DEBUG_LOG("WORLD: CMSG_TIME_SYNC_RESP counter %u client %u since=%u sample=%lld rtt=%u latency=%u",
               counter, clientTicks, clientTicks - _player->m_timeSyncClient,
-              static_cast<long long>(clockDelta), static_cast<long long>(GetClientTimeDelay()),
-              roundTrip, GetLatency());
+              static_cast<long long>(clockDelta), roundTrip, GetLatency());
 
     _player->m_timeSyncClient = clientTicks;
 }

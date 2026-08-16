@@ -88,51 +88,6 @@
 #include <utility>
 #include <vector>
 
-namespace
-{
-    const size_t TIME_SYNC_SAMPLE_COUNT = 6;
-    const int64 TIME_SYNC_DEAD_BAND_MS = 25;
-
-    /**
-     * @brief How much of the offset's error to take back on a sample inside the band.
-     *
-     * The band exists so a jittering estimate does not shove the mapping about on every
-     * sync. What it also did was refuse a drift that always leans the same way: measured
-     * over one session, the freshest sample sat above the offset in use by a median of
-     * 15 ms and a p90 of 49, and the band refused adoption on 27 of 29 syncs. A bias
-     * that is never corrected is spent out of the playout budget.
-     *
-     * So a small sample is not discarded, it is followed slowly. A quarter converges in
-     * a handful of syncs without any single one of them being able to jerk the mapping.
-     */
-    const int64 TIME_SYNC_SLEW_DIVISOR = 4;
-
-    /**
-     * @brief THERE IS NO FLOOR ON THE LEAD, AND THE MEASUREMENT IS WHY.
-     *
-     * One was tried: 200 ms, meant as a net under the rare packet whose stamp had
-     * already expired when it went out. It was expected to bind on the 1.7% that were
-     * arriving late. It bound on 93%.
-     *
-     * That is not a net, that is the mechanism. With the stamp pinned to
-     * `arrival + 200`, it stops carrying the client's own smooth clock and starts
-     * carrying OUR arrival times, jitter and all. Measured over 632 relayed packets
-     * with the floor in: the client sent them a median of 141 ms apart, the stamps went
-     * out a median of 101 ms apart, and the difference between the two ran a median of
-     * 44 ms with a p90 of 184.
-     *
-     * The stamp is a deadline the observer interpolates toward at a constant rate, so
-     * an error in the deadline is an error in how long the movement takes -- on every
-     * packet rather than on the 1.7%. It traded a rare freeze for a permanent wobble,
-     * and the developer could see the difference.
-     *
-     * The lead being short in the first place is a real problem and is still open. It
-     * is NOT the mailbox: the same log measures that wait at a median of 5 ms, which
-     * also disposes of an earlier guess here that some 356 ms of it was queueing.
-     */
-
-}
-
 /**
  * @brief Helper for Map session filtering
  * @param session World session
@@ -213,9 +168,7 @@ WorldSession::WorldSession(uint32 id, std::shared_ptr<proto::IClientLink> link,
     _security(sec), _accountId(id), m_expansion(expansion), _warden(NULL), _build(0), _logoutTime(0),
     m_inQueue(false), m_playerLoading(false), m_playerLogout(false), m_playerRecentlyLogout(false), m_playerSave(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetIndexForLocale(locale)),
-    m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_clientTimeDelay(0),
-    m_clientTimeDelayKnown(false), m_lastWireTime(0), m_lastWireTimeKnown(false),
-    m_timeSyncSamples(), m_lastMoverResync(0),
+    m_latency(0), m_tutorialState(TUTORIALDATA_UNCHANGED), m_lastMoverResync(0),
     m_npcWatchLastGuid(),
     m_pingTracker()
 {
@@ -1210,121 +1163,21 @@ void WorldSession::InitWarden(uint16 build, BigNumber* k, std::string const& os)
     }
 }
 
+/**
+ * @brief The client's own movement clock reaches observers untouched.
+ *
+ * A relayed timestamp is measured by the receiving client against a clock of its own,
+ * and the two have no common origin: each client carries a running total of the time
+ * its movement clock stalled -- reported to us, and to nobody else, by
+ * CMSG_MOVE_TIME_SKIPPED -- and those totals diverge without bound. Measured on one
+ * session, one client had accumulated some twenty-two seconds of stall against the
+ * other's.
+ *
+ * So there is no offset to estimate here, and no correction that would be right for
+ * more than one observer at a time. Proven rather than argued: with the stamp pushed
+ * five seconds into the future, remote players moved exactly as before.
+ */
 void WorldSession::ResetClientTimeDelay()
 {
-    m_clientTimeDelay = 0;
-    m_clientTimeDelayKnown = false;
-    m_timeSyncSamples.clear();
-
-    // The ratchet goes with the offset it was guarding. Keeping it across a reset would
-    // hold the wire clock at a value belonging to a mapping that no longer exists.
-    m_lastWireTime = 0;
-    m_lastWireTimeKnown = false;
-}
-
-void WorldSession::PushTimeSyncSample(int64 clockDelta, uint32 roundTrip)
-{
-    // TrinityCore's ComputeNewClockDelta without boost. A delta that walks DOWN drags every
-    // observer's copy of this mover backwards in time, hence the filter and the dead band.
-    m_timeSyncSamples.emplace_back(clockDelta, roundTrip);
-    if (m_timeSyncSamples.size() > TIME_SYNC_SAMPLE_COUNT)
-    {
-        m_timeSyncSamples.pop_front();
-    }
-
-    std::vector<uint32> trips;
-    trips.reserve(m_timeSyncSamples.size());
-    double sum = 0.0;
-    double sumSq = 0.0;
-    for (auto const& sample : m_timeSyncSamples)
-    {
-        trips.push_back(sample.second);
-        sum += double(sample.second);
-        sumSq += double(sample.second) * double(sample.second);
-    }
-
-    std::sort(trips.begin(), trips.end());
-    const double count = double(trips.size());
-    const double mean = sum / count;
-    const double deviation = std::sqrt(std::max(0.0, sumSq / count - mean * mean));
-    // <= so the median sample always survives: a filter that can empty has no answer to give.
-    const double cutoff = double(trips[trips.size() / 2]) + deviation;
-
-    int64 total = 0;
-    int64 kept = 0;
-    for (auto const& sample : m_timeSyncSamples)
-    {
-        if (double(sample.second) <= cutoff)
-        {
-            total += sample.first;
-            ++kept;
-        }
-    }
-
-    const int64 filtered = total / kept;
-    int64 step = filtered - m_clientTimeDelay;
-    if (step < 0)
-    {
-        step = -step;
-    }
-
-    if (!m_clientTimeDelayKnown || step > TIME_SYNC_DEAD_BAND_MS)
-    {
-        m_clientTimeDelay = filtered;
-        m_clientTimeDelayKnown = true;
-    }
-    else
-    {
-        // Inside the band, follow rather than ignore. Refusing every small sample is
-        // what let a one-sided drift accumulate against the playout budget.
-        m_clientTimeDelay += (filtered - m_clientTimeDelay) / TIME_SYNC_SLEW_DIVISOR;
-    }
-}
-
-void WorldSession::AdjustMovementInfoTime(MovementInfo& mi, uint32 receivedAt)
-{
-    // WHEN THIS PACKET ARRIVED, not when we got round to it. The two differ by the wait
-    // in the mailbox, and everything below is measured against a clock that CMSG_TIME_
-    // SYNC_RESP reads on the network thread. Zero means the caller had no arrival, which
-    // only happens for packets the server made itself.
-    const uint32 arrival = receivedAt ? receivedAt : getMSTime();
-
-    // Maintained for CMSG_TIME_SYNC_RESP and the diagnostics that read it. The stamp
-    // written below does not depend on it.
-    if (!m_clientTimeDelayKnown)
-    {
-        m_clientTimeDelay = int64(arrival) - int64(mi.GetTime());
-        m_clientTimeDelayKnown = true;
-    }
-
-    // THE STAMP IS A DEADLINE. An observing client subtracts its own clock from it and
-    // divides the distance it must cover by whatever is left, so the one thing this
-    // value must never be is already past. Its angle channel reads that difference as
-    // UNSIGNED: an expired deadline becomes a remaining time of about fifty days, a
-    // rate of nearly zero, and a mover that crawls seconds behind where it belongs. Its
-    // position channel reads the same difference as SIGNED and steps by a negative rate
-    // instead, which is a jump backwards followed by a correction.
-    //
-    // So the deadline is built from OUR clock at arrival, and the room the observer is
-    // given is exactly MovementPacketDelay for every packet, with nothing in between
-    // that can drift. The mover's own clock is deliberately absent: it is a free-running
-    // counter on another machine, and mapping it here means carrying an estimated offset
-    // whose every error lands directly on the deadline. The spacing the client sent
-    // survives regardless, because the arrivals carry it.
-    uint32 wire = arrival
-                + uint32(sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY));
-
-    // Arrivals are stamped in order on the network thread, so this guards the 32-bit
-    // wrap and nothing else. The observer files movement changes by stamp, comparing as
-    // a signed difference, and would replay out of sequence anything that stepped back.
-    if (m_lastWireTimeKnown && int32(wire - m_lastWireTime) < 0)
-    {
-        wire = m_lastWireTime;
-    }
-
-    m_lastWireTime = wire;
-    m_lastWireTimeKnown = true;
-
-    mi.UpdateTime(wire);
 }
 

@@ -550,10 +550,9 @@ void Unit::WriteMovementInfo(ByteBuffer& out) const
 
 uint32 MovementStreamTime()
 {
-    // Live getMSTime(), not the tick-quantised GameTime the two call sites used to read:
-    // AdjustMovementInfoTime seeds its session offset from the live clock, so a stamp taken
-    // from a snapshot up to one world tick old is a different clock by up to 50 ms.
-    return getMSTime() + sWorld.getConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY);
+    // Live getMSTime(), not the tick-quantised GameTime: a stamp taken from a snapshot up
+    // to one world tick old is a different clock by as much as 50 ms.
+    return getMSTime();
 }
 
 void Unit::SendHeartBeat()

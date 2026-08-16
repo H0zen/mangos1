@@ -405,10 +405,11 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     movementInfo.Read(recv_data);
     /*----------------*/
 
-    // TIME_SYNC offset (m_clientTimeDelay) + MovementPacketDelay playout.
+    // The stamp goes out exactly as the client wrote it. It is the client's own movement
+    // clock, and the client that receives it measures it against a clock of its own with
+    // no shared origin -- so there is nothing here to correct towards.
     const uint32 rawClientTime = movementInfo.GetTime();
     const uint32 arrivedAt = recv_data.GetReceivedAt();
-    AdjustMovementInfoTime(movementInfo, arrivedAt);
 
     if (!VerifyMovementInfo(movementInfo))
     {
@@ -631,8 +632,6 @@ void WorldSession::HandleMoveKnockBackAck(WorldPacket& recv_data)
     recv_data >> Unused<uint32>();                          // knockback packets counter
     movementInfo.Read(recv_data);
 
-    AdjustMovementInfoTime(movementInfo, recv_data.GetReceivedAt());
-
     /* Make sure input is valid */
     if (!VerifyMovementInfo(movementInfo, guid))
     {
@@ -770,8 +769,6 @@ void WorldSession::ApplyStateAck(MovementInfo& movementInfo, uint32 receivedAt)
     {
         return;
     }
-
-    AdjustMovementInfoTime(movementInfo, receivedAt);
 
     if (VerifyMovementInfo(movementInfo))
     {
