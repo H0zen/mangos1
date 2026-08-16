@@ -339,7 +339,7 @@ void Unit::UpdateVisibilityAndView()
     static const AuraType auratypes[] = {SPELL_AURA_BIND_SIGHT, SPELL_AURA_FAR_SIGHT, SPELL_AURA_NONE};
     for (AuraType const* type = &auratypes[0]; *type != SPELL_AURA_NONE; ++type)
     {
-        AuraList& alist = m_modAuras[*type];
+        AuraList& alist = m_auras.ByType(*type);
         if (alist.empty())
         {
             continue;

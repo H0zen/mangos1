@@ -66,6 +66,7 @@
 #include "StatBlock.h"
 #include "PowerPool.h"
 #include "SpeedSet.h"
+#include "AuraContainer.h"
 #include "combat/Combatant.h"
 #include "combat/ProcEvent.h"
 #include "UpdateFields.h"
@@ -1188,23 +1189,13 @@ class Unit : public WorldObject
          * A multimap from spell ids to \ref SpellAuraHolder, multiple \ref SpellAuraHolder can have
          * the same id (ie: the same key)
          */
-        typedef std::multimap < uint32 /*spellId*/, SpellAuraHolder* > SpellAuraHolderMap;
-        /**
-         * A pair of two iterators to a \ref SpellAuraHolderMap which is used in conjunction
-         * with the std::multimap::equal_range which gives all \ref SpellAuraHolder that have the same
-         * spellid in this case, the first member is the iterator to the beginning, and the
-         * second member is the iterator to the end.
-         */
-        typedef std::pair<SpellAuraHolderMap::iterator, SpellAuraHolderMap::iterator> SpellAuraHolderBounds;
-        /// Same thing as \ref SpellAuraHolderBounds but with const_iterator instead of iterator
-        typedef std::pair<SpellAuraHolderMap::const_iterator, SpellAuraHolderMap::const_iterator> SpellAuraHolderConstBounds;
-        typedef std::list<SpellAuraHolder*> SpellAuraHolderList;
-        /**
-         * List of \ref Aura used in \ref Unit::GetAurasByType and more and also in the members
-         * \ref Unit::m_modAuras and \ref Unit::m_deletedAuras
-         * \see Aura
-         */
-        typedef std::list<Aura*> AuraList;
+        /// The aura types are AuraContainer's; these names are what the rest of
+        /// the tree already calls them.
+        typedef AuraContainer::HolderMap        SpellAuraHolderMap;
+        typedef AuraContainer::Bounds           SpellAuraHolderBounds;
+        typedef AuraContainer::ConstBounds      SpellAuraHolderConstBounds;
+        typedef AuraContainer::HolderList       SpellAuraHolderList;
+        typedef AuraContainer::AuraList         AuraList;
         /**
          * List of \ref DiminishingReturn used for calculation of the same thing.
          * \see DiminishingReturn
@@ -1215,7 +1206,7 @@ class Unit : public WorldObject
          */
         typedef std::list<DiminishingReturn> Diminishing;
         typedef std::set < uint32 /*playerGuidLow*/ > ComboPointHolderSet;
-        typedef std::map < SpellEntry const*, ObjectGuid /*targetGuid*/ > TrackedAuraTargetMap;
+        typedef AuraContainer::TrackedTargetMap TrackedAuraTargetMap;
 
         virtual ~Unit();
 
@@ -2518,14 +2509,14 @@ class Unit : public WorldObject
          */
         SpellAuraHolderBounds GetSpellAuraHolderBounds(uint32 spell_id)
         {
-            return m_spellAuraHolders.equal_range(spell_id);
+            return m_auras.BoundsOf(spell_id);
         }
         /**
          * Same as \ref Unit::GetSpellAuraHolderBounds
          */
         SpellAuraHolderConstBounds GetSpellAuraHolderBounds(uint32 spell_id) const
         {
-            return m_spellAuraHolders.equal_range(spell_id);
+            return m_auras.BoundsOf(spell_id);
         }
 
         /**
@@ -2563,7 +2554,7 @@ class Unit : public WorldObject
          */
         bool HasAura(uint32 spellId) const
         {
-            return m_spellAuraHolders.find(spellId) != m_spellAuraHolders.end();
+            return m_auras.Has(spellId);
         }
 
         /**
@@ -3618,8 +3609,8 @@ class Unit : public WorldObject
         virtual bool IsVisibleInGridForPlayer(Player* pl) const = 0;
         bool IsInvisibleForAlive() const;
 
-        TrackedAuraTargetMap&       GetTrackedAuraTargets(TrackedAuraType type)       { return m_trackedAuraTargets[type]; }
-        TrackedAuraTargetMap const& GetTrackedAuraTargets(TrackedAuraType type) const { return m_trackedAuraTargets[type]; }
+        TrackedAuraTargetMap&       GetTrackedAuraTargets(TrackedAuraType type)       { return m_auras.Tracked(type); }
+        TrackedAuraTargetMap const& GetTrackedAuraTargets(TrackedAuraType type) const { return m_auras.Tracked(type); }
         SpellImmuneList m_spellImmune[MAX_SPELL_IMMUNITY];
 
         // Threat related methods
@@ -3644,8 +3635,8 @@ class Unit : public WorldObject
         SpellAuraHolder* GetSpellAuraHolder(uint32 spellid) const;
         SpellAuraHolder* GetSpellAuraHolder(uint32 spellid, ObjectGuid casterGUID) const;
 
-        SpellAuraHolderMap&       GetSpellAuraHolderMap()       { return m_spellAuraHolders; }
-        SpellAuraHolderMap const& GetSpellAuraHolderMap() const { return m_spellAuraHolders; }
+        SpellAuraHolderMap&       GetSpellAuraHolderMap()       { return m_auras.Holders(); }
+        SpellAuraHolderMap const& GetSpellAuraHolderMap() const { return m_auras.Holders(); }
         /**
          * Get's a list of all the \ref Aura s of the given \ref AuraType that are currently
          * affecting this \ref Unit.
@@ -3653,7 +3644,7 @@ class Unit : public WorldObject
          * @return A list of the auras currently applied to the \ref Unit with the given \ref AuraType
          * \see Unit::m_modAuras
          */
-        AuraList const& GetAurasByType(AuraType type) const { return m_modAuras[type]; }
+        AuraList const& GetAurasByType(AuraType type) const { return m_auras.ByType(type); }
         void ApplyAuraProcTriggerDamage(Aura* aura, bool apply);
 
         int32 GetTotalAuraModifier(AuraType auratype) const;
@@ -3882,13 +3873,9 @@ class Unit : public WorldObject
 
         DeathState m_deathState; ///< The current state of life/death for this \ref Unit
 
-        SpellAuraHolderMap m_spellAuraHolders;
-        SpellAuraHolderMap::iterator m_spellAuraHoldersUpdateIterator; // != end() in Unit::m_spellAuraHolders update and point to next element
-        AuraList m_deletedAuras;                            // auras removed while in ApplyModifier and waiting deleted
-        SpellAuraHolderList m_deletedHolders;
-
-        // Store Auras for which the target must be tracked
-        TrackedAuraTargetMap m_trackedAuraTargets[MAX_TRACKED_AURA_TYPES];
+        /// Owns every aura on this unit, the per-type lists, the deferred
+        /// deletion queue, and the cursor that makes removing one safe.
+        AuraContainer m_auras;
 
         GuidList m_dynObjGUIDs;
 
@@ -3899,7 +3886,6 @@ class Unit : public WorldObject
         bool m_isSorted;
         uint32 m_transform;
 
-        AuraList m_modAuras[TOTAL_AURAS];
         /// Owns the four modifier slots per stat group and the arithmetic
         /// that assembles them.
         StatBlock m_stats;

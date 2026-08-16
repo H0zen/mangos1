@@ -226,7 +226,7 @@ void Unit::ApplyMaxPowerMod(Powers power, uint32 val, bool apply)
  */
 void Unit::ApplyAuraProcTriggerDamage(Aura* aura, bool apply)
 {
-    AuraList& tAuraProcTriggerDamage = m_modAuras[SPELL_AURA_PROC_TRIGGER_DAMAGE];
+    AuraList& tAuraProcTriggerDamage = m_auras.ByType(SPELL_AURA_PROC_TRIGGER_DAMAGE);
     if (apply)
     {
         tAuraProcTriggerDamage.push_back(aura);
