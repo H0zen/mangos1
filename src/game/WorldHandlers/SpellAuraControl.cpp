@@ -77,6 +77,7 @@
 #include "Language.h"
 #include "MapManager.h"
 #include <ctime>
+#include <vector>
 
 static AuraType const frozenAuraTypes[] = { SPELL_AURA_MOD_ROOT, SPELL_AURA_MOD_STUN, SPELL_AURA_NONE };
 
@@ -1376,18 +1377,38 @@ void Aura::HandleAuraModStateImmunity(bool apply, bool Real)
 {
     if (apply && Real && GetSpellProto()->HasAttribute(SPELL_ATTR_EX_DISPEL_AURAS_ON_IMMUNITY))
     {
-        Unit::AuraList const& auraList = GetTarget()->GetAurasByType(AuraType(m_modifier.m_miscvalue));
-        for (Unit::AuraList::const_iterator itr = auraList.begin(); itr != auraList.end();)
+        // The ids FIRST, the removes after, and the loop asks about `*itr`.
+        //
+        // Written as a walk that removed `front()` it did neither of the two
+        // things it looks like it does. If this aura is already at the front,
+        // the test is false every time round and NOTHING is dispelled -- the
+        // immunity goes up and the states it exists to clear stay on. If it is
+        // not at the front, the removes strip whoever is currently front, over
+        // and over, until this aura rotates there; everything BEHIND it is
+        // then walked past and left alone.
+        //
+        // Collecting first is also what makes the removal safe at all:
+        // RemoveAurasDueToSpell rebuilds the very list being walked.
+        std::vector<uint32> doomed;
+
+        Unit::AuraList const& auraList =
+            GetTarget()->GetAurasByType(AuraType(m_modifier.m_miscvalue));
+        for (Unit::AuraList::const_iterator itr = auraList.begin();
+             itr != auraList.end(); ++itr)
         {
-            if (auraList.front() != this)                   // skip itself aura (it already added)
+            if (*itr != this)                               // not itself
             {
-                GetTarget()->RemoveAurasDueToSpell(auraList.front()->GetId());
-                itr = auraList.begin();
+                doomed.push_back((*itr)->GetId());
             }
-            else
-            {
-                ++itr;
-            }
+        }
+
+        // By spell, so several effects of one spell go together -- and an id
+        // that a previous remove already took with it is simply not there any
+        // more, which RemoveAurasDueToSpell treats as nothing to do.
+        for (std::vector<uint32>::const_iterator itr = doomed.begin();
+             itr != doomed.end(); ++itr)
+        {
+            GetTarget()->RemoveAurasDueToSpell(*itr);
         }
     }
 
