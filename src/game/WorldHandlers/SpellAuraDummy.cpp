@@ -774,7 +774,7 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                         // dummy not have proper effectclassmask
                         m_spellmod  = new SpellModifier(SPELLMOD_DOT, SPELLMOD_FLAT, m_modifier.m_amount / 7, GetId(), UI64LIT(0x001000000000));
 
-                    ((Player*)target)->AddSpellMod(m_spellmod, apply);
+                    HandOverSpellMod((Player*)target, apply);
                     return;
                 }
             }
@@ -840,7 +840,7 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                             // + effect value for Aspect of the Viper
                             m_spellmod = new SpellModifier(SPELLMOD_ATTACK_POWER, SPELLMOD_FLAT, m_modifier.m_amount, GetId(), UI64LIT(0x4000000000000));
 
-                        ((Player*)target)->AddSpellMod(m_spellmod, apply);
+                        HandOverSpellMod((Player*)target, apply);
                     }
                     return;
                 }
@@ -891,7 +891,7 @@ void Aura::HandleAuraDummy(bool apply, bool Real)
                     }
                 }
 
-                ((Player*)target)->AddSpellMod(m_spellmod, apply);
+                HandOverSpellMod((Player*)target, apply);
                 return;
             }
             break;

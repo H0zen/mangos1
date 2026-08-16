@@ -73,6 +73,7 @@ struct Modifier
 };
 
 class Unit;
+class Player;
 struct SpellEntry;
 struct SpellModifier;
 struct ProcTriggerSpell;
@@ -517,6 +518,28 @@ class Aura
         void PeriodicDummyTick();
 
         void ReapplyAffectedPassiveAuras();
+
+        /**
+         * Hand @ref m_spellmod to the player, or take it back.
+         *
+         * THE OWNERSHIP PROTOCOL, in one place, because five sites had to get
+         * it right and none of them did. `Player::AddSpellMod(mod, false)`
+         * dereferences `mod->type` on its first line and `delete`s `mod` on
+         * its last, so the two ways to be wrong are opposite:
+         *
+         *   - not clearing the pointer afterwards leaves a dangling
+         *     `m_spellmod`, and `isAffectedOnSpell` reads it;
+         *   - clearing it without a null check turns the next unapply into a
+         *     null dereference inside AddSpellMod.
+         *
+         * So: nothing to give back is not an error, it is nothing to do; and
+         * once given back the pointer is gone from here, because the player
+         * has destroyed it.
+         *
+         * `~Aura` stays empty. An aura that is still applied does not own its
+         * modifier -- the player's list does.
+         */
+        void HandOverSpellMod(Player* player, bool apply);
 
         Modifier m_modifier;
         SpellModifier* m_spellmod;

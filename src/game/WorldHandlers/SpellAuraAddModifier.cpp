@@ -115,7 +115,29 @@ void Aura::HandleAddModifier(bool apply, bool Real)
             spellProto->CumulativeAura > 1 ? 0 : GetHolder()->GetAuraCharges());
     }
 
-    ((Player*)GetTarget())->AddSpellMod(m_spellmod, apply);
+    HandOverSpellMod((Player*)GetTarget(), apply);
 
     ReapplyAffectedPassiveAuras();
+}
+
+void Aura::HandOverSpellMod(Player* player, bool apply)
+{
+    // Nothing to take back. Reached by a second unapply -- SetStackAmount
+    // unapplies and reapplies around a changed amount, and any path that
+    // unapplies twice used to arrive at AddSpellMod with a pointer the player
+    // had already deleted.
+    if (!m_spellmod)
+    {
+        return;
+    }
+
+    player->AddSpellMod(m_spellmod, apply);
+
+    if (!apply)
+    {
+        // The player deleted it. Holding the address is what made the second
+        // unapply a use-after-free and isAffectedOnSpell a read of freed
+        // memory.
+        m_spellmod = NULL;
+    }
 }
