@@ -299,10 +299,6 @@ void World::LoadConfigSettings(bool reload)
         sMapMgr.SetMapUpdateInterval(getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
     }
 
-    // Playout buffer, not a fudge factor -- see the constant's use in MovementHandler.cpp.
-    // Tunable because upstream's own documentation admits the 500 is inferred, not proven.
-    setConfig(CONFIG_UINT32_MOVEMENT_PACKET_DELAY, "MovementPacketDelay", 500);
-
     setConfig(CONFIG_UINT32_INTERVAL_CHANGEWEATHER, "ChangeWeatherInterval", 10 * MINUTE * IN_MILLISECONDS);
 
     if (configNoReload(reload, CONFIG_UINT32_PORT_WORLD, "WorldServerPort", DEFAULT_WORLDSERVER_PORT))
@@ -540,10 +536,6 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_BOOL_OFFHAND_CHECK_AT_TALENTS_RESET, "OffhandCheckAtTalentsReset", false);
 
     setConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET, "Network.KickOnBadPacket", false);
-
-    setConfig(CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT, "RelayFacingAsHeartbeat", false);
-
-    setConfig(CONFIG_UINT32_RELAY_FACING_MIN_GAP, "RelayFacingMinGap", 0);
 
     setConfig(CONFIG_UINT32_MOVING_HEARTBEAT, "MovingHeartbeatInterval", 0);
 

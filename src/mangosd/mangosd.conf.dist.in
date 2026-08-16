@@ -179,20 +179,6 @@ BindIP                       = "0.0.0.0"
 #        Number of map update threads to run
 #        Default: 2
 #
-#    MovementPacketDelay
-#        Playout buffer for relayed movement, in milliseconds. A movement packet is
-#        rebroadcast with its timestamp moved into the near future by this much, so the
-#        observing client interpolates towards a position it already holds instead of
-#        dead-reckoning past the last one it got. The timestamp is our own clock at the
-#        moment the packet arrived plus this value, so the room an observer is given is
-#        exactly this many milliseconds on every packet, and never less. Set it to 0 and
-#        the deadline is "now": remote players stop interpolating and snap from position
-#        to position.
-#        Raising it costs a visible delay on remote units; lowering it costs smoothness.
-#        TrinityCore uses the same 500 and documents it as inferred, not measured, so this
-#        is the one value here genuinely worth A/B testing on your own players.
-#        Default: 500
-#
 #    MovingHeartbeatInterval
 #        How often, in milliseconds, the server repeats a MOVING player's position to the
 #        people who can see him. 0 disables it and only the player's own packets are
@@ -207,31 +193,9 @@ BindIP                       = "0.0.0.0"
 #        repeats it on its own schedule.
 #        Costs bandwidth in proportion: at 100 with a player in view of ten others, ten
 #        extra packets every 100 ms.
-#        Try 100. Default: 0 (off)
-#
-#    RelayFacingMinGap
-#        Smallest gap, in milliseconds, between two facing changes relayed for the same
-#        mover. Below it the packet is not rebroadcast. 0 relays every one.
-#        Facing changes arrive in bursts: measured over one log, 286 runs of consecutive
-#        MSG_MOVE_SET_FACING, 130 of them longer than a single packet and the worst
-#        sixteen deep, with a quarter of the runs bracketed by CMSG_MOVE_TIME_SKIPPED --
-#        the client stalling, then catching up in a spray of re-aims. Each packet carries
-#        the whole MovementInfo, so only the last of a run tells an observer anything.
-#        Nothing is lost by dropping the rest: the next packet out, a heartbeat at worst
-#        and never more than half a second away, carries the current position and
-#        orientation. Server-side state is unaffected -- the mover is relocated for every
-#        packet regardless, only the broadcast is thinned.
-#        Try 100. Default: 0 (off)
-#
-#    RelayFacingAsHeartbeat
-#        Relay a player's MSG_MOVE_SET_FACING to observers as MSG_MOVE_HEARTBEAT. The
-#        payload is unchanged -- the whole MovementInfo, orientation included -- so only
-#        the opcode the observing client sorts it under differs.
-#        An experiment against the sideways twitch seen on players using /follow. A
-#        follower re-aims continuously and floods facing changes (1.76 per second
-#        measured); the twitch, counted off a recording over the same span, comes at 1.71
-#        per second, and appears under no other condition: a still observer watching a
-#        runner is clean, and two players running side by side without /follow are clean.
+#        100 is the tested value and what this file ships. Omitting the key entirely
+#        leaves it at 0, which is the stock behaviour of relaying only what the mover
+#        sends.
 #        Default: 0 (off)
 #
 #    ChangeWeatherInterval
@@ -317,7 +281,7 @@ LoadAllGridsOnMaps                = ""
 GridCleanUpDelay                  = 300000
 MapUpdateInterval                 = 10
 MapUpdateThreads                  = 2
-MovementPacketDelay               = 500
+MovingHeartbeatInterval           = 100
 ChangeWeatherInterval             = 600000
 PlayerSave.Interval               = 900000
 PlayerSave.Stats.MinLevel         = 0

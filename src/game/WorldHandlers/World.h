@@ -101,7 +101,6 @@ enum eConfigUInt32Values
     CONFIG_UINT32_INTERVAL_SAVE,
     CONFIG_UINT32_INTERVAL_GRIDCLEAN,
     CONFIG_UINT32_INTERVAL_MAPUPDATE,
-    CONFIG_UINT32_MOVEMENT_PACKET_DELAY,
     CONFIG_UINT32_INTERVAL_CHANGEWEATHER,
     CONFIG_UINT32_PORT_WORLD,
     CONFIG_UINT32_GAME_TYPE,
@@ -227,8 +226,6 @@ enum eConfigUInt32Values
     /// 0 off, 1 report, 2 refuse to start. See World::VerifyDataIntegrity.
     CONFIG_UINT32_DATA_INTEGRITY_CHECK,
     CONFIG_UINT32_COMBAT_SHADOW,
-    /// Smallest gap, in ms, between two facing changes relayed for one mover. 0 relays all.
-    CONFIG_UINT32_RELAY_FACING_MIN_GAP,
     /// How often, in ms, to repeat a moving player's position to observers. 0 disables.
     CONFIG_UINT32_MOVING_HEARTBEAT,
     CONFIG_UINT32_VALUE_COUNT
@@ -418,8 +415,6 @@ enum eConfigBoolValues
     CONFIG_BOOL_CINEMATIC_FLYOVER_ENABLE,
     CONFIG_BOOL_CINEMATIC_FLYOVER_DEBUG,
 
-    /// Relay a mover's facing change to observers as a heartbeat.
-    CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT,
     CONFIG_BOOL_VALUE_COUNT
 };
 

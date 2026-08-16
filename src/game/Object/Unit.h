@@ -820,10 +820,9 @@ MovementFlags const movementOrTurningFlagsMask = MovementFlags(
         );
 
 /// THE timestamp for anything the server writes into a movement block -- create blocks and
-/// heartbeats -- and the only place that policy lives. It has to name the same instant as
-/// WorldSession::AdjustMovementInfoTime gives a relayed client packet, playout buffer and
-/// all, or a unit entering visibility arrives on a timeline half a second behind the stream
-/// that follows it and the observer interpolates backwards to meet it.
+/// heartbeats -- and the only place that policy lives. A relayed client packet keeps the
+/// mover's own clock untouched, so this is server time and the two are not comparable;
+/// what matters is that everything the server writes agrees with itself.
 uint32 MovementStreamTime();
 
 class MovementInfo

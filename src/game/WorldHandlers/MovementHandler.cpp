@@ -486,39 +486,7 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     // clean, and two players running side by side without /follow are clean.
     //
     // Off by default. It is an experiment with a measured motive, not a finding.
-    // A BURST OF FACING CHANGES IS NOT MOVEMENT. Counted over one log: 286 runs of
-    // consecutive MSG_MOVE_SET_FACING with nothing between them, 130 of them longer than
-    // one packet, the worst sixteen deep. And 26% of those runs are immediately preceded
-    // by CMSG_MOVE_TIME_SKIPPED, 21% immediately followed by one -- the client stalls,
-    // then catches up in a spray of re-aims, then stalls again. It is the hitch talking,
-    // not the player turning.
-    //
-    // Only the last one of a run says anything an observer needs, because each carries
-    // the whole MovementInfo. So they are rate limited on the way out: below the gap,
-    // the packet is not relayed. Nothing is lost -- the next packet to go out, a
-    // heartbeat at worst and never more than half a second away, carries the current
-    // position and orientation anyway.
-    //
-    // The server's own state is untouched by this. HandleMoverRelocation above has
-    // already run for every one of them; only the broadcast is thinned.
-    if (opcode == MSG_MOVE_SET_FACING)
-    {
-        const uint32 minGap = sWorld.getConfig(CONFIG_UINT32_RELAY_FACING_MIN_GAP);
-        if (minGap && m_lastFacingRelay && relayedAt - m_lastFacingRelay < minGap)
-        {
-            return;
-        }
-        m_lastFacingRelay = relayedAt;
-    }
-
-    uint16 relayOpcode = opcode;
-    if (opcode == MSG_MOVE_SET_FACING
-        && sWorld.getConfig(CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT))
-    {
-        relayOpcode = MSG_MOVE_HEARTBEAT;
-    }
-
-    WorldPacket data(relayOpcode, recv_data.size());
+    WorldPacket data(opcode, recv_data.size());
     data << mover->GetPackGUID();             // write guid
     movementInfo.Write(data);                               // write data
     mover->SendMessageToSetExcept(&data, _player);
@@ -937,15 +905,10 @@ bool WorldSession::VerifyMovementInfo(MovementInfo const& movementInfo) const
  */
 void WorldSession::HandleMoverRelocation(MovementInfo& movementInfo)
 {
-    // No latency term here -- and note that is a rejection of a VARYING term, not of the
-    // constant playout buffer HandleMovementOpcodes adds. GetLatency() shifts the mover's
-    // timeline by a different amount every time a PING revises it, so a packet can land
-    // EARLIER in that timeline than the one before it and the observer repositions the unit
-    // backwards. VMaNGOS forwards the client time untouched, SkyFire adds a constant,
-    // TrinityCore a delta synchronised over SMSG_TIME_SYNC_REQ/CMSG_TIME_SYNC_RESP -- which
-    // 2.4.3 does have (0x390/0x391) and AdjustMovementInfoTime now uses. That delta is not
-    // the varying term rejected above: PushTimeSyncSample filters and dead-bands it so it
-    // cannot step backwards either.
+    // No latency term, and no term of any kind: a relayed stamp goes out as the client
+    // wrote it. The observing client reads it as the DIFFERENCE from the previous stamp
+    // by the same mover, never as an absolute, so anything added here cancels -- proven
+    // by pushing it five seconds into the future and watching nothing change at all.
 
     Unit* mover = _player->GetMover();
 

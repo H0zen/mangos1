@@ -6288,9 +6288,9 @@ void Player::SendTimeSync()
 
     // Schedule next sync in 10 sec
     m_timeSyncTimer = 10000;
-    // Live clock, not GameTime::GetGameTimeMS(): that one is resampled once per world tick, so
-    // the round trip this stamp anchors would quantise to the tick and the sample filter in
-    // WorldSession::PushTimeSyncSample would see every sample as equally good.
+    // Live clock, not GameTime::GetGameTimeMS(): that one is resampled once per world tick,
+    // so the round trip this stamp anchors would quantise to the tick and every sample
+    // would look equally good to WorldSession::CourseClock.
     m_timeSyncServer = getMSTime();
 }
 
