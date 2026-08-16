@@ -441,6 +441,29 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     // unit entirely rather than interpolating toward it; and `q` is the wait between the
     // packet landing on the network thread and this line running, which is what that
     // cushion is actually being spent on.
+    // THE MOVER'S CLOCK STOPS, AND HE TELLS US BY HOW MUCH.
+    //
+    // An observing client never reads this stamp as an absolute time. For each remote
+    // unit it keeps the previous stamp and the local time it applied it, and works with
+    //
+    //     (this stamp - his previous stamp) - (now - when we applied his previous)
+    //
+    // the disagreement between the cadence he reports and the cadence we delivered. A
+    // constant added to every stamp cancels there, which is why no playout offset ever
+    // changed anything.
+    //
+    // But his stamp comes off a clock that stalls, and CMSG_MOVE_TIME_SKIPPED is him
+    // reporting each stall: measured on one session, 474 reports of some 47 ms, about
+    // twenty-two seconds lost. So two packets he sent 610 ms apart carry stamps only
+    // 344 ms apart, the observer reads a 266 ms disagreement that the network never
+    // caused, and corrects a unit that needed no correcting -- once per packet,
+    // alternating sign, which is the sideways twitch.
+    //
+    // Adding back what he says he lost is not an estimate of anything. It is his own
+    // number, restoring his stamps to the cadence he actually sent them at.
+    movementInfo.UpdateTime(movementInfo.GetTime()
+                            + uint32(CourseClock().TotalSkew()));
+
     const uint32 relayedAt = getMSTime();
     DEBUG_FILTER_LOG(LOG_FILTER_PLAYER_MOVES,
                      "MOVE %-26s %s cli=%u wire=%u srv=%u arr=%u q=%d "
