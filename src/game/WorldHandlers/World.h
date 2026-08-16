@@ -413,6 +413,9 @@ enum eConfigBoolValues
     // Cinematic flyover
     CONFIG_BOOL_CINEMATIC_FLYOVER_ENABLE,
     CONFIG_BOOL_CINEMATIC_FLYOVER_DEBUG,
+
+    /// Relay a mover's facing change to observers as a heartbeat.
+    CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT,
     CONFIG_BOOL_VALUE_COUNT
 };
 

@@ -193,6 +193,17 @@ BindIP                       = "0.0.0.0"
 #        is the one value here genuinely worth A/B testing on your own players.
 #        Default: 500
 #
+#    RelayFacingAsHeartbeat
+#        Relay a player's MSG_MOVE_SET_FACING to observers as MSG_MOVE_HEARTBEAT. The
+#        payload is unchanged -- the whole MovementInfo, orientation included -- so only
+#        the opcode the observing client sorts it under differs.
+#        An experiment against the sideways twitch seen on players using /follow. A
+#        follower re-aims continuously and floods facing changes (1.76 per second
+#        measured); the twitch, counted off a recording over the same span, comes at 1.71
+#        per second, and appears under no other condition: a still observer watching a
+#        runner is clean, and two players running side by side without /follow are clean.
+#        Default: 0 (off)
+#
 #    ChangeWeatherInterval
 #        Weather update interval (in milliseconds)
 #        Default: 600000 (10 min)

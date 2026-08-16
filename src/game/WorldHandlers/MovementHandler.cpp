@@ -474,7 +474,26 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
                      movementInfo.GetPos()->x, movementInfo.GetPos()->y,
                      movementInfo.GetPos()->z);
 
-    WorldPacket data(opcode, recv_data.size());
+    // A FACING CHANGE, RELAYED AS A HEARTBEAT. Same payload -- the whole MovementInfo,
+    // orientation included -- and only the drawer the observing client files it in
+    // differs: a state change rather than a periodic report of where the mover is.
+    //
+    // The reason to try it is a rate. A player running on his own keys sends few facing
+    // changes; one on /follow re-aims continuously and floods them, 1.76 per second
+    // measured. The sideways twitch, counted off the film over the same span, comes at
+    // 1.71 per second. Those are the same number, and /follow is the only condition
+    // under which the twitch appears at all: a still observer watching a runner is
+    // clean, and two players running side by side without /follow are clean.
+    //
+    // Off by default. It is an experiment with a measured motive, not a finding.
+    uint16 relayOpcode = opcode;
+    if (opcode == MSG_MOVE_SET_FACING
+        && sWorld.getConfig(CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT))
+    {
+        relayOpcode = MSG_MOVE_HEARTBEAT;
+    }
+
+    WorldPacket data(relayOpcode, recv_data.size());
     data << mover->GetPackGUID();             // write guid
     movementInfo.Write(data);                               // write data
     mover->SendMessageToSetExcept(&data, _player);

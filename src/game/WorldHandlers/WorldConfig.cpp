@@ -541,6 +541,8 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET, "Network.KickOnBadPacket", false);
 
+    setConfig(CONFIG_BOOL_RELAY_FACING_AS_HEARTBEAT, "RelayFacingAsHeartbeat", false);
+
     setConfig(CONFIG_BOOL_PLAYER_COMMANDS, "PlayerCommands", false);
 
     setConfig(CONFIG_UINT32_INSTANT_LOGOUT, "InstantLogout", SEC_MODERATOR);
