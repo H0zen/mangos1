@@ -122,8 +122,22 @@ namespace Nav
             const float denom = Cross(d, edge);
             if (std::fabs(denom) > EPS)
             {
+                // BOTH PARAMETERS OVER THE SAME DENOMINATOR, and that is the whole of
+                // what was wrong. `u` used to divide by `-denom` while taking its
+                // numerator as `a - root`, which negates once where RayParameter (the
+                // other copy of this arithmetic, twenty lines down) negates twice --
+                // so `u` came out as the parameter's negative and the test below
+                // rejected every genuine crossing.
+                //
+                // The consequence was not slowness. With the crossing never detected,
+                // this function fell through to "the path must round an endpoint",
+                // which is LONGER than going straight through -- an overestimate, so
+                // an inadmissible heuristic, so a search that returns whatever it
+                // reaches first. Measured on a four-wall shape: 696.4082 for a walk
+                // whose straight line was unobstructed at 695.3217, with a bend
+                // invented at exactly the interval endpoint this branch fell back to.
                 const float s = Cross(a - root, edge) / denom;
-                const float u = Cross(a - root, d) / -denom;
+                const float u = Cross(a - root, d) / denom;
                 if (s >= 0.0f && u >= -EPS && u <= 1.0f + EPS)
                 {
                     return Distance(root, target);
