@@ -140,6 +140,11 @@ Nav::MoveProfile Nav::ProfileOf(Unit const& mover)
     if (mover.IsInWater() || mover.IsUnderWater())
     {
         profile.allowedAreas |= AreaBit(AreaUnderfoot(mover));
+
+        // And the same fact by name, because the mask alone cannot carry it: a
+        // creature that CAN swim has the water bit set whether or not it is wet, and
+        // whether the skin is ground it may ride is a question about now.
+        profile.inWater = true;
     }
 
     // How wide the mover is. New: the baked data records the room around every cell, so

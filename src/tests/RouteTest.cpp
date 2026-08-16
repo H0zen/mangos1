@@ -164,6 +164,31 @@ TEST(MoveProfile_WalkerStaysOffTheWaterSkin)
     CHECK(fish.AdmitsGround(uint8_t(Nav::NavArea::Water)));
 }
 
+// The other half of the same rule, and the one that was missing. A pet that is
+// ACTUALLY SWIMMING has no seabed within reach to stand on, so the skin is the only
+// ground it has; refusing it there made the route OffMesh, movement fell through to
+// a straight line, and the pet swam off across the bay.
+//
+// The crab above and this are the same creature in two situations, which is why the
+// question is asked of `inWater` and not of `canWalk`.
+TEST(MoveProfile_ASwimmingWalkerRidesTheSkin)
+{
+    Nav::MoveProfile pet;
+    pet.canWalk = true;
+    pet.canSwim = true;
+    pet.allowedAreas = uint16_t(Nav::AREAS_WALKABLE | Nav::AreaBit(Nav::NavArea::Water));
+
+    // On the shore: the seabed is what it uses, exactly as before.
+    CHECK(!pet.AdmitsGround(uint8_t(Nav::NavArea::Water)));
+
+    pet.inWater = true;
+
+    CHECK(pet.AdmitsGround(uint8_t(Nav::NavArea::Water)));
+    // And it has not stopped being able to walk out again.
+    CHECK(pet.AdmitsGround(uint8_t(Nav::NavArea::Ground)));
+    CHECK(pet.AdmitsGround(uint8_t(Nav::NavArea::Shallow)));
+}
+
 TEST(MoveProfile_DefaultPermitsNothing)
 {
     const Nav::MoveProfile p;

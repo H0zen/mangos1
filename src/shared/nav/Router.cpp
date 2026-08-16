@@ -57,9 +57,17 @@ namespace Nav
         }
 
         /// How far above (or below) the surface the mover's body sits.
+        ///
+        /// ASKED OF THE SURFACE, not of the legs. Whoever is seated on a water skin
+        /// is in the water and rides below it; whoever is on a floor stands a little
+        /// above it. This used to add `&& !canWalk`, which was true only because a
+        /// walker could never be given the skin -- now that a mover which walks AND
+        /// swims can be, that clause floated a swimming pet half a yard over the sea.
         float SeatOffset(const MoveProfile& profile, NavArea area)
         {
-            if (area == NavArea::Water && !profile.canWalk)
+            (void)profile;
+
+            if (area == NavArea::Water)
             {
                 return -SWIM_SEAT_DEPTH;
             }
@@ -376,7 +384,19 @@ namespace Nav
 
             for (size_t i = 1; i < points.size(); ++i)
             {
-                const Geometry::Vector3& a = seated.back();
+                // BY VALUE, and that is the whole of it: the loop below pushes into
+                // `seated` while this names an element of it, and the reserve above is
+                // for the points coming IN -- this function's job is to add more. The
+                // first push past capacity reallocates, and a reference here becomes a
+                // read of freed memory.
+                //
+                // It only ever showed in water. A long straight leg is where the
+                // samples are many -- sixty-five yards of open sea is sixteen of them
+                // against a two-point path -- while a walk over land turns often
+                // enough that the count stayed inside the reservation. What came out
+                // was a route whose middle points sat at 1e38, handed to a swimming
+                // pet as somewhere to go.
+                const Geometry::Vector3 a = seated.back();
                 const Geometry::Vector3& b = points[i];
                 const float leg = Dist2D(a, b);
                 const int samples = static_cast<int>(leg / SMOOTH_STEP);

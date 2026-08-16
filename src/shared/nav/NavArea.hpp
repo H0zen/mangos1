@@ -188,6 +188,20 @@ namespace Nav
         bool canFly = false;
 
         /**
+         * @brief The mover is IN the water now, not merely able to enter it.
+         *
+         * The difference decides whether the water SKIN is ground it may use. A crab
+         * that can swim but is walking a shallow bay keeps the seabed; the same crab
+         * once it is actually swimming rides the surface, because the floor under it
+         * is out of reach and there is nothing else to stand on.
+         *
+         * Set by ProfileOf from `IsInWater() || IsUnderWater()`, which it already asks
+         * in order to widen the area mask. Nothing infers it from `canSwim`: that is
+         * an ability, and this is a situation.
+         */
+        bool inWater = false;
+
+        /**
          * @brief Does this mover have feet on the floor?
          *
          * A creature that walks stays on the floor even when the floor is a seabed -- a
@@ -238,10 +252,30 @@ namespace Nav
                 return false;
             }
 
-            // The water SKIN is for things that swim and do not walk. An amphibian
-            // (makrura) walks the seabed; admitting it to both stacked layers seated
-            // one point on the skin and the next on the floor, and it hopped.
-            return !(area == NavArea::Water && canWalk);
+            // The water SKIN belongs to whoever is IN the water, and walking is not
+            // the question -- being in it is.
+            //
+            // A walking amphibian keeps the floor: a makrura crosses a shallow bay on
+            // the seabed, and admitting it to both stacked layers once seated one
+            // point on the skin and the next on the floor, so it hopped. That rule
+            // stands and is tested.
+            //
+            // What the rule could not express is a pet swimming after its owner. The
+            // seabed under deep water is twenty yards down and out of seating range,
+            // so PickSeat correctly offers the skin -- and a flat ban on `canWalk`
+            // then refused the very surface the seating had just chosen. The route
+            // came back OffMesh, movement fell through to a straight line, and the pet
+            // swam off across the bay. That is the whole of "my pet runs away when it
+            // swims".
+            //
+            // So the question is asked of the moment rather than of the legs.
+            // ProfileOf already knows -- it widens the area mask for a mover that
+            // IsInWater -- and this reads the same fact instead of guessing at it from
+            // whether the creature owns feet.
+            //
+            // Preference stays where preference belongs: water costs 1.5 against
+            // ground's 1.0, so a route that can stay dry does.
+            return !(area == NavArea::Water && canWalk && !inWater);
         }
 
         /// The multiplier for crossing an area.
