@@ -28,6 +28,10 @@
 
 #include "Platform/Define.h"
 #include "SpellAuraDefines.h"
+// For TrackedAuraType and MAX_TRACKED_AURA_TYPES, which the tracked-target
+// table below is sized and keyed by. Inherited from whoever included this
+// first until a build without precompiled headers asked for it here.
+#include "SharedDefines.h"
 #include "ObjectGuid.h"
 
 #include <list>

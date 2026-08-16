@@ -29,6 +29,7 @@
 #include "Platform/Define.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 class Item;

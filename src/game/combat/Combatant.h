@@ -28,6 +28,8 @@
 
 #include "combat/pure/Profile.h"
 
+#include <cstdint>
+
 class Unit;
 
 namespace Combat
