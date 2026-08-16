@@ -91,11 +91,20 @@ namespace Helm
                     break;
             }
 
-            // Fake Runmode (0x100) on every monster-move. The 2.4.3 client has
-            // strange issues without that flag -- same OR the pre-Helm builder
-            // applied in packet_builder.cpp. FlagsOf() stays truthful for the
-            // create block, which never forced the bit.
-            out << uint32(FlagsOf(course) | FLAG_RUNNING);
+            // NOT FORCED. This used to OR Runmode into every monster move, carried
+            // over from the reference, whose own comment says only that the client has
+            // strange issues without it.
+            //
+            // The client was read instead. Every mask tested against this word is
+            // 0x400, 0x1000, 0x20000, 0x40000, 0x100000, 0x200000, 0x8000000 or
+            // 0x10000000; 0x100 is not among them, in either the monster move's reader
+            // or the create block's. Nothing branches on it, so forcing it only made a
+            // walking creature describe itself as running.
+            //
+            // FlagsOf sets the bit when the gait is genuinely not a walk, which is the
+            // truthful description and the only one now sent. If some behaviour turns
+            // out to depend on the bit after all, this is the change to suspect.
+            out << uint32(FlagsOf(course));
             out << uint32(course.Duration());
 
             // The count field is the INDEX of the final point, not how many there are:
@@ -143,15 +152,10 @@ namespace Helm
             Facing const& facing = course.GetFacing();
             const FacingWire wire = FacingWireOf(facing.mode);
 
-            // THE SAME FORCED Runmode THE MONSTER MOVE CARRIES, so that one leg is not
-            // described two ways: 0x100 there and 0x000 here.
-            //
-            // Kept for consistency and for the reason WriteLaunch gives -- the 2.4.3
-            // client has strange issues without it -- and NOT for the reason an earlier
-            // version of this comment gave. Nothing in the client branches on 0x100 in
-            // this word; that was asserted without being checked and it was wrong. The
-            // crash it was written to explain is the point count, below.
-            out << uint32(FlagsOf(course) | FLAG_RUNNING | wire.bit);
+            // The gait as it really is, plus whatever the facing costs. Runmode is
+            // not forced here any more than it is in WriteLaunch -- see the note there
+            // for what the client actually tests in this word, which is never 0x100.
+            out << uint32(FlagsOf(course) | wire.bit);
 
             // wire.bytes says how many the client will now read. The rows below write
             // exactly that many, and FacingWireOf is where the two are kept equal.
