@@ -38,6 +38,9 @@
 #include <cmath>
 #include <ctime>
 #include "ObjectLookup.h"
+#include "combat/CombatRegistry.h"
+#include "combat/ReactionQueue.h"
+#include "Map.h"
 
 /**
  * @brief Checks whether a proc aura may trigger for the current spell event context.
@@ -1295,34 +1298,40 @@ Combat::ProcResult Unit::HandleDummyAuraProc(Combat::ProcEvent const& e)
                         ((Player*)this)->AddSpellCooldown(dummySpell->ID, 0, time(NULL) + cooldown);
                     }
 
-                    // Attack Twice
+                    // Attack twice, as two reactions rather than two calls.
                     //
-                    // The target is re-checked between the two, because the
-                    // first one can end it. This proc runs from the reaction
-                    // queue now, so getting HERE is safe -- both ends were
-                    // resolved from their guid a moment ago -- but the loop
-                    // itself still holds pVictim across a cast that deals
-                    // damage, and the second swing of a Windfury that killed
-                    // with the first was reading a unit that DealDamage had
-                    // already promoted to a corpse, or that a JustDied script
-                    // had despawned outright.
+                    // Inline, the loop held the victim across a cast that
+                    // deals damage: the second swing of a Windfury that killed
+                    // with the first was reading a unit DealDamage had already
+                    // turned into a corpse. Re-resolving each time round made
+                    // that safe and left the real problem -- the casts ran
+                    // from inside the proc that raised them, so nothing they
+                    // set off shared this swing's depth counter or its budget.
                     //
-                    // A guard, not the fix. The fix is stage F, where a
-                    // triggered cast becomes a ProcCast reaction and stops
-                    // being a call from inside the thing that triggered it;
-                    // see src/game/combat/COMBAT.md.
-                    const ObjectGuid windfuryTarget = pVictim->GetObjectGuid();
-
-                    for (uint32 i = 0; i < 2; ++i)
+                    // Queued, they are ordinary reactions: resolved from their
+                    // guids when they run, counted against the same limits as
+                    // everything else, and unable to recurse into the handler
+                    // that pushed them.
+                    if (Map* map = GetMap())
                     {
-                        Unit* target = ObjectLookup::GetUnit(*this, windfuryTarget);
+                        Combat::ReactionQueue& queue =
+                            map->CombatState().Queue();
 
-                        if (!target || !target->IsInWorld() || !target->IsAlive())
+                        Combat::ProcCast windfury;
+                        windfury.spellId    = triggered_spell_id;
+                        windfury.basePoints = basepoints[0];
+                        windfury.triggered  = true;
+
+                        for (uint32 i = 0; i < 2; ++i)
                         {
-                            break;
-                        }
+                            Combat::Reaction swing;
+                            swing.source = GetObjectGuid();
+                            swing.target = pVictim->GetObjectGuid();
+                            swing.depth  = queue.NextDepth();
+                            swing.what   = windfury;
 
-                        CastCustomSpell(target, triggered_spell_id, &basepoints[0], NULL, NULL, true, castItem, triggeredByAura);
+                            queue.Push(swing);
+                        }
                     }
 
                     return Combat::ProcResult::Ok;

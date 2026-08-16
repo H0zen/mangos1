@@ -196,10 +196,29 @@ namespace Combat
                 return m_refused;
             }
 
+            /**
+             * @brief The depth of the reaction being run right now.
+             *
+             * Zero when nothing is draining, which is also the depth a root
+             * push should have -- so a caller that cannot tell whether it is
+             * inside a reaction gets the right answer either way.
+             */
+            std::uint8_t RunningDepth() const
+            {
+                return m_runningDepth;
+            }
+
+            /// The depth a reaction raised from here should carry.
+            std::uint8_t NextDepth() const
+            {
+                return std::uint8_t(m_runningDepth + 1);
+            }
+
         private:
             std::deque<Reaction> m_pending;
             std::size_t          m_ranThisDrain = 0;
             std::uint32_t        m_refused      = 0;
+            std::uint8_t         m_runningDepth = 0;
             bool                 m_draining     = false;
     };
 }

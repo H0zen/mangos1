@@ -72,7 +72,15 @@ namespace Combat
             m_pending.pop_front();
 
             ++m_ranThisDrain;
+
+            // Remembered for the whole of Run, so that anything pushed from
+            // code the sink calls -- a proc handler, several frames down --
+            // inherits the depth it was raised at instead of starting from
+            // zero. Without it, a reaction pushed from inside another one
+            // looks like a fresh root and the depth limit never fires.
+            m_runningDepth = reaction.depth;
             sink.Run(reaction, *this);
+            m_runningDepth = 0;
         }
 
         if (!m_pending.empty())

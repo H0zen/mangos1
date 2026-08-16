@@ -345,3 +345,62 @@ TEST(ReactionProcCastSurvivesTheQueue)
     CHECK(reader.had);
     CHECK_EQ(reader.seen, 137);
 }
+
+/**
+ * Depth survives the frames between a reaction and what it raises.
+ *
+ * A proc handler runs several calls below the sink, and until the queue
+ * remembered which reaction it was running, anything pushed from down there
+ * carried depth zero -- a fresh root. The limit counted, and never reached
+ * two, because nothing ever admitted to being deep.
+ */
+
+TEST(ReactionDepthIsRememberedWhileRunning)
+{
+    ReactionQueue queue;
+
+    struct Deep : ReactionSink
+    {
+        ReactionQueue* q = nullptr;
+        std::uint8_t sawWhileRunning = 255;
+        std::uint8_t sawAfter = 255;
+        int runs = 0;
+
+        void Run(Reaction const&, ReactionQueue& queue) override
+        {
+            ++runs;
+            if (runs == 1)
+            {
+                // What a handler several frames down would ask for.
+                sawWhileRunning = queue.RunningDepth();
+
+                Reaction raised;
+                raised.source = ATTACKER;
+                raised.target = VICTIM;
+                raised.depth  = queue.NextDepth();
+                raised.what   = ProcCast{};
+                queue.Push(raised);
+            }
+            else
+            {
+                sawAfter = queue.RunningDepth();
+            }
+        }
+    } sink;
+
+    Reaction root;
+    root.source = ATTACKER;
+    root.target = VICTIM;
+    root.depth  = 0;
+    root.what   = ProcCast{};
+    queue.Push(root);
+
+    queue.Drain(sink);
+
+    CHECK_EQ(sink.runs, 2);
+    CHECK_EQ(int(sink.sawWhileRunning), 0);
+    CHECK_EQ(int(sink.sawAfter), 1);
+
+    // Nothing is running now, and zero is what a root push should carry.
+    CHECK_EQ(int(queue.RunningDepth()), 0);
+}
