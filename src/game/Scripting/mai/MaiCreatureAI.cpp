@@ -50,6 +50,9 @@
 #include "MaiSelect.h"
 
 #include "Creature.h"
+// For sSpellStore, which a guard about the spell that set a proc off has to
+// read the class mask out of.
+#include "DBCStores.h"
 #include "InstanceData.h"
 #include "GridNotifiers.h"
 #include "GridNotifiersImpl.h"
@@ -209,6 +212,36 @@ namespace mai
 
     bool MaiCreatureAI::Ask(Guard const& guard, uint32& held) const
     {
+        if (guard.of == GuardProcSpell)
+        {
+            // Zero and answerable, unlike the family below: "no spell at all"
+            // is what a white swing is, and it is half of what the handlers
+            // ask about.
+            held = m_procSpell;
+            return true;
+        }
+
+        if (guard.of == GuardProcFamily)
+        {
+            // Unanswerable outside a proc's own steps, which is the honest
+            // answer rather than zero: read as "bit 42 is clear" it would say
+            // something definite about a spell that never existed.
+            if (m_procSpell == 0)
+            {
+                return false;
+            }
+
+            SpellEntry const* spell = sSpellStore.LookupEntry(m_procSpell);
+            if (!spell)
+            {
+                return false;
+            }
+
+            held = spell->SpellClassMask.IsFitToFamilyMask(
+                       UI64LIT(1) << guard.subject) ? 1u : 0u;
+            return true;
+        }
+
         if (guard.of == GuardInstance)
         {
             InstanceData* data = m_creature->GetMap()->GetInstanceData();
@@ -242,6 +275,24 @@ namespace mai
                 const_cast<Unit*>(who)->GetSpellAuraHolder(guard.subject);
             held = holder ? holder->GetStackAmount() : 0;
             return true;
+        }
+
+        if (guard.of == GuardSourceClass)
+        {
+            // Whoever is acting here is this creature, and a creature is not a
+            // player -- which is precisely what a class of zero says. Answered
+            // rather than refused: it is a fact about the actor, not a
+            // question that cannot be put.
+            held = 0;
+            return true;
+        }
+
+        if (guard.of == GuardReputation)
+        {
+            // And a creature stands nowhere with anyone. Unanswerable rather
+            // than REP_HATED, which would be a definite claim about a standing
+            // that does not exist.
+            return false;
         }
 
         if (guard.of == GuardTargetIsSelf ||
@@ -748,7 +799,8 @@ namespace mai
     }
 
     bool MaiCreatureAI::Fire(Armed& armed, Unit* invoker, Creature* sender,
-                             bool now, Combat::PointsInputs const* numbers)
+                             bool now, Combat::PointsInputs const* numbers,
+                             uint32 procSpell)
     {
         if (!Ready(armed))
         {
@@ -775,7 +827,7 @@ namespace mai
             return false;
         }
 
-        Start(*armed.rule, invoker, sender, now, numbers);
+        Start(*armed.rule, invoker, sender, now, numbers, procSpell);
         return true;
     }
 
@@ -795,7 +847,8 @@ namespace mai
 
     void MaiCreatureAI::Start(Rule const& rule, Unit* invoker,
                               Creature* sender, bool now,
-                              Combat::PointsInputs const* numbers)
+                              Combat::PointsInputs const* numbers,
+                              uint32 procSpell)
     {
         if (rule.steps.steps.empty())
         {
@@ -807,6 +860,7 @@ namespace mai
         frame.source = m_creature->GetObjectGuid();
         frame.target = invoker ? invoker->GetObjectGuid() : ObjectGuid();
         frame.sender = sender ? sender->GetObjectGuid() : ObjectGuid();
+        frame.procSpell = procSpell;
 
         if (numbers)
         {
@@ -837,11 +891,20 @@ namespace mai
             // the one that would silently ignore the step's guard. A guard has
             // to mean the same thing wherever a step is run from, or `if` for
             // one line means "usually".
+            //
+            // Which is why the proc spell is put where the Sight can find it
+            // here too: this walk has a frame it never queues, so nothing else
+            // would ever carry it.
+            uint32 const wasProcSpell = m_procSpell;
+            m_procSpell = procSpell;
+
             Step const& chosen = rule.steps.steps[pick];
             if (mai::Holds(rule.steps, chosen, this))
             {
                 Execute(run, chosen);
             }
+
+            m_procSpell = wasProcSpell;
             return;
         }
 
@@ -1033,6 +1096,9 @@ namespace mai
 
         ++m_running;
 
+        uint32 const wasProcSpell = m_procSpell;
+        m_procSpell = frame.procSpell;
+
         bool cancelled = false;
 
         // `this` is the Sight: a guard on a step is answered out of this
@@ -1055,6 +1121,7 @@ namespace mai
         }
 
         --m_running;
+        m_procSpell = wasProcSpell;
 
         if (cancelled)
         {
@@ -1645,7 +1712,7 @@ namespace mai
                 continue;
             }
 
-            Fire(armed, other, nullptr, false, &numbers);
+            Fire(armed, other, nullptr, false, &numbers, procSpellId);
         }
     }
 

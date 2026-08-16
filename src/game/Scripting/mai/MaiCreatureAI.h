@@ -193,9 +193,12 @@ namespace mai
             /// @a numbers is what the moment carried, for a sequence whose
             /// steps compute their own values. Null for every trigger that
             /// carries none, which is all but one of them.
+            /// @a procSpell is what set a proc off, for the guards that ask
+            /// what it was. Zero for every other trigger.
             bool Fire(Armed& armed, Unit* invoker = nullptr,
                       Creature* sender = nullptr, bool now = false,
-                      Combat::PointsInputs const* numbers = nullptr);
+                      Combat::PointsInputs const* numbers = nullptr,
+                      uint32 procSpell = 0);
 
             /// Whether the trigger's own condition holds, and re-arm it if so.
             /// Split from Fire because this is the half that reads the world.
@@ -206,7 +209,8 @@ namespace mai
             /// EventAI row.
             void Start(Rule const& rule, Unit* invoker, Creature* sender,
                        bool now = false,
-                       Combat::PointsInputs const* numbers = nullptr);
+                       Combat::PointsInputs const* numbers = nullptr,
+                       uint32 procSpell = 0);
 
             /// Advance every running sequence by @a diff.
             void Advance(uint32 diff);
@@ -268,6 +272,17 @@ namespace mai
             /// one is done: erasing is the one thing that moves the frames an
             /// index points at.
             uint32 m_running = 0;
+
+            /// The spell that set off the proc whose steps are being walked
+            /// right now, so `proc_family:` answers the same here as it does
+            /// for a sequence the world started.
+            ///
+            /// A member because THIS is the Sight, and a Sight is asked with
+            /// nothing but the guard -- the frame the walk is standing in is
+            /// not one of its arguments. Saved and restored around the walk
+            /// rather than zeroed, since a step may start a branch and run a
+            /// frame from inside a frame.
+            uint32 m_procSpell = 0;
 
             /// Whether any rule waits on line of sight, cached because
             /// MoveInLineOfSight is the hottest callback in the server.

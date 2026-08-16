@@ -169,10 +169,32 @@ CREATE TABLE `mai_step`
     -- it does not belong in `params`, and a step that merely wants to be
     -- conditional does not need a block around it.
     --
-    -- A sequence the world starts has no creature, so `instance:`, `aura:` and
-    -- `target_aura:` may be asked here while a bare name -- one of a creature's
-    -- own remembered numbers -- is refused at load, in the same words
-    -- `set_state` uses. `mai_rule_step` has the same column and no such limit.
+    -- A sequence the world starts has no creature, so `instance:`, `aura:`,
+    -- `target_aura:` and `proc_family:` may be asked here while a bare name --
+    -- one of a creature's own remembered numbers -- is refused at load, in the
+    -- same words `set_state` uses. `mai_rule_step` has the same column and no
+    -- such limit.
+    --
+    -- `source_class` is the class of whoever is acting, as `target_class` is
+    -- the class of whoever is acted on: zero for anything that is not a
+    -- player, so `source_class!=0` is "the actor is a player".
+    --
+    -- `reputation:<faction>` is the actor's standing as a RANK -- 0 hated to
+    -- 7 exalted -- so `reputation:932>=7` is exalted with the Aldor and
+    -- `>=5` is honoured. Unanswerable for anything but a player, which is why
+    -- a row asking it does not also have to say `source_class!=0`.
+    --
+    -- `proc_spell` is WHICH spell set a proc off, and zero means there was no
+    -- spell -- a white swing. So `proc_spell!=0` is "there has to have been
+    -- one" and `proc_spell!=26654` is "anything but that, a white hit
+    -- included".
+    --
+    -- `proc_family:N` is bit N of that same spell's class mask, and is a bit
+    -- NUMBER rather than the mask: `proc_family:42=1` for what C++ writes as
+    -- `& UI64LIT(0x40000000000)`. A mask with several bits in it means ANY of
+    -- them, which is `or`, which is two rows. Unanswerable with no spell,
+    -- where `proc_spell` answers zero -- a bit of a mask that does not exist
+    -- is not clear, it is nothing.
     `guard`    VARCHAR(255) NOT NULL DEFAULT '',
 
     -- Not part of `params` because it modifies the step rather than being an
@@ -187,6 +209,19 @@ CREATE TABLE `mai_step`
     -- is how a script picks ONE of several, and this is how it says "and
     -- sometimes a third as well".
     `chance`   TINYINT UNSIGNED NOT NULL DEFAULT 100,
+
+    -- WHO the step acts on. The same TARGET_T_* numbers `mai_rule_step` uses,
+    -- and zero -- "itself" -- is what every converted row means, because the
+    -- nine `dbscripts_on_*` tables had no such column: a queued command list
+    -- is told its target when it is queued.
+    --
+    -- A `proc` sequence is the reason this is here. Its steps are written
+    -- rather than converted, and the unit a proc is about is the one that was
+    -- HIT -- `select=6`, the invoker. Without the column those steps loaded
+    -- fine, ran fine, and quietly acted on the aura's owner instead: half the
+    -- proc rows are somebody else's business and every one of them would have
+    -- been the caster's.
+    `select`   TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
     `comment`  VARCHAR(255) NOT NULL DEFAULT '',
 

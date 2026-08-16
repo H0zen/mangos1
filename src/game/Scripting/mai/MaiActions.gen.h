@@ -115,6 +115,7 @@ namespace mai
         // combat
         CastSpell                  = 15,
         RemoveAura                 = 14,
+        RemoveAuraStack            = 159,
         AttackStart                = 26,
         DespawnSelf                = 18,
         Respawn                    = 41,
@@ -390,6 +391,12 @@ namespace mai
     inline constexpr ParamSpec g_actionParamsRemoveAura[] =
     {
         { "spell", ParamType::Spell, false },
+    };
+
+    inline constexpr ParamSpec g_actionParamsRemoveAuraStack[] =
+    {
+        { "spell", ParamType::Spell, false },
+        { "count", ParamType::U32, true },
     };
 
     inline constexpr ParamSpec g_actionParamsDespawnSelf[] =
@@ -843,6 +850,7 @@ namespace mai
         { ActionId::StandState, "stand_state", g_actionParamsStandState, 1, 1, 0 },
         { ActionId::CastSpell, "cast_spell", g_actionParamsCastSpell, 8, 4, FacetPoints },
         { ActionId::RemoveAura, "remove_aura", g_actionParamsRemoveAura, 1, 1, 0 },
+        { ActionId::RemoveAuraStack, "remove_aura_stack", g_actionParamsRemoveAuraStack, 2, 2, 0 },
         { ActionId::AttackStart, "attack_start", nullptr, 0, 0, 0 },
         { ActionId::DespawnSelf, "despawn_self", g_actionParamsDespawnSelf, 1, 1, 0 },
         { ActionId::Respawn, "respawn", nullptr, 0, 0, 0 },

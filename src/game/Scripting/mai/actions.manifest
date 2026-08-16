@@ -150,6 +150,17 @@ category combat = 0x04
     cast_spell              15   spell:spell flags:flags? credit_owner:bool? \
                                  stop_if_refused:bool? points
     remove_aura             14   spell:spell
+
+    # ONE STACK, where remove_aura takes the whole holder. A different
+    # instruction rather than a shade of the same one: Unstable Power is a
+    # buff that spends a charge each time it works, and told to remove the
+    # aura it would spend all of them at once.
+    #
+    # Not a parameter of remove_aura, because a `count` on the verb that
+    # removes everything would have to mean "unless" -- and a converted row
+    # with no count would then mean "all", which is the answer that verb
+    # already gives.
+    remove_aura_stack       159   spell:spell count:u32?
     attack_start            26
     despawn_self            18   delay:ms?
     respawn                 41

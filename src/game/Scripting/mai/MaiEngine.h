@@ -39,6 +39,7 @@
 #include <vector>
 
 class WorldObject;
+class Unit;
 
 namespace scripting
 {
@@ -170,9 +171,12 @@ namespace scripting
          */
         /// @param numbers What the moment carried, for the steps that compute
         ///                their own values. Null when it carried none.
+        /// @param procSpell The spell that set a proc off, for the guards that
+        ///                ask what it was. Zero everywhere else.
         bool RunNow(Map* map, uint32 type, uint32 id, WorldObject* source,
                     WorldObject* target, ObjectGuid owner, ObjectGuid item,
-                    Combat::PointsInputs const* numbers = nullptr);
+                    Combat::PointsInputs const* numbers = nullptr,
+                    uint32 procSpell = 0);
 
         static MaiEngine* s_instance;
 

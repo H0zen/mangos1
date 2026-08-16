@@ -35,6 +35,9 @@
 
 #include "Creature.h"
 #include "Database/DatabaseEnv.h"
+// For sSpellStore, which a guard about the spell that set a proc off has to
+// read the class mask out of.
+#include "DBCStores.h"
 #include "GameObject.h"
 // Not for a pointer -- the seam forward-declares it -- but for GetData, which
 // a guard about an instance's own state has to call.
@@ -313,8 +316,43 @@ namespace scripting
             /// unanswerable there rather than zero.
             mai::Actor const* actor = nullptr;
 
+            /// The spell that set a proc off. Zero on every other kind, which
+            /// is what makes `proc_family:` unanswerable there.
+            uint32 procSpell = 0;
+
             bool Ask(mai::Guard const& guard, uint32& held) const override
             {
+                // Before the map, because they need none: the spell that set a
+                // proc off is a number the moment carried, and a class mask
+                // comes out of the DBC rather than out of the world.
+                if (guard.of == mai::GuardProcSpell)
+                {
+                    // Zero and answerable, unlike the family below: "no spell
+                    // at all" is what a white swing is, and it is half of what
+                    // the handlers ask about.
+                    held = procSpell;
+                    return true;
+                }
+
+                if (guard.of == mai::GuardProcFamily)
+                {
+                    if (procSpell == 0)
+                    {
+                        return false;
+                    }
+
+                    SpellEntry const* spell =
+                        sSpellStore.LookupEntry(procSpell);
+                    if (!spell)
+                    {
+                        return false;
+                    }
+
+                    held = spell->SpellClassMask.IsFitToFamilyMask(
+                               UI64LIT(1) << guard.subject) ? 1u : 0u;
+                    return true;
+                }
+
                 if (!map)
                 {
                     return false;
@@ -339,6 +377,39 @@ namespace scripting
                     }
 
                     held = actor->states[guard.subject];
+                    return true;
+                }
+
+                if (guard.of == mai::GuardSourceClass ||
+                    guard.of == mai::GuardReputation)
+                {
+                    Unit* from = source.IsEmpty() ? nullptr
+                                                  : map->GetUnit(source);
+                    if (!from)
+                    {
+                        return false;
+                    }
+
+                    if (from->GetTypeId() != TYPEID_PLAYER)
+                    {
+                        // A class of zero says "not a player", which is a real
+                        // answer. A reputation has no such reading -- a
+                        // creature does not stand at REP_HATED with anyone --
+                        // so that one is simply unanswerable.
+                        if (guard.of == mai::GuardReputation)
+                        {
+                            return false;
+                        }
+
+                        held = 0;
+                        return true;
+                    }
+
+                    Player* who = static_cast<Player*>(from);
+
+                    held = guard.of == mai::GuardSourceClass
+                         ? uint32(who->getClass())
+                         : uint32(who->GetReputationRank(guard.subject));
                     return true;
                 }
 
@@ -667,7 +738,7 @@ namespace scripting
             std::unique_ptr<QueryResult> rows(WorldDatabase.Query(
                 "SELECT `kind`+0, `script`, `at_ms`, `action`, `params`, "
                 "`buddy_entry`, `buddy_range`, `buddy_flags`, `chance`, `seq`, "
-                "`guard` "
+                "`guard`, `select` "
                 "FROM `mai_step` ORDER BY `kind`, `script`, `seq`"));
 
             while (rows && rows->NextRow())
@@ -717,6 +788,12 @@ namespace scripting
                 {
                     step.chance = 100;
                 }
+
+                // WHO it acts on. Zero -- itself -- is what every converted row
+                // means, and the selectors are only consulted where the run
+                // turns them on: `proc`, whose steps were written rather than
+                // converted and whose other end is the unit that was hit.
+                step.select = mai::Selector(field[11].GetUInt8());
 
                 Draft& draft = byScript[std::make_pair(type, script)];
 
@@ -1376,7 +1453,7 @@ namespace scripting
             handled = s_instance->RunNow(actor->GetMap(), mai::KindProc,
                                          auraSpellId, actor, other,
                                          ObjectGuid(), ObjectGuid(),
-                                         &numbers) || handled;
+                                         &numbers, procSpellId) || handled;
         }
 
         // Then the creature's own rules, for the procs whose behaviour is a
@@ -1399,7 +1476,8 @@ namespace scripting
     bool MaiEngine::RunNow(Map* map, uint32 type, uint32 id,
                            WorldObject* source, WorldObject* target,
                            ObjectGuid owner, ObjectGuid item,
-                           Combat::PointsInputs const* numbers)
+                           Combat::PointsInputs const* numbers,
+                           uint32 procSpell)
     {
         auto found = m_sequences.find(Key{ type, id });
         if (found == m_sequences.end() || found->second.steps.empty())
@@ -1472,10 +1550,16 @@ namespace scripting
         frame.item = item;
         frame.stamp = s_stamp;
 
+        // On the frame as well as on the sight, because the half of a proc
+        // sequence that has a time on it is queued and asked again next tick,
+        // by which point nothing else remembers what set it off.
+        frame.procSpell = procSpell;
+
         WorldSight sight;
         sight.map = map;
         sight.source = frame.source;
         sight.target = frame.target;
+        sight.procSpell = procSpell;
 
         // THROUGH THE RUNNER, with no time passed, which is what makes the
         // steps at time zero come due and nothing else.
@@ -1577,6 +1661,7 @@ namespace scripting
             sight.source = frame.source;
             sight.target = frame.target;
             sight.actor = frame.hasActor ? &frame.actor : nullptr;
+            sight.procSpell = frame.procSpell;
 
             mai::Runner run(frame, diff, &sight);
 

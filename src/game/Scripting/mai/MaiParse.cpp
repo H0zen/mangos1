@@ -443,6 +443,8 @@ namespace mai
                 { "instance:",    GuardInstance },
                 { "aura:",        GuardAura },
                 { "target_aura:", GuardTargetAura },
+                { "proc_family:", GuardProcFamily },
+                { "reputation:",  GuardReputation },
             };
 
             bool prefixed = false;
@@ -473,15 +475,33 @@ namespace mai
                 break;
             }
 
-            // Questions about the pair. Answerable with no owner, like
-            // `phase` and unlike a state: they are about the two units a step
-            // already has, which is why a sequence the world started can ask
-            // them at all.
+            // A class mask has 64 bits, so anything above 63 is somebody who
+            // wrote the mask instead of the bit -- `proc_family:32768` for
+            // what is bit 15. Refused with the number, because read as a bit
+            // index it would simply never hold and the row would look like a
+            // proc that does not fire.
+            if (prefixed && guard.of == GuardProcFamily && guard.subject >= 64)
+            {
+                std::snprintf(buffer, sizeof(buffer),
+                              "guard '%s' names bit %u; a spell class mask has "
+                              "64 of them, and this is a bit NUMBER rather "
+                              "than the mask itself", held.c_str(),
+                              guard.subject);
+                error = buffer;
+                return false;
+            }
+
+            // Questions about the pair, and about the moment. Answerable with
+            // no owner, like `phase` and unlike a state: they are about the
+            // two units a step already has, or about what started the run,
+            // which is why a sequence the world started can ask them at all.
             static struct { char const* word; GuardOf of; } const kPairWords[] =
             {
                 { "target_is_self",  GuardTargetIsSelf },
                 { "target_friendly", GuardTargetFriendly },
                 { "target_class",    GuardTargetClass },
+                { "source_class",    GuardSourceClass },
+                { "proc_spell",      GuardProcSpell },
             };
 
             if (!prefixed)

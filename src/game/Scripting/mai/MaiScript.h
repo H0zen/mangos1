@@ -191,7 +191,83 @@ namespace mai
          */
         GuardTargetIsSelf,
         GuardTargetFriendly,
-        GuardTargetClass
+        GuardTargetClass,
+
+        /**
+         * `proc_family:N` -- bit N of the TRIGGERING spell's class mask.
+         *
+         * A proc sequence is keyed by the aura's spell, so what the aura is
+         * was never in question; what could not be asked is what set it off.
+         * Four of the six proc handlers that cannot be data ask only that --
+         * "was it a Fireball rather than a Frostbolt" -- and asked it against
+         * a 64-bit mask.
+         *
+         * A BIT INDEX rather than a mask, and that is what lets the question
+         * fit a guard at all: `value` is 32 bits and the masks reach past 40,
+         * so `proc_family:42=1` says in the guard's own vocabulary what
+         * `& UI64LIT(0x40000000000)` says in C++.
+         *
+         * A mask with several bits in it means ANY of them, which is `or` --
+         * and MAI writes `or` as two rows. Nothing here grows to express it.
+         *
+         * Unanswerable when the moment carried no triggering spell, which is
+         * every sequence that is not a proc.
+         */
+        GuardProcFamily,
+
+        /**
+         * `proc_spell` -- WHICH spell set the proc off, by id.
+         *
+         * ZERO IS A REAL ANSWER and means there was no spell: a white swing.
+         * That is the difference from `proc_family:`, which is unanswerable
+         * without a spell because a bit of a mask that does not exist is not
+         * clear, it is nothing -- and it is what lets the two shapes the
+         * handlers actually use be written down at all:
+         *
+         *     proc_spell!=26654   Sweeping Strikes, which must not chain off
+         *                         its own trigger and MUST still fire on a
+         *                         white hit -- zero is not 26654, so it holds
+         *     proc_spell!=0       "there has to have been a spell", which is
+         *                         `if (!procSpell) return Failed` and is the
+         *                         most common line in the proc handlers
+         *
+         * Read outside a proc it answers zero, because a moment that carried
+         * no triggering spell is indistinguishable from one that could not
+         * carry one. The same shape as `target_class=0`, and the reason the
+         * name says `proc`.
+         */
+        GuardProcSpell,
+
+        /**
+         * `source_class=N` -- the class of whoever is ACTING, as
+         * `target_class` is the class of whoever is acted on.
+         *
+         * Zero for anything that is not a player, so `source_class!=0` is
+         * "the actor is a player" and needs no second name -- the same shape
+         * as its twin, for the same reason.
+         *
+         * The pair reads oddly at first: `aura:` is the source's and
+         * `target_aura:` is the target's, so an unprefixed name would have
+         * been the convention. `class` on its own is too good a word for one
+         * of a creature's own remembered numbers to be forbidden from using.
+         */
+        GuardSourceClass,
+
+        /**
+         * `reputation:<faction>` -- the ACTOR's standing with that faction,
+         * as a RANK: ReputationRank in SharedDefines, 0 hated .. 7 exalted.
+         *
+         * A rank rather than a flag, so `reputation:932>=7` is exalted and
+         * `reputation:932>=5` is honoured -- one comparison covering the
+         * whole ladder, where a name per rung would have been eight guards.
+         *
+         * Unanswerable when the actor is not a player, which is the honest
+         * answer and also the useful one: a creature has no reputation, and
+         * read as `REP_HATED` it would be a definite claim about a standing
+         * that does not exist. It also means a row does not need to say
+         * `source_class!=0` first.
+         */
+        GuardReputation
     };
 
     struct Guard
@@ -733,6 +809,20 @@ namespace mai
          * numbers, which is most of them.
          */
         Combat::PointsInputs numbers;
+
+        /**
+         * The spell that set the proc off, when a proc started this.
+         *
+         * Carried for the same reason @a numbers is: a proc sequence whose
+         * later half is queued would otherwise have no triggering spell left
+         * to ask about, so a `proc_family:` guard on a delayed step would be
+         * unanswerable -- and an unanswerable guard fails, silently, three
+         * seconds after the half that worked.
+         *
+         * Zero for every sequence not started by a proc, and for a proc that
+         * was not set off by a spell at all -- a white swing.
+         */
+        uint32          procSpell = 0;
 
         /**
          * Which LOADING of the shared sequence table @a sequence points into.

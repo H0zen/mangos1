@@ -1579,6 +1579,29 @@ namespace mai
             return false;
         }
 
+        /**
+         * Spend one charge of a stacking aura.
+         *
+         * The whole holder goes with `remove_aura`; this takes stacks off it
+         * and lets the rest stand. A buff that works by being spent -- Unstable
+         * Power, Restless Strength -- is the shape, and removing the holder
+         * instead would spend every charge at once on the first hit.
+         *
+         * A count of zero is a row that means nothing, so it reads as one:
+         * `remove_aura_stack spell=24659` with nothing else said is what
+         * every conversion of `RemoveAuraHolderFromStack` wants.
+         */
+        bool RemoveAuraStack(Doing& doing, Step const& step)
+        {
+            if (Unit* self = doing.SourceUnit())
+            {
+                uint32 const count = step.Has(1) ? Given(step, 1) : 1;
+                self->RemoveAuraHolderFromStack(Given(step, 0),
+                                                count ? count : 1);
+            }
+            return false;
+        }
+
         bool RemoveUnitFlag(Doing& doing, Step const& step)
         {
             if (Unit* self = doing.SourceUnit())
@@ -1744,6 +1767,7 @@ namespace mai
             case ActionId::SetUnitField:      return SetUnitField(doing, step);
             case ActionId::SetUnitFlag:       return SetUnitFlag(doing, step);
             case ActionId::RemoveUnitFlag:    return RemoveUnitFlag(doing, step);
+            case ActionId::RemoveAuraStack:   return RemoveAuraStack(doing, step);
             case ActionId::SetSheath:         return SetSheath(doing, step);
             case ActionId::EmoteTarget:       return EmoteTarget(doing, step);
 
