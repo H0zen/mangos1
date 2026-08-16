@@ -186,12 +186,14 @@ namespace Nav
                 }
                 else
                 {
-                    // AdmitsGround and not Admits: the mask says a makrura may enter
-                    // water, and the rule says a makrura still walks the bottom.
-                    if (!profile.AdmitsGround(s.area))
-                    {
-                        continue;
-                    }
+                    // GATHERED WITHOUT ASKING PERMISSION. What liquid stands over this
+                    // column is a fact about the terrain; whether this mover may sit in
+                    // it is a separate question, asked below where it is used. Gating
+                    // the gather on AdmitsGround made the two one, and since a walker
+                    // is never admitted to water it could never learn it was UNDER any
+                    // -- so the waiver written for exactly that case could not fire,
+                    // the seabed fell outside the tolerance as it rose, and the makrura
+                    // was left unseated ten yards inside the rock.
                     const float gap = std::fabs(z - s.z);
                     if (gap < liquidGap)
                     {
@@ -214,8 +216,11 @@ namespace Nav
                 }
             }
 
-            // Anything else that may be in the liquid keeps its depth there.
-            if (liquid && z <= liquid->z)
+            // Anything else that may be in the liquid keeps its depth there. Here is
+            // where permission belongs: AdmitsGround and not Admits, because the mask
+            // says a makrura may enter water and the rule says it still walks the
+            // bottom -- so it never reaches this branch, and a pet or a fish does.
+            if (liquid && z <= liquid->z && profile.AdmitsGround(liquid->area))
             {
                 const float top = liquid->z - SWIM_SEAT_DEPTH;
                 const float bottom = floor ? floor->z + GROUND_CLEARANCE
@@ -241,7 +246,8 @@ namespace Nav
                 outZ = floor->z + GROUND_CLEARANCE;
                 return true;
             }
-            if (liquid && liquidGap <= tolerance)
+            if (liquid && liquidGap <= tolerance &&
+                profile.AdmitsGround(liquid->area))
             {
                 outArea = AreaOf(liquid->area);
                 outZ = liquid->z + SeatOffset(profile, outArea);

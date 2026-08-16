@@ -472,6 +472,63 @@ TEST(Wire_OnlyTheVerifiedBitsAreEverEmitted)
     }
 }
 
+/// THE CREATE BLOCK MUST ANNOUNCE EXACTLY THE FACING IT WRITES.
+///
+/// SMSG_MONSTER_MOVE spends a byte on the facing and the flags say nothing about it;
+/// the spline block inside SMSG_UPDATE_OBJECT has no such byte, so there the flag word
+/// is the ONLY thing telling the client how many facing bytes follow. The test above
+/// pins FlagsOf to two bits -- correct, and correct for the monster move -- which is
+/// exactly why the create block needs three more, and why they are added where it is
+/// written rather than in FlagsOf.
+///
+/// Written without them the block laid down 12, 8 or 4 bytes nobody consumed, every
+/// later field was read shifted, and the point count came out of the middle of a
+/// coordinate. The client asked Windows for four gigabytes and died. Twice.
+TEST(Wire_EveryFacingDeclaresItsOwnLength)
+{
+    struct Row
+    {
+        Facing::Mode mode;
+        uint32       bit;
+        uint8        bytes;
+    };
+
+    const Row rows[] =
+    {
+        { Facing::Mode::Travel, 0,                       0  },
+        { Facing::Mode::Angle,  Wire::FLAG_FINAL_ANGLE,  4  },
+        { Facing::Mode::Target, Wire::FLAG_FINAL_TARGET, 8  },
+        { Facing::Mode::Spot,   Wire::FLAG_FINAL_POINT,  12 },
+    };
+
+    for (const Row& row : rows)
+    {
+        const Wire::FacingWire wire = Wire::FacingWireOf(row.mode);
+        CHECK_EQ(wire.bit, row.bit);
+        CHECK_EQ(uint32(wire.bytes), uint32(row.bytes));
+
+        // A bit with no bytes, or bytes with no bit, is the defect itself.
+        CHECK_EQ(wire.bit == 0, wire.bytes == 0);
+    }
+
+    // And the three bits stay OUT of FlagsOf, because SMSG_MONSTER_MOVE carries the
+    // facing in its type byte and would be corrupted by a second announcement.
+    const uint32 facingBits = Wire::FLAG_FINAL_POINT | Wire::FLAG_FINAL_TARGET |
+                              Wire::FLAG_FINAL_ANGLE;
+    std::vector<Vector3> pts;
+    pts.push_back(Vector3(0.0f, 0.0f, 0.0f));
+    pts.push_back(Vector3(30.0f, 0.0f, 0.0f));
+    const Facing facings[] = { Facing(), Facing::ToAngle(1.25f),
+                               Facing::ToSpot(Vector3(9.0f, 8.0f, 7.0f)) };
+    for (const Facing& f : facings)
+    {
+        const Course c = Course::Plan(World(), pts, Gait::Run, 7.0f, f,
+                                      Curve::Segmented, 0, 1);
+        REQUIRE(!c.Empty());
+        CHECK_EQ(Wire::FlagsOf(c) & facingBits, 0u);
+    }
+}
+
 /// Rounding to nearest rather than toward zero halves the error, and the client cannot
 /// tell the difference -- it only multiplies by the quantum.
 TEST(Wire_QuantisationRoundsToNearest)

@@ -113,6 +113,23 @@ namespace Helm
             /// parabolic. Not emitted for the same reason.
             FLAG_NO_SPLINE = 0x00000400,
 
+            /// THE FINAL FACING, AS THE CREATE BLOCK CARRIES IT.
+            ///
+            /// SMSG_MONSTER_MOVE spends a whole byte on the facing (see Form) and the
+            /// flags say nothing about it. The spline block inside SMSG_UPDATE_OBJECT
+            /// has no such byte: there the flags word is the ONLY thing that tells the
+            /// client how many bytes of facing follow, and it reads 12, 8, 4 or none
+            /// off exactly these three bits.
+            ///
+            /// Written without them, a create block for any unit moving with a facing
+            /// laid down 12, 8 or 4 bytes the client never consumed, and every field
+            /// after -- elapsed, duration, id, and the point count -- was read shifted.
+            /// A count taken from the middle of a coordinate is what asked the client
+            /// for four gigabytes.
+            FLAG_FINAL_POINT = 0x00010000,
+            FLAG_FINAL_TARGET = 0x00020000,
+            FLAG_FINAL_ANGLE = 0x00040000,
+
             /// A closed patrol: the client loops the path instead of stopping. Seen
             /// once, on a 36.3-second leg, together with FLAG_ENTER_CYCLE -- and at
             /// the position the 2.4.3 table gives it, which is worth having confirmed
@@ -125,6 +142,38 @@ namespace Helm
             /// not emitted.
             FLAG_ENTER_CYCLE = 0x00200000
         };
+
+        /**
+         * @brief The flag bit a facing costs in the create block, and the bytes it buys.
+         *
+         * ONE TABLE, and that is the whole point of it. The defect this replaces was two
+         * independent switches -- the flag word came from FlagsOf, which never mentions
+         * facing, and the payload came from Facing::Mode, which always does -- so the
+         * block declared no facing and then wrote one. Twelve, eight or four bytes the
+         * client never consumed, every field after them read shifted, and a point count
+         * taken from the middle of a coordinate asked Windows for four gigabytes.
+         *
+         * With the bit and its length quoted from the same row, a facing that is written
+         * is a facing that was declared. They cannot drift, because there is nothing left
+         * to drift apart.
+         */
+        struct FacingWire
+        {
+            uint32 bit;    ///< The flag the client reads the length off.
+            uint8  bytes;  ///< How many follow the flag word.
+        };
+
+        inline FacingWire FacingWireOf(Facing::Mode mode)
+        {
+            switch (mode)
+            {
+                case Facing::Mode::Spot:   return FacingWire{ FLAG_FINAL_POINT, 12 };
+                case Facing::Mode::Target: return FacingWire{ FLAG_FINAL_TARGET, 8 };
+                case Facing::Mode::Angle:  return FacingWire{ FLAG_FINAL_ANGLE, 4 };
+                case Facing::Mode::Travel:
+                default:                   return FacingWire{ 0, 0 };
+            }
+        }
 
         /// The type byte, which carries the final facing entirely outside the flags.
         enum Form : uint8

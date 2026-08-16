@@ -136,9 +136,17 @@ namespace Helm
         {
             std::vector<Vector3> const& pts = course.Points();
 
-            out << uint32(FlagsOf(course));
-
+            // THE FLAG WORD AND THE FACING ARE DECIDED TOGETHER, because here the flag
+            // word is the only thing that tells the client how much facing to read.
+            // Deciding them apart -- flags from FlagsOf, payload from facing.mode --
+            // wrote a facing nothing announced, and shifted every field after it.
             Facing const& facing = course.GetFacing();
+            const FacingWire wire = FacingWireOf(facing.mode);
+
+            out << uint32(FlagsOf(course) | wire.bit);
+
+            // wire.bytes says how many the client will now read. The rows below write
+            // exactly that many, and FacingWireOf is where the two are kept equal.
             switch (facing.mode)
             {
                 case Facing::Mode::Spot:
@@ -152,7 +160,7 @@ namespace Helm
                     break;
                 case Facing::Mode::Travel:
                 default:
-                    break;   // nothing follows; the flag word said so
+                    break;   // nothing follows, and the flag word now says so
             }
 
             out << int32(course.Elapsed(now));
