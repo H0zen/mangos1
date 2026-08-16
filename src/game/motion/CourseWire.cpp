@@ -143,22 +143,14 @@ namespace Helm
             Facing const& facing = course.GetFacing();
             const FacingWire wire = FacingWireOf(facing.mode);
 
-            // THE SAME FORCED Runmode THE MONSTER MOVE CARRIES. One leg was going out
-            // described two ways -- 0x100 on SMSG_MONSTER_MOVE, 0x000 here -- and this
-            // is the half where the client cannot survive it.
+            // THE SAME FORCED Runmode THE MONSTER MOVE CARRIES, so that one leg is not
+            // described two ways: 0x100 there and 0x000 here.
             //
-            // The point count its geometry is sized from does not come from the count
-            // field this block carries: that fills a raw array, and the point buffer is
-            // built by an initialiser which branches on THIS word. With no bit set the
-            // initialiser does not run, the point count stays at the zero the object was
-            // constructed with, and the client then sizes its overflow array as
-            // count - 26, because twenty-five points live inline. Zero gives -26, four
-            // bytes each gives -104, and -104 read as unsigned is the 4294967192 the
-            // crash reports have been printing all day.
-            //
-            // WriteLaunch has forced this bit since it was written, with a comment
-            // saying the client has strange issues without it. This is what one of
-            // those issues is.
+            // Kept for consistency and for the reason WriteLaunch gives -- the 2.4.3
+            // client has strange issues without it -- and NOT for the reason an earlier
+            // version of this comment gave. Nothing in the client branches on 0x100 in
+            // this word; that was asserted without being checked and it was wrong. The
+            // crash it was written to explain is the point count, below.
             out << uint32(FlagsOf(course) | FLAG_RUNNING | wire.bit);
 
             // wire.bytes says how many the client will now read. The rows below write
@@ -183,26 +175,51 @@ namespace Helm
             out << int32(course.Duration());
             out << uint32(course.Id());
 
-            // THE PATH AS PLANNED, AND NOTHING ELSE. Read out of the client rather
-            // than reasoned about: the reader of this block takes a count and then
-            // exactly `count * 12` bytes of absolute points, and the routine that
-            // merely skips the block sizes it as `12 * count + 12` -- the points, plus
-            // the one destination that follows. Nowhere does it expect the two virtual
-            // controls a Catmull-Rom evaluator needs; it builds those itself, the same
-            // way it does for SMSG_MONSTER_MOVE.
+            // FOUR POINTS AT LEAST, AND THAT IS THE WHOLE OF THE RULE.
             //
-            // Sending them anyway is not a crash, because the count still matches what
-            // follows. It is worse than a crash: the client pads an already-padded
-            // array, so its first segment starts behind the unit and its last is a tail
-            // of zero length, and only whoever received the create block sees that
-            // curve. Everyone watching the same creature move draws a different one.
-            out << uint32(pts.size());
-            for (Vector3 const& p : pts)
-            {
-                WriteVector(out, p);
-            }
+            // The client builds its segment-length table only when the point count is
+            // greater than three:
+            //
+            //     if ( count > 3 ) { build the length table; total length }
+            //
+            // Below that it does nothing at all -- and the overflow half of that table
+            // is a {count, pointer} pair that NOTHING ELSE initialises. Not the
+            // constructor of the parse buffer, which sets the fields around it and
+            // steps over that one; not the point reader, which fills a different array.
+            // So a create block of two or three points leaves a length sitting on the
+            // stack, and the copy made when the unit is constructed hands it to the
+            // allocator. Four bytes an entry, a stack value of -26, and the client asks
+            // for 4294967192 bytes and dies. That number has been in every crash report
+            // for a day.
+            //
+            // Retail never meets it because the reference sends the spline's internal
+            // control array, phantom controls and all, so its shortest possible path
+            // goes out as four. Ours went out as two.
+            //
+            // The padding rule, quoted rather than invented: a reflected control in
+            // front (2*p0 - p1), the path, then the last point repeated. SMSG_MONSTER_
+            // MOVE stays the opposite and untouched -- there the count is the INDEX of
+            // the final point and no virtual controls are sent at all.
+            const size_t n = pts.size();
+            const Vector3 first = n ? pts.front() : Vector3();
+            const Vector3 second = n > 1 ? pts[1] : first;
+            const Vector3 last = n ? pts.back() : Vector3();
 
-            WriteVector(out, pts.empty() ? Vector3() : pts.back());
+            // A course carries at least two points -- Course::Empty says so -- and two
+            // plus the pair of controls is four. The max() is for the degenerate call
+            // that should not happen and must not be a crash if it does.
+            const size_t real = n < 2 ? 2 : n;
+            out << uint32(real + 2);
+
+            WriteVector(out, first + (first - second));   // the reflected control
+            WriteVector(out, first);
+            for (size_t i = 1; i < real; ++i)
+            {
+                WriteVector(out, i < n ? pts[i] : last);
+            }
+            WriteVector(out, last);                       // the repeated control
+
+            WriteVector(out, last);                       // the final destination
         }
 
         void WriteSync(Leg const& leg, Instant /*now*/, ActorId mover, WorldPacket& out)
